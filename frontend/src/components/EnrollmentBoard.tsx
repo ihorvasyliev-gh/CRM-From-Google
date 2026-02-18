@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe
 } from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -146,6 +146,7 @@ export default function EnrollmentBoard() {
 
     // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>('all');
+    const [selectedVariant, setSelectedVariant] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -326,6 +327,9 @@ export default function EnrollmentBoard() {
     const filteredEnrollments = useMemo(() => {
         let result = enrollments;
         if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
+        if (selectedVariant !== 'all') {
+            result = result.filter(e => (e.course_variant || '').trim().toLowerCase() === selectedVariant.toLowerCase());
+        }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(e => {
@@ -346,7 +350,7 @@ export default function EnrollmentBoard() {
             result = result.filter(e => new Date(e.created_at) <= to);
         }
         return result;
-    }, [enrollments, selectedCourse, searchQuery, dateFrom, dateTo]);
+    }, [enrollments, selectedCourse, selectedVariant, searchQuery, dateFrom, dateTo]);
 
     // ─── Group by Status ────────────────────────────────────
     const byStatus = useMemo(() => {
@@ -355,6 +359,14 @@ export default function EnrollmentBoard() {
         filteredEnrollments.forEach(e => {
             if (map[e.status]) map[e.status].push(e);
             else map[e.status] = [e];
+        });
+        // Sort each group alphabetically by last name, first name
+        Object.values(map).forEach(arr => {
+            arr.sort((a, b) => {
+                const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
+                const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
+                return aName.localeCompare(bName);
+            });
         });
         return map;
     }, [filteredEnrollments]);
@@ -420,7 +432,19 @@ export default function EnrollmentBoard() {
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [enrollments]);
 
-    const hasFilters = searchQuery || selectedCourse !== 'all' || dateFrom || dateTo;
+    // Unique language variants (case-insensitive dedup)
+    const uniqueVariants = useMemo(() => {
+        const seen = new Map<string, string>();
+        enrollments.forEach(e => {
+            const v = (e.course_variant || '').trim();
+            if (v && !seen.has(v.toLowerCase())) {
+                seen.set(v.toLowerCase(), v.charAt(0).toUpperCase() + v.slice(1).toLowerCase());
+            }
+        });
+        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+    }, [enrollments]);
+
+    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo;
     const selectedCount = selectedIds.size;
     const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
 
@@ -497,6 +521,34 @@ export default function EnrollmentBoard() {
                     ))}
                 </div>
 
+                {/* Row 2b: Language chips */}
+                {uniqueVariants.length > 1 && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <Globe size={14} className="text-surface-400 mr-0.5" />
+                        <button
+                            onClick={() => setSelectedVariant('all')}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === 'all'
+                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
+                                }`}
+                        >
+                            All Languages
+                        </button>
+                        {uniqueVariants.map(v => (
+                            <button
+                                key={v}
+                                onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
+                                className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === v
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
+                                    }`}
+                            >
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Row 3: Date filter + Clear */}
                 <div className="flex flex-wrap gap-2.5 items-center">
                     <div className="flex items-center gap-1.5 text-surface-400">
@@ -526,6 +578,7 @@ export default function EnrollmentBoard() {
                             onClick={() => {
                                 setSearchQuery('');
                                 setSelectedCourse('all');
+                                setSelectedVariant('all');
                                 setDateFrom('');
                                 setDateTo('');
                             }}
@@ -628,6 +681,10 @@ export default function EnrollmentBoard() {
                                                 : 'border-surface-100 bg-white hover:shadow-sm hover:border-surface-200'
                                                 }`}
                                             onClick={() => toggleSelect(enrollment.id)}
+                                            title={[
+                                                enrollment.students?.email,
+                                                enrollment.students?.phone,
+                                            ].filter(Boolean).join(' • ') || undefined}
                                         >
                                             <div className="flex items-start gap-2.5">
                                                 {/* Checkbox */}
