@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+
 import { X, Loader2, User } from 'lucide-react';
 
 export interface StudentFormData {

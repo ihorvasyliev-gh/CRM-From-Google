@@ -58,7 +58,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             .select('id, status, course_variant, created_at, courses(name)')
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
-        if (data) setEnrollments(data as Enrollment[]);
+        if (data) setEnrollments(data as unknown as Enrollment[]);
     }
 
     function getAvatarGradient(id: string): string {
