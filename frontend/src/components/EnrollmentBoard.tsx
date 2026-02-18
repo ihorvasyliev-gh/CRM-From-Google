@@ -1,6 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, XCircle, Send, Search, Copy, Calendar, Filter, Check, X } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Send, Search, Copy, Calendar, Filter, Check, X, Plus, Trash2 } from 'lucide-react';
+import EnrollmentModal from './EnrollmentModal';
+import ConfirmDialog from './ConfirmDialog';
+import Toast, { ToastData } from './Toast';
 
 // --- Types ---
 interface Student {
@@ -21,6 +24,7 @@ interface Enrollment {
     course_id: string;
     status: string;
     course_variant: string | null;
+    notes: string | null;
     created_at: string;
     students: Student | null;
     courses: Course | null;
@@ -67,7 +71,6 @@ function collectEmails(enrollments: Enrollment[]): string {
     const emails = enrollments
         .map(e => e.students?.email)
         .filter((email): email is string => !!email && email.trim() !== '');
-    // Deduplicate
     return [...new Set(emails)].join('; ');
 }
 
@@ -84,21 +87,21 @@ export default function EnrollmentBoard() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
 
+    // Modals
+    const [enrollModalOpen, setEnrollModalOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<Enrollment | null>(null);
+
     // Toast
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<ToastData | null>(null);
+
+    const showToast = useCallback((message: string, type: 'success' | 'error') => {
+        setToast({ message, type });
+    }, []);
 
     useEffect(() => {
         fetchCourses();
         fetchEnrollments();
     }, []);
-
-    // Auto-hide toast
-    useEffect(() => {
-        if (toast) {
-            const t = setTimeout(() => setToast(null), 3000);
-            return () => clearTimeout(t);
-        }
-    }, [toast]);
 
     async function fetchCourses() {
         const { data } = await supabase.from('courses').select('*').order('name');
@@ -123,8 +126,6 @@ export default function EnrollmentBoard() {
     async function bulkUpdateStatus(newStatus: string) {
         if (selectedIds.size === 0) return;
         const ids = Array.from(selectedIds);
-
-        // Update in DB (Supabase supports .in() filter)
         const { error } = await supabase
             .from('enrollments')
             .update({ status: newStatus })
@@ -139,25 +140,25 @@ export default function EnrollmentBoard() {
         }
     }
 
-    function showToast(message: string, type: 'success' | 'error') {
-        setToast({ message, type });
+    async function handleDeleteEnrollment() {
+        if (!deleteTarget) return;
+        const { error } = await supabase.from('enrollments').delete().eq('id', deleteTarget.id);
+        if (!error) {
+            setEnrollments(prev => prev.filter(e => e.id !== deleteTarget.id));
+            selectedIds.delete(deleteTarget.id);
+            setSelectedIds(new Set(selectedIds));
+            showToast('Enrollment deleted', 'success');
+        } else {
+            showToast('Failed to delete enrollment', 'error');
+        }
+        setDeleteTarget(null);
     }
 
     // --- Filtering ---
     const filteredEnrollments = useMemo(() => {
         let result = enrollments;
-
-        // Course filter
-        if (selectedCourse !== 'all') {
-            result = result.filter(e => e.course_id === selectedCourse);
-        }
-
-        // Status filter
-        if (selectedStatus !== 'all') {
-            result = result.filter(e => e.status === selectedStatus);
-        }
-
-        // Search filter
+        if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
+        if (selectedStatus !== 'all') result = result.filter(e => e.status === selectedStatus);
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(e => {
@@ -167,8 +168,6 @@ export default function EnrollmentBoard() {
                 return name.includes(q) || email.includes(q) || phone.includes(q);
             });
         }
-
-        // Date filter
         if (dateFrom) {
             const from = new Date(dateFrom);
             from.setHours(0, 0, 0, 0);
@@ -179,31 +178,26 @@ export default function EnrollmentBoard() {
             to.setHours(23, 59, 59, 999);
             result = result.filter(e => new Date(e.created_at) <= to);
         }
-
         return result;
     }, [enrollments, selectedCourse, selectedStatus, searchQuery, dateFrom, dateTo]);
 
-    // --- Grouping (case-insensitive) ---
+    // --- Grouping ---
     const groupedByCourse = useMemo(() => {
         const normalizedMap: Record<string, { displayName: string; items: Enrollment[] }> = {};
-
         for (const enrollment of filteredEnrollments) {
             const rawKey = buildGroupKey(enrollment);
             const normKey = normalizeGroupKey(rawKey);
-
             if (!normalizedMap[normKey]) {
                 normalizedMap[normKey] = { displayName: rawKey, items: [] };
             }
             normalizedMap[normKey].items.push(enrollment);
         }
-
-        // Sort groups alphabetically
         return Object.values(normalizedMap).sort((a, b) =>
             a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
         );
     }, [filteredEnrollments]);
 
-    // --- Selection helpers ---
+    // --- Selection ---
     function toggleSelect(id: string) {
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -245,33 +239,40 @@ export default function EnrollmentBoard() {
         await handleCopyEmails(selected, `${selected.length}`);
     }
 
-    // --- Render ---
     const selectedCount = selectedIds.size;
 
     return (
         <div className="space-y-4 pb-24">
             {/* === Toolbar === */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-3">
-                {/* Row 1: Title + Search */}
+                {/* Row 1: Title + Search + Add */}
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <h2 className="text-lg font-semibold text-slate-800">Enrollments</h2>
-                    <div className="relative w-full sm:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Search by name, email or phone..."
-                            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="relative flex-1 sm:w-72">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, email or phone..."
+                                className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => setEnrollModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition whitespace-nowrap"
+                        >
+                            <Plus size={16} /> Add Enrollment
+                        </button>
                     </div>
                 </div>
 
@@ -279,7 +280,6 @@ export default function EnrollmentBoard() {
                 <div className="flex flex-wrap gap-3 items-center">
                     <Filter size={16} className="text-slate-400" />
 
-                    {/* Course filter */}
                     <select
                         className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
                         value={selectedCourse}
@@ -291,7 +291,6 @@ export default function EnrollmentBoard() {
                         ))}
                     </select>
 
-                    {/* Status filter */}
                     <select
                         className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
                         value={selectedStatus}
@@ -304,7 +303,6 @@ export default function EnrollmentBoard() {
                         <option value="rejected">Rejected</option>
                     </select>
 
-                    {/* Date from */}
                     <div className="flex items-center gap-1.5">
                         <Calendar size={14} className="text-slate-400" />
                         <input
@@ -324,7 +322,6 @@ export default function EnrollmentBoard() {
                         />
                     </div>
 
-                    {/* Clear filters */}
                     {(searchQuery || selectedCourse !== 'all' || selectedStatus !== 'all' || dateFrom || dateTo) && (
                         <button
                             onClick={() => {
@@ -341,7 +338,6 @@ export default function EnrollmentBoard() {
                     )}
                 </div>
 
-                {/* Results count */}
                 <div className="text-xs text-slate-400">
                     Showing {filteredEnrollments.length} of {enrollments.length} enrollments
                     {groupedByCourse.length > 0 && ` in ${groupedByCourse.length} group${groupedByCourse.length > 1 ? 's' : ''}`}
@@ -362,7 +358,6 @@ export default function EnrollmentBoard() {
                             <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white rounded-t-xl">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                        {/* Select All checkbox */}
                                         <button
                                             onClick={() => toggleSelectGroup(items)}
                                             className={`w-5 h-5 rounded border-2 flex items-center justify-center transition
@@ -382,7 +377,6 @@ export default function EnrollmentBoard() {
                                     </div>
                                 </div>
 
-                                {/* Group quick-copy buttons */}
                                 <div className="flex flex-wrap gap-2 mt-2">
                                     <button
                                         onClick={() => handleCopyEmails(items, `All ${items.length}`)}
@@ -418,23 +412,21 @@ export default function EnrollmentBoard() {
                                         <div
                                             key={enrollment.id}
                                             className={`p-3 rounded-lg border transition cursor-pointer ${isSelected
-                                                    ? 'border-blue-300 bg-blue-50/50 shadow-sm'
-                                                    : 'border-slate-100 bg-white hover:shadow-sm hover:border-slate-200'
+                                                ? 'border-blue-300 bg-blue-50/50 shadow-sm'
+                                                : 'border-slate-100 bg-white hover:shadow-sm hover:border-slate-200'
                                                 }`}
                                             onClick={() => toggleSelect(enrollment.id)}
                                         >
                                             <div className="flex items-start gap-3">
-                                                {/* Checkbox */}
                                                 <div
                                                     className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${isSelected
-                                                            ? 'bg-blue-600 border-blue-600 text-white'
-                                                            : 'border-slate-300'
+                                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                                        : 'border-slate-300'
                                                         }`}
                                                 >
                                                     {isSelected && <Check size={10} />}
                                                 </div>
 
-                                                {/* Content */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start mb-1">
                                                         <p className="font-medium text-slate-900 text-sm truncate">
@@ -457,17 +449,19 @@ export default function EnrollmentBoard() {
                                                                 <span className="ml-2 text-slate-400">• {enrollment.course_variant}</span>
                                                             )}
                                                         </p>
+                                                        {enrollment.notes && (
+                                                            <p className="text-slate-400 italic mt-0.5">📝 {enrollment.notes}</p>
+                                                        )}
                                                     </div>
 
-                                                    {/* Individual action buttons */}
                                                     <div className="mt-2 pt-1.5 border-t border-slate-100 flex gap-1.5"
                                                         onClick={e => e.stopPropagation()}
                                                     >
                                                         <button
                                                             onClick={() => updateStatus(enrollment.id, 'invited')}
                                                             className={`text-[11px] px-2 py-0.5 rounded transition ${enrollment.status === 'invited'
-                                                                    ? 'bg-blue-100 text-blue-700 font-medium'
-                                                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                                                ? 'bg-blue-100 text-blue-700 font-medium'
+                                                                : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
                                                                 }`}
                                                         >
                                                             Invite
@@ -475,17 +469,24 @@ export default function EnrollmentBoard() {
                                                         <button
                                                             onClick={() => updateStatus(enrollment.id, 'confirmed')}
                                                             className={`text-[11px] px-2 py-0.5 rounded transition ${enrollment.status === 'confirmed'
-                                                                    ? 'bg-green-100 text-green-700 font-medium'
-                                                                    : 'bg-green-50 hover:bg-green-100 text-green-700'
+                                                                ? 'bg-green-100 text-green-700 font-medium'
+                                                                : 'bg-green-50 hover:bg-green-100 text-green-700'
                                                                 }`}
                                                         >
                                                             Confirm
                                                         </button>
                                                         <button
                                                             onClick={() => updateStatus(enrollment.id, 'rejected')}
-                                                            className="text-[11px] text-red-500 hover:bg-red-50 px-2 py-0.5 rounded ml-auto transition"
+                                                            className="text-[11px] text-red-500 hover:bg-red-50 px-2 py-0.5 rounded transition"
                                                         >
                                                             Reject
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteTarget(enrollment)}
+                                                            className="text-[11px] text-slate-400 hover:text-red-500 hover:bg-red-50 px-1.5 py-0.5 rounded ml-auto transition"
+                                                            title="Delete enrollment"
+                                                        >
+                                                            <Trash2 size={12} />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -503,13 +504,13 @@ export default function EnrollmentBoard() {
             {groupedByCourse.length === 0 && (
                 <div className="text-center py-16 text-slate-400">
                     <p className="text-lg">No enrollments found</p>
-                    <p className="text-sm mt-1">Try adjusting your filters or search query</p>
+                    <p className="text-sm mt-1">Try adjusting your filters or add a new enrollment</p>
                 </div>
             )}
 
             {/* === Floating Action Bar === */}
             {selectedCount > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in">
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slideUp">
                     <div className="bg-slate-900 text-white rounded-2xl shadow-2xl px-6 py-3 flex items-center gap-4">
                         <span className="text-sm font-medium">
                             {selectedCount} selected
@@ -548,15 +549,24 @@ export default function EnrollmentBoard() {
                 </div>
             )}
 
-            {/* === Toast Notification === */}
-            {toast && (
-                <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${toast.type === 'success'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-red-600 text-white'
-                    }`}>
-                    {toast.message}
-                </div>
-            )}
+            {/* === Modals === */}
+            <EnrollmentModal
+                open={enrollModalOpen}
+                onSave={() => {
+                    fetchEnrollments();
+                    setToast({ message: 'Enrollment created', type: 'success' });
+                }}
+                onClose={() => setEnrollModalOpen(false)}
+            />
+            <ConfirmDialog
+                open={!!deleteTarget}
+                title="Delete Enrollment"
+                message={`Remove ${deleteTarget?.students?.first_name || ''} ${deleteTarget?.students?.last_name || ''} from ${deleteTarget?.courses?.name || 'this course'}?`}
+                confirmLabel="Remove"
+                onConfirm={handleDeleteEnrollment}
+                onCancel={() => setDeleteTarget(null)}
+            />
+            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }
