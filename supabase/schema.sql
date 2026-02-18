@@ -38,12 +38,12 @@ create index idx_students_email on students(email);
 create index idx_students_phone on students(phone); -- normalized phone
 create index idx_courses_name on courses(name);
 
--- RLS Policies (Open for now as requested, but good practice to enable)
+-- RLS Policies (Only authenticated users can access data)
 alter table students enable row level security;
 alter table courses enable row level security;
 alter table enrollments enable row level security;
 
--- Allow all access for now (since "no login/password" phase)
-create policy "Allow all access" on students for all using (true) with check (true);
-create policy "Allow all access" on courses for all using (true) with check (true);
-create policy "Allow all access" on enrollments for all using (true) with check (true);
+-- Authenticated users only (service role key used by Google Apps Script bypasses RLS)
+create policy "Authenticated access" on students for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated access" on courses for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "Authenticated access" on enrollments for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
