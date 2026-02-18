@@ -50,7 +50,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             .select('id, status, created_at, course_variant, students(first_name, last_name), courses(name)')
             .order('created_at', { ascending: false })
             .limit(8);
-        if (recentData) setRecent(recentData as RecentEnrollment[]);
+        if (recentData) setRecent(recentData as unknown as RecentEnrollment[]);
 
         // Status breakdown
         const { data: allEnrollments } = await supabase.from('enrollments').select('status');
