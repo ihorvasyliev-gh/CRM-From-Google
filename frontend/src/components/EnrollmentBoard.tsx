@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-    CheckCircle, Clock, XCircle, Send, Search, Copy, Calendar,
+    CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
     MoreHorizontal, ArrowRight, LogOut, Ban
 } from 'lucide-react';
@@ -141,7 +141,6 @@ function todayISO(): string {
 
 // ─── Component ──────────────────────────────────────────────
 export default function EnrollmentBoard() {
-    const [courses, setCourses] = useState<Course[]>([]);
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -182,14 +181,8 @@ export default function EnrollmentBoard() {
 
     // ─── Data Fetching ──────────────────────────────────────
     useEffect(() => {
-        fetchCourses();
         fetchEnrollments();
     }, []);
-
-    async function fetchCourses() {
-        const { data } = await supabase.from('courses').select('*').order('name');
-        if (data) setCourses(data);
-    }
 
     async function fetchEnrollments() {
         const { data } = await supabase
