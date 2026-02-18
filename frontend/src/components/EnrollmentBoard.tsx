@@ -36,6 +36,8 @@ const STATUS_ICONS: Record<string, JSX.Element> = {
     invited: <Send size={13} className="text-blue-600" />,
     confirmed: <CheckCircle size={13} className="text-emerald-600" />,
     rejected: <XCircle size={13} className="text-red-500" />,
+    completed: <GraduationCap size={13} className="text-teal-600" />,
+    withdrawn: <XCircle size={13} className="text-slate-500" />,
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -43,6 +45,8 @@ const STATUS_COLORS: Record<string, string> = {
     invited: 'bg-blue-50 text-blue-700 border-blue-200',
     confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     rejected: 'bg-red-50 text-red-600 border-red-200',
+    completed: 'bg-teal-50 text-teal-700 border-teal-200',
+    withdrawn: 'bg-slate-50 text-slate-500 border-slate-200',
 };
 
 // --- Helpers ---
@@ -322,6 +326,8 @@ export default function EnrollmentBoard() {
                         <option value="requested">Requested</option>
                         <option value="invited">Invited</option>
                         <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="withdrawn">Withdrawn</option>
                         <option value="rejected">Rejected</option>
                     </select>
 
@@ -504,7 +510,26 @@ export default function EnrollmentBoard() {
                                                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600'
                                                                     }`}
                                                             >
+
                                                                 Confirm
+                                                            </button>
+                                                            <button
+                                                                onClick={() => updateStatus(enrollment.id, 'completed')}
+                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'completed'
+                                                                    ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-200'
+                                                                    : 'bg-teal-50 hover:bg-teal-100 text-teal-600'
+                                                                    }`}
+                                                            >
+                                                                Complete
+                                                            </button>
+                                                            <button
+                                                                onClick={() => updateStatus(enrollment.id, 'withdrawn')}
+                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'withdrawn'
+                                                                    ? 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
+                                                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-500'
+                                                                    }`}
+                                                            >
+                                                                Withdraw
                                                             </button>
                                                             <button
                                                                 onClick={() => updateStatus(enrollment.id, 'rejected')}
@@ -572,6 +597,13 @@ export default function EnrollmentBoard() {
                             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-sm"
                         >
                             <CheckCircle size={14} /> Confirm All
+                        </button>
+
+                        <button
+                            onClick={() => bulkUpdateStatus('completed')}
+                            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
+                        >
+                            <GraduationCap size={14} /> Complete All
                         </button>
 
                         <button

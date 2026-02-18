@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle } from 'lucide-react';
+import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -34,6 +34,8 @@ const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
     invited: { icon: <Send size={12} />, className: 'bg-blue-50 text-blue-700 border-blue-200' },
     confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200' },
+    completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200' },
+    withdrawn: { icon: <XCircle size={12} />, className: 'bg-slate-50 text-slate-500 border-slate-200' },
 };
 
 const AVATAR_GRADIENTS = [
@@ -47,6 +49,7 @@ const AVATAR_GRADIENTS = [
 
 export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll }: Props) {
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchEnrollments();
@@ -59,6 +62,29 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as unknown as Enrollment[]);
+    }
+
+    async function handleUpdateStatus(id: string, newStatus: string) {
+        const { error } = await supabase
+            .from('enrollments')
+            .update({ status: newStatus })
+            .eq('id', id);
+
+        if (!error) {
+            setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+        }
+    }
+
+    async function handleDeleteEnrollment(id: string) {
+        const { error } = await supabase
+            .from('enrollments')
+            .delete()
+            .eq('id', id);
+
+        if (!error) {
+            setEnrollments(prev => prev.filter(e => e.id !== id));
+            setConfirmDeleteId(null);
+        }
     }
 
     function getAvatarGradient(id: string): string {
@@ -137,19 +163,66 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 <p className="text-sm text-surface-400">No enrollments yet</p>
                             </div>
                         ) : (
-                            <div className="space-y-1.5">
+                            <div className="space-y-2.5">
                                 {enrollments.map(en => (
-                                    <div key={en.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-50/50 border border-surface-100 hover:bg-surface-50 transition-all">
-                                        <div>
-                                            <p className="text-sm font-medium text-surface-800">{en.courses?.name || 'Unknown'}</p>
-                                            {en.course_variant && (
-                                                <span className="text-[10px] text-surface-400">{en.course_variant}</span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
+                                    <div key={en.id} className="p-3 rounded-xl bg-surface-50/50 border border-surface-100 hover:bg-surface-50 transition-all group">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div>
+                                                <p className="text-sm font-medium text-surface-800">{en.courses?.name || 'Unknown'}</p>
+                                                {en.course_variant && (
+                                                    <span className="text-[10px] text-surface-400">{en.course_variant}</span>
+                                                )}
+                                            </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-surface-600 border-surface-200'}`}>
                                                 {STATUS_BADGE[en.status]?.icon} {en.status}
                                             </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                            {/* Actions */}
+                                            {en.status !== 'completed' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(en.id, 'completed')}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-white border border-surface-200 shadow-sm rounded-lg text-xs font-medium text-teal-600 hover:bg-teal-50 hover:border-teal-200 transition-all"
+                                                    title="Mark as Completed"
+                                                >
+                                                    <GraduationCap size={12} /> Complete
+                                                </button>
+                                            )}
+                                            {en.status !== 'withdrawn' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(en.id, 'withdrawn')}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-white border border-surface-200 shadow-sm rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-50 hover:border-slate-200 transition-all"
+                                                    title="Withdraw"
+                                                >
+                                                    <XCircle size={12} /> Withdraw
+                                                </button>
+                                            )}
+
+                                            {confirmDeleteId === en.id ? (
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => handleDeleteEnrollment(en.id)}
+                                                        className="px-2 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setConfirmDeleteId(null)}
+                                                        className="px-2 py-1.5 bg-surface-100 text-surface-600 rounded-lg text-xs hover:bg-surface-200"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(en.id)}
+                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-white border border-surface-200 shadow-sm rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-200 transition-all"
+                                                    title="Delete permanently"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

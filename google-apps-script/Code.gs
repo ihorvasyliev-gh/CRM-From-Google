@@ -199,7 +199,7 @@ function syncRowsRange(sheet, startRow, endRow) {
   if (enrollmentsToUpsert.length > 0) {
      // Also specify on_conflict for clarity if needed, but ignore-duplicates usually suffices
      // The unique constraint is on (student_id, course_id)
-     _fetch('enrollments?on_conflict=student_id,course_id', 'post', enrollmentsToUpsert, { 
+     _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
         'Prefer': 'resolution=ignore-duplicates' 
      });
   }
@@ -276,4 +276,124 @@ function formatDate(dateObj) {
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Syncs ALL data from Supabase to a "CRM Mirror" tab.
+ * This is a one-way sync from Supabase -> Sheet.
+ * It overwrites the mirror sheet entirely.
+ */
+function syncFromSupabase() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = "CRM Mirror";
+  var sheet = ss.getSheetByName(sheetName);
+  
+  // Create if doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+  
+  ss.toast("Fetching data from Supabase...", "CRM Mirror Sync");
+  
+  // 1. Fetch Data
+  var students = _fetch('students?select=*&order=id.asc', 'get');
+  var courses = _fetch('courses?select=*&order=name.asc', 'get');
+  var enrollments = _fetch('enrollments?select=*,course:courses(name)', 'get');
+  
+  if (!students || !courses || !enrollments) {
+    ss.toast("Failed to fetch data. Check logs.", "CRM Mirror Sync");
+    return;
+  }
+  
+  // 2. Transform Data
+  // Create a map of Student ID -> Enrollments
+  var enrollmentMap = {};
+  for (var i = 0; i < enrollments.length; i++) {
+    var e = enrollments[i];
+    if (!enrollmentMap[e.student_id]) {
+      enrollmentMap[e.student_id] = {};
+    }
+    // Key by Course Name (since columns are by name)
+    // format: "Variant (Status)"
+    if (e.course && e.course.name) {
+       var val = (e.course_variant || "Standard") + " (" + (e.status || "requested") + ")";
+       enrollmentMap[e.student_id][e.course.name] = val;
+    }
+  }
+  
+  // Prepare Headers
+  // Fixed: Timestamp, First Name, Last Name, Mobile, Email, Address, Eircode, DOB
+  var fixedHeaders = ['Timestamp', 'First Name', 'Last Name', 'Mobile', 'Email', 'Address', 'Eircode', 'DOB'];
+  var courseNames = courses.map(function(c) { return c.name; });
+  var allHeaders = fixedHeaders.concat(courseNames);
+  
+  // Prepare Rows
+  var outputRows = [];
+  
+  for (var i = 0; i < students.length; i++) {
+    var s = students[i];
+    var row = [];
+    
+    // Fixed Columns
+    // Timestamp (we can use created_at or last_synced_at)
+    row.push(s.created_at || "");
+    row.push(s.first_name || "");
+    row.push(s.last_name || "");
+    row.push(s.phone || "");
+    row.push(s.email || "");
+    row.push(s.address || "");
+    row.push(s.eircode || "");
+    row.push(s.dob || "");
+    
+    // Dynamic Course Columns
+    var studentEnrollments = enrollmentMap[s.id] || {};
+    for (var j = 0; j < courseNames.length; j++) {
+      var cName = courseNames[j];
+      row.push(studentEnrollments[cName] || "");
+    }
+    
+    outputRows.push(row);
+  }
+  
+  // 3. Write to Sheet
+  sheet.clear();
+  
+  // Write Headers
+  if (allHeaders.length > 0) {
+    sheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders])
+         .setFontWeight("bold")
+         .setBackground("#f3f3f3");
+  }
+  
+  // Write Data
+  if (outputRows.length > 0) {
+    sheet.getRange(2, 1, outputRows.length, allHeaders.length).setValues(outputRows);
+  }
+  
+  // Formatting
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, allHeaders.length);
+  
+  ss.toast("Sync complete! Updated " + outputRows.length + " students.", "CRM Mirror Sync");
+}
+
+/**
+ * Installs the hourly trigger for the sync.
+ * Run this once manually.
+ */
+function setupHourlyTrigger() {
+  // Check if already exists to avoid duplicates
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFromSupabase') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  
+  ScriptApp.newTrigger('syncFromSupabase')
+      .timeBased()
+      .everyHours(1)
+      .create();
+      
+  SpreadsheetApp.getActiveSpreadsheet().toast("Hourly sync trigger installed.", "CRM Setup");
 }
