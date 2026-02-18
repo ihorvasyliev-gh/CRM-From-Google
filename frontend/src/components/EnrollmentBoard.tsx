@@ -432,17 +432,20 @@ export default function EnrollmentBoard() {
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [enrollments]);
 
-    // Unique language variants (case-insensitive dedup)
+    // Unique language variants for the SELECTED course only (case-insensitive dedup)
     const uniqueVariants = useMemo(() => {
+        if (selectedCourse === 'all') return [];
         const seen = new Map<string, string>();
-        enrollments.forEach(e => {
-            const v = (e.course_variant || '').trim();
-            if (v && !seen.has(v.toLowerCase())) {
-                seen.set(v.toLowerCase(), v.charAt(0).toUpperCase() + v.slice(1).toLowerCase());
-            }
-        });
+        enrollments
+            .filter(e => e.course_id === selectedCourse)
+            .forEach(e => {
+                const v = (e.course_variant || '').trim();
+                if (v && !seen.has(v.toLowerCase())) {
+                    seen.set(v.toLowerCase(), v.charAt(0).toUpperCase() + v.slice(1).toLowerCase());
+                }
+            });
         return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
-    }, [enrollments]);
+    }, [enrollments, selectedCourse]);
 
     const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo;
     const selectedCount = selectedIds.size;
@@ -510,7 +513,11 @@ export default function EnrollmentBoard() {
                     {uniqueCourses.map(c => (
                         <button
                             key={c.id}
-                            onClick={() => setSelectedCourse(c.id === selectedCourse ? 'all' : c.id)}
+                            onClick={() => {
+                                const newCourse = c.id === selectedCourse ? 'all' : c.id;
+                                setSelectedCourse(newCourse);
+                                setSelectedVariant('all');
+                            }}
                             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === c.id
                                 ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                                 : 'bg-white text-surface-600 border-surface-200 hover:border-brand-300 hover:text-brand-600'
@@ -521,19 +528,21 @@ export default function EnrollmentBoard() {
                     ))}
                 </div>
 
-                {/* Row 2b: Language chips */}
-                {uniqueVariants.length > 1 && (
+                {/* Row 2b: Language chips — only when a specific course is selected */}
+                {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                     <div className="flex flex-wrap gap-2 items-center">
                         <Globe size={14} className="text-surface-400 mr-0.5" />
-                        <button
-                            onClick={() => setSelectedVariant('all')}
-                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === 'all'
-                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
-                                }`}
-                        >
-                            All Languages
-                        </button>
+                        {uniqueVariants.length > 1 && (
+                            <button
+                                onClick={() => setSelectedVariant('all')}
+                                className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === 'all'
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
+                                    }`}
+                            >
+                                All Languages
+                            </button>
+                        )}
                         {uniqueVariants.map(v => (
                             <button
                                 key={v}
