@@ -118,24 +118,71 @@ export default function EnrollmentBoard() {
     }
 
     async function updateStatus(id: string, newStatus: string) {
-        const { error } = await supabase.from('enrollments').update({ status: newStatus }).eq('id', id);
-        if (!error) {
-            setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+        // For completed/withdrawn, update ALL variants of this course for this student
+        if (newStatus === 'completed' || newStatus === 'withdrawn') {
+            const currentEnrollment = enrollments.find(e => e.id === id);
+            if (!currentEnrollment) return;
+
+            const relatedEnrollments = enrollments.filter(e =>
+                e.student_id === currentEnrollment.student_id &&
+                e.course_id === currentEnrollment.course_id
+            );
+
+            const relatedIds = relatedEnrollments.map(e => e.id);
+
+            const { error } = await supabase
+                .from('enrollments')
+                .update({ status: newStatus })
+                .in('id', relatedIds);
+
+            if (!error) {
+                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
+                showToast(`Updated status for ${relatedIds.length} related enrollments`, 'success');
+            } else {
+                showToast('Error updating status', 'error');
+            }
+        } else {
+            // For invited/confirmed/others, only update specific enrollment
+            const { error } = await supabase.from('enrollments').update({ status: newStatus }).eq('id', id);
+            if (!error) {
+                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+            } else {
+                showToast('Error updating status', 'error');
+            }
         }
     }
 
     async function bulkUpdateStatus(newStatus: string) {
         if (selectedIds.size === 0) return;
-        const ids = Array.from(selectedIds);
+
+        let idsToUpdate = Array.from(selectedIds);
+
+        // If completing/withdrawing, we need to find all related enrollments for selected items too
+        if (newStatus === 'completed' || newStatus === 'withdrawn') {
+            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
+            const extraIds: string[] = [];
+
+            selectedEnrollments.forEach(curr => {
+                const related = enrollments.filter(e =>
+                    e.student_id === curr.student_id &&
+                    e.course_id === curr.course_id &&
+                    !selectedIds.has(e.id) // Don't add if already selected
+                );
+                related.forEach(r => extraIds.push(r.id));
+            });
+
+            idsToUpdate = [...idsToUpdate, ...extraIds];
+        }
+
         const { error } = await supabase
             .from('enrollments')
             .update({ status: newStatus })
-            .in('id', ids);
+            .in('id', idsToUpdate);
 
         if (!error) {
-            setEnrollments(prev => prev.map(e => ids.includes(e.id) ? { ...e, status: newStatus } : e));
+            setEnrollments(prev => prev.map(e => idsToUpdate.includes(e.id) ? { ...e, status: newStatus } : e));
             setSelectedIds(new Set());
-            showToast(`${ids.length} enrollments marked as ${newStatus}`, 'success');
+            showToast(`${idsToUpdate.length} enrollments marked as ${newStatus}`, 'success');
         } else {
             showToast('Error updating status', 'error');
         }

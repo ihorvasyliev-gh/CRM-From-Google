@@ -58,20 +58,43 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     async function fetchEnrollments() {
         const { data } = await supabase
             .from('enrollments')
-            .select('id, status, course_variant, created_at, courses(name)')
+            .select('id, student_id, course_id, status, course_variant, created_at, courses(name)')
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as unknown as Enrollment[]);
     }
 
     async function handleUpdateStatus(id: string, newStatus: string) {
-        const { error } = await supabase
-            .from('enrollments')
-            .update({ status: newStatus })
-            .eq('id', id);
+        // For completed/withdrawn, update ALL variants of this course for this student
+        if (newStatus === 'completed' || newStatus === 'withdrawn') {
+            const currentEnrollment = enrollments.find(e => e.id === id);
+            // @ts-ignore
+            if (!currentEnrollment || !currentEnrollment.course_id) return;
 
-        if (!error) {
-            setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+            const relatedEnrollments = enrollments.filter(e =>
+                // @ts-ignore
+                e.course_id === currentEnrollment.course_id
+            );
+
+            const relatedIds = relatedEnrollments.map(e => e.id);
+
+            const { error } = await supabase
+                .from('enrollments')
+                .update({ status: newStatus })
+                .in('id', relatedIds);
+
+            if (!error) {
+                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
+            }
+        } else {
+            const { error } = await supabase
+                .from('enrollments')
+                .update({ status: newStatus })
+                .eq('id', id);
+
+            if (!error) {
+                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+            }
         }
     }
 

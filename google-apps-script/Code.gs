@@ -177,7 +177,7 @@ function syncRowsRange(sheet, startRow, endRow) {
               if (cId) {
                   var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
                   for (var v = 0; v < variants.length; v++) {
-                       var uniqueKey = sId + "_" + cId; // Composite key
+                       var uniqueKey = sId + "_" + cId + "_" + variants[v]; // Composite key
                        if (!enrollmentKeys[uniqueKey]) {
                            enrollmentsToUpsert.push({
                                student_id: sId,
