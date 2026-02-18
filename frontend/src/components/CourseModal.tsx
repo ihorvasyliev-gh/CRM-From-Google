@@ -1,24 +1,22 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Loader2, BookOpen } from 'lucide-react';
 
-interface CourseFormData {
-    id?: string;
+interface Course {
+    id: string;
     name: string;
 }
 
-interface CourseModalProps {
+interface Props {
     open: boolean;
-    course: CourseFormData | null;
-    onSave: (data: CourseFormData) => Promise<void>;
+    course: Course | null;
+    onSave: (data: { id?: string; name: string }) => Promise<void>;
     onClose: () => void;
 }
 
-export default function CourseModal({ open, course, onSave, onClose }: CourseModalProps) {
+export default function CourseModal({ open, course, onSave, onClose }: Props) {
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-
-    const isEdit = !!course?.id;
 
     useEffect(() => {
         if (open) {
@@ -27,82 +25,82 @@ export default function CourseModal({ open, course, onSave, onClose }: CourseMod
         }
     }, [open, course]);
 
-    if (!open) return null;
-
-    async function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        setError('');
-
         if (!name.trim()) {
             setError('Course name is required');
             return;
         }
-
         setSaving(true);
+        setError('');
         try {
             await onSave({ id: course?.id, name: name.trim() });
             onClose();
         } catch (err: any) {
-            setError(err.message || 'Failed to save');
+            setError(err.message || 'Save failed');
         } finally {
             setSaving(false);
         }
     }
 
+    if (!open) return null;
+
+    const isEditing = !!course?.id;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scaleIn">
-                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                            <BookOpen size={20} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-surface-100 bg-gradient-to-r from-surface-50 to-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
+                                <BookOpen size={18} />
+                            </div>
+                            <h2 className="text-lg font-bold text-surface-900">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
                         </div>
-                        <h2 className="text-lg font-semibold text-slate-900">
-                            {isEdit ? 'Edit Course' : 'Add Course'}
-                        </h2>
+                        <button onClick={onClose} className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all">
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-                        <X size={20} />
-                    </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Course Name <span className="text-red-400">*</span>
-                        </label>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Course Name *</label>
                         <input
                             type="text"
+                            placeholder="e.g. Security, First Aid"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white placeholder:text-surface-400"
                             value={name}
                             onChange={e => setName(e.target.value)}
-                            placeholder="e.g. Security, ESOL, Barista"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                             autoFocus
+                            required
                         />
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-2">
+                    <div className="flex gap-3 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {saving && <Loader2 size={16} className="animate-spin" />}
-                            {isEdit ? 'Save Changes' : 'Add Course'}
+                            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+                            {saving ? 'Saving...' : isEditing ? 'Update Course' : 'Add Course'}
                         </button>
                     </div>
                 </form>

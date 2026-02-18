@@ -20,33 +20,40 @@ interface EnrollmentCount {
     rejected: number;
 }
 
+const CARD_GRADIENTS = [
+    'from-brand-500 to-brand-600',
+    'from-violet-500 to-purple-600',
+    'from-emerald-500 to-teal-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-pink-600',
+    'from-cyan-500 to-blue-600',
+    'from-fuchsia-500 to-pink-600',
+    'from-lime-500 to-green-600',
+];
+
+function getGradient(id: string): string {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    return CARD_GRADIENTS[Math.abs(hash) % CARD_GRADIENTS.length];
+}
+
 export default function CourseList() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, EnrollmentCount>>({});
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
-
-    // Modal state
     const [modalOpen, setModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-
-    // Delete state
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
-
-    // Toast
     const [toast, setToast] = useState<ToastData | null>(null);
 
-    useEffect(() => {
-        fetchAll();
-    }, []);
+    useEffect(() => { fetchAll(); }, []);
 
     async function fetchAll() {
         setLoading(true);
-        // Fetch courses
         const { data: coursesData } = await supabase.from('courses').select('*').order('name');
         if (coursesData) setCourses(coursesData);
 
-        // Fetch enrollment counts
         const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
         if (enrollments) {
             const counts: Record<string, EnrollmentCount> = {};
@@ -95,32 +102,32 @@ export default function CourseList() {
     );
 
     function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
-        if (!counts || counts.total === 0) return <span className="text-xs text-slate-400">No enrollments</span>;
+        if (!counts || counts.total === 0) return <span className="text-xs text-surface-400">No enrollments</span>;
 
         const segments = [
-            { key: 'confirmed', color: 'bg-green-500', count: counts.confirmed },
-            { key: 'invited', color: 'bg-blue-500', count: counts.invited },
-            { key: 'requested', color: 'bg-yellow-500', count: counts.requested },
-            { key: 'rejected', color: 'bg-red-400', count: counts.rejected },
+            { key: 'confirmed', color: 'bg-emerald-500', count: counts.confirmed, label: 'Confirmed' },
+            { key: 'invited', color: 'bg-blue-500', count: counts.invited, label: 'Invited' },
+            { key: 'requested', color: 'bg-amber-500', count: counts.requested, label: 'Requested' },
+            { key: 'rejected', color: 'bg-red-400', count: counts.rejected, label: 'Rejected' },
         ];
 
         return (
-            <div className="space-y-1.5">
-                <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+            <div className="space-y-2">
+                <div className="flex h-2 rounded-full overflow-hidden bg-surface-100">
                     {segments.map(s => s.count > 0 ? (
                         <div
                             key={s.key}
-                            className={`${s.color} transition-all`}
+                            className={`${s.color} transition-all duration-700 ease-out`}
                             style={{ width: `${(s.count / counts.total) * 100}%` }}
-                            title={`${s.key}: ${s.count}`}
+                            title={`${s.label}: ${s.count}`}
                         />
                     ) : null)}
                 </div>
-                <div className="flex gap-3 text-[10px] text-slate-500">
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
                     {segments.map(s => s.count > 0 ? (
-                        <span key={s.key} className="flex items-center gap-1">
+                        <span key={s.key} className="flex items-center gap-1.5 text-[10px] text-surface-500 font-medium">
                             <span className={`w-2 h-2 rounded-full ${s.color}`} />
-                            {s.count} {s.key}
+                            {s.count} {s.label}
                         </span>
                     ) : null)}
                 </div>
@@ -131,29 +138,33 @@ export default function CourseList() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4">
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                        <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
                             <BookOpen size={20} />
                         </div>
-                        <h2 className="text-lg font-semibold text-slate-800">Courses</h2>
-                        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{courses.length}</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-surface-900">Courses</h2>
+                                <span className="text-xs font-semibold text-violet-600 bg-violet-50 px-2.5 py-0.5 rounded-full">{courses.length}</span>
+                            </div>
+                        </div>
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search courses..."
-                                className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                className="w-full pl-9 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-brand-500/25 whitespace-nowrap"
                         >
                             <Plus size={16} /> Add Course
                         </button>
@@ -164,58 +175,72 @@ export default function CourseList() {
             {/* Course Cards */}
             {loading ? (
                 <div className="flex justify-center py-16">
-                    <Loader2 size={24} className="animate-spin text-blue-500" />
+                    <Loader2 size={24} className="animate-spin text-brand-500" />
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-16 text-slate-400">
-                    <BookOpen size={48} className="mx-auto mb-3 text-slate-300" />
-                    <p className="text-lg">No courses found</p>
-                    <p className="text-sm mt-1">Create your first course to get started</p>
+                <div className="text-center py-16">
+                    <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <BookOpen size={28} className="text-surface-300" />
+                    </div>
+                    <p className="text-lg font-semibold text-surface-700">No courses found</p>
+                    <p className="text-sm text-surface-400 mt-1">Create your first course to get started</p>
+                    <button
+                        onClick={() => { setEditingCourse(null); setModalOpen(true); }}
+                        className="mt-4 px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition inline-flex items-center gap-2"
+                    >
+                        <Plus size={16} /> Add Course
+                    </button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map(course => {
                         const counts = enrollmentCounts[course.id];
+                        const gradient = getGradient(course.id);
                         return (
-                            <div key={course.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition group">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                                            {course.name.substring(0, 2).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <h3 className="font-semibold text-slate-900">{course.name}</h3>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1">
-                                                <Users size={12} /> {counts?.total || 0} students
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                                        <button
-                                            onClick={() => { setEditingCourse(course); setModalOpen(true); }}
-                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                            title="Edit"
-                                        >
-                                            <Edit2 size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => setDeleteTarget(course)}
-                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                </div>
+                            <div key={course.id} className="bg-white rounded-2xl shadow-card border border-surface-200/60 card-hover overflow-hidden group">
+                                {/* Gradient top accent */}
+                                <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
-                                <StatusBar counts={counts} />
+                                <div className="p-5">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
+                                                {course.name.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-surface-900">{course.name}</h3>
+                                                <p className="text-xs text-surface-500 flex items-center gap-1.5 mt-0.5">
+                                                    <Users size={12} />
+                                                    <span className="font-medium">{counts?.total || 0}</span> students enrolled
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <button
+                                                onClick={() => { setEditingCourse(course); setModalOpen(true); }}
+                                                className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                                                title="Edit"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => setDeleteTarget(course)}
+                                                className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <StatusBar counts={counts} />
+                                </div>
                             </div>
                         );
                     })}
                 </div>
             )}
 
-            {/* Modals */}
             <CourseModal
                 open={modalOpen}
                 course={editingCourse}

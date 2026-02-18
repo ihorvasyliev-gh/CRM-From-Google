@@ -1,4 +1,5 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { X, Loader2, User } from 'lucide-react';
 
 export interface StudentFormData {
@@ -12,135 +13,164 @@ export interface StudentFormData {
     dob: string;
 }
 
-interface StudentModalProps {
+interface Props {
     open: boolean;
-    student: StudentFormData | null; // null = create mode
+    student: StudentFormData | null;
     onSave: (data: StudentFormData) => Promise<void>;
     onClose: () => void;
 }
 
-const EMPTY: StudentFormData = {
-    first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: ''
-};
-
-export default function StudentModal({ open, student, onSave, onClose }: StudentModalProps) {
-    const [form, setForm] = useState<StudentFormData>(EMPTY);
+export default function StudentModal({ open, student, onSave, onClose }: Props) {
+    const [form, setForm] = useState<StudentFormData>({
+        first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: ''
+    });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
-    const isEdit = !!student?.id;
-
     useEffect(() => {
         if (open) {
-            setForm(student || EMPTY);
+            setForm(student || { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' });
             setError('');
         }
     }, [open, student]);
 
-    if (!open) return null;
-
-    function set(field: keyof StudentFormData, value: string) {
-        setForm(prev => ({ ...prev, [field]: value }));
-    }
-
-    async function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        setError('');
-
-        if (!form.email.trim()) {
-            setError('Email is required');
+        if (!form.first_name.trim() || !form.last_name.trim()) {
+            setError('First and last name are required');
             return;
         }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-            setError('Invalid email format');
-            return;
-        }
-        if (!form.first_name.trim()) {
-            setError('First name is required');
-            return;
-        }
-
         setSaving(true);
+        setError('');
         try {
-            await onSave({ ...form, email: form.email.trim().toLowerCase() });
+            await onSave(form);
             onClose();
         } catch (err: any) {
-            setError(err.message || 'Failed to save');
+            setError(err.message || 'Save failed');
         } finally {
             setSaving(false);
         }
     }
 
-    const fields: { key: keyof StudentFormData; label: string; type: string; required?: boolean; placeholder?: string }[] = [
-        { key: 'first_name', label: 'First Name', type: 'text', required: true, placeholder: 'John' },
-        { key: 'last_name', label: 'Last Name', type: 'text', placeholder: 'Doe' },
-        { key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
-        { key: 'phone', label: 'Phone', type: 'tel', placeholder: '+353 ...' },
-        { key: 'address', label: 'Address', type: 'text', placeholder: '123 Main St, Cork' },
-        { key: 'eircode', label: 'Eircode', type: 'text', placeholder: 'T12 AB34' },
-        { key: 'dob', label: 'Date of Birth', type: 'date' },
-    ];
+    if (!open) return null;
+
+    const isEditing = !!student?.id;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-scaleIn max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                            <User size={20} />
+                <div className="px-6 py-4 border-b border-surface-100 bg-gradient-to-r from-surface-50 to-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
+                                <User size={18} />
+                            </div>
+                            <h2 className="text-lg font-bold text-surface-900">{isEditing ? 'Edit Student' : 'Add Student'}</h2>
                         </div>
-                        <h2 className="text-lg font-semibold text-slate-900">
-                            {isEdit ? 'Edit Student' : 'Add Student'}
-                        </h2>
+                        <button onClick={onClose} className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all">
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-                        <X size={20} />
-                    </button>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {fields.map(f => (
-                            <div key={f.key} className={f.key === 'address' ? 'sm:col-span-2' : ''}>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    {f.label} {f.required && <span className="text-red-400">*</span>}
-                                </label>
-                                <input
-                                    type={f.type}
-                                    value={form[f.key] || ''}
-                                    onChange={e => set(f.key, e.target.value)}
-                                    placeholder={f.placeholder}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                />
-                            </div>
-                        ))}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">First Name *</label>
+                            <input
+                                type="text"
+                                className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                                value={form.first_name}
+                                onChange={e => setForm({ ...form, first_name: e.target.value })}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Last Name *</label>
+                            <input
+                                type="text"
+                                className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                                value={form.last_name}
+                                onChange={e => setForm({ ...form, last_name: e.target.value })}
+                                required
+                            />
+                        </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <div>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Email</label>
+                        <input
+                            type="email"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                            value={form.email}
+                            onChange={e => setForm({ ...form, email: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Phone</label>
+                            <input
+                                type="tel"
+                                className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                                value={form.phone}
+                                onChange={e => setForm({ ...form, phone: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Date of Birth</label>
+                            <input
+                                type="date"
+                                className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                                value={form.dob}
+                                onChange={e => setForm({ ...form, dob: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Address</label>
+                        <input
+                            type="text"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                            value={form.address}
+                            onChange={e => setForm({ ...form, address: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Eircode</label>
+                        <input
+                            type="text"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white"
+                            value={form.eircode}
+                            onChange={e => setForm({ ...form, eircode: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {saving && <Loader2 size={16} className="animate-spin" />}
-                            {isEdit ? 'Save Changes' : 'Add Student'}
+                            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+                            {saving ? 'Saving...' : isEditing ? 'Update Student' : 'Add Student'}
                         </button>
                     </div>
                 </form>

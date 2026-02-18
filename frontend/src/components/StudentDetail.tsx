@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Mail, Phone, MapPin, Calendar, BookOpen, Edit2, Trash2, Plus, Loader2 } from 'lucide-react';
+import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -15,15 +15,13 @@ interface Student {
 
 interface Enrollment {
     id: string;
-    course_id: string;
     status: string;
     course_variant: string | null;
-    notes: string | null;
     created_at: string;
     courses: { name: string } | null;
 }
 
-interface StudentDetailProps {
+interface Props {
     student: Student;
     onClose: () => void;
     onEdit: () => void;
@@ -31,30 +29,42 @@ interface StudentDetailProps {
     onEnroll: () => void;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-    requested: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    invited: 'bg-blue-50 text-blue-700 border-blue-200',
-    confirmed: 'bg-green-50 text-green-700 border-green-200',
-    rejected: 'bg-red-50 text-red-700 border-red-200'
+const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
+    requested: { icon: <Clock size={12} />, className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    invited: { icon: <Send size={12} />, className: 'bg-blue-50 text-blue-700 border-blue-200' },
+    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200' },
 };
 
-export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll }: StudentDetailProps) {
+const AVATAR_GRADIENTS = [
+    'from-brand-500 to-brand-600',
+    'from-violet-500 to-purple-600',
+    'from-emerald-500 to-teal-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-pink-600',
+    'from-cyan-500 to-blue-600',
+];
+
+export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll }: Props) {
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchEnrollments();
     }, [student.id]);
 
     async function fetchEnrollments() {
-        setLoading(true);
         const { data } = await supabase
             .from('enrollments')
-            .select('*, courses(name)')
+            .select('id, status, course_variant, created_at, courses(name)')
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as Enrollment[]);
-        setLoading(false);
+    }
+
+    function getAvatarGradient(id: string): string {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
     }
 
     const infoItems = [
@@ -62,99 +72,83 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         { icon: <Phone size={14} />, label: 'Phone', value: student.phone },
         { icon: <MapPin size={14} />, label: 'Address', value: student.address },
         { icon: <MapPin size={14} />, label: 'Eircode', value: student.eircode },
-        { icon: <Calendar size={14} />, label: 'DOB', value: student.dob ? new Date(student.dob).toLocaleDateString('en-IE') : null },
-    ];
+        { icon: <Calendar size={14} />, label: 'Date of Birth', value: student.dob ? new Date(student.dob).toLocaleDateString('en-IE') : '' },
+    ].filter(item => item.value);
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end">
-            <div className="absolute inset-0 bg-black/30 animate-fadeIn" onClick={onClose} />
-            <div className="relative w-full max-w-lg bg-white shadow-2xl animate-slideInRight h-full overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end animate-fadeIn">
+            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full sm:w-96 h-full sm:h-auto sm:max-h-[85vh] bg-white sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideInRight">
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                            {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
+                <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-surface-100 px-5 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-white shadow-md`}>
+                                {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-surface-900">{student.first_name} {student.last_name}</h2>
+                                <p className="text-xs text-surface-400">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="font-semibold text-slate-900">{student.first_name} {student.last_name}</h2>
-                            <p className="text-xs text-slate-500">{student.email}</p>
-                        </div>
+                        <button onClick={onClose} className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all">
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-                        <X size={20} />
-                    </button>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-5 space-y-5">
                     {/* Actions */}
                     <div className="flex gap-2">
-                        <button
-                            onClick={onEdit}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                        >
+                        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition-all">
                             <Edit2 size={14} /> Edit
                         </button>
-                        <button
-                            onClick={onEnroll}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition"
-                        >
-                            <Plus size={14} /> Enroll in Course
+                        <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all">
+                            <UserPlus size={14} /> Enroll
                         </button>
-                        <button
-                            onClick={onDelete}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition ml-auto"
-                        >
-                            <Trash2 size={14} /> Delete
+                        <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-all">
+                            <Trash2 size={14} />
                         </button>
                     </div>
 
-                    {/* Info */}
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-3">
-                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Contact Info</h3>
-                        {infoItems.map(item => item.value ? (
-                            <div key={item.label} className="flex items-center gap-3 text-sm">
-                                <span className="text-slate-400">{item.icon}</span>
-                                <span className="text-slate-500 w-16">{item.label}</span>
-                                <span className="text-slate-800 font-medium">{item.value}</span>
+                    {/* Contact Info */}
+                    {infoItems.length > 0 && (
+                        <div className="space-y-2">
+                            <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Contact Info</h3>
+                            <div className="space-y-1.5">
+                                {infoItems.map(item => (
+                                    <div key={item.label} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-50 transition-all">
+                                        <span className="text-surface-400">{item.icon}</span>
+                                        <div>
+                                            <p className="text-[10px] text-surface-400 font-medium">{item.label}</p>
+                                            <p className="text-sm text-surface-800">{item.value}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ) : null)}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Enrollments */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                                <BookOpen size={14} /> Enrollments ({enrollments.length})
-                            </h3>
-                        </div>
-
-                        {loading ? (
-                            <div className="flex justify-center py-6">
-                                <Loader2 size={20} className="animate-spin text-blue-500" />
-                            </div>
-                        ) : enrollments.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400 text-sm bg-slate-50 rounded-xl">
-                                No enrollments yet
+                    <div className="space-y-2">
+                        <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Enrollments</h3>
+                        {enrollments.length === 0 ? (
+                            <div className="text-center py-6">
+                                <p className="text-sm text-surface-400">No enrollments yet</p>
                             </div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                                 {enrollments.map(en => (
-                                    <div key={en.id} className="bg-white border border-slate-200 rounded-lg p-3 hover:shadow-sm transition">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="font-medium text-sm text-slate-900">
-                                                    {en.courses?.name || 'Unknown Course'}
-                                                </p>
-                                                <p className="text-xs text-slate-500">
-                                                    {en.course_variant && <span className="mr-2">{en.course_variant}</span>}
-                                                    {new Date(en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                </p>
-                                                {en.notes && (
-                                                    <p className="text-xs text-slate-400 mt-1 italic">{en.notes}</p>
-                                                )}
-                                            </div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[en.status] || 'bg-slate-50 text-slate-600'}`}>
-                                                {en.status}
+                                    <div key={en.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-50/50 border border-surface-100 hover:bg-surface-50 transition-all">
+                                        <div>
+                                            <p className="text-sm font-medium text-surface-800">{en.courses?.name || 'Unknown'}</p>
+                                            {en.course_variant && (
+                                                <span className="text-[10px] text-surface-400">{en.course_variant}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-surface-600 border-surface-200'}`}>
+                                                {STATUS_BADGE[en.status]?.icon} {en.status}
                                             </span>
                                         </div>
                                     </div>

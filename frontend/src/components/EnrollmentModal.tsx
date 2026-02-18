@@ -89,7 +89,6 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 status,
                 course_variant: variant.trim() || null,
             };
-            // Only add notes if the column exists (graceful)
             if (notes.trim()) payload.notes = notes.trim();
 
             const { error: dbError } = await supabase.from('enrollments').insert(payload);
@@ -110,46 +109,65 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
     if (!open) return null;
 
+    const AVATAR_GRADIENTS = [
+        'from-brand-500 to-brand-600',
+        'from-violet-500 to-purple-600',
+        'from-emerald-500 to-teal-600',
+        'from-amber-500 to-orange-600',
+        'from-rose-500 to-pink-600',
+        'from-cyan-500 to-blue-600',
+    ];
+
+    function getGradient(id: string): string {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+    }
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-scaleIn max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 rounded-t-2xl flex items-center justify-between z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg text-green-600">
-                            <UserPlus size={20} />
+                <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-surface-100 px-6 py-4 rounded-t-2xl z-10">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                                <UserPlus size={18} />
+                            </div>
+                            <h2 className="text-lg font-bold text-surface-900">Add Enrollment</h2>
                         </div>
-                        <h2 className="text-lg font-semibold text-slate-900">Add Enrollment</h2>
+                        <button onClick={onClose} className="p-2 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all">
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
-                        <X size={20} />
-                    </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
 
                     {/* Student Selector */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Student <span className="text-red-400">*</span>
-                        </label>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Student *</label>
                         {preselectedStudentId && selectedStudent ? (
-                            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
-                                {selectedStudent.first_name} {selectedStudent.last_name} ({selectedStudent.email})
+                            <div className="flex items-center gap-3 px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm text-surface-700">
+                                <div className={`w-7 h-7 bg-gradient-to-br ${getGradient(selectedStudent.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                    {selectedStudent.first_name[0]}{selectedStudent.last_name[0]}
+                                </div>
+                                {selectedStudent.first_name} {selectedStudent.last_name}
+                                <span className="text-surface-400">({selectedStudent.email})</span>
                             </div>
                         ) : (
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
                                 <input
                                     type="text"
                                     placeholder="Search by name or email..."
-                                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                    className="w-full pl-9 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
                                     value={selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : studentSearch}
                                     onChange={e => {
                                         setStudentSearch(e.target.value);
@@ -159,9 +177,9 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                     onFocus={() => setShowStudentDropdown(true)}
                                 />
                                 {showStudentDropdown && !selectedStudentId && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-20">
+                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg max-h-48 overflow-y-auto z-20 animate-slideDown">
                                         {filteredStudents.length === 0 ? (
-                                            <div className="px-4 py-3 text-sm text-slate-400">No students found</div>
+                                            <div className="px-4 py-3 text-sm text-surface-400 text-center">No students found</div>
                                         ) : (
                                             filteredStudents.map(s => (
                                                 <button
@@ -172,10 +190,15 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                                         setShowStudentDropdown(false);
                                                         setStudentSearch('');
                                                     }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-blue-50 text-sm border-b border-slate-100 last:border-0 transition"
+                                                    className="w-full text-left px-3.5 py-2.5 hover:bg-brand-50 text-sm border-b border-surface-100 last:border-0 transition-all flex items-center gap-3"
                                                 >
-                                                    <span className="font-medium text-slate-800">{s.first_name} {s.last_name}</span>
-                                                    <span className="text-slate-400 ml-2">{s.email}</span>
+                                                    <div className={`w-7 h-7 bg-gradient-to-br ${getGradient(s.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                                        {s.first_name[0]}{s.last_name[0]}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-semibold text-surface-800">{s.first_name} {s.last_name}</span>
+                                                        <span className="text-surface-400 text-xs ml-2">{s.email}</span>
+                                                    </div>
                                                 </button>
                                             ))
                                         )}
@@ -187,13 +210,11 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
                     {/* Course Selector */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Course <span className="text-red-400">*</span>
-                        </label>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Course *</label>
                         <select
                             value={selectedCourseId}
                             onChange={e => setSelectedCourseId(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all"
                         >
                             <option value="">Select a course...</option>
                             {courses.map(c => (
@@ -204,25 +225,25 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
                     {/* Variant */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Variant <span className="text-slate-400 font-normal">(optional)</span>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">
+                            Variant <span className="text-surface-400 font-normal normal-case">(optional)</span>
                         </label>
                         <input
                             type="text"
                             value={variant}
                             onChange={e => setVariant(e.target.value)}
                             placeholder="e.g. English, Ukrainian"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
                         />
                     </div>
 
                     {/* Status */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Initial Status</label>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">Initial Status</label>
                         <select
                             value={status}
                             onChange={e => setStatus(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all"
                         >
                             <option value="requested">Requested</option>
                             <option value="invited">Invited</option>
@@ -232,31 +253,31 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
                     {/* Notes */}
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Notes <span className="text-slate-400 font-normal">(optional)</span>
+                        <label className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-1.5 block">
+                            Notes <span className="text-surface-400 font-normal normal-case">(optional)</span>
                         </label>
                         <textarea
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
                             placeholder="Any notes about this enrollment..."
                             rows={2}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+                            className="w-full px-3.5 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all resize-none placeholder:text-surface-400"
                         />
                     </div>
 
                     {/* Actions */}
-                    <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                    <div className="flex gap-3 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="px-5 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving && <Loader2 size={16} className="animate-spin" />}
                             Enroll Student

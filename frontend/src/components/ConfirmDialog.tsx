@@ -1,6 +1,6 @@
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 
-interface ConfirmDialogProps {
+interface Props {
     open: boolean;
     title: string;
     message: string;
@@ -10,49 +10,41 @@ interface ConfirmDialogProps {
     onCancel: () => void;
 }
 
-export default function ConfirmDialog({
-    open,
-    title,
-    message,
-    confirmLabel = 'Delete',
-    variant = 'danger',
-    onConfirm,
-    onCancel
-}: ConfirmDialogProps) {
+export default function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', variant = 'danger', onConfirm, onCancel }: Props) {
     if (!open) return null;
 
-    const colors = variant === 'danger'
-        ? { bg: 'bg-red-600 hover:bg-red-700', icon: 'text-red-600 bg-red-100' }
-        : { bg: 'bg-yellow-600 hover:bg-yellow-700', icon: 'text-yellow-600 bg-yellow-100' };
+    const isDanger = variant === 'danger';
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50 animate-fadeIn" onClick={onCancel} />
-            <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-scaleIn">
-                <button onClick={onCancel} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                    <X size={18} />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
+                <div className="p-6 text-center">
+                    {/* Icon */}
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDanger ? 'bg-red-50' : 'bg-amber-50'}`}>
+                        {isDanger
+                            ? <AlertTriangle size={28} className="text-red-500" />
+                            : <AlertCircle size={28} className="text-amber-500" />
+                        }
+                    </div>
 
-                <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-full ${colors.icon}`}>
-                        <AlertTriangle size={24} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-slate-900 mb-1">{title}</h3>
-                        <p className="text-sm text-slate-500">{message}</p>
-                    </div>
+                    <h3 className="text-lg font-bold text-surface-900 mb-1.5">{title}</h3>
+                    <p className="text-sm text-surface-500 leading-relaxed">{message}</p>
                 </div>
 
-                <div className="flex justify-end gap-3 mt-6">
+                <div className="flex gap-3 px-6 pb-6">
                     <button
                         onClick={onCancel}
-                        className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
-                        className={`px-4 py-2 text-sm font-medium text-white ${colors.bg} rounded-lg transition`}
+                        className={`flex-1 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all shadow-sm hover:shadow-md ${isDanger
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+                            : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700'
+                            }`}
                     >
                         {confirmLabel}
                     </button>

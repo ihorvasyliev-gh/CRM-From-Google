@@ -1,107 +1,97 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Loader2, Lock, Mail, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
     const { signIn } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = async (e: FormEvent) => {
+    async function handleSubmit(e: FormEvent) {
         e.preventDefault();
+        setLoading(true);
         setError('');
-        setIsLoading(true);
-
-        const { error } = await signIn(email, password);
-
-        if (error) {
+        try {
+            await signIn(email, password);
+        } catch {
             setError('Invalid email or password');
-            setIsLoading(false);
+        } finally {
+            setLoading(false);
         }
-    };
+    }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 flex items-center justify-center px-4">
-            {/* Decorative blobs */}
-            <div className="absolute top-20 left-20 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-20 right-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="min-h-screen bg-gradient-to-br from-surface-950 via-brand-950 to-surface-900 flex items-center justify-center px-4 relative overflow-hidden">
+            {/* Animated orbs */}
+            <div className="absolute top-20 left-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl animate-orb1" />
+            <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent-500/8 rounded-full blur-3xl animate-orb2" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
 
-            <div className="relative w-full max-w-md">
-                {/* Card */}
-                <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8">
-                    {/* Logo & Title */}
-                    <div className="text-center mb-8">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-lg shadow-blue-500/30">
-                            C
-                        </div>
-                        <h1 className="text-2xl font-bold text-white">Course CRM</h1>
-                        <p className="text-blue-200/60 mt-1 text-sm">Sign in to access your dashboard</p>
+            <div className="relative w-full max-w-md animate-scaleIn">
+                {/* Logo */}
+                <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 animate-glow">
+                        <Sparkles size={28} />
                     </div>
+                    <h1 className="text-3xl font-bold text-white mb-1">Course CRM</h1>
+                    <p className="text-sm text-white/40 font-medium">Sign in to manage your courses</p>
+                </div>
 
-                    {/* Error */}
-                    {error && (
-                        <div className="mb-6 flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm">
-                            <AlertCircle size={16} className="shrink-0" />
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Form */}
+                {/* Card */}
+                <div className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-8">
                     <form onSubmit={handleSubmit} className="space-y-5">
+                        {error && (
+                            <div className="text-sm text-red-300 bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
+                                {error}
+                            </div>
+                        )}
+
                         <div>
-                            <label className="block text-sm font-medium text-blue-100/80 mb-1.5">Email</label>
+                            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Email</label>
                             <div className="relative">
-                                <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300/40" />
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" size={16} />
                                 <input
                                     type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-blue-300/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                                     placeholder="admin@example.com"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400/40 transition-all"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
                                     required
-                                    autoComplete="email"
+                                    autoFocus
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-blue-100/80 mb-1.5">Password</label>
+                            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Password</label>
                             <div className="relative">
-                                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300/40" />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" size={16} />
                                 <input
                                     type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-blue-300/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                                     placeholder="••••••••"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400/40 transition-all"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
                                     required
-                                    autoComplete="current-password"
                                 />
                             </div>
                         </div>
 
                         <button
                             type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-2.5 rounded-lg transition-all duration-200 shadow-lg shadow-blue-600/25 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            disabled={loading}
+                            className="w-full py-3 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 size={18} className="animate-spin" />
-                                    Signing in…
-                                </>
-                            ) : (
-                                'Sign In'
-                            )}
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+                            {loading ? 'Signing in...' : 'Sign In'}
                         </button>
                     </form>
                 </div>
 
-                {/* Footer */}
-                <p className="text-center text-blue-300/30 text-xs mt-6">
-                    Protected area — authorized personnel only
+                <p className="text-center text-xs text-white/20 mt-6 font-medium">
+                    Course CRM • Management System
                 </p>
             </div>
         </div>

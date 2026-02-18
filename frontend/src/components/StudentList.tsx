@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
 import StudentModal, { StudentFormData } from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
@@ -24,20 +24,15 @@ export default function StudentList() {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
-    // Modals
     const [studentModalOpen, setStudentModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<StudentFormData | null>(null);
     const [detailStudent, setDetailStudent] = useState<Student | null>(null);
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
     const [enrollStudentId, setEnrollStudentId] = useState<string | undefined>();
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
-
-    // Toast
     const [toast, setToast] = useState<ToastData | null>(null);
 
-    useEffect(() => {
-        fetchStudents();
-    }, []);
+    useEffect(() => { fetchStudents(); }, []);
 
     async function fetchStudents() {
         setLoading(true);
@@ -48,7 +43,6 @@ export default function StudentList() {
 
     async function handleSaveStudent(data: StudentFormData) {
         if (data.id) {
-            // Update
             const { id, ...rest } = data;
             const { error } = await supabase.from('students').update(rest).eq('id', id);
             if (error) throw new Error(error.message);
@@ -58,7 +52,6 @@ export default function StudentList() {
             }
             setToast({ message: 'Student updated', type: 'success' });
         } else {
-            // Insert
             const { error, data: inserted } = await supabase.from('students').insert(data).select();
             if (error) {
                 if (error.message.includes('duplicate') || error.message.includes('unique')) {
@@ -115,29 +108,51 @@ export default function StudentList() {
         );
     });
 
+    const AVATAR_GRADIENTS = [
+        'from-brand-500 to-brand-600',
+        'from-violet-500 to-purple-600',
+        'from-emerald-500 to-teal-600',
+        'from-amber-500 to-orange-600',
+        'from-rose-500 to-pink-600',
+        'from-cyan-500 to-blue-600',
+    ];
+
+    function getAvatarGradient(id: string): string {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+    }
+
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4">
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-semibold text-slate-800">Students</h2>
-                        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{students.length}</span>
+                        <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
+                            <Users size={20} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-surface-900">Students</h2>
+                                <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full">{students.length}</span>
+                            </div>
+                        </div>
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search by name, email or phone..."
-                                className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                className="w-full pl-9 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-brand-500/25 whitespace-nowrap"
                         >
                             <Plus size={16} /> Add Student
                         </button>
@@ -146,63 +161,74 @@ export default function StudentList() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden">
                 {loading ? (
                     <div className="flex justify-center py-16">
-                        <Loader2 size={24} className="animate-spin text-blue-500" />
+                        <Loader2 size={24} className="animate-spin text-brand-500" />
                     </div>
                 ) : filteredStudents.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400">
-                        <p className="text-lg">No students found</p>
-                        <p className="text-sm mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
+                    <div className="text-center py-16">
+                        <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Users size={28} className="text-surface-300" />
+                        </div>
+                        <p className="text-lg font-semibold text-surface-700">No students found</p>
+                        <p className="text-sm text-surface-400 mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
+                        {!search && (
+                            <button
+                                onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
+                                className="mt-4 px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition inline-flex items-center gap-2"
+                            >
+                                <Plus size={16} /> Add Student
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
+                            <thead className="bg-surface-50/80 text-xs uppercase font-semibold text-surface-400 border-b border-surface-200/60">
                                 <tr>
-                                    <th className="px-5 py-3">Name</th>
-                                    <th className="px-5 py-3">Email</th>
-                                    <th className="px-5 py-3">Phone</th>
-                                    <th className="px-5 py-3">Eircode</th>
-                                    <th className="px-5 py-3 w-24">Actions</th>
+                                    <th className="px-5 py-3.5">Name</th>
+                                    <th className="px-5 py-3.5">Email</th>
+                                    <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
+                                    <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
+                                    <th className="px-5 py-3.5 w-28">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-surface-100">
                                 {filteredStudents.map(student => (
                                     <tr
                                         key={student.id}
-                                        className="hover:bg-blue-50/50 cursor-pointer transition group"
+                                        className="hover:bg-brand-50/30 cursor-pointer transition-all group"
                                         onClick={() => setDetailStudent(student)}
                                     >
-                                        <td className="px-5 py-3">
+                                        <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                                                <div className={`w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 ring-2 ring-white shadow-sm`}>
                                                     {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                                                 </div>
-                                                <span className="font-medium text-slate-900">{student.first_name} {student.last_name}</span>
+                                                <span className="font-semibold text-surface-900">{student.first_name} {student.last_name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3 text-slate-600">{student.email}</td>
-                                        <td className="px-5 py-3 text-slate-600">{student.phone}</td>
-                                        <td className="px-5 py-3 text-slate-600">{student.eircode}</td>
-                                        <td className="px-5 py-3">
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition" onClick={e => e.stopPropagation()}>
+                                        <td className="px-5 py-3.5 text-surface-500">{student.email}</td>
+                                        <td className="px-5 py-3.5 text-surface-500 hidden md:table-cell">{student.phone}</td>
+                                        <td className="px-5 py-3.5 text-surface-500 hidden lg:table-cell">{student.eircode}</td>
+                                        <td className="px-5 py-3.5">
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => openEdit(student)}
-                                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                    className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
                                                     title="Edit"
                                                 >
                                                     <Edit2 size={14} />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteTarget(student)}
-                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                    className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                     title="Delete"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
-                                                <ChevronRight size={14} className="text-slate-300 ml-1" />
+                                                <ChevronRight size={14} className="text-surface-300 ml-1 group-hover:translate-x-0.5 transition-transform" />
                                             </div>
                                         </td>
                                     </tr>
@@ -213,11 +239,10 @@ export default function StudentList() {
                 )}
             </div>
 
-            <div className="text-xs text-slate-400 text-center">
+            <div className="text-xs text-surface-400 text-center font-medium">
                 Showing {filteredStudents.length} of {students.length} students
             </div>
 
-            {/* Student Detail Panel */}
             {detailStudent && (
                 <StudentDetail
                     student={detailStudent}
@@ -228,7 +253,6 @@ export default function StudentList() {
                 />
             )}
 
-            {/* Modals */}
             <StudentModal
                 open={studentModalOpen}
                 student={editingStudent}
@@ -240,10 +264,7 @@ export default function StudentList() {
                 preselectedStudentId={enrollStudentId}
                 onSave={() => {
                     setToast({ message: 'Enrollment created', type: 'success' });
-                    // Refresh detail if open
-                    if (detailStudent) {
-                        setDetailStudent({ ...detailStudent }); // trigger re-render
-                    }
+                    if (detailStudent) setDetailStudent({ ...detailStudent });
                 }}
                 onClose={() => setEnrollModalOpen(false)}
             />
