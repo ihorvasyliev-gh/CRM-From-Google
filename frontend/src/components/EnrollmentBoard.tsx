@@ -1,11 +1,15 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Clock, XCircle, Send, Search, Copy, Calendar, Filter, Check, X, Plus, Trash2, ChevronDown, ChevronUp, GraduationCap } from 'lucide-react';
+import {
+    CheckCircle, Clock, XCircle, Send, Search, Copy, Calendar,
+    Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
+    MoreHorizontal, ArrowRight, LogOut, Ban
+} from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 
-// --- Types ---
+// ─── Types ──────────────────────────────────────────────────
 interface Student {
     first_name: string;
     last_name: string;
@@ -25,45 +29,92 @@ interface Enrollment {
     status: string;
     course_variant: string | null;
     notes: string | null;
+    confirmed_date: string | null;
     created_at: string;
     students: Student | null;
     courses: Course | null;
 }
 
-// --- Constants ---
-const STATUS_ICONS: Record<string, JSX.Element> = {
-    requested: <Clock size={13} className="text-amber-600" />,
-    invited: <Send size={13} className="text-blue-600" />,
-    confirmed: <CheckCircle size={13} className="text-emerald-600" />,
-    rejected: <XCircle size={13} className="text-red-500" />,
-    completed: <GraduationCap size={13} className="text-teal-600" />,
-    withdrawn: <XCircle size={13} className="text-slate-500" />,
+// ─── Constants ──────────────────────────────────────────────
+const PIPELINE_STATUSES = ['requested', 'invited', 'confirmed', 'completed'] as const;
+const SECONDARY_STATUSES = ['withdrawn', 'rejected'] as const;
+const ALL_STATUSES = [...PIPELINE_STATUSES, ...SECONDARY_STATUSES] as const;
+
+const STATUS_CONFIG: Record<string, {
+    label: string;
+    icon: JSX.Element;
+    color: string;
+    bg: string;
+    border: string;
+    pillBg: string;
+    gradient: string;
+}> = {
+    requested: {
+        label: 'Requested',
+        icon: <Clock size={14} />,
+        color: 'text-amber-600',
+        bg: 'bg-amber-50',
+        border: 'border-amber-200',
+        pillBg: 'bg-amber-100 text-amber-700',
+        gradient: 'from-amber-500 to-orange-500',
+    },
+    invited: {
+        label: 'Invited',
+        icon: <Send size={14} />,
+        color: 'text-blue-600',
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        pillBg: 'bg-blue-100 text-blue-700',
+        gradient: 'from-blue-500 to-indigo-500',
+    },
+    confirmed: {
+        label: 'Confirmed',
+        icon: <CheckCircle size={14} />,
+        color: 'text-emerald-600',
+        bg: 'bg-emerald-50',
+        border: 'border-emerald-200',
+        pillBg: 'bg-emerald-100 text-emerald-700',
+        gradient: 'from-emerald-500 to-green-500',
+    },
+    completed: {
+        label: 'Completed',
+        icon: <GraduationCap size={14} />,
+        color: 'text-teal-600',
+        bg: 'bg-teal-50',
+        border: 'border-teal-200',
+        pillBg: 'bg-teal-100 text-teal-700',
+        gradient: 'from-teal-500 to-cyan-500',
+    },
+    withdrawn: {
+        label: 'Withdrawn',
+        icon: <LogOut size={14} />,
+        color: 'text-slate-500',
+        bg: 'bg-slate-50',
+        border: 'border-slate-200',
+        pillBg: 'bg-slate-100 text-slate-600',
+        gradient: 'from-slate-400 to-slate-500',
+    },
+    rejected: {
+        label: 'Rejected',
+        icon: <Ban size={14} />,
+        color: 'text-red-500',
+        bg: 'bg-red-50',
+        border: 'border-red-200',
+        pillBg: 'bg-red-100 text-red-600',
+        gradient: 'from-red-500 to-rose-500',
+    },
 };
 
-const STATUS_COLORS: Record<string, string> = {
-    requested: 'bg-amber-50 text-amber-700 border-amber-200',
-    invited: 'bg-blue-50 text-blue-700 border-blue-200',
-    confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    rejected: 'bg-red-50 text-red-600 border-red-200',
-    completed: 'bg-teal-50 text-teal-700 border-teal-200',
-    withdrawn: 'bg-slate-50 text-slate-500 border-slate-200',
-};
-
-// --- Helpers ---
-function buildGroupKey(enrollment: Enrollment): string {
-    const courseName = enrollment.courses?.name || 'Unknown Course';
-    const variant = enrollment.course_variant?.trim() || '';
-    if (!variant) return courseName;
-    return `${courseName} (${variant})`;
-}
-
-function normalizeGroupKey(key: string): string {
-    return key.toLowerCase();
-}
-
+// ─── Helpers ────────────────────────────────────────────────
 function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('en-IE', {
-        day: '2-digit', month: 'short', year: 'numeric'
+        day: '2-digit', month: 'short', year: 'numeric',
+    });
+}
+
+function formatShortDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('en-IE', {
+        day: 'numeric', month: 'short',
     });
 }
 
@@ -78,27 +129,58 @@ function collectEmails(enrollments: Enrollment[]): string {
     return [...new Set(emails)].join('; ');
 }
 
-// --- Component ---
+function getCoursePill(enrollment: Enrollment): string {
+    const name = enrollment.courses?.name || 'Unknown';
+    const variant = enrollment.course_variant?.trim();
+    return variant ? `${name} (${variant})` : name;
+}
+
+function todayISO(): string {
+    return new Date().toISOString().split('T')[0];
+}
+
+// ─── Component ──────────────────────────────────────────────
 export default function EnrollmentBoard() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>('all');
-    const [selectedStatus, setSelectedStatus] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+    const [showSecondary, setShowSecondary] = useState(false);
 
+    // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<Enrollment | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
+
+    // Confirm date picker
+    const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
+    const [confirmDate, setConfirmDate] = useState(todayISO());
+
+    // Action menu
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
     }, []);
 
+    // Close menu on click outside
+    useEffect(() => {
+        function handleClick(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setOpenMenuId(null);
+            }
+        }
+        if (openMenuId) document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [openMenuId]);
+
+    // ─── Data Fetching ──────────────────────────────────────
     useEffect(() => {
         fetchCourses();
         fetchEnrollments();
@@ -117,84 +199,129 @@ export default function EnrollmentBoard() {
         if (data) setEnrollments(data as Enrollment[]);
     }
 
-    async function updateStatus(id: string, newStatus: string) {
-        // For completed/withdrawn, update ALL variants of this course for this student
+    // ─── Status Update ──────────────────────────────────────
+    async function updateStatus(id: string, newStatus: string, confirmedDate?: string) {
+        if (newStatus === 'confirmed' && !confirmedDate) {
+            setConfirmDateTarget({ ids: [id], bulk: false });
+            setConfirmDate(todayISO());
+            return;
+        }
+
+        const updatePayload: Record<string, string | null> = { status: newStatus };
+        if (newStatus === 'confirmed' && confirmedDate) {
+            updatePayload.confirmed_date = confirmedDate;
+        }
+        if (newStatus !== 'confirmed') {
+            updatePayload.confirmed_date = null;
+        }
+
+        // For completed/withdrawn, update ALL variants
         if (newStatus === 'completed' || newStatus === 'withdrawn') {
             const currentEnrollment = enrollments.find(e => e.id === id);
             if (!currentEnrollment) return;
 
-            const relatedEnrollments = enrollments.filter(e =>
-                e.student_id === currentEnrollment.student_id &&
-                e.course_id === currentEnrollment.course_id
-            );
-
-            const relatedIds = relatedEnrollments.map(e => e.id);
+            const relatedIds = enrollments
+                .filter(e => e.student_id === currentEnrollment.student_id && e.course_id === currentEnrollment.course_id)
+                .map(e => e.id);
 
             const { error } = await supabase
                 .from('enrollments')
-                .update({ status: newStatus })
+                .update(updatePayload)
                 .in('id', relatedIds);
 
             if (!error) {
-                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
-                showToast(`Updated status for ${relatedIds.length} related enrollments`, 'success');
+                setEnrollments(prev => prev.map(e =>
+                    relatedIds.includes(e.id) ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null } : e
+                ));
+                showToast(`Updated ${relatedIds.length} related enrollment(s)`, 'success');
             } else {
                 showToast('Error updating status', 'error');
             }
         } else {
-            // For invited/confirmed/others, only update specific enrollment
-            const { error } = await supabase.from('enrollments').update({ status: newStatus }).eq('id', id);
+            const { error } = await supabase.from('enrollments').update(updatePayload).eq('id', id);
             if (!error) {
-                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+                setEnrollments(prev => prev.map(e =>
+                    e.id === id ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null } : e
+                ));
             } else {
                 showToast('Error updating status', 'error');
             }
         }
+        setOpenMenuId(null);
     }
 
-    async function bulkUpdateStatus(newStatus: string) {
+    // ─── Bulk Update ────────────────────────────────────────
+    async function bulkUpdateStatus(newStatus: string, confirmedDate?: string) {
         if (selectedIds.size === 0) return;
 
-        let idsToUpdate = Array.from(selectedIds);
+        if (newStatus === 'confirmed' && !confirmedDate) {
+            setConfirmDateTarget({ ids: Array.from(selectedIds), bulk: true });
+            setConfirmDate(todayISO());
+            return;
+        }
 
-        // If completing/withdrawing, we need to find all related enrollments for selected items too
+        let idsToUpdate = Array.from(selectedIds);
+        const updatePayload: Record<string, string | null> = { status: newStatus };
+        if (newStatus === 'confirmed' && confirmedDate) {
+            updatePayload.confirmed_date = confirmedDate;
+        }
+        if (newStatus !== 'confirmed') {
+            updatePayload.confirmed_date = null;
+        }
+
         if (newStatus === 'completed' || newStatus === 'withdrawn') {
             const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
             const extraIds: string[] = [];
-
             selectedEnrollments.forEach(curr => {
-                const related = enrollments.filter(e =>
+                enrollments.filter(e =>
                     e.student_id === curr.student_id &&
                     e.course_id === curr.course_id &&
-                    !selectedIds.has(e.id) // Don't add if already selected
-                );
-                related.forEach(r => extraIds.push(r.id));
+                    !selectedIds.has(e.id)
+                ).forEach(r => extraIds.push(r.id));
             });
-
             idsToUpdate = [...idsToUpdate, ...extraIds];
         }
 
         const { error } = await supabase
             .from('enrollments')
-            .update({ status: newStatus })
+            .update(updatePayload)
             .in('id', idsToUpdate);
 
         if (!error) {
-            setEnrollments(prev => prev.map(e => idsToUpdate.includes(e.id) ? { ...e, status: newStatus } : e));
+            setEnrollments(prev => prev.map(e =>
+                idsToUpdate.includes(e.id)
+                    ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null }
+                    : e
+            ));
             setSelectedIds(new Set());
-            showToast(`${idsToUpdate.length} enrollments marked as ${newStatus}`, 'success');
+            showToast(`${idsToUpdate.length} enrollment(s) → ${newStatus}`, 'success');
         } else {
             showToast('Error updating status', 'error');
         }
     }
 
+    // ─── Confirm Date Handler ───────────────────────────────
+    async function handleConfirmWithDate() {
+        if (!confirmDateTarget) return;
+        if (confirmDateTarget.bulk) {
+            await bulkUpdateStatus('confirmed', confirmDate);
+        } else {
+            await updateStatus(confirmDateTarget.ids[0], 'confirmed', confirmDate);
+        }
+        setConfirmDateTarget(null);
+    }
+
+    // ─── Delete ─────────────────────────────────────────────
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
         const { error } = await supabase.from('enrollments').delete().eq('id', deleteTarget.id);
         if (!error) {
             setEnrollments(prev => prev.filter(e => e.id !== deleteTarget.id));
-            selectedIds.delete(deleteTarget.id);
-            setSelectedIds(new Set(selectedIds));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(deleteTarget.id);
+                return next;
+            });
             showToast('Enrollment deleted', 'success');
         } else {
             showToast('Failed to delete enrollment', 'error');
@@ -202,11 +329,10 @@ export default function EnrollmentBoard() {
         setDeleteTarget(null);
     }
 
-    // --- Filtering ---
+    // ─── Filtering ──────────────────────────────────────────
     const filteredEnrollments = useMemo(() => {
         let result = enrollments;
         if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
-        if (selectedStatus !== 'all') result = result.filter(e => e.status === selectedStatus);
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(e => {
@@ -227,25 +353,28 @@ export default function EnrollmentBoard() {
             result = result.filter(e => new Date(e.created_at) <= to);
         }
         return result;
-    }, [enrollments, selectedCourse, selectedStatus, searchQuery, dateFrom, dateTo]);
+    }, [enrollments, selectedCourse, searchQuery, dateFrom, dateTo]);
 
-    // --- Grouping ---
-    const groupedByCourse = useMemo(() => {
-        const normalizedMap: Record<string, { displayName: string; items: Enrollment[] }> = {};
-        for (const enrollment of filteredEnrollments) {
-            const rawKey = buildGroupKey(enrollment);
-            const normKey = normalizeGroupKey(rawKey);
-            if (!normalizedMap[normKey]) {
-                normalizedMap[normKey] = { displayName: rawKey, items: [] };
-            }
-            normalizedMap[normKey].items.push(enrollment);
-        }
-        return Object.values(normalizedMap).sort((a, b) =>
-            a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
-        );
+    // ─── Group by Status ────────────────────────────────────
+    const byStatus = useMemo(() => {
+        const map: Record<string, Enrollment[]> = {};
+        ALL_STATUSES.forEach(s => { map[s] = []; });
+        filteredEnrollments.forEach(e => {
+            if (map[e.status]) map[e.status].push(e);
+            else map[e.status] = [e];
+        });
+        return map;
     }, [filteredEnrollments]);
 
-    // --- Selection ---
+    // ─── Status Counts (unfiltered) ─────────────────────────
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        ALL_STATUSES.forEach(s => { counts[s] = 0; });
+        enrollments.forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
+        return counts;
+    }, [enrollments]);
+
+    // ─── Selection ──────────────────────────────────────────
     function toggleSelect(id: string) {
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -255,7 +384,8 @@ export default function EnrollmentBoard() {
         });
     }
 
-    function toggleSelectGroup(items: Enrollment[]) {
+    function selectAllInColumn(status: string) {
+        const items = byStatus[status] || [];
         const allSelected = items.every(e => selectedIds.has(e.id));
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -271,22 +401,10 @@ export default function EnrollmentBoard() {
         setSelectedIds(new Set());
     }
 
-    function toggleCollapse(key: string) {
-        setCollapsedGroups(prev => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-        });
-    }
-
-    // --- Copy helpers ---
+    // ─── Copy ───────────────────────────────────────────────
     async function handleCopyEmails(items: Enrollment[], label: string) {
         const emailStr = collectEmails(items);
-        if (!emailStr) {
-            showToast('No emails to copy', 'error');
-            return;
-        }
+        if (!emailStr) { showToast('No emails to copy', 'error'); return; }
         await copyToClipboard(emailStr);
         showToast(`${label} emails copied!`, 'success');
     }
@@ -296,12 +414,27 @@ export default function EnrollmentBoard() {
         await handleCopyEmails(selected, `${selected.length}`);
     }
 
-    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedStatus !== 'all' || dateFrom || dateTo;
-    const selectedCount = selectedIds.size;
+    // ─── Unique course list for chips ───────────────────────
+    const uniqueCourses = useMemo(() => {
+        const seen = new Map<string, string>();
+        enrollments.forEach(e => {
+            if (e.course_id && e.courses?.name && !seen.has(e.course_id)) {
+                seen.set(e.course_id, e.courses.name);
+            }
+        });
+        return Array.from(seen.entries())
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [enrollments]);
 
+    const hasFilters = searchQuery || selectedCourse !== 'all' || dateFrom || dateTo;
+    const selectedCount = selectedIds.size;
+    const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
+
+    // ─── Render ─────────────────────────────────────────────
     return (
         <div className="space-y-4 pb-24">
-            {/* === Toolbar === */}
+            {/* ═══ Toolbar ═══ */}
             <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4 space-y-3">
                 {/* Row 1: Title + Search + Add */}
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -312,7 +445,9 @@ export default function EnrollmentBoard() {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h2 className="text-lg font-bold text-surface-900">Enrollments</h2>
-                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">{enrollments.length}</span>
+                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                                    {enrollments.length}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -339,45 +474,42 @@ export default function EnrollmentBoard() {
                             onClick={() => setEnrollModalOpen(true)}
                             className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-emerald-500/25 whitespace-nowrap"
                         >
-                            <Plus size={16} /> Add Enrollment
+                            <Plus size={16} /> Add
                         </button>
                     </div>
                 </div>
 
-                {/* Row 2: Filters */}
+                {/* Row 2: Course chips */}
+                <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                        onClick={() => setSelectedCourse('all')}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === 'all'
+                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                            : 'bg-white text-surface-600 border-surface-200 hover:border-brand-300 hover:text-brand-600'
+                            }`}
+                    >
+                        All Courses
+                    </button>
+                    {uniqueCourses.map(c => (
+                        <button
+                            key={c.id}
+                            onClick={() => setSelectedCourse(c.id === selectedCourse ? 'all' : c.id)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === c.id
+                                ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                : 'bg-white text-surface-600 border-surface-200 hover:border-brand-300 hover:text-brand-600'
+                                }`}
+                        >
+                            {c.name}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Row 3: Date filter + Clear */}
                 <div className="flex flex-wrap gap-2.5 items-center">
                     <div className="flex items-center gap-1.5 text-surface-400">
                         <Filter size={14} />
-                        <span className="text-xs font-medium">Filters:</span>
+                        <span className="text-xs font-medium">Date:</span>
                     </div>
-
-                    <select
-                        className="px-3 py-2 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 appearance-none pr-8 cursor-pointer"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
-                        value={selectedCourse}
-                        onChange={e => setSelectedCourse(e.target.value)}
-                    >
-                        <option value="all">All Courses</option>
-                        {courses.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
-
-                    <select
-                        className="px-3 py-2 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 appearance-none pr-8 cursor-pointer"
-                        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
-                        value={selectedStatus}
-                        onChange={e => setSelectedStatus(e.target.value)}
-                    >
-                        <option value="all">All Statuses</option>
-                        <option value="requested">Requested</option>
-                        <option value="invited">Invited</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="completed">Completed</option>
-                        <option value="withdrawn">Withdrawn</option>
-                        <option value="rejected">Rejected</option>
-                    </select>
-
                     <div className="flex items-center gap-1.5 bg-surface-50 border border-surface-200 rounded-xl px-2.5 py-1">
                         <Calendar size={13} className="text-surface-400" />
                         <input
@@ -396,13 +528,11 @@ export default function EnrollmentBoard() {
                             title="To date"
                         />
                     </div>
-
                     {hasFilters && (
                         <button
                             onClick={() => {
                                 setSearchQuery('');
                                 setSelectedCourse('all');
-                                setSelectedStatus('all');
                                 setDateFrom('');
                                 setDateTo('');
                             }}
@@ -411,201 +541,270 @@ export default function EnrollmentBoard() {
                             Clear filters
                         </button>
                     )}
+                    <span className="text-xs text-surface-400 font-medium ml-auto">
+                        {filteredEnrollments.length} of {enrollments.length} enrollments
+                    </span>
                 </div>
 
-                <div className="text-xs text-surface-400 font-medium">
-                    Showing {filteredEnrollments.length} of {enrollments.length} enrollments
-                    {groupedByCourse.length > 0 && ` in ${groupedByCourse.length} group${groupedByCourse.length > 1 ? 's' : ''}`}
+                {/* Row 4: Status Summary Bar */}
+                <div className="flex flex-wrap gap-2">
+                    {ALL_STATUSES.map(status => {
+                        const cfg = STATUS_CONFIG[status];
+                        const count = statusCounts[status] || 0;
+                        if (count === 0 && SECONDARY_STATUSES.includes(status as typeof SECONDARY_STATUSES[number])) return null;
+                        return (
+                            <div
+                                key={status}
+                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border`}
+                            >
+                                {cfg.icon}
+                                <span>{cfg.label}</span>
+                                <span className="font-bold">{count}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* === Course Groups === */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {groupedByCourse.map(({ displayName, items }) => {
-                    const allGroupSelected = items.every(e => selectedIds.has(e.id));
-                    const someGroupSelected = items.some(e => selectedIds.has(e.id));
-                    const invitedItems = items.filter(e => e.status === 'invited');
-                    const confirmedItems = items.filter(e => e.status === 'confirmed');
-                    const isCollapsed = collapsedGroups.has(displayName);
+            {/* ═══ Kanban Pipeline ═══ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {PIPELINE_STATUSES.map(status => {
+                    const cfg = STATUS_CONFIG[status];
+                    const items = byStatus[status] || [];
+                    const allSelected = items.length > 0 && items.every(e => selectedIds.has(e.id));
+                    const someSelected = items.some(e => selectedIds.has(e.id));
 
                     return (
-                        <div key={displayName} className="bg-white rounded-2xl shadow-card border border-surface-200/60 flex flex-col max-h-[700px] overflow-hidden">
-                            {/* Group Header */}
-                            <div className="p-4 border-b border-surface-100 bg-gradient-to-r from-surface-50/80 to-white rounded-t-2xl">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => toggleSelectGroup(items)}
-                                            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all
-                                                ${allGroupSelected
+                        <div key={status} className="flex flex-col bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden">
+                            {/* Column Header */}
+                            <div className={`p-3.5 border-b-2 ${cfg.border}`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient}`} />
+                                        <h3 className="text-sm font-bold text-surface-800">{cfg.label}</h3>
+                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
+                                            {items.length}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        {items.length > 0 && (
+                                            <button
+                                                onClick={() => handleCopyEmails(items, cfg.label)}
+                                                className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all"
+                                                title={`Copy all ${cfg.label} emails`}
+                                            >
+                                                <Copy size={13} />
+                                            </button>
+                                        )}
+                                        {items.length > 0 && (
+                                            <button
+                                                onClick={() => selectAllInColumn(status)}
+                                                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
                                                     ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                                                    : someGroupSelected
+                                                    : someSelected
                                                         ? 'bg-brand-100 border-brand-400 text-brand-600'
                                                         : 'border-surface-300 hover:border-brand-400'
-                                                }`}
-                                        >
-                                            {(allGroupSelected || someGroupSelected) && <Check size={11} />}
-                                        </button>
-                                        <div className="flex-1">
-                                            <h3 className="font-bold text-surface-800">{displayName}</h3>
-                                            <span className="text-xs text-surface-500 font-medium">{items.length} student{items.length !== 1 ? 's' : ''}</span>
-                                        </div>
+                                                    }`}
+                                            >
+                                                {(allSelected || someSelected) && <Check size={10} />}
+                                            </button>
+                                        )}
                                     </div>
-                                    <button
-                                        onClick={() => toggleCollapse(displayName)}
-                                        className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all"
-                                    >
-                                        {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                                    </button>
-                                </div>
-
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                    <button
-                                        onClick={() => handleCopyEmails(items, `All ${items.length}`)}
-                                        className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-600 transition-all"
-                                        title="Copy all emails in this group"
-                                    >
-                                        <Copy size={11} /> All Emails ({items.length})
-                                    </button>
-                                    {invitedItems.length > 0 && (
-                                        <button
-                                            onClick={() => handleCopyEmails(invitedItems, `${invitedItems.length} invited`)}
-                                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-all"
-                                        >
-                                            <Copy size={11} /> Invited ({invitedItems.length})
-                                        </button>
-                                    )}
-                                    {confirmedItems.length > 0 && (
-                                        <button
-                                            onClick={() => handleCopyEmails(confirmedItems, `${confirmedItems.length} confirmed`)}
-                                            className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-all"
-                                        >
-                                            <Copy size={11} /> Confirmed ({confirmedItems.length})
-                                        </button>
-                                    )}
                                 </div>
                             </div>
 
-                            {/* Student Cards */}
-                            {!isCollapsed && (
-                                <div className="p-3 overflow-y-auto space-y-2 flex-1">
-                                    {items.map((enrollment) => {
-                                        const isSelected = selectedIds.has(enrollment.id);
-                                        return (
-                                            <div
-                                                key={enrollment.id}
-                                                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${isSelected
-                                                    ? 'border-brand-300 bg-brand-50/40 shadow-sm ring-1 ring-brand-200/50'
-                                                    : 'border-surface-100 bg-white hover:shadow-sm hover:border-surface-200'
-                                                    }`}
-                                                onClick={() => toggleSelect(enrollment.id)}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div
-                                                        className={`mt-0.5 w-4.5 h-4.5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected
-                                                            ? 'bg-brand-500 border-brand-500 text-white'
-                                                            : 'border-surface-300'
-                                                            }`}
-                                                        style={{ width: '18px', height: '18px' }}
-                                                    >
-                                                        {isSelected && <Check size={10} />}
-                                                    </div>
+                            {/* Cards */}
+                            <div className="p-2 overflow-y-auto flex-1 space-y-1.5" style={{ maxHeight: '520px' }}>
+                                {items.length === 0 && (
+                                    <div className="text-center py-8 text-surface-300">
+                                        <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-2 ${cfg.color} opacity-40`}>
+                                            {cfg.icon}
+                                        </div>
+                                        <p className="text-xs">No enrollments</p>
+                                    </div>
+                                )}
+                                {items.map(enrollment => {
+                                    const isSelected = selectedIds.has(enrollment.id);
+                                    const isMenuOpen = openMenuId === enrollment.id;
 
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex justify-between items-start mb-1.5">
-                                                            <p className="font-semibold text-surface-900 text-sm truncate">
-                                                                {enrollment.students?.first_name} {enrollment.students?.last_name}
-                                                            </p>
-                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border flex-shrink-0 ml-2 font-medium ${STATUS_COLORS[enrollment.status]}`}>
-                                                                {STATUS_ICONS[enrollment.status]} {enrollment.status}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-xs text-surface-500 space-y-0.5">
-                                                            {enrollment.students?.email && (
-                                                                <p className="truncate">{enrollment.students.email}</p>
-                                                            )}
-                                                            {enrollment.students?.phone && (
-                                                                <p>{enrollment.students.phone}</p>
-                                                            )}
-                                                            <p className="text-surface-400">
-                                                                {formatDate(enrollment.created_at)}
-                                                                {enrollment.course_variant && (
-                                                                    <span className="ml-2 text-surface-400">• {enrollment.course_variant}</span>
-                                                                )}
-                                                            </p>
-                                                            {enrollment.notes && (
-                                                                <p className="text-surface-400 italic mt-1 bg-surface-50 px-2 py-1 rounded-md">📝 {enrollment.notes}</p>
-                                                            )}
-                                                        </div>
+                                    return (
+                                        <div
+                                            key={enrollment.id}
+                                            className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
+                                                ? 'border-brand-300 bg-brand-50/50 shadow-sm ring-1 ring-brand-200/50'
+                                                : 'border-surface-100 bg-white hover:shadow-sm hover:border-surface-200'
+                                                }`}
+                                            onClick={() => toggleSelect(enrollment.id)}
+                                        >
+                                            <div className="flex items-start gap-2.5">
+                                                {/* Checkbox */}
+                                                <div
+                                                    className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${isSelected
+                                                        ? 'bg-brand-500 border-brand-500 text-white'
+                                                        : 'border-surface-300 group-hover:border-brand-300'
+                                                        }`}
+                                                >
+                                                    {isSelected && <Check size={9} />}
+                                                </div>
 
-                                                        <div className="mt-2.5 pt-2 border-t border-surface-100 flex gap-1.5"
-                                                            onClick={e => e.stopPropagation()}
-                                                        >
+                                                <div className="flex-1 min-w-0">
+                                                    {/* Name + Actions */}
+                                                    <div className="flex justify-between items-start">
+                                                        <p className="font-semibold text-surface-900 text-[13px] truncate leading-5">
+                                                            {enrollment.students?.first_name} {enrollment.students?.last_name}
+                                                        </p>
+                                                        {/* ⋯ Action Menu */}
+                                                        <div className="relative" ref={isMenuOpen ? menuRef : null}>
                                                             <button
-                                                                onClick={() => updateStatus(enrollment.id, 'invited')}
-                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'invited'
-                                                                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-200'
-                                                                    : 'bg-surface-50 hover:bg-blue-50 text-surface-500 hover:text-blue-600'
+                                                                onClick={e => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : enrollment.id); }}
+                                                                className={`p-1 rounded-md transition-all ${isMenuOpen
+                                                                    ? 'bg-surface-200 text-surface-700'
+                                                                    : 'text-surface-300 opacity-0 group-hover:opacity-100 hover:bg-surface-100 hover:text-surface-600'
                                                                     }`}
                                                             >
-                                                                Invite
+                                                                <MoreHorizontal size={14} />
                                                             </button>
-                                                            <button
-                                                                onClick={() => updateStatus(enrollment.id, 'confirmed')}
-                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'confirmed'
-                                                                    ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
-                                                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600'
-                                                                    }`}
-                                                            >
 
-                                                                Confirm
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateStatus(enrollment.id, 'completed')}
-                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'completed'
-                                                                    ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-200'
-                                                                    : 'bg-teal-50 hover:bg-teal-100 text-teal-600'
-                                                                    }`}
-                                                            >
-                                                                Complete
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateStatus(enrollment.id, 'withdrawn')}
-                                                                className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-all ${enrollment.status === 'withdrawn'
-                                                                    ? 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
-                                                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-500'
-                                                                    }`}
-                                                            >
-                                                                Withdraw
-                                                            </button>
-                                                            <button
-                                                                onClick={() => updateStatus(enrollment.id, 'rejected')}
-                                                                className="text-[11px] font-medium text-red-500 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-all"
-                                                            >
-                                                                Reject
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setDeleteTarget(enrollment)}
-                                                                className="text-[11px] text-surface-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg ml-auto transition-all"
-                                                                title="Delete enrollment"
-                                                            >
-                                                                <Trash2 size={12} />
-                                                            </button>
+                                                            {isMenuOpen && (
+                                                                <div className="absolute right-0 top-7 z-50 w-44 bg-white rounded-xl shadow-lg border border-surface-200 py-1.5 animate-scaleIn origin-top-right">
+                                                                    {ALL_STATUSES.filter(s => s !== status).map(s => {
+                                                                        const sCfg = STATUS_CONFIG[s];
+                                                                        return (
+                                                                            <button
+                                                                                key={s}
+                                                                                onClick={e => { e.stopPropagation(); updateStatus(enrollment.id, s); }}
+                                                                                className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface-50 transition-all"
+                                                                            >
+                                                                                <ArrowRight size={12} className="text-surface-300" />
+                                                                                <span className={sCfg.color}>{sCfg.icon}</span>
+                                                                                <span className="text-surface-700">Move to {sCfg.label}</span>
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                    <div className="border-t border-surface-100 my-1" />
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); setDeleteTarget(enrollment); setOpenMenuId(null); }}
+                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 text-red-500 hover:bg-red-50 transition-all"
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                        Delete
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
+
+                                                    {/* Course pill */}
+                                                    <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-1 ${cfg.pillBg}`}>
+                                                        {getCoursePill(enrollment)}
+                                                    </span>
+
+                                                    {/* Info row */}
+                                                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-surface-400">
+                                                        <span>{formatShortDate(enrollment.created_at)}</span>
+                                                        {enrollment.confirmed_date && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span className="text-emerald-600 font-medium flex items-center gap-0.5">
+                                                                    <CheckCircle size={10} />
+                                                                    {formatDate(enrollment.confirmed_date)}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Notes */}
+                                                    {enrollment.notes && (
+                                                        <p className="text-[11px] text-surface-400 italic mt-1 bg-surface-50 px-2 py-1 rounded-md truncate">
+                                                            📝 {enrollment.notes}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Empty state */}
-            {groupedByCourse.length === 0 && (
+            {/* ═══ Secondary Statuses (Withdrawn / Rejected) ═══ */}
+            {secondaryCount > 0 && (
+                <div>
+                    <button
+                        onClick={() => setShowSecondary(!showSecondary)}
+                        className="flex items-center gap-2 text-sm font-medium text-surface-500 hover:text-surface-700 transition-all mb-3"
+                    >
+                        <ChevronDown size={16} className={`transition-transform ${showSecondary ? 'rotate-180' : ''}`} />
+                        Withdrawn & Rejected ({secondaryCount})
+                    </button>
+
+                    {showSecondary && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slideDown">
+                            {SECONDARY_STATUSES.map(status => {
+                                const cfg = STATUS_CONFIG[status];
+                                const items = byStatus[status] || [];
+                                if (items.length === 0) return null;
+
+                                return (
+                                    <div key={status} className="bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden opacity-75">
+                                        <div className={`p-3 border-b ${cfg.border} ${cfg.bg}`}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={cfg.color}>{cfg.icon}</span>
+                                                <h3 className="text-sm font-bold text-surface-700">{cfg.label}</h3>
+                                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
+                                                    {items.length}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleCopyEmails(items, cfg.label)}
+                                                    className="ml-auto p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all"
+                                                    title={`Copy ${cfg.label} emails`}
+                                                >
+                                                    <Copy size={13} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
+                                            {items.map(enrollment => (
+                                                <div
+                                                    key={enrollment.id}
+                                                    className="group p-3 rounded-xl border border-surface-100 bg-white hover:shadow-sm transition-all flex items-center gap-3"
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-surface-700 text-[13px] truncate">
+                                                            {enrollment.students?.first_name} {enrollment.students?.last_name}
+                                                        </p>
+                                                        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
+                                                            {getCoursePill(enrollment)}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => updateStatus(enrollment.id, 'requested')}
+                                                        className="text-[11px] font-medium text-surface-400 hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
+                                                    >
+                                                        Restore
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDeleteTarget(enrollment)}
+                                                        className="text-surface-300 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-all"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ═══ Empty State ═══ */}
+            {filteredEnrollments.length === 0 && (
                 <div className="text-center py-16">
                     <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <GraduationCap size={28} className="text-surface-300" />
@@ -615,7 +814,7 @@ export default function EnrollmentBoard() {
                 </div>
             )}
 
-            {/* === Floating Action Bar === */}
+            {/* ═══ Floating Action Bar ═══ */}
             {selectedCount > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slideUp">
                     <div className="glass-dark rounded-2xl shadow-float px-6 py-3.5 flex items-center gap-4">
@@ -636,21 +835,21 @@ export default function EnrollmentBoard() {
                             onClick={() => bulkUpdateStatus('invited')}
                             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm"
                         >
-                            <Send size={14} /> Invite All
+                            <Send size={14} /> Invite
                         </button>
 
                         <button
                             onClick={() => bulkUpdateStatus('confirmed')}
                             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-sm"
                         >
-                            <CheckCircle size={14} /> Confirm All
+                            <CheckCircle size={14} /> Confirm
                         </button>
 
                         <button
                             onClick={() => bulkUpdateStatus('completed')}
                             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
                         >
-                            <GraduationCap size={14} /> Complete All
+                            <GraduationCap size={14} /> Complete
                         </button>
 
                         <button
@@ -663,7 +862,57 @@ export default function EnrollmentBoard() {
                 </div>
             )}
 
-            {/* === Modals === */}
+            {/* ═══ Confirm Date Modal ═══ */}
+            {confirmDateTarget && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setConfirmDateTarget(null)}>
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
+                                <CheckCircle size={22} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-surface-900">Confirm Enrollment</h3>
+                                <p className="text-xs text-surface-500 mt-0.5">
+                                    {confirmDateTarget.ids.length === 1
+                                        ? 'Set the confirmation date for this enrollment'
+                                        : `Set the confirmation date for ${confirmDateTarget.ids.length} enrollments`
+                                    }
+                                </p>
+                            </div>
+                        </div>
+
+                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                            Confirmation Date
+                        </label>
+                        <input
+                            type="date"
+                            value={confirmDate}
+                            onChange={e => setConfirmDate(e.target.value)}
+                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface-50"
+                        />
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setConfirmDateTarget(null)}
+                                className="flex-1 px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmWithDate}
+                                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Modals ═══ */}
             <EnrollmentModal
                 open={enrollModalOpen}
                 onSave={() => {

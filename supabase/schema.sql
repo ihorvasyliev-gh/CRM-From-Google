@@ -30,6 +30,7 @@ create table enrollments (
   status text default 'requested', -- requested, invited, confirmed, rejected
   course_variant text, -- e.g., "Ukrainian", "English"
   notes text, -- admin notes
+  confirmed_date date, -- date when the place was confirmed
   created_at timestamptz default now(),
   unique(student_id, course_id, course_variant) -- Allow same student in same course with different variants
 );
@@ -52,6 +53,7 @@ create policy "Authenticated access" on enrollments for all using (auth.role() =
 -- ============================================================
 -- MIGRATION (run these if tables already exist):
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS notes text;
+-- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS confirmed_date date;
 -- ALTER TABLE enrollments DROP CONSTRAINT IF EXISTS enrollments_student_id_course_id_key;
 -- ALTER TABLE enrollments ADD CONSTRAINT enrollments_student_id_course_id_course_variant_key UNIQUE (student_id, course_id, course_variant);
 -- ============================================================
