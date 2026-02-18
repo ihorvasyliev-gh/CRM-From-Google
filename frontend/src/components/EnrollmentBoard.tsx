@@ -50,12 +50,15 @@ export default function EnrollmentBoard() {
         ? enrollments
         : enrollments.filter(e => e.course_id === selectedCourse);
 
-    const groupedByCourse = filteredEnrollments.reduce((acc, curr) => {
-        const courseName = curr.courses?.name || 'Unknown Course';
-        if (!acc[courseName]) acc[courseName] = [];
-        acc[courseName].push(curr);
-        return acc;
-    }, {} as Record<string, any[]>);
+    const groupedByCourse: Record<string, any[]> = filteredEnrollments.reduce(
+        (acc: Record<string, any[]>, curr: any) => {
+            const courseName = curr.courses?.name || 'Unknown Course';
+            if (!acc[courseName]) acc[courseName] = [];
+            acc[courseName].push(curr);
+            return acc;
+        },
+        {}
+    );
 
     return (
         <div className="space-y-6">
