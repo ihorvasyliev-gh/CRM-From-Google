@@ -32,6 +32,8 @@ create table enrollments (
   notes text, -- admin notes
   confirmed_date date, -- date when the place was confirmed
   invited_date date, -- date to which the student was invited
+  confirmed_date date, -- date when the place was confirmed
+  is_priority boolean default false, -- priority student for this course
   created_at timestamptz default now(),
   unique(student_id, course_id, course_variant) -- Allow same student in same course with different variants
 );
@@ -91,5 +93,9 @@ create policy "Authenticated access" on document_templates for all using (auth.r
 -- Document Templates migration:
 -- CREATE TABLE document_templates ( id uuid PRIMARY KEY DEFAULT uuid_generate_v4(), name text NOT NULL, storage_path text NOT NULL, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now() );
 -- ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "Authenticated access" ON document_templates FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+--
+-- Priority System Migration:
+-- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_priority boolean DEFAULT false;
 -- ============================================================

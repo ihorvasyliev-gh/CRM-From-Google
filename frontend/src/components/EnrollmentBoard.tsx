@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star
 } from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -31,6 +31,7 @@ interface Enrollment {
     notes: string | null;
     confirmed_date: string | null;
     invited_date: string | null;
+    is_priority: boolean; // Added priority field
     created_at: string;
     students: Student | null;
     courses: Course | null;
@@ -437,6 +438,22 @@ export default function EnrollmentBoard() {
         setConfirmDateTarget(null);
     }
 
+    async function togglePriority(id: string, currentPriority: boolean) {
+        const newPriority = !currentPriority;
+        const { error } = await supabase
+            .from('enrollments')
+            .update({ is_priority: newPriority })
+            .eq('id', id);
+
+        if (!error) {
+            setEnrollments(prev => prev.map(e =>
+                e.id === id ? { ...e, is_priority: newPriority } : e
+            ));
+        } else {
+            showToast('Failed to update priority', 'error');
+        }
+    }
+
     // ─── Delete ─────────────────────────────────────────────
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
@@ -495,6 +512,11 @@ export default function EnrollmentBoard() {
         // Sort each group alphabetically by last name, first name
         Object.values(map).forEach(arr => {
             arr.sort((a, b) => {
+                // Primary sort: Priority (true first)
+                if (a.is_priority !== b.is_priority) {
+                    return a.is_priority ? -1 : 1;
+                }
+                // Secondary sort: Name
                 const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
                 const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
                 return aName.localeCompare(bName);
@@ -837,6 +859,21 @@ export default function EnrollmentBoard() {
                                                 >
                                                     {isSelected && <Check size={9} />}
                                                 </div>
+
+                                                {/* Star Priority */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        togglePriority(enrollment.id, !!enrollment.is_priority);
+                                                    }}
+                                                    className={`mt-0.5 p-0.5 rounded transition-all ${enrollment.is_priority
+                                                        ? 'text-amber-400 hover:text-amber-500'
+                                                        : 'text-surface-300 hover:text-amber-400 opacity-0 group-hover:opacity-100'
+                                                        }`}
+                                                    title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                                                >
+                                                    <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                                                </button>
 
                                                 <div className="flex-1 min-w-0">
                                                     {/* Name + Actions */}
