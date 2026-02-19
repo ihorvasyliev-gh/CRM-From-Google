@@ -199,8 +199,8 @@ export default function EnrollmentBoard() {
         if (data) setEnrollments(data as Enrollment[]);
     }
 
-    // ─── Fetch Saved Invite Dates ────────────────────────────
-    async function fetchSavedInviteDates(courseId: string) {
+    // ─── Fetch Saved Course Dates ────────────────────────────
+    async function fetchCourseDates(courseId: string) {
         const today = todayISO();
         const { data } = await supabase
             .from('invite_dates')
@@ -217,7 +217,7 @@ export default function EnrollmentBoard() {
         setInviteDate(todayISO());
         // Determine course_id from first selected enrollment
         const first = enrollments.find(e => ids.includes(e.id));
-        if (first) fetchSavedInviteDates(first.course_id);
+        if (first) fetchCourseDates(first.course_id);
     }
 
     // ─── Invite Helpers ─────────────────────────────────────
@@ -279,13 +279,17 @@ export default function EnrollmentBoard() {
 
     // ─── Status Update ──────────────────────────────────────
     async function updateStatus(id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) {
+        const current = enrollments.find(e => e.id === id);
         if (newStatus === 'invited' && !invitedDate) {
             openInviteModal([id], false);
             return;
         }
         if (newStatus === 'confirmed' && !confirmedDate) {
             setConfirmDateTarget({ ids: [id], bulk: false });
-            setConfirmDate(todayISO());
+            // Default to invited_date if available (and future/today?), otherwise today
+            const defaultDate = current?.invited_date || todayISO();
+            setConfirmDate(defaultDate);
+            if (current) fetchCourseDates(current.course_id);
             return;
         }
 
@@ -348,8 +352,16 @@ export default function EnrollmentBoard() {
         }
 
         if (newStatus === 'confirmed' && !confirmedDate) {
-            setConfirmDateTarget({ ids: Array.from(selectedIds), bulk: true });
-            setConfirmDate(todayISO());
+            const ids = Array.from(selectedIds);
+            setConfirmDateTarget({ ids, bulk: true });
+
+            // Try to find a common invited_date or just default to today
+            const firstId = ids[0];
+            const first = enrollments.find(e => e.id === firstId);
+            const defaultDate = first?.invited_date || todayISO();
+            setConfirmDate(defaultDate);
+
+            if (first) fetchCourseDates(first.course_id);
             return;
         }
 
@@ -399,6 +411,24 @@ export default function EnrollmentBoard() {
     // ─── Confirm Date Handler ───────────────────────────────
     async function handleConfirmWithDate() {
         if (!confirmDateTarget) return;
+
+        // Also save this date as a "Course Date" if it's new, similar to invite logic?
+        // Logic: If I confirm for a date, it's likely a valid course date.
+        // But let's stick to reading from invite_dates for now, unless we want to upsert here too?
+        // User asked to "connect logic", so it makes sense to Upsert too potentially?
+        // Let's keep it simple: Just update status. IF the user picked a date, they picked it.
+        // Actually, if they pick a NEW date here, we probably SHOULD save it so it appears next time?
+        // Let's add the upsert logic here too for consistency.
+
+        const firstId = confirmDateTarget.ids[0];
+        const first = enrollments.find(e => e.id === firstId);
+        if (first && confirmDate) {
+            await supabase.from('invite_dates').upsert(
+                { course_id: first.course_id, invite_date: confirmDate },
+                { onConflict: 'course_id,invite_date' }
+            );
+        }
+
         if (confirmDateTarget.bulk) {
             await bulkUpdateStatus('confirmed', confirmDate);
         } else {
@@ -1064,8 +1094,8 @@ export default function EnrollmentBoard() {
                                             key={d}
                                             onClick={() => setInviteDate(d)}
                                             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${inviteDate === d
-                                                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                                                    : 'bg-white text-surface-600 border-surface-200 hover:border-blue-300 hover:text-blue-600'
+                                                ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                                                : 'bg-white text-surface-600 border-surface-200 hover:border-blue-300 hover:text-blue-600'
                                                 }`}
                                         >
                                             {formatDate(d)}
@@ -1132,8 +1162,29 @@ export default function EnrollmentBoard() {
                             </div>
                         </div>
 
+                        {/* Saved dates chips */}
+                        {savedInviteDates.length > 0 && (
+                            <div className="mb-4">
+                                <label className="block text-xs font-medium text-surface-500 mb-2">Saved Course Dates</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {savedInviteDates.map(d => (
+                                        <button
+                                            key={d}
+                                            onClick={() => setConfirmDate(d)}
+                                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${confirmDate === d
+                                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                                                : 'bg-white text-surface-600 border-surface-200 hover:border-emerald-300 hover:text-emerald-600'
+                                                }`}
+                                        >
+                                            {formatDate(d)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <label className="block text-sm font-medium text-surface-700 mb-1.5">
-                            Confirmation Date
+                            {savedInviteDates.length > 0 ? 'Or pick a new date' : 'Confirmation Date'}
                         </label>
                         <input
                             type="date"
