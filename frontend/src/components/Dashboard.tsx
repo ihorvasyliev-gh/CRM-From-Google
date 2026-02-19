@@ -19,6 +19,8 @@ const STATUS_DOT: Record<string, string> = {
     requested: 'bg-amber-500',
     invited: 'bg-blue-500',
     confirmed: 'bg-emerald-500',
+    completed: 'bg-teal-500',
+    withdrawn: 'bg-slate-400',
     rejected: 'bg-red-500',
 };
 
@@ -26,6 +28,8 @@ const STATUS_BG: Record<string, string> = {
     requested: 'bg-amber-50 text-amber-700',
     invited: 'bg-blue-50 text-blue-700',
     confirmed: 'bg-emerald-50 text-emerald-700',
+    completed: 'bg-teal-50 text-teal-700',
+    withdrawn: 'bg-slate-50 text-slate-600',
     rejected: 'bg-red-50 text-red-700',
 };
 
@@ -99,6 +103,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         { key: 'requested', label: 'Requested', color: 'bg-amber-500', lightBg: 'bg-amber-50 text-amber-700' },
         { key: 'invited', label: 'Invited', color: 'bg-blue-500', lightBg: 'bg-blue-50 text-blue-700' },
         { key: 'confirmed', label: 'Confirmed', color: 'bg-emerald-500', lightBg: 'bg-emerald-50 text-emerald-700' },
+        { key: 'completed', label: 'Completed', color: 'bg-teal-500', lightBg: 'bg-teal-50 text-teal-700' },
+        { key: 'withdrawn', label: 'Withdrawn', color: 'bg-slate-400', lightBg: 'bg-slate-50 text-slate-600' },
         { key: 'rejected', label: 'Rejected', color: 'bg-red-400', lightBg: 'bg-red-50 text-red-600' },
     ];
 

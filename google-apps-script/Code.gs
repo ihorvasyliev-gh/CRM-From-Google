@@ -314,16 +314,28 @@ function syncFromSupabase() {
       enrollmentMap[e.student_id] = {};
     }
     // Key by Course Name (since columns are by name)
-    // format: "Variant (Status)"
+    // format: "Variant - Status ⭐ (Confirmed: Date)"
     if (e.course && e.course.name) {
-       var val = (e.course_variant || "Standard") + " (" + (e.status || "requested") + ")";
+       var val = (e.course_variant || "Standard") + " - " + (e.status || "requested");
+       
+       // Add Priority Star
+       if (e.is_priority) {
+           val += " ⭐";
+       }
+       
+       if (e.status === 'confirmed' && e.confirmed_date) {
+           val += " (Confirmed: " + e.confirmed_date + ")";
+       } else if (e.status === 'invited' && e.invited_date) {
+           val += " (Invited: " + e.invited_date + ")";
+       }
+       
        enrollmentMap[e.student_id][e.course.name] = val;
     }
   }
   
   // Prepare Headers
-  // Fixed: Timestamp, First Name, Last Name, Mobile, Email, Address, Eircode, DOB
-  var fixedHeaders = ['Timestamp', 'First Name', 'Last Name', 'Mobile', 'Email', 'Address', 'Eircode', 'DOB'];
+  // Fixed: ID, Timestamp, First Name, Last Name, Mobile, Email, Address, Eircode, DOB
+  var fixedHeaders = ['ID', 'Timestamp', 'First Name', 'Last Name', 'Mobile', 'Email', 'Address', 'Eircode', 'DOB'];
   var courseNames = courses.map(function(c) { return c.name; });
   var allHeaders = fixedHeaders.concat(courseNames);
   
@@ -335,7 +347,7 @@ function syncFromSupabase() {
     var row = [];
     
     // Fixed Columns
-    // Timestamp (we can use created_at or last_synced_at)
+    row.push(s.id); // Hidden ID column
     row.push(s.created_at || "");
     row.push(s.first_name || "");
     row.push(s.last_name || "");
@@ -372,7 +384,8 @@ function syncFromSupabase() {
   
   // Formatting
   sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, allHeaders.length);
+  sheet.hideColumns(1); // Hide ID column
+  sheet.autoResizeColumns(2, allHeaders.length - 1); // Resize visible columns
   
   ss.toast("Sync complete! Updated " + outputRows.length + " students.", "CRM Mirror Sync");
 }
