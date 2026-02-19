@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil
 } from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -171,6 +171,10 @@ export default function EnrollmentBoard() {
     // Action menu
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    // Edit Note
+    const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
+    const [editNoteText, setEditNoteText] = useState('');
 
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
@@ -452,6 +456,32 @@ export default function EnrollmentBoard() {
         } else {
             showToast('Failed to update priority', 'error');
         }
+    }
+
+    // ─── Notes ──────────────────────────────────────────────
+    function openEditNote(enrollment: Enrollment) {
+        setEditNoteTarget({ id: enrollment.id, note: enrollment.notes || '' });
+        setEditNoteText(enrollment.notes || '');
+        setOpenMenuId(null);
+    }
+
+    async function saveNote() {
+        if (!editNoteTarget) return;
+
+        const { error } = await supabase
+            .from('enrollments')
+            .update({ notes: editNoteText })
+            .eq('id', editNoteTarget.id);
+
+        if (!error) {
+            setEnrollments(prev => prev.map(e =>
+                e.id === editNoteTarget.id ? { ...e, notes: editNoteText } : e
+            ));
+            showToast('Note updated', 'success');
+        } else {
+            showToast('Failed to update note', 'error');
+        }
+        setEditNoteTarget(null);
     }
 
     // ─── Delete ─────────────────────────────────────────────
@@ -868,7 +898,7 @@ export default function EnrollmentBoard() {
                                                     }}
                                                     className={`mt-0.5 p-0.5 rounded transition-all ${enrollment.is_priority
                                                         ? 'text-amber-400 hover:text-amber-500'
-                                                        : 'text-surface-300 hover:text-amber-400 opacity-0 group-hover:opacity-100'
+                                                        : 'text-surface-300 hover:text-amber-400'
                                                         }`}
                                                     title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
                                                 >
@@ -887,7 +917,7 @@ export default function EnrollmentBoard() {
                                                                 onClick={e => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : enrollment.id); }}
                                                                 className={`p-1 rounded-md transition-all ${isMenuOpen
                                                                     ? 'bg-surface-200 text-surface-700'
-                                                                    : 'text-surface-300 opacity-0 group-hover:opacity-100 hover:bg-surface-100 hover:text-surface-600'
+                                                                    : 'text-surface-300 hover:bg-surface-100 hover:text-surface-600'
                                                                     }`}
                                                             >
                                                                 <MoreHorizontal size={14} />
@@ -908,7 +938,14 @@ export default function EnrollmentBoard() {
                                                                                 <span className="text-surface-700">Move to {sCfg.label}</span>
                                                                             </button>
                                                                         );
-                                                                    })}
+                                                                    <div className="border-t border-surface-100 my-1" />
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface-50 transition-all text-surface-700"
+                                                                    >
+                                                                        <Pencil size={12} className="text-surface-400" />
+                                                                        Edit Note
+                                                                    </button>
                                                                     <div className="border-t border-surface-100 my-1" />
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); setDeleteTarget(enrollment); setOpenMenuId(null); }}
@@ -1266,6 +1303,51 @@ export default function EnrollmentBoard() {
                 onCancel={() => setDeleteTarget(null)}
             />
             <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+            {/* Edit Note Modal */}
+            {editNoteTarget && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setEditNoteTarget(null)}>
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2.5 bg-brand-50 rounded-xl text-brand-600">
+                                <FileText size={22} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-surface-900">Enrollment Note</h3>
+                                <p className="text-xs text-surface-500 mt-0.5">
+                                    Add or edit note for this student
+                                </p>
+                            </div>
+                        </div>
+
+                        <textarea
+                            value={editNoteText}
+                            onChange={e => setEditNoteText(e.target.value)}
+                            placeholder="Enter note here..."
+                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface-50 min-h-[120px] resize-none"
+                            autoFocus
+                        />
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setEditNoteTarget(null)}
+                                className="px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveNote}
+                                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm"
+                            >
+                                Save Note
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
