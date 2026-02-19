@@ -2,7 +2,7 @@
 
 A modern CRM dashboard for managing courses, enrollments, and student data. Built with **React**, **TypeScript**, and **Supabase**.
 
-## Key Features ✨
+## Key Features 
 
 - **Dashboard Overview**: Real-time stats on pending enrollments, active courses, and recent activity.
 - **Kanban Enrollment Board**: Drag-and-drop workflow for tracking student progress (Invited → Confirmed → Completed).
