@@ -938,6 +938,7 @@ export default function EnrollmentBoard() {
                                                                                 <span className="text-surface-700">Move to {sCfg.label}</span>
                                                                             </button>
                                                                         );
+                                                                    })}
                                                                     <div className="border-t border-surface-100 my-1" />
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
