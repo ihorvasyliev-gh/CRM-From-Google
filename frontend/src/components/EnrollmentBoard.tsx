@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail
 } from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -30,6 +30,7 @@ interface Enrollment {
     course_variant: string | null;
     notes: string | null;
     confirmed_date: string | null;
+    invited_date: string | null;
     created_at: string;
     students: Student | null;
     courses: Course | null;
@@ -161,6 +162,11 @@ export default function EnrollmentBoard() {
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
 
+    // Invite date picker
+    const [inviteDateTarget, setInviteDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
+    const [inviteDate, setInviteDate] = useState(todayISO());
+    const [savedInviteDates, setSavedInviteDates] = useState<string[]>([]);
+
     // Action menu
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -193,8 +199,90 @@ export default function EnrollmentBoard() {
         if (data) setEnrollments(data as Enrollment[]);
     }
 
+    // ─── Fetch Saved Invite Dates ────────────────────────────
+    async function fetchSavedInviteDates(courseId: string) {
+        const today = todayISO();
+        const { data } = await supabase
+            .from('invite_dates')
+            .select('invite_date')
+            .eq('course_id', courseId)
+            .gte('invite_date', today)
+            .order('invite_date', { ascending: true });
+        setSavedInviteDates(data ? data.map((d: { invite_date: string }) => d.invite_date) : []);
+    }
+
+    // ─── Open Invite Modal ──────────────────────────────────
+    function openInviteModal(ids: string[], bulk: boolean) {
+        setInviteDateTarget({ ids, bulk });
+        setInviteDate(todayISO());
+        // Determine course_id from first selected enrollment
+        const first = enrollments.find(e => ids.includes(e.id));
+        if (first) fetchSavedInviteDates(first.course_id);
+    }
+
+    // ─── Invite Helpers ─────────────────────────────────────
+    async function performInvite(ids: string[], date: string) {
+        // 1. Upsert the date into invite_dates
+        const first = enrollments.find(e => ids.includes(e.id));
+        if (first) {
+            await supabase.from('invite_dates').upsert(
+                { course_id: first.course_id, invite_date: date },
+                { onConflict: 'course_id,invite_date' }
+            );
+        }
+        // 2. Update enrollments
+        const updatePayload = { status: 'invited', invited_date: date, confirmed_date: null };
+        const { error } = await supabase
+            .from('enrollments')
+            .update(updatePayload)
+            .in('id', ids);
+        if (!error) {
+            setEnrollments(prev => prev.map(e =>
+                ids.includes(e.id) ? { ...e, ...updatePayload } : e
+            ));
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                ids.forEach(id => next.delete(id));
+                return next;
+            });
+            showToast(`${ids.length} enrollment(s) → invited`, 'success');
+        } else {
+            showToast('Error updating status', 'error');
+        }
+    }
+
+    async function handleInviteWithDate() {
+        if (!inviteDateTarget) return;
+        await performInvite(inviteDateTarget.ids, inviteDate);
+        setInviteDateTarget(null);
+    }
+
+    async function handleInviteAndEmail() {
+        if (!inviteDateTarget) return;
+        const ids = inviteDateTarget.ids;
+        const selectedEnrollments = enrollments.filter(e => ids.includes(e.id));
+        await performInvite(ids, inviteDate);
+
+        // Build mailto
+        const emails = selectedEnrollments
+            .map(e => e.students?.email)
+            .filter((email): email is string => !!email && email.trim() !== '');
+        const uniqueEmails = [...new Set(emails)];
+        const first = selectedEnrollments[0];
+        const courseName = first ? getCoursePill(first) : 'Course';
+        const dateFormatted = formatDate(inviteDate);
+        const subject = encodeURIComponent(`${courseName} — ${dateFormatted}`);
+        const bcc = uniqueEmails.map(e => encodeURIComponent(e)).join(',');
+        window.open(`mailto:?bcc=${bcc}&subject=${subject}`, '_self');
+        setInviteDateTarget(null);
+    }
+
     // ─── Status Update ──────────────────────────────────────
-    async function updateStatus(id: string, newStatus: string, confirmedDate?: string) {
+    async function updateStatus(id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) {
+        if (newStatus === 'invited' && !invitedDate) {
+            openInviteModal([id], false);
+            return;
+        }
         if (newStatus === 'confirmed' && !confirmedDate) {
             setConfirmDateTarget({ ids: [id], bulk: false });
             setConfirmDate(todayISO());
@@ -207,6 +295,12 @@ export default function EnrollmentBoard() {
         }
         if (newStatus !== 'confirmed') {
             updatePayload.confirmed_date = null;
+        }
+        if (newStatus === 'invited' && invitedDate) {
+            updatePayload.invited_date = invitedDate;
+        }
+        if (newStatus !== 'invited') {
+            updatePayload.invited_date = null;
         }
 
         // For completed/withdrawn, update ALL variants
@@ -225,7 +319,7 @@ export default function EnrollmentBoard() {
 
             if (!error) {
                 setEnrollments(prev => prev.map(e =>
-                    relatedIds.includes(e.id) ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null } : e
+                    relatedIds.includes(e.id) ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null, invited_date: updatePayload.invited_date ?? null } : e
                 ));
                 showToast(`Updated ${relatedIds.length} related enrollment(s)`, 'success');
             } else {
@@ -235,7 +329,7 @@ export default function EnrollmentBoard() {
             const { error } = await supabase.from('enrollments').update(updatePayload).eq('id', id);
             if (!error) {
                 setEnrollments(prev => prev.map(e =>
-                    e.id === id ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null } : e
+                    e.id === id ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null, invited_date: updatePayload.invited_date ?? null } : e
                 ));
             } else {
                 showToast('Error updating status', 'error');
@@ -247,6 +341,11 @@ export default function EnrollmentBoard() {
     // ─── Bulk Update ────────────────────────────────────────
     async function bulkUpdateStatus(newStatus: string, confirmedDate?: string) {
         if (selectedIds.size === 0) return;
+
+        if (newStatus === 'invited') {
+            openInviteModal(Array.from(selectedIds), true);
+            return;
+        }
 
         if (newStatus === 'confirmed' && !confirmedDate) {
             setConfirmDateTarget({ ids: Array.from(selectedIds), bulk: true });
@@ -261,6 +360,9 @@ export default function EnrollmentBoard() {
         }
         if (newStatus !== 'confirmed') {
             updatePayload.confirmed_date = null;
+        }
+        if (newStatus !== 'invited') {
+            updatePayload.invited_date = null;
         }
 
         if (newStatus === 'completed' || newStatus === 'withdrawn') {
@@ -284,7 +386,7 @@ export default function EnrollmentBoard() {
         if (!error) {
             setEnrollments(prev => prev.map(e =>
                 idsToUpdate.includes(e.id)
-                    ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null }
+                    ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null, invited_date: updatePayload.invited_date ?? null }
                     : e
             ));
             setSelectedIds(new Set());
@@ -761,6 +863,15 @@ export default function EnrollmentBoard() {
                                                     {/* Info row */}
                                                     <div className="flex items-center gap-2 mt-1.5 text-[11px] text-surface-400">
                                                         <span>{formatShortDate(enrollment.created_at)}</span>
+                                                        {enrollment.invited_date && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                                                                    <Send size={10} />
+                                                                    {formatDate(enrollment.invited_date)}
+                                                                </span>
+                                                            </>
+                                                        )}
                                                         {enrollment.confirmed_date && (
                                                             <>
                                                                 <span>•</span>
@@ -917,6 +1028,84 @@ export default function EnrollmentBoard() {
                         >
                             <X size={16} />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Invite Date Modal ═══ */}
+            {inviteDateTarget && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setInviteDateTarget(null)}>
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
+                                <Send size={22} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-surface-900">Invite to Course</h3>
+                                <p className="text-xs text-surface-500 mt-0.5">
+                                    {inviteDateTarget.ids.length === 1
+                                        ? 'Select the date for this invitation'
+                                        : `Select the date for ${inviteDateTarget.ids.length} invitations`
+                                    }
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Saved dates chips */}
+                        {savedInviteDates.length > 0 && (
+                            <div className="mb-4">
+                                <label className="block text-xs font-medium text-surface-500 mb-2">Saved dates</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {savedInviteDates.map(d => (
+                                        <button
+                                            key={d}
+                                            onClick={() => setInviteDate(d)}
+                                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${inviteDate === d
+                                                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                                                    : 'bg-white text-surface-600 border-surface-200 hover:border-blue-300 hover:text-blue-600'
+                                                }`}
+                                        >
+                                            {formatDate(d)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                            {savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
+                        </label>
+                        <input
+                            type="date"
+                            value={inviteDate}
+                            min={todayISO()}
+                            onChange={e => setInviteDate(e.target.value)}
+                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface-50"
+                        />
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setInviteDateTarget(null)}
+                                className="px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleInviteWithDate}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all shadow-sm"
+                            >
+                                <Send size={14} /> Just Invite
+                            </button>
+                            <button
+                                onClick={handleInviteAndEmail}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 rounded-xl transition-all shadow-sm"
+                            >
+                                <Mail size={14} /> Invite & Email
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

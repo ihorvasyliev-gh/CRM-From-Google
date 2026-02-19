@@ -31,6 +31,7 @@ create table enrollments (
   course_variant text, -- e.g., "Ukrainian", "English"
   notes text, -- admin notes
   confirmed_date date, -- date when the place was confirmed
+  invited_date date, -- date to which the student was invited
   created_at timestamptz default now(),
   unique(student_id, course_id, course_variant) -- Allow same student in same course with different variants
 );
@@ -50,10 +51,26 @@ create policy "Authenticated access" on students for all using (auth.role() = 'a
 create policy "Authenticated access" on courses for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "Authenticated access" on enrollments for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+-- Invite Dates table (reusable per-course dates)
+create table invite_dates (
+  id uuid primary key default uuid_generate_v4(),
+  course_id uuid references courses(id) on delete cascade,
+  invite_date date not null,
+  created_at timestamptz default now(),
+  unique(course_id, invite_date)
+);
+
+alter table invite_dates enable row level security;
+create policy "Authenticated access" on invite_dates for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 -- ============================================================
 -- MIGRATION (run these if tables already exist):
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS notes text;
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS confirmed_date date;
+-- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS invited_date date;
 -- ALTER TABLE enrollments DROP CONSTRAINT IF EXISTS enrollments_student_id_course_id_key;
 -- ALTER TABLE enrollments ADD CONSTRAINT enrollments_student_id_course_id_course_variant_key UNIQUE (student_id, course_id, course_variant);
+-- CREATE TABLE invite_dates ( id uuid PRIMARY KEY DEFAULT uuid_generate_v4(), course_id uuid REFERENCES courses(id) ON DELETE CASCADE, invite_date date NOT NULL, created_at timestamptz DEFAULT now(), UNIQUE(course_id, invite_date) );
+-- ALTER TABLE invite_dates ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated access" ON invite_dates FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 -- ============================================================
