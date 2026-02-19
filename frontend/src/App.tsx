@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, LogOut, Loader2, Menu, X, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
 import CourseList from './components/CourseList';
 import EnrollmentBoard from './components/EnrollmentBoard';
 import LoginPage from './components/LoginPage';
+import DocumentGenerator from './components/DocumentGenerator';
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
     { key: 'students', label: 'Students', icon: Users, desc: 'Manage students' },
     { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board' },
+    { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms' },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -19,6 +21,7 @@ const PAGE_TITLES: Record<string, string> = {
     students: 'Students',
     courses: 'Courses',
     enrollments: 'Enrollments',
+    documents: 'Documents',
 };
 
 function App() {
@@ -177,6 +180,7 @@ function App() {
                             {activeTab === 'students' && 'Manage your student database'}
                             {activeTab === 'courses' && 'View and manage course catalog'}
                             {activeTab === 'enrollments' && 'Track and manage enrollments'}
+                            {activeTab === 'documents' && 'Generate personalized documents'}
                         </p>
                     </div>
 
@@ -185,6 +189,7 @@ function App() {
                         {activeTab === 'students' && <StudentList />}
                         {activeTab === 'courses' && <CourseList />}
                         {activeTab === 'enrollments' && <EnrollmentBoard />}
+                        {activeTab === 'documents' && <DocumentGenerator />}
                     </div>
                 </main>
             </div>

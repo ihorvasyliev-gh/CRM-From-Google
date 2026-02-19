@@ -64,6 +64,20 @@ alter table invite_dates enable row level security;
 create policy "Authenticated access" on invite_dates for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ============================================================
+
+-- Document Templates Table (stores uploaded .docx template metadata)
+create table document_templates (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  storage_path text not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table document_templates enable row level security;
+create policy "Authenticated access" on document_templates for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- ============================================================
 -- MIGRATION (run these if tables already exist):
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS notes text;
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS confirmed_date date;
@@ -73,4 +87,9 @@ create policy "Authenticated access" on invite_dates for all using (auth.role() 
 -- CREATE TABLE invite_dates ( id uuid PRIMARY KEY DEFAULT uuid_generate_v4(), course_id uuid REFERENCES courses(id) ON DELETE CASCADE, invite_date date NOT NULL, created_at timestamptz DEFAULT now(), UNIQUE(course_id, invite_date) );
 -- ALTER TABLE invite_dates ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "Authenticated access" ON invite_dates FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+--
+-- Document Templates migration:
+-- CREATE TABLE document_templates ( id uuid PRIMARY KEY DEFAULT uuid_generate_v4(), name text NOT NULL, storage_path text NOT NULL, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now() );
+-- ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Authenticated access" ON document_templates FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 -- ============================================================
