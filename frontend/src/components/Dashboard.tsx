@@ -10,6 +10,7 @@ interface RecentEnrollment {
     id: string;
     status: string;
     created_at: string;
+    updated_at: string;
     course_variant: string | null;
     students: { first_name: string; last_name: string } | null;
     courses: { name: string } | null;
@@ -56,8 +57,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
         const { data: recentData } = await supabase
             .from('enrollments')
-            .select('id, status, created_at, course_variant, students(first_name, last_name), courses(name)')
-            .order('created_at', { ascending: false })
+            .select('id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
+            .order('updated_at', { ascending: false })
             .limit(8);
         if (recentData) setRecent(recentData as unknown as RecentEnrollment[]);
 
@@ -274,7 +275,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                             {en.status}
                                         </span>
                                         <span className="text-[10px] text-muted font-mono whitespace-nowrap opacity-70">
-                                            {new Date(en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}
+                                            {new Date(en.updated_at || en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}
                                         </span>
                                     </div>
                                 </div>

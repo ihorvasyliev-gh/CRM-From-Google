@@ -98,4 +98,11 @@ create policy "Authenticated access" on document_templates for all using (auth.r
 --
 -- Priority System Migration:
 -- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS is_priority boolean DEFAULT false;
+--
+-- Updated At Migration:
+-- ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+-- UPDATE enrollments SET updated_at = created_at WHERE updated_at IS NULL;
+-- CREATE OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ language 'plpgsql';
+-- DROP TRIGGER IF EXISTS update_enrollments_updated_at ON enrollments;
+-- CREATE TRIGGER update_enrollments_updated_at BEFORE UPDATE ON enrollments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- ============================================================
