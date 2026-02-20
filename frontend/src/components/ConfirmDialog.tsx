@@ -18,7 +18,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onCancel} />
-            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
+            <div className="relative w-full max-w-sm bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 <div className="p-6 text-center">
                     {/* Icon */}
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDanger ? 'bg-red-50' : 'bg-amber-50'}`}>
@@ -28,14 +28,14 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                         }
                     </div>
 
-                    <h3 className="text-lg font-bold text-surface-900 mb-1.5">{title}</h3>
-                    <p className="text-sm text-surface-500 leading-relaxed">{message}</p>
+                    <h3 className="text-lg font-bold text-primary mb-1.5">{title}</h3>
+                    <p className="text-sm text-muted leading-relaxed">{message}</p>
                 </div>
 
                 <div className="flex gap-3 px-6 pb-6">
                     <button
                         onClick={onCancel}
-                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                     >
                         Cancel
                     </button>

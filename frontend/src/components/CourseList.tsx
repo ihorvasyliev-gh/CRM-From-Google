@@ -102,7 +102,7 @@ export default function CourseList() {
     );
 
     function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
-        if (!counts || counts.total === 0) return <span className="text-xs text-surface-400">No enrollments</span>;
+        if (!counts || counts.total === 0) return <span className="text-xs text-muted">No enrollments</span>;
 
         const segments = [
             { key: 'confirmed', color: 'bg-emerald-500', count: counts.confirmed, label: 'Confirmed' },
@@ -125,7 +125,7 @@ export default function CourseList() {
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                     {segments.map(s => s.count > 0 ? (
-                        <span key={s.key} className="flex items-center gap-1.5 text-[10px] text-surface-500 font-medium">
+                        <span key={s.key} className="flex items-center gap-1.5 text-[10px] text-muted font-medium">
                             <span className={`w-2 h-2 rounded-full ${s.color}`} />
                             {s.count} {s.label}
                         </span>
@@ -180,7 +180,7 @@ export default function CourseList() {
             ) : filtered.length === 0 ? (
                 <div className="text-center py-16">
                     <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <BookOpen size={28} className="text-surface-300" />
+                        <BookOpen size={28} className="text-muted" />
                     </div>
                     <p className="text-lg font-semibold text-primary">No courses found</p>
                     <p className="text-sm text-muted mt-1">Create your first course to get started</p>

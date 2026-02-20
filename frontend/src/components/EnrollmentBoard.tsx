@@ -924,30 +924,30 @@ export default function EnrollmentBoard() {
                                                             </button>
 
                                                             {isMenuOpen && (
-                                                                <div className="absolute right-0 top-7 z-50 w-44 bg-white rounded-xl shadow-lg border border-surface-200 py-1.5 animate-scaleIn origin-top-right">
+                                                                <div className="absolute right-0 top-7 z-50 w-44 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1.5 animate-scaleIn origin-top-right">
                                                                     {ALL_STATUSES.filter(s => s !== status).map(s => {
                                                                         const sCfg = STATUS_CONFIG[s];
                                                                         return (
                                                                             <button
                                                                                 key={s}
                                                                                 onClick={e => { e.stopPropagation(); updateStatus(enrollment.id, s); }}
-                                                                                className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface-50 transition-all"
+                                                                                className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface transition-all"
                                                                             >
-                                                                                <ArrowRight size={12} className="text-surface-300" />
+                                                                                <ArrowRight size={12} className="text-muted" />
                                                                                 <span className={sCfg.color}>{sCfg.icon}</span>
-                                                                                <span className="text-surface-700">Move to {sCfg.label}</span>
+                                                                                <span className="text-primary">Move to {sCfg.label}</span>
                                                                             </button>
                                                                         );
                                                                     })}
-                                                                    <div className="border-t border-surface-100 my-1" />
+                                                                    <div className="border-t border-border-subtle my-1" />
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface-50 transition-all text-surface-700"
+                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface transition-all text-primary"
                                                                     >
-                                                                        <Pencil size={12} className="text-surface-400" />
+                                                                        <Pencil size={12} className="text-muted" />
                                                                         Edit Note
                                                                     </button>
-                                                                    <div className="border-t border-surface-100 my-1" />
+                                                                    <div className="border-t border-border-subtle my-1" />
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); setDeleteTarget(enrollment); setOpenMenuId(null); }}
                                                                         className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 text-red-500 hover:bg-red-50 transition-all"
@@ -966,7 +966,7 @@ export default function EnrollmentBoard() {
                                                     </span>
 
                                                     {/* Info row */}
-                                                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-surface-400">
+                                                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted">
                                                         <span>{formatShortDate(enrollment.created_at)}</span>
                                                         {enrollment.invited_date && (
                                                             <>
@@ -990,7 +990,7 @@ export default function EnrollmentBoard() {
 
                                                     {/* Notes */}
                                                     {enrollment.notes && (
-                                                        <p className="text-[11px] text-surface-400 italic mt-1 bg-surface-50 px-2 py-1 rounded-md truncate">
+                                                        <p className="text-[11px] text-muted italic mt-1 bg-surface px-2 py-1 rounded-md truncate">
                                                             📝 {enrollment.notes}
                                                         </p>
                                                     )}
@@ -1010,7 +1010,7 @@ export default function EnrollmentBoard() {
                 <div>
                     <button
                         onClick={() => setShowSecondary(!showSecondary)}
-                        className="flex items-center gap-2 text-sm font-medium text-surface-500 hover:text-surface-700 transition-all mb-3"
+                        className="flex items-center gap-2 text-sm font-medium text-muted hover:text-primary transition-all mb-3"
                     >
                         <ChevronDown size={16} className={`transition-transform ${showSecondary ? 'rotate-180' : ''}`} />
                         Withdrawn & Rejected ({secondaryCount})
@@ -1024,17 +1024,17 @@ export default function EnrollmentBoard() {
                                 if (items.length === 0) return null;
 
                                 return (
-                                    <div key={status} className="bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden opacity-75">
+                                    <div key={status} className="bg-surface-elevated rounded-2xl shadow-card border border-border-subtle overflow-hidden opacity-75">
                                         <div className={`p-3 border-b ${cfg.border} ${cfg.bg}`}>
                                             <div className="flex items-center gap-2">
                                                 <span className={cfg.color}>{cfg.icon}</span>
-                                                <h3 className="text-sm font-bold text-surface-700">{cfg.label}</h3>
+                                                <h3 className="text-sm font-bold text-primary">{cfg.label}</h3>
                                                 <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
                                                     {items.length}
                                                 </span>
                                                 <button
                                                     onClick={() => handleCopyEmails(items, cfg.label)}
-                                                    className="ml-auto p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all"
+                                                    className="ml-auto p-1.5 text-muted hover:text-muted hover:bg-surface-100 rounded-lg transition-all"
                                                     title={`Copy ${cfg.label} emails`}
                                                 >
                                                     <Copy size={13} />
@@ -1045,10 +1045,10 @@ export default function EnrollmentBoard() {
                                             {items.map(enrollment => (
                                                 <div
                                                     key={enrollment.id}
-                                                    className="group p-3 rounded-xl border border-surface-100 bg-white hover:shadow-sm transition-all flex items-center gap-3"
+                                                    className="group p-3 rounded-xl border border-border-subtle bg-surface-elevated hover:shadow-sm transition-all flex items-center gap-3"
                                                 >
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="font-semibold text-surface-700 text-[13px] truncate">
+                                                        <p className="font-semibold text-primary text-[13px] truncate">
                                                             {enrollment.students?.first_name} {enrollment.students?.last_name}
                                                         </p>
                                                         <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
@@ -1057,13 +1057,13 @@ export default function EnrollmentBoard() {
                                                     </div>
                                                     <button
                                                         onClick={() => updateStatus(enrollment.id, 'requested')}
-                                                        className="text-[11px] font-medium text-surface-400 hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
+                                                        className="text-[11px] font-medium text-muted hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
                                                     >
                                                         Restore
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteTarget(enrollment)}
-                                                        className="text-surface-300 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-all"
+                                                        className="text-muted hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-all"
                                                     >
                                                         <Trash2 size={12} />
                                                     </button>
@@ -1082,10 +1082,10 @@ export default function EnrollmentBoard() {
             {filteredEnrollments.length === 0 && (
                 <div className="text-center py-16">
                     <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <GraduationCap size={28} className="text-surface-300" />
+                        <GraduationCap size={28} className="text-muted" />
                     </div>
-                    <p className="text-lg font-semibold text-surface-700">No enrollments found</p>
-                    <p className="text-sm text-surface-400 mt-1">Try adjusting your filters or add a new enrollment</p>
+                    <p className="text-lg font-semibold text-primary">No enrollments found</p>
+                    <p className="text-sm text-muted mt-1">Try adjusting your filters or add a new enrollment</p>
                 </div>
             )}
 
@@ -1141,7 +1141,7 @@ export default function EnrollmentBoard() {
             {inviteDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setInviteDateTarget(null)}>
                     <div
-                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -1149,8 +1149,8 @@ export default function EnrollmentBoard() {
                                 <Send size={22} />
                             </div>
                             <div>
-                                <h3 className="font-bold text-surface-900">Invite to Course</h3>
-                                <p className="text-xs text-surface-500 mt-0.5">
+                                <h3 className="font-bold text-primary">Invite to Course</h3>
+                                <p className="text-xs text-muted mt-0.5">
                                     {inviteDateTarget.ids.length === 1
                                         ? 'Select the date for this invitation'
                                         : `Select the date for ${inviteDateTarget.ids.length} invitations`
@@ -1162,7 +1162,7 @@ export default function EnrollmentBoard() {
                         {/* Saved dates chips */}
                         {savedInviteDates.length > 0 && (
                             <div className="mb-4">
-                                <label className="block text-xs font-medium text-surface-500 mb-2">Saved dates</label>
+                                <label className="block text-xs font-medium text-muted mb-2">Saved dates</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {savedInviteDates.map(d => (
                                         <button
@@ -1170,7 +1170,7 @@ export default function EnrollmentBoard() {
                                             onClick={() => setInviteDate(d)}
                                             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${inviteDate === d
                                                 ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                                                : 'bg-white text-surface-600 border-surface-200 hover:border-blue-300 hover:text-blue-600'
+                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-blue-300 hover:text-blue-600'
                                                 }`}
                                         >
                                             {formatDate(d)}
@@ -1180,7 +1180,7 @@ export default function EnrollmentBoard() {
                             </div>
                         )}
 
-                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                        <label className="block text-sm font-medium text-primary mb-1.5">
                             {savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
                         </label>
                         <input
@@ -1188,13 +1188,13 @@ export default function EnrollmentBoard() {
                             value={inviteDate}
                             min={todayISO()}
                             onChange={e => setInviteDate(e.target.value)}
-                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface-50"
+                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
                         />
 
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setInviteDateTarget(null)}
-                                className="px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                             >
                                 Cancel
                             </button>
@@ -1219,7 +1219,7 @@ export default function EnrollmentBoard() {
             {confirmDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setConfirmDateTarget(null)}>
                     <div
-                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -1227,8 +1227,8 @@ export default function EnrollmentBoard() {
                                 <CheckCircle size={22} />
                             </div>
                             <div>
-                                <h3 className="font-bold text-surface-900">Confirm Enrollment</h3>
-                                <p className="text-xs text-surface-500 mt-0.5">
+                                <h3 className="font-bold text-primary">Confirm Enrollment</h3>
+                                <p className="text-xs text-muted mt-0.5">
                                     {confirmDateTarget.ids.length === 1
                                         ? 'Set the confirmation date for this enrollment'
                                         : `Set the confirmation date for ${confirmDateTarget.ids.length} enrollments`
@@ -1240,7 +1240,7 @@ export default function EnrollmentBoard() {
                         {/* Saved dates chips */}
                         {savedInviteDates.length > 0 && (
                             <div className="mb-4">
-                                <label className="block text-xs font-medium text-surface-500 mb-2">Saved Course Dates</label>
+                                <label className="block text-xs font-medium text-muted mb-2">Saved Course Dates</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {savedInviteDates.map(d => (
                                         <button
@@ -1248,7 +1248,7 @@ export default function EnrollmentBoard() {
                                             onClick={() => setConfirmDate(d)}
                                             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${confirmDate === d
                                                 ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                                                : 'bg-white text-surface-600 border-surface-200 hover:border-emerald-300 hover:text-emerald-600'
+                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-emerald-300 hover:text-emerald-600'
                                                 }`}
                                         >
                                             {formatDate(d)}
@@ -1258,20 +1258,20 @@ export default function EnrollmentBoard() {
                             </div>
                         )}
 
-                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                        <label className="block text-sm font-medium text-primary mb-1.5">
                             {savedInviteDates.length > 0 ? 'Or pick a new date' : 'Confirmation Date'}
                         </label>
                         <input
                             type="date"
                             value={confirmDate}
                             onChange={e => setConfirmDate(e.target.value)}
-                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface-50"
+                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface"
                         />
 
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setConfirmDateTarget(null)}
-                                className="flex-1 px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                             >
                                 Cancel
                             </button>
@@ -1309,7 +1309,7 @@ export default function EnrollmentBoard() {
             {editNoteTarget && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setEditNoteTarget(null)}>
                     <div
-                        className="bg-white rounded-2xl shadow-2xl border border-surface-200 p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -1317,8 +1317,8 @@ export default function EnrollmentBoard() {
                                 <FileText size={22} />
                             </div>
                             <div>
-                                <h3 className="font-bold text-surface-900">Enrollment Note</h3>
-                                <p className="text-xs text-surface-500 mt-0.5">
+                                <h3 className="font-bold text-primary">Enrollment Note</h3>
+                                <p className="text-xs text-muted mt-0.5">
                                     Add or edit note for this student
                                 </p>
                             </div>
@@ -1328,14 +1328,14 @@ export default function EnrollmentBoard() {
                             value={editNoteText}
                             onChange={e => setEditNoteText(e.target.value)}
                             placeholder="Enter note here..."
-                            className="w-full px-4 py-3 border border-surface-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface-50 min-h-[120px] resize-none"
+                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface min-h-[120px] resize-none"
                             autoFocus
                         />
 
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setEditNoteTarget(null)}
-                                className="px-4 py-2.5 text-sm font-medium text-surface-600 bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
                             >
                                 Cancel
                             </button>

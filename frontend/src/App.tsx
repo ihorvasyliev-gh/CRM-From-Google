@@ -73,7 +73,7 @@ function App() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-primary flex transition-colors duration-300 ease-in-out relative overflow-hidden">
+        <div className="h-screen w-full bg-background text-primary flex transition-colors duration-300 ease-in-out relative overflow-hidden">
             {/* Subtle radial glow in Dark Mode */}
             {darkMode && (
                 <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -187,7 +187,7 @@ function App() {
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col min-h-screen relative z-10 w-full max-w-[calc(100vw-260px)]">
+            <div className="flex-1 flex flex-col h-screen overflow-y-auto relative z-10 min-w-0">
                 {/* Mobile Header (Glassmorphism) */}
                 <header className="lg:hidden h-14 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-4 flex items-center justify-between sticky top-0 z-30 transition-colors">
                     <button

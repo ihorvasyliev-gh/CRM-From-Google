@@ -169,7 +169,7 @@ export default function StudentList() {
                 ) : filteredStudents.length === 0 ? (
                     <div className="text-center py-16">
                         <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Users size={28} className="text-surface-300" />
+                            <Users size={28} className="text-muted" />
                         </div>
                         <p className="text-lg font-semibold text-primary">No students found</p>
                         <p className="text-sm text-muted mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
@@ -239,7 +239,7 @@ export default function StudentList() {
                 )}
             </div>
 
-            <div className="text-xs text-surface-400 text-center font-medium">
+            <div className="text-xs text-muted text-center font-medium">
                 Showing {filteredStudents.length} of {students.length} students
             </div>
 

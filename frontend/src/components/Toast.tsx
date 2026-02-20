@@ -60,7 +60,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                     <span className={`text-sm font-medium ${s.text} flex-1`}>{toast.message}</span>
                     <button
                         onClick={() => { setVisible(false); setTimeout(onDismiss, 200); }}
-                        className="text-surface-400 hover:text-surface-600 p-1 rounded-lg hover:bg-white/50 transition-all"
+                        className="text-muted hover:text-muted p-1 rounded-lg hover:bg-white/50 transition-all"
                     >
                         <X size={14} />
                     </button>
