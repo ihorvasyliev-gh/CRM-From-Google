@@ -17,7 +17,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onCancel} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
             <div className="relative w-full max-w-sm bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 <div className="p-6 text-center">
                     {/* Icon */}
@@ -35,7 +35,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                 <div className="flex gap-3 px-6 pb-6">
                     <button
                         onClick={onCancel}
-                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
                     >
                         Cancel
                     </button>

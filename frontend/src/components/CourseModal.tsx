@@ -49,10 +49,10 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-md bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-border-subtle bg-gradient-to-r from-surface-50 to-white">
+                <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
@@ -60,7 +60,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             </div>
                             <h2 className="text-lg font-bold text-primary">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-100 rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -90,7 +90,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
                         >
                             Cancel
                         </button>

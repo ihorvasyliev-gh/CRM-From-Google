@@ -126,10 +126,10 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative bg-surface-elevated rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-border-subtle px-6 py-4 rounded-t-2xl z-10">
+                <div className="sticky top-0 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-6 py-4 rounded-t-2xl z-10">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
@@ -137,7 +137,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             </div>
                             <h2 className="text-lg font-bold text-primary">Add Enrollment</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-100 rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -270,7 +270,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
                         >
                             Cancel
                         </button>

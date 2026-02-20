@@ -113,7 +113,7 @@ export default function CourseList() {
 
         return (
             <div className="space-y-2">
-                <div className="flex h-2 rounded-full overflow-hidden bg-surface-100">
+                <div className="flex h-2 rounded-full overflow-hidden bg-surface-elevated border border-border-subtle">
                     {segments.map(s => s.count > 0 ? (
                         <div
                             key={s.key}
@@ -179,7 +179,7 @@ export default function CourseList() {
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-16">
-                    <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-surface-elevated border border-border-subtle shadow-sm rounded-full flex items-center justify-center mx-auto mb-4">
                         <BookOpen size={28} className="text-muted" />
                     </div>
                     <p className="text-lg font-semibold text-primary">No courses found</p>

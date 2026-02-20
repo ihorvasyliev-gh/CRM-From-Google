@@ -35,7 +35,7 @@ const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
     confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200' },
     completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200' },
-    withdrawn: { icon: <XCircle size={12} />, className: 'bg-slate-50 text-slate-500 border-slate-200' },
+    withdrawn: { icon: <XCircle size={12} />, className: 'bg-muted/10 text-muted border-border-subtle' },
 };
 
 const AVATAR_GRADIENTS = [
@@ -126,13 +126,13 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end animate-fadeIn">
-            <div className="absolute inset-0 bg-surface-950/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full sm:w-96 h-full sm:h-auto sm:max-h-[85vh] bg-surface-elevated sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideInRight">
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-border-subtle px-5 py-4">
+                <div className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-5 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-white shadow-md`}>
+                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>
                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                             </div>
                             <div>
@@ -140,7 +140,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-100 rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -232,7 +232,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     </button>
                                                     <button
                                                         onClick={() => setConfirmDeleteId(null)}
-                                                        className="px-2 py-1.5 bg-surface-100 text-muted rounded-lg text-xs hover:bg-surface-200"
+                                                        className="px-2 py-1.5 bg-surface text-muted border border-border-subtle rounded-lg text-xs hover:bg-surface-elevated transition-all"
                                                     >
                                                         Cancel
                                                     </button>

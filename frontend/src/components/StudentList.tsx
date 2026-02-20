@@ -168,7 +168,7 @@ export default function StudentList() {
                     </div>
                 ) : filteredStudents.length === 0 ? (
                     <div className="text-center py-16">
-                        <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="w-16 h-16 bg-surface-elevated border border-border-subtle shadow-sm rounded-full flex items-center justify-center mx-auto mb-4">
                             <Users size={28} className="text-muted" />
                         </div>
                         <p className="text-lg font-semibold text-primary">No students found</p>
