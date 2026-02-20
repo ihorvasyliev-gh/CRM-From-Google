@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import Dashboard from './components/Dashboard';
