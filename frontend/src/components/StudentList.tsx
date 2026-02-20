@@ -126,7 +126,7 @@ export default function StudentList() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4">
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
@@ -134,25 +134,25 @@ export default function StudentList() {
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-bold text-surface-900">Students</h2>
-                                <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full">{students.length}</span>
+                                <h2 className="text-lg font-bold text-primary tracking-tight">Students</h2>
+                                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">{students.length}</span>
                             </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search by name, email or phone..."
-                                className="w-full pl-9 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
+                                className="w-full pl-9 pr-4 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-brand-500/25 whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
                         >
                             <Plus size={16} /> Add Student
                         </button>
@@ -161,7 +161,7 @@ export default function StudentList() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 {loading ? (
                     <div className="flex justify-center py-16">
                         <Loader2 size={24} className="animate-spin text-brand-500" />
@@ -171,12 +171,12 @@ export default function StudentList() {
                         <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Users size={28} className="text-surface-300" />
                         </div>
-                        <p className="text-lg font-semibold text-surface-700">No students found</p>
-                        <p className="text-sm text-surface-400 mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
+                        <p className="text-lg font-semibold text-primary">No students found</p>
+                        <p className="text-sm text-muted mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
                         {!search && (
                             <button
                                 onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
-                                className="mt-4 px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition inline-flex items-center gap-2"
+                                className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
                             >
                                 <Plus size={16} /> Add Student
                             </button>
@@ -185,7 +185,7 @@ export default function StudentList() {
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="bg-surface-50/80 text-xs uppercase font-semibold text-surface-400 border-b border-surface-200/60">
+                            <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
                                 <tr>
                                     <th className="px-5 py-3.5">Name</th>
                                     <th className="px-5 py-3.5">Email</th>
@@ -194,7 +194,7 @@ export default function StudentList() {
                                     <th className="px-5 py-3.5 w-28">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-surface-100">
+                            <tbody className="divide-y divide-border-subtle">
                                 {filteredStudents.map(student => (
                                     <tr
                                         key={student.id}
@@ -203,32 +203,32 @@ export default function StudentList() {
                                     >
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 ring-2 ring-white shadow-sm`}>
+                                                <div className={`w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
                                                     {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                                                 </div>
-                                                <span className="font-semibold text-surface-900">{student.first_name} {student.last_name}</span>
+                                                <span className="font-semibold text-primary">{student.first_name} {student.last_name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3.5 text-surface-500">{student.email}</td>
-                                        <td className="px-5 py-3.5 text-surface-500 hidden md:table-cell">{student.phone}</td>
-                                        <td className="px-5 py-3.5 text-surface-500 hidden lg:table-cell">{student.eircode}</td>
+                                        <td className="px-5 py-3.5 text-muted">{student.email}</td>
+                                        <td className="px-5 py-3.5 text-muted hidden md:table-cell">{student.phone}</td>
+                                        <td className="px-5 py-3.5 text-muted hidden lg:table-cell">{student.eircode}</td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => openEdit(student)}
-                                                    className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                                                    className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
                                                     title="Edit"
                                                 >
                                                     <Edit2 size={14} />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteTarget(student)}
-                                                    className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
                                                     title="Delete"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
-                                                <ChevronRight size={14} className="text-surface-300 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                                                <ChevronRight size={14} className="text-muted/50 ml-1 group-hover:translate-x-0.5 transition-transform" />
                                             </div>
                                         </td>
                                     </tr>

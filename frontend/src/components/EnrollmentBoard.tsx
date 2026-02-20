@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
@@ -44,7 +44,7 @@ const ALL_STATUSES = [...PIPELINE_STATUSES, ...SECONDARY_STATUSES] as const;
 
 const STATUS_CONFIG: Record<string, {
     label: string;
-    icon: JSX.Element;
+    icon: React.ReactNode;
     color: string;
     bg: string;
     border: string;
@@ -54,56 +54,56 @@ const STATUS_CONFIG: Record<string, {
     requested: {
         label: 'Requested',
         icon: <Clock size={14} />,
-        color: 'text-amber-600',
-        bg: 'bg-amber-50',
-        border: 'border-amber-200',
-        pillBg: 'bg-amber-100 text-amber-700',
-        gradient: 'from-amber-500 to-orange-500',
+        color: 'text-warning',
+        bg: 'bg-warning/10',
+        border: 'border-warning/20',
+        pillBg: 'bg-warning/20 text-warning',
+        gradient: 'from-warning to-amber-500',
     },
     invited: {
         label: 'Invited',
         icon: <Send size={14} />,
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        pillBg: 'bg-blue-100 text-blue-700',
-        gradient: 'from-blue-500 to-indigo-500',
+        color: 'text-info',
+        bg: 'bg-info/10',
+        border: 'border-info/20',
+        pillBg: 'bg-info/20 text-info',
+        gradient: 'from-info to-blue-500',
     },
     confirmed: {
         label: 'Confirmed',
         icon: <CheckCircle size={14} />,
-        color: 'text-emerald-600',
-        bg: 'bg-emerald-50',
-        border: 'border-emerald-200',
-        pillBg: 'bg-emerald-100 text-emerald-700',
-        gradient: 'from-emerald-500 to-green-500',
+        color: 'text-success',
+        bg: 'bg-success/10',
+        border: 'border-success/20',
+        pillBg: 'bg-success/20 text-success',
+        gradient: 'from-success to-emerald-500',
     },
     completed: {
         label: 'Completed',
         icon: <GraduationCap size={14} />,
-        color: 'text-teal-600',
-        bg: 'bg-teal-50',
-        border: 'border-teal-200',
-        pillBg: 'bg-teal-100 text-teal-700',
-        gradient: 'from-teal-500 to-cyan-500',
+        color: 'text-brand-500',
+        bg: 'bg-brand-500/10',
+        border: 'border-brand-500/20',
+        pillBg: 'bg-brand-500/20 text-brand-500',
+        gradient: 'from-brand-500 to-brand-400',
     },
     withdrawn: {
         label: 'Withdrawn',
         icon: <LogOut size={14} />,
-        color: 'text-slate-500',
-        bg: 'bg-slate-50',
-        border: 'border-slate-200',
-        pillBg: 'bg-slate-100 text-slate-600',
-        gradient: 'from-slate-400 to-slate-500',
+        color: 'text-muted',
+        bg: 'bg-muted/10',
+        border: 'border-muted/20',
+        pillBg: 'bg-muted/20 text-muted',
+        gradient: 'from-muted to-surface-500',
     },
     rejected: {
         label: 'Rejected',
         icon: <Ban size={14} />,
-        color: 'text-red-500',
-        bg: 'bg-red-50',
-        border: 'border-red-200',
-        pillBg: 'bg-red-100 text-red-600',
-        gradient: 'from-red-500 to-rose-500',
+        color: 'text-danger',
+        bg: 'bg-danger/10',
+        border: 'border-danger/20',
+        pillBg: 'bg-danger/20 text-danger',
+        gradient: 'from-danger to-red-500',
     },
 };
 
@@ -639,17 +639,17 @@ export default function EnrollmentBoard() {
     return (
         <div className="space-y-4 pb-24">
             {/* ═══ Toolbar ═══ */}
-            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4 space-y-3">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 space-y-3">
                 {/* Row 1: Title + Search + Add */}
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                        <div className="p-2 bg-brand-500/10 rounded-xl text-brand-500 dark:text-brand-400">
                             <GraduationCap size={20} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-bold text-surface-900">Enrollments</h2>
-                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                                <h2 className="text-lg font-bold text-primary tracking-tight">Enrollments</h2>
+                                <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
                                     {enrollments.length}
                                 </span>
                             </div>
@@ -657,18 +657,18 @@ export default function EnrollmentBoard() {
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search by name, email or phone..."
-                                className="w-full pl-9 pr-8 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
+                                className="w-full pl-9 pr-8 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                             />
                             {searchQuery && (
                                 <button
                                     onClick={() => setSearchQuery('')}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
                                 >
                                     <X size={14} />
                                 </button>
@@ -676,7 +676,7 @@ export default function EnrollmentBoard() {
                         </div>
                         <button
                             onClick={() => setEnrollModalOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-emerald-500/25 whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
                         >
                             <Plus size={16} /> Add
                         </button>
@@ -689,7 +689,7 @@ export default function EnrollmentBoard() {
                         onClick={() => setSelectedCourse('all')}
                         className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === 'all'
                             ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                            : 'bg-white text-surface-600 border-surface-200 hover:border-brand-300 hover:text-brand-600'
+                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                             }`}
                     >
                         All Courses
@@ -704,7 +704,7 @@ export default function EnrollmentBoard() {
                             }}
                             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === c.id
                                 ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                                : 'bg-white text-surface-600 border-surface-200 hover:border-brand-300 hover:text-brand-600'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                                 }`}
                         >
                             {c.name}
@@ -715,13 +715,13 @@ export default function EnrollmentBoard() {
                 {/* Row 2b: Language chips — only when a specific course is selected */}
                 {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                     <div className="flex flex-wrap gap-2 items-center">
-                        <Globe size={14} className="text-surface-400 mr-0.5" />
+                        <Globe size={14} className="text-muted mr-0.5" />
                         {uniqueVariants.length > 1 && (
                             <button
                                 onClick={() => setSelectedVariant('all')}
                                 className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === 'all'
                                     ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                     }`}
                             >
                                 All Languages
@@ -733,7 +733,7 @@ export default function EnrollmentBoard() {
                                 onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
                                 className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedVariant === v
                                     ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-white text-surface-600 border-surface-200 hover:border-violet-300 hover:text-violet-600'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                     }`}
                             >
                                 {v}
@@ -744,23 +744,23 @@ export default function EnrollmentBoard() {
 
                 {/* Row 3: Date filter + Clear */}
                 <div className="flex flex-wrap gap-2.5 items-center">
-                    <div className="flex items-center gap-1.5 text-surface-400">
+                    <div className="flex items-center gap-1.5 text-muted">
                         <Filter size={14} />
-                        <span className="text-xs font-medium">Date:</span>
+                        <span className="text-xs font-medium uppercase tracking-wider">Date:</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-surface-50 border border-surface-200 rounded-xl px-2.5 py-1">
-                        <Calendar size={13} className="text-surface-400" />
+                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-strong rounded-xl px-2.5 py-1">
+                        <Calendar size={13} className="text-muted" />
                         <input
                             type="date"
-                            className="bg-transparent text-sm outline-none py-0.5 text-surface-700"
+                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
                             value={dateFrom}
                             onChange={e => setDateFrom(e.target.value)}
                             title="From date"
                         />
-                        <span className="text-surface-300 text-xs">—</span>
+                        <span className="text-muted/50 text-xs">—</span>
                         <input
                             type="date"
-                            className="bg-transparent text-sm outline-none py-0.5 text-surface-700"
+                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
                             value={dateTo}
                             onChange={e => setDateTo(e.target.value)}
                             title="To date"
@@ -775,13 +775,13 @@ export default function EnrollmentBoard() {
                                 setDateFrom('');
                                 setDateTo('');
                             }}
-                            className="text-xs font-medium text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-all"
+                            className="text-xs font-medium text-danger hover:text-danger/80 bg-danger/10 px-3 py-1.5 rounded-xl transition-all"
                         >
                             Clear filters
                         </button>
                     )}
-                    <span className="text-xs text-surface-400 font-medium ml-auto">
-                        {filteredEnrollments.length} of {enrollments.length} enrollments
+                    <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
+                        {filteredEnrollments.length} <span className="opacity-50">/</span> {enrollments.length} enrollments
                     </span>
                 </div>
 
@@ -794,11 +794,11 @@ export default function EnrollmentBoard() {
                         return (
                             <div
                                 key={status}
-                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border`}
+                                className={`inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase px-2.5 py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border`}
                             >
                                 {cfg.icon}
                                 <span>{cfg.label}</span>
-                                <span className="font-bold">{count}</span>
+                                <span className="font-mono bg-background/50 px-1.5 py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
                             </div>
                         );
                     })}
@@ -814,14 +814,14 @@ export default function EnrollmentBoard() {
                     const someSelected = items.some(e => selectedIds.has(e.id));
 
                     return (
-                        <div key={status} className="flex flex-col bg-white rounded-2xl shadow-card border border-surface-200/60 overflow-hidden">
+                        <div key={status} className="flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                             {/* Column Header */}
-                            <div className={`p-3.5 border-b-2 ${cfg.border}`}>
+                            <div className={`p-3.5 border-b-2 ${cfg.border} bg-surface-elevated/50`}>
                                 <div className="flex items-center justify-between mb-1.5">
                                     <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient}`} />
-                                        <h3 className="text-sm font-bold text-surface-800">{cfg.label}</h3>
-                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
+                                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
+                                        <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
+                                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                             {items.length}
                                         </span>
                                     </div>
@@ -829,10 +829,10 @@ export default function EnrollmentBoard() {
                                         {items.length > 0 && (
                                             <button
                                                 onClick={() => handleCopyEmails(items, cfg.label)}
-                                                className="p-1.5 text-surface-400 hover:text-surface-600 hover:bg-surface-100 rounded-lg transition-all"
+                                                className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
                                                 title={`Copy all ${cfg.label} emails`}
                                             >
-                                                <Copy size={13} />
+                                                <Copy size={14} />
                                             </button>
                                         )}
                                         {items.length > 0 && (
@@ -841,11 +841,11 @@ export default function EnrollmentBoard() {
                                                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
                                                     ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
                                                     : someSelected
-                                                        ? 'bg-brand-100 border-brand-400 text-brand-600'
-                                                        : 'border-surface-300 hover:border-brand-400'
+                                                        ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
+                                                        : 'border-border-strong hover:border-brand-500/50'
                                                     }`}
                                             >
-                                                {(allSelected || someSelected) && <Check size={10} />}
+                                                {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
                                             </button>
                                         )}
                                     </div>
@@ -853,13 +853,13 @@ export default function EnrollmentBoard() {
                             </div>
 
                             {/* Cards */}
-                            <div className="p-2 overflow-y-auto flex-1 space-y-1.5" style={{ maxHeight: '520px' }}>
+                            <div className="p-2 overflow-y-auto flex-1 space-y-2 bg-surface" style={{ maxHeight: '560px' }}>
                                 {items.length === 0 && (
-                                    <div className="text-center py-8 text-surface-300">
+                                    <div className="text-center py-8 text-muted/60">
                                         <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-2 ${cfg.color} opacity-40`}>
                                             {cfg.icon}
                                         </div>
-                                        <p className="text-xs">No enrollments</p>
+                                        <p className="text-xs uppercase tracking-wider font-semibold">No enrollments</p>
                                     </div>
                                 )}
                                 {items.map(enrollment => {
@@ -870,8 +870,8 @@ export default function EnrollmentBoard() {
                                         <div
                                             key={enrollment.id}
                                             className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
-                                                ? 'border-brand-300 bg-brand-50/50 shadow-sm ring-1 ring-brand-200/50'
-                                                : 'border-surface-100 bg-white hover:shadow-sm hover:border-surface-200'
+                                                ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
+                                                : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
                                                 }`}
                                             onClick={() => toggleSelect(enrollment.id)}
                                             title={[
@@ -883,11 +883,11 @@ export default function EnrollmentBoard() {
                                                 {/* Checkbox */}
                                                 <div
                                                     className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${isSelected
-                                                        ? 'bg-brand-500 border-brand-500 text-white'
-                                                        : 'border-surface-300 group-hover:border-brand-300'
+                                                        ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                                        : 'border-border-strong group-hover:border-brand-500/50 bg-background'
                                                         }`}
                                                 >
-                                                    {isSelected && <Check size={9} />}
+                                                    {isSelected && <Check size={10} strokeWidth={3} />}
                                                 </div>
 
                                                 {/* Star Priority */}
@@ -897,8 +897,8 @@ export default function EnrollmentBoard() {
                                                         togglePriority(enrollment.id, !!enrollment.is_priority);
                                                     }}
                                                     className={`mt-0.5 p-0.5 rounded transition-all ${enrollment.is_priority
-                                                        ? 'text-amber-400 hover:text-amber-500'
-                                                        : 'text-surface-300 hover:text-amber-400'
+                                                        ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                                                        : 'text-muted/40 hover:text-warning/60'
                                                         }`}
                                                     title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
                                                 >
@@ -908,7 +908,7 @@ export default function EnrollmentBoard() {
                                                 <div className="flex-1 min-w-0">
                                                     {/* Name + Actions */}
                                                     <div className="flex justify-between items-start">
-                                                        <p className="font-semibold text-surface-900 text-[13px] truncate leading-5">
+                                                        <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight">
                                                             {enrollment.students?.first_name} {enrollment.students?.last_name}
                                                         </p>
                                                         {/* ⋯ Action Menu */}
@@ -916,8 +916,8 @@ export default function EnrollmentBoard() {
                                                             <button
                                                                 onClick={e => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : enrollment.id); }}
                                                                 className={`p-1 rounded-md transition-all ${isMenuOpen
-                                                                    ? 'bg-surface-200 text-surface-700'
-                                                                    : 'text-surface-300 hover:bg-surface-100 hover:text-surface-600'
+                                                                    ? 'bg-surface-elevated text-primary shadow-sm ring-1 ring-border-strong'
+                                                                    : 'text-muted hover:bg-surface hover:text-primary'
                                                                     }`}
                                                             >
                                                                 <MoreHorizontal size={14} />

@@ -138,7 +138,7 @@ export default function CourseList() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="bg-white rounded-2xl shadow-card border border-surface-200/60 p-4">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4">
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
@@ -146,25 +146,25 @@ export default function CourseList() {
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-bold text-surface-900">Courses</h2>
-                                <span className="text-xs font-semibold text-violet-600 bg-violet-50 px-2.5 py-0.5 rounded-full">{courses.length}</span>
+                                <h2 className="text-lg font-bold text-primary tracking-tight">Courses</h2>
+                                <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-full">{courses.length}</span>
                             </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" size={16} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search courses..."
-                                className="w-full pl-9 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-white transition-all placeholder:text-surface-400"
+                                className="w-full pl-9 pr-4 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-brand-500/25 whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
                         >
                             <Plus size={16} /> Add Course
                         </button>
@@ -182,11 +182,11 @@ export default function CourseList() {
                     <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <BookOpen size={28} className="text-surface-300" />
                     </div>
-                    <p className="text-lg font-semibold text-surface-700">No courses found</p>
-                    <p className="text-sm text-surface-400 mt-1">Create your first course to get started</p>
+                    <p className="text-lg font-semibold text-primary">No courses found</p>
+                    <p className="text-sm text-muted mt-1">Create your first course to get started</p>
                     <button
                         onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                        className="mt-4 px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition inline-flex items-center gap-2"
+                        className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
                     >
                         <Plus size={16} /> Add Course
                     </button>
@@ -197,7 +197,7 @@ export default function CourseList() {
                         const counts = enrollmentCounts[course.id];
                         const gradient = getGradient(course.id);
                         return (
-                            <div key={course.id} className="bg-white rounded-2xl shadow-card border border-surface-200/60 card-hover overflow-hidden group">
+                            <div key={course.id} className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group">
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
@@ -208,8 +208,8 @@ export default function CourseList() {
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-surface-900">{course.name}</h3>
-                                                <p className="text-xs text-surface-500 flex items-center gap-1.5 mt-0.5">
+                                                <h3 className="font-bold text-primary">{course.name}</h3>
+                                                <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                     <Users size={12} />
                                                     <span className="font-medium">{counts?.total || 0}</span> students enrolled
                                                 </p>
@@ -218,14 +218,14 @@ export default function CourseList() {
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={() => { setEditingCourse(course); setModalOpen(true); }}
-                                                className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
+                                                className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
                                                 title="Edit"
                                             >
                                                 <Edit2 size={14} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(course)}
-                                                className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
                                                 title="Delete"
                                             >
                                                 <Trash2 size={14} />
