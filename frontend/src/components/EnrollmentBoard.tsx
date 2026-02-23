@@ -516,7 +516,8 @@ export default function EnrollmentBoard() {
                 const name = `${e.students?.first_name || ''} ${e.students?.last_name || ''}`.toLowerCase();
                 const email = (e.students?.email || '').toLowerCase();
                 const phone = (e.students?.phone || '').toLowerCase();
-                return name.includes(q) || email.includes(q) || phone.includes(q);
+                const notes = (e.notes || '').toLowerCase();
+                return name.includes(q) || email.includes(q) || phone.includes(q) || notes.includes(q);
             });
         }
         if (dateFrom) {
