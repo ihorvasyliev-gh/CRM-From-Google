@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown
 } from 'lucide-react';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -153,6 +153,7 @@ export default function EnrollmentBoard() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [showSecondary, setShowSecondary] = useState(false);
+    const [sortOrder, setSortOrder] = useState<'date-asc' | 'date-desc' | 'name'>('date-asc');
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
@@ -520,12 +521,11 @@ export default function EnrollmentBoard() {
         }
         if (dateFrom) {
             const from = new Date(dateFrom);
-            from.setHours(0, 0, 0, 0);
             result = result.filter(e => new Date(e.created_at) >= from);
         }
         if (dateTo) {
             const to = new Date(dateTo);
-            to.setHours(23, 59, 59, 999);
+            to.setSeconds(59, 999);
             result = result.filter(e => new Date(e.created_at) <= to);
         }
         return result;
@@ -539,21 +539,29 @@ export default function EnrollmentBoard() {
             if (map[e.status]) map[e.status].push(e);
             else map[e.status] = [e];
         });
-        // Sort each group alphabetically by last name, first name
+        // Sort each group based on sortOrder
         Object.values(map).forEach(arr => {
             arr.sort((a, b) => {
                 // Primary sort: Priority (true first)
                 if (a.is_priority !== b.is_priority) {
                     return a.is_priority ? -1 : 1;
                 }
-                // Secondary sort: Name
-                const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
-                const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
-                return aName.localeCompare(bName);
+
+                if (sortOrder === 'name') {
+                    // Secondary sort: Name
+                    const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
+                    const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
+                    return aName.localeCompare(bName);
+                } else {
+                    // Secondary sort: Date
+                    const aDate = new Date(a.created_at).getTime();
+                    const bDate = new Date(b.created_at).getTime();
+                    return sortOrder === 'date-asc' ? aDate - bDate : bDate - aDate;
+                }
             });
         });
         return map;
-    }, [filteredEnrollments]);
+    }, [filteredEnrollments, sortOrder]);
 
     // ─── Status Counts (unfiltered) ─────────────────────────
     const statusCounts = useMemo(() => {
@@ -751,19 +759,19 @@ export default function EnrollmentBoard() {
                     <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-strong rounded-xl px-2.5 py-1">
                         <Calendar size={13} className="text-muted" />
                         <input
-                            type="date"
+                            type="datetime-local"
                             className="bg-transparent text-sm outline-none py-0.5 text-primary"
                             value={dateFrom}
                             onChange={e => setDateFrom(e.target.value)}
-                            title="From date"
+                            title="From date and time"
                         />
                         <span className="text-muted/50 text-xs">—</span>
                         <input
-                            type="date"
+                            type="datetime-local"
                             className="bg-transparent text-sm outline-none py-0.5 text-primary"
                             value={dateTo}
                             onChange={e => setDateTo(e.target.value)}
-                            title="To date"
+                            title="To date and time"
                         />
                     </div>
                     {hasFilters && (
@@ -780,6 +788,17 @@ export default function EnrollmentBoard() {
                             Clear filters
                         </button>
                     )}
+                    <div className="h-4 w-px bg-border-strong mx-1 hidden sm:block"></div>
+                    <button
+                        onClick={() => {
+                            setSortOrder((prev: 'date-asc' | 'date-desc' | 'name') => prev === 'date-asc' ? 'date-desc' : prev === 'date-desc' ? 'name' : 'date-asc');
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary transition-colors bg-surface-elevated px-2.5 py-1.5 rounded-xl border border-border-strong active:scale-95"
+                        title="Toggle Sort Order"
+                    >
+                        <ArrowUpDown size={14} />
+                        {sortOrder === 'date-asc' ? 'Oldest first' : sortOrder === 'date-desc' ? 'Newest first' : 'By Name'}
+                    </button>
                     <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
                         {filteredEnrollments.length} <span className="opacity-50">/</span> {enrollments.length} enrollments
                     </span>
