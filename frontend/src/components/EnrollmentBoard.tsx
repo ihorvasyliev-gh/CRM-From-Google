@@ -12,10 +12,14 @@ import Toast, { ToastData } from './Toast';
 
 // ─── Types ──────────────────────────────────────────────────
 interface Student {
+    id: string;
     first_name: string;
     last_name: string;
     email: string;
     phone: string;
+    address: string | null;
+    eircode: string | null;
+    dob: string | null;
 }
 
 interface Course {
@@ -237,7 +241,7 @@ export default function EnrollmentBoard() {
     async function fetchEnrollments() {
         const { data } = await supabase
             .from('enrollments')
-            .select('*, students(first_name, last_name, email, phone), courses(name)')
+            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as Enrollment[]);
     }
