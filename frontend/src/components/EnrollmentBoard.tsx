@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown
+    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown, FileArchive, Loader2
 } from 'lucide-react';
+import { generateDocumentsArchive } from '../lib/documentUtils';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
@@ -176,6 +177,42 @@ export default function EnrollmentBoard() {
     // Edit Note
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
+
+    const [generatingDocs, setGeneratingDocs] = useState(false);
+
+    async function handleGenerateDocuments() {
+        if (selectedIds.size === 0) return;
+        setGeneratingDocs(true);
+        try {
+            // Fetch the latest template
+            const { data, error } = await supabase
+                .from('document_templates')
+                .select('*')
+                .order('updated_at', { ascending: false })
+                .limit(1);
+
+            if (error || !data || data.length === 0) {
+                throw new Error('No template uploaded. Please upload a template in Document Generator first.');
+            }
+
+            const template = data[0];
+            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
+
+            await generateDocumentsArchive(
+                selectedEnrollments,
+                template.storage_path,
+                'Selected_Enrollments_Documents.zip'
+            );
+
+            showToast(`Generated ${selectedEnrollments.length} document(s)!`, 'success');
+            clearSelection();
+        } catch (err: any) {
+            console.error('Generation error:', err);
+            showToast(`Generation failed: ${err.message}`, 'error');
+        } finally {
+            setGeneratingDocs(false);
+        }
+    }
 
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
@@ -1145,6 +1182,14 @@ export default function EnrollmentBoard() {
                             className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
                         >
                             <GraduationCap size={14} /> Complete
+                        </button>
+
+                        <button
+                            onClick={handleGenerateDocuments}
+                            disabled={generatingDocs}
+                            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-sm`}
+                        >
+                            {generatingDocs ? <Loader2 size={14} className="animate-spin" /> : <FileArchive size={14} />} Gen Docs
                         </button>
 
                         <button

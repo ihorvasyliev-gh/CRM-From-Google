@@ -1,13 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import {
-    FileText, Upload, Download, Loader2, ChevronDown,
-    CheckCircle, AlertCircle, Trash2, Info, X, FileArchive
-} from 'lucide-react';
-import Docxtemplater from 'docxtemplater';
-import PizZip from 'pizzip';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive } from 'lucide-react';
+import { generateDocumentsArchive, formatDateLong } from '../lib/documentUtils';
 
 // ─── Types ──────────────────────────────────────────────────
 interface Student {
@@ -94,50 +88,6 @@ const PLACEHOLDER_CATEGORIES = [
     },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────
-function formatDateDMY(dateStr: string | null | undefined): string {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatDateLong(dateStr: string | null | undefined): string {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function buildPlaceholderData(enrollment: Enrollment): Record<string, string> {
-    const s = enrollment.students;
-    const c = enrollment.courses;
-
-    return {
-        userId: s?.id || '',
-        firstName: s?.first_name || '',
-        lastName: s?.last_name || '',
-        fullName: [s?.first_name, s?.last_name].filter(Boolean).join(' '),
-        email: s?.email || '',
-        mobileNumber: s?.phone || '',
-        address: s?.address || '',
-        eircode: s?.eircode || '',
-        dateOfBirth: formatDateLong(s?.dob),
-        courseId: c?.id || '',
-        courseTitle: c?.name || '',
-        courseVariant: enrollment.course_variant || '',
-        registeredAt: formatDateDMY(enrollment.created_at),
-        courseRegistrationDate: formatDateLong(enrollment.created_at),
-        isCompleted: enrollment.status === 'completed' ? 'Yes' : 'No',
-        completedAt: enrollment.status === 'completed' ? formatDateLong(enrollment.confirmed_date) : '',
-        isInvited: enrollment.invited_date ? 'Yes' : 'No',
-        invitedAt: formatDateLong(enrollment.invited_date),
-        confirmedDate: formatDateLong(enrollment.confirmed_date),
-        courseDate: formatDateLong(enrollment.invited_date),
-        enrollmentStatus: enrollment.status?.charAt(0).toUpperCase() + enrollment.status?.slice(1) || '',
-        enrollmentNotes: enrollment.notes || '',
-    };
-}
 
 // ─── Component ──────────────────────────────────────────────
 export default function DocumentGenerator() {
@@ -273,49 +223,14 @@ export default function DocumentGenerator() {
 
         setGenerating(true);
         try {
-            // 1. Download template from storage
-            const { data: templateData, error: downloadError } = await supabase.storage
-                .from('templates')
-                .download(template.storage_path);
-
-            if (downloadError || !templateData) throw downloadError || new Error('Failed to download template');
-
-            const templateBuffer = await templateData.arrayBuffer();
-
-            // 2. Generate a document for each participant
-            const zip = new JSZip();
             const courseName = selectedCourse?.name || 'Course';
-
-            for (const enrollment of confirmedForCourse) {
-                const student = enrollment.students;
-                if (!student) continue;
-
-                try {
-                    const pizZip = new PizZip(templateBuffer);
-                    const doc = new Docxtemplater(pizZip, {
-                        paragraphLoop: true,
-                        linebreaks: true,
-                        delimiters: { start: '{', end: '}' },
-                    });
-
-                    const data = buildPlaceholderData(enrollment);
-                    doc.render(data);
-
-                    const generatedDoc = doc.getZip().generate({ type: 'arraybuffer' });
-                    const fileName = `${student.first_name || 'Unknown'}_${student.last_name || 'Unknown'}.docx`
-                        .replace(/[^a-zA-Z0-9_.\-\s]/g, '')
-                        .replace(/\s+/g, '_');
-
-                    zip.file(fileName, generatedDoc);
-                } catch (docErr) {
-                    console.error(`Error generating doc for ${student.first_name} ${student.last_name}:`, docErr);
-                }
-            }
-
-            // 3. Download ZIP
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
             const zipName = `${courseName.replace(/[^a-zA-Z0-9_.\-\s]/g, '').replace(/\s+/g, '_')}_Documents.zip`;
-            saveAs(zipBlob, zipName);
+
+            await generateDocumentsArchive(
+                confirmedForCourse,
+                template.storage_path,
+                zipName
+            );
 
             showToast(`Generated ${confirmedForCourse.length} document(s)!`, 'success');
         } catch (err: unknown) {
