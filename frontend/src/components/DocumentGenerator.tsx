@@ -370,7 +370,7 @@ export default function DocumentGenerator() {
             </div>
 
             {/* ═══ Generate Documents Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle">
                 <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl text-emerald-600 flex-shrink-0">
@@ -391,7 +391,7 @@ export default function DocumentGenerator() {
                         <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                             Select Course
                         </label>
-                        <div className="relative">
+                        <div className="relative z-50">
                             <button
                                 onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
                                 className="w-full flex items-center justify-between px-4 py-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm transition-all hover:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
@@ -403,7 +403,7 @@ export default function DocumentGenerator() {
                             </button>
 
                             {courseDropdownOpen && (
-                                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1 max-h-64 overflow-y-auto animate-scaleIn origin-top">
+                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1 max-h-64 overflow-y-auto animate-scaleIn origin-top">
                                     {coursesWithConfirmed.length === 0 ? (
                                         <div className="px-4 py-3 text-sm text-muted text-center">
                                             No courses with confirmed enrollments
