@@ -169,11 +169,15 @@ function syncRowsRange(sheet, startRow, endRow) {
     
     if (!email || String(email).trim() === "") continue;
 
+    var fName = String(rowData[1] || "").trim();
+    var lName = String(rowData[2] || "").trim();
+    var eMail = String(email).trim().toLowerCase();
+
     studentsToUpsert.push({
-      first_name: rowData[1] || "",
-      last_name: rowData[2] || "",
-      phone: String(rowData[3] || ""),
-      email: String(email).trim().toLowerCase(), 
+      first_name: fName,
+      last_name: lName,
+      phone: normalizePhone(rowData[3]),
+      email: eMail, 
       address: rowData[5] || "",
       eircode: rowData[6] || "",
       dob: formatDate(rowData[7]),
@@ -181,33 +185,36 @@ function syncRowsRange(sheet, startRow, endRow) {
       created_at: formatIsoDateTime(rowData[0])
     });
     
-    rowMap.push({ email: String(email).trim().toLowerCase(), rowData: rowData });
+    // Use a composite key for the map instead of just email
+    rowMap.push({ key: fName.toLowerCase() + "|" + lName.toLowerCase() + "|" + eMail, rowData: rowData });
   }
 
   if (studentsToUpsert.length === 0) return;
 
   // Deduplicate emails within the batch before sending to Supabase
   var uniqueStudents = [];
-  var seenEmails = {};
+  var seenKeys = {};
   for (var k = 0; k < studentsToUpsert.length; k++) {
       var s = studentsToUpsert[k];
-      if (!seenEmails[s.email]) {
+      var key = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
+      if (!seenKeys[key]) {
           uniqueStudents.push(s);
-          seenEmails[s.email] = true;
+          seenKeys[key] = true;
       }
   }
 
   // Upsert Students
-  var upsertedStudents = _fetch('students?on_conflict=email', 'post', uniqueStudents, { 
+  var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', uniqueStudents, { 
     'Prefer': 'resolution=merge-duplicates, return=representation' 
   });
   
   if (!upsertedStudents) throw new Error("Failed to upsert students batch.");
   
-  var emailToIdMap = {};
+  var keyToIdMap = {};
   for (var k = 0; k < upsertedStudents.length; k++) {
       var s = upsertedStudents[k];
-      if (s.email) emailToIdMap[s.email] = s.id;
+      var key = String(s.first_name || "").toLowerCase() + "|" + String(s.last_name || "").toLowerCase() + "|" + String(s.email || "").toLowerCase();
+      keyToIdMap[key] = s.id;
   }
 
   // Build Enrollments
@@ -216,7 +223,7 @@ function syncRowsRange(sheet, startRow, endRow) {
   
   for (var m = 0; m < rowMap.length; m++) {
       var mapItem = rowMap[m];
-      var sId = emailToIdMap[mapItem.email];
+      var sId = keyToIdMap[mapItem.key];
       if (!sId) continue; 
 
       var rData = mapItem.rowData;
@@ -347,6 +354,17 @@ function formatDate(dateObj) {
   } catch (e) {
     return null;
   }
+}
+
+function normalizePhone(phone) {
+  if (!phone) return "";
+  var cleaned = String(phone).replace(/[^\d+]/g, '');
+  if (!cleaned) return "";
+  if (cleaned.startsWith('00')) cleaned = '+' + cleaned.substring(2);
+  else if (cleaned.startsWith('0')) cleaned = '+353' + cleaned.substring(1);
+  else if (cleaned.startsWith('353')) cleaned = '+' + cleaned;
+  else if (cleaned.startsWith('8')) cleaned = '+353' + cleaned;
+  return cleaned;
 }
 
 // ==========================================

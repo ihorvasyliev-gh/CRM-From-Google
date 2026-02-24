@@ -43,7 +43,20 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         setSaving(true);
         setError('');
         try {
-            await onSave(form);
+            // Clean up exact formats before saving
+            const formattedEmail = form.email.trim().toLowerCase();
+
+            let formattedPhone = form.phone.replace(/[^\d+]/g, '');
+            if (formattedPhone.startsWith('00')) formattedPhone = '+' + formattedPhone.substring(2);
+            else if (formattedPhone.startsWith('0')) formattedPhone = '+353' + formattedPhone.substring(1);
+            else if (formattedPhone.startsWith('353')) formattedPhone = '+' + formattedPhone;
+            else if (formattedPhone.startsWith('8')) formattedPhone = '+353' + formattedPhone;
+
+            await onSave({
+                ...form,
+                email: formattedEmail,
+                phone: formattedPhone
+            });
             onClose();
         } catch (err: any) {
             setError(err.message || 'Save failed');
