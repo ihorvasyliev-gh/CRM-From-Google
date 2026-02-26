@@ -371,10 +371,28 @@ function normalizePhone(phone) {
   if (!phone) return "";
   var cleaned = String(phone).replace(/[^\d+]/g, '');
   if (!cleaned) return "";
-  if (cleaned.startsWith('00')) cleaned = '+' + cleaned.substring(2);
-  else if (cleaned.startsWith('0')) cleaned = '+353' + cleaned.substring(1);
-  else if (cleaned.startsWith('353')) cleaned = '+' + cleaned;
-  else if (cleaned.startsWith('8')) cleaned = '+353' + cleaned;
+
+  if (cleaned.startsWith('+')) return cleaned;
+  if (cleaned.startsWith('00')) return '+' + cleaned.substring(2);
+
+  if (cleaned.startsWith('353')) return '+' + cleaned;
+  if (cleaned.startsWith('380')) return '+' + cleaned;
+  if (cleaned.startsWith('44')) return '+' + cleaned;
+
+  if (cleaned.startsWith('8') && cleaned.length === 9) return '+353' + cleaned;
+  if (cleaned.startsWith('08')) return '+353' + cleaned.substring(1);
+  if (cleaned.startsWith('07') && cleaned.length === 11) return '+44' + cleaned.substring(1);
+
+  var uaCodes = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
+  for (var i = 0; i < uaCodes.length; i++) {
+    if (cleaned.startsWith(uaCodes[i]) && cleaned.length === 10) {
+      return '+38' + cleaned;
+    }
+  }
+
+  if (cleaned.startsWith('0')) return '+353' + cleaned.substring(1);
+  if (cleaned.length >= 10) return '+' + cleaned;
+
   return cleaned;
 }
 

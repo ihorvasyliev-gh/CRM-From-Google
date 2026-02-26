@@ -37,10 +37,38 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
             const formattedEmail = form.email.trim().toLowerCase();
 
             let formattedPhone = form.phone.replace(/[^\d+]/g, '');
-            if (formattedPhone.startsWith('00')) formattedPhone = '+' + formattedPhone.substring(2);
-            else if (formattedPhone.startsWith('0')) formattedPhone = '+353' + formattedPhone.substring(1);
-            else if (formattedPhone.startsWith('353')) formattedPhone = '+' + formattedPhone;
-            else if (formattedPhone.startsWith('8')) formattedPhone = '+353' + formattedPhone;
+            if (formattedPhone) {
+                if (formattedPhone.startsWith('00')) {
+                    formattedPhone = '+' + formattedPhone.substring(2);
+                } else if (!formattedPhone.startsWith('+')) {
+                    if (formattedPhone.startsWith('353') || formattedPhone.startsWith('380') || formattedPhone.startsWith('44')) {
+                        formattedPhone = '+' + formattedPhone;
+                    } else if (formattedPhone.startsWith('8') && formattedPhone.length === 9) {
+                        formattedPhone = '+353' + formattedPhone;
+                    } else if (formattedPhone.startsWith('08')) {
+                        formattedPhone = '+353' + formattedPhone.substring(1);
+                    } else if (formattedPhone.startsWith('07') && formattedPhone.length === 11) {
+                        formattedPhone = '+44' + formattedPhone.substring(1);
+                    } else {
+                        const uaCodes = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
+                        let isUa = false;
+                        for (const code of uaCodes) {
+                            if (formattedPhone.startsWith(code) && formattedPhone.length === 10) {
+                                formattedPhone = '+38' + formattedPhone;
+                                isUa = true;
+                                break;
+                            }
+                        }
+                        if (!isUa) {
+                            if (formattedPhone.startsWith('0')) {
+                                formattedPhone = '+353' + formattedPhone.substring(1);
+                            } else if (formattedPhone.length >= 10) {
+                                formattedPhone = '+' + formattedPhone;
+                            }
+                        }
+                    }
+                }
+            }
 
             await onSave({
                 ...form,
