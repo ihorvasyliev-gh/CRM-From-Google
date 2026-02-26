@@ -1,17 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import { X, Loader2, User } from 'lucide-react';
-
-export interface StudentFormData {
-    id?: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    address: string;
-    eircode: string;
-    dob: string;
-}
+import { StudentFormData } from '../lib/types';
 
 interface Props {
     open: boolean;

@@ -1,8 +1,16 @@
 // ==========================================
 // CONFIGURATION
-// ==========================================
-var SUPABASE_URL = 'https://fdtzntjvigtrwipqkzht.supabase.co'; // e.g., https://xyz.supabase.co
-var SUPABASE_KEY = ''; // Service role key might be needed if RLS is strict, but Anon is fine if policies allow
+// To set your credentials, go to:
+// Project Settings → Script Properties → Add:
+//   SUPABASE_URL = https://your-project.supabase.co
+//   SUPABASE_KEY = your-service-role-key
+function getConfig_() {
+  var props = PropertiesService.getScriptProperties();
+  return {
+    url: props.getProperty('SUPABASE_URL') || '',
+    key: props.getProperty('SUPABASE_KEY') || ''
+  };
+}
 var BATCH_SIZE = 50; 
 var FIXED_COL_COUNT = 8; // Индекс, с которого начинаются колонки курсов (индекс 8 = 9-я колонка)
 
@@ -23,6 +31,8 @@ function onOpen() {
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
     .addSeparator()
     .addItem('⬇️ Upload from Supabase to CRM Mirror', 'syncFromSupabase')
+    .addSeparator()
+    .addItem('🛠 RESTORE: Recover Statuses from CRM Backup', 'restoreDataFromBackup')
     .addSeparator()
     .addItem('🛠 Migrate Registration Dates (One-time)', 'startMigrateRegistrationDates')
     .addSeparator()
@@ -315,10 +325,11 @@ function getCourseId(name) {
 }
 
 function _fetch(endpoint, method, payload, extraHeaders) {
-  var url = SUPABASE_URL + '/rest/v1/' + endpoint;
+  var config = getConfig_();
+  var url = config.url + '/rest/v1/' + endpoint;
   var headers = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'apikey': config.key,
+      'Authorization': 'Bearer ' + config.key,
       'Content-Type': 'application/json'
   };
   
@@ -624,4 +635,137 @@ function setupTriggers() {
   ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet()).onFormSubmit().create();
       
   SpreadsheetApp.getActiveSpreadsheet().toast("Все фоновые триггеры успешно установлены.", "CRM Setup");
+}
+
+// ==========================================
+// RECOVERY (ONE-TIME)
+// ==========================================
+
+function restoreDataFromBackup() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('CRM Backup');
+  if (!sheet) {
+    ss.toast("Please create a 'CRM Backup' sheet with your old data!", "Error");
+    return;
+  }
+  
+  ss.toast("Loading data from Supabase...", "Recovery");
+  warmUpCourseCache();
+  
+  var currentStudents = _fetchAll('students', 'select=id,first_name,last_name,email,phone,address,eircode,dob');
+  var studentDict = {};
+  for (var i = 0; i < currentStudents.length; i++) {
+    var s = currentStudents[i];
+    var key = (s.first_name || "").trim().toLowerCase() + "|" + 
+              (s.last_name || "").trim().toLowerCase() + "|" + 
+              (s.email || "").trim().toLowerCase();
+    studentDict[key] = s;
+  }
+  
+  var currentEnrollments = _fetchAll('enrollments', 'select=id,student_id,course_id,course_variant,status,notes,is_priority,invited_date,confirmed_date');
+  var enrollmentDict = {};
+  for (var e = 0; e < currentEnrollments.length; e++) {
+    var enr = currentEnrollments[e];
+    var varStr = enr.course_variant ? enr.course_variant.trim() : "";
+    var ekey = enr.student_id + "_" + enr.course_id + "_" + varStr;
+    enrollmentDict[ekey] = enr;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return ss.toast("No data in CRM Backup", "Error");
+  
+  var headers = data[0];
+  var restoredEnrCount = 0;
+  var restoredStuCount = 0;
+  
+  var statusIdx = headers.indexOf('Status');
+  var prioIdx = headers.indexOf('Priority');
+  var fNameIdx = headers.indexOf('First Name');
+  var lNameIdx = headers.indexOf('Last Name');
+  var emailIdx = headers.indexOf('Email');
+  var mobileIdx = headers.indexOf('Mobile');
+  var addressIdx = headers.indexOf('Address');
+  var eircodeIdx = headers.indexOf('Eircode');
+  var dobIdx = headers.indexOf('DOB');
+  var courseIdx = headers.indexOf('Course');
+  var variantIdx = headers.indexOf('Variant / Language');
+  var invDateIdx = headers.indexOf('Invited Date');
+  var confDateIdx = headers.indexOf('Confirmed Date');
+  var notesIdx = headers.indexOf('Notes');
+
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    var fName = String(row[fNameIdx] || "").trim();
+    var lName = String(row[lNameIdx] || "").trim();
+    var emailStr = String(row[emailIdx] || "").trim();
+    
+    if (!emailStr) continue;
+    
+    var skey = fName.toLowerCase() + "|" + lName.toLowerCase() + "|" + emailStr.toLowerCase();
+    var currentS = studentDict[skey];
+    if (!currentS) continue;
+    
+    // 1. Restore Student metadata if empty in current db but present in backup
+    var sPayload = {};
+    if (!currentS.phone && row[mobileIdx]) sPayload.phone = normalizePhone(row[mobileIdx]);
+    if (!currentS.address && row[addressIdx]) sPayload.address = row[addressIdx];
+    if (!currentS.eircode && row[eircodeIdx]) sPayload.eircode = row[eircodeIdx];
+    if (!currentS.dob && row[dobIdx]) sPayload.dob = formatDate(row[dobIdx]);
+    
+    if (Object.keys(sPayload).length > 0) {
+      var sRes = _fetch('students?id=eq.' + currentS.id, 'patch', sPayload, { 'Prefer': 'return=representation' });
+      if (sRes) {
+          if (sPayload.phone) currentS.phone = sPayload.phone;
+          if (sPayload.address) currentS.address = sPayload.address;
+          if (sPayload.eircode) currentS.eircode = sPayload.eircode;
+          if (sPayload.dob) currentS.dob = sPayload.dob;
+          restoredStuCount++;
+      }
+    }
+
+    // 2. Restore Enrollment metadata
+    var courseStr = String(row[courseIdx] || "").trim();
+    var variantStr = String(row[variantIdx] || "").trim();
+    
+    if (!courseStr || courseStr === "None" || courseStr === "Unknown Course") continue;
+    
+    var cId = getCourseId(courseStr);
+    if (!cId) continue;
+    
+    var ekey = currentS.id + "_" + cId + "_" + variantStr;
+    var currentE = enrollmentDict[ekey];
+    
+    if (currentE) {
+       var statusBk = String(row[statusIdx] || "").toLowerCase();
+       var isPrioBk = (String(row[prioIdx]).indexOf('High') !== -1);
+       var notesBk = row[notesIdx];
+       var invDateBk = formatDate(row[invDateIdx]);
+       var confDateBk = formatDate(row[confDateIdx]);
+       
+       var ePayload = {};
+       
+       // Compare backup data with current data. If backup is "better", use it.
+       if (statusBk && statusBk !== 'requested' && statusBk !== 'no enrollments' && currentE.status === 'requested') {
+         ePayload.status = statusBk;
+       }
+       if (isPrioBk && !currentE.is_priority) ePayload.is_priority = true;
+       if (notesBk && !currentE.notes) ePayload.notes = notesBk;
+       if (invDateBk && !currentE.invited_date) ePayload.invited_date = invDateBk;
+       if (confDateBk && !currentE.confirmed_date) ePayload.confirmed_date = confDateBk;
+       
+       if (Object.keys(ePayload).length > 0) {
+         var eRes = _fetch('enrollments?id=eq.' + currentE.id, 'patch', ePayload, { 'Prefer': 'return=representation' });
+         if (eRes) {
+             if (ePayload.status) currentE.status = ePayload.status;
+             if (ePayload.is_priority) currentE.is_priority = true;
+             if (ePayload.notes) currentE.notes = ePayload.notes;
+             if (ePayload.invited_date) currentE.invited_date = ePayload.invited_date;
+             if (ePayload.confirmed_date) currentE.confirmed_date = ePayload.confirmed_date;
+             restoredEnrCount++;
+         }
+       }
+    }
+  }
+  
+  ss.toast("Restored data for " + restoredEnrCount + " enrolls & " + restoredStuCount + " students!", "Success");
 }

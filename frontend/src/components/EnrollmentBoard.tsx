@@ -344,13 +344,13 @@ export default function EnrollmentBoard() {
         if (newStatus === 'confirmed' && confirmedDate) {
             updatePayload.confirmed_date = confirmedDate;
         }
-        if (newStatus !== 'confirmed') {
-            updatePayload.confirmed_date = null;
-        }
         if (newStatus === 'invited' && invitedDate) {
             updatePayload.invited_date = invitedDate;
         }
-        if (newStatus !== 'invited') {
+        // Only clear dates when moving back to early statuses (requested/rejected).
+        // Completed/withdrawn preserve historical confirmed_date and invited_date.
+        if (newStatus === 'requested' || newStatus === 'rejected') {
+            updatePayload.confirmed_date = null;
             updatePayload.invited_date = null;
         }
 

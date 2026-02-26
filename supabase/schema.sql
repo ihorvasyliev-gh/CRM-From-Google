@@ -30,7 +30,6 @@ create table enrollments (
   status text default 'requested', -- requested, invited, confirmed, rejected
   course_variant text, -- e.g., "Ukrainian", "English"
   notes text, -- admin notes
-  confirmed_date date, -- date when the place was confirmed
   invited_date date, -- date to which the student was invited
   confirmed_date date, -- date when the place was confirmed
   is_priority boolean default false, -- priority student for this course

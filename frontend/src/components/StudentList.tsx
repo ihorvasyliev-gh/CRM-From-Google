@@ -1,23 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
-import StudentModal, { StudentFormData } from './StudentModal';
+import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
-
-interface Student {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    address: string;
-    eircode: string;
-    dob: string;
-    created_at: string;
-}
+import { Student, StudentFormData, getAvatarGradient } from '../lib/types';
 
 export default function StudentList() {
     const [students, setStudents] = useState<Student[]>([]);
@@ -107,21 +96,6 @@ export default function StudentList() {
             (s.phone || '').toLowerCase().includes(q)
         );
     });
-
-    const AVATAR_GRADIENTS = [
-        'from-brand-500 to-brand-600',
-        'from-violet-500 to-purple-600',
-        'from-emerald-500 to-teal-600',
-        'from-amber-500 to-orange-600',
-        'from-rose-500 to-pink-600',
-        'from-cyan-500 to-blue-600',
-    ];
-
-    function getAvatarGradient(id: string): string {
-        let hash = 0;
-        for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-        return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
-    }
 
     return (
         <div className="space-y-4">

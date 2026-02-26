@@ -14,9 +14,12 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
         try {
-            await signIn(email, password);
+            const { error: signInError } = await signIn(email, password);
+            if (signInError) {
+                setError(signInError.message || 'Invalid email or password');
+            }
         } catch {
-            setError('Invalid email or password');
+            setError('An unexpected error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
