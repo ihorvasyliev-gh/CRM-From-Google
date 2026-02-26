@@ -8,9 +8,9 @@ interface Student {
     last_name: string;
     email: string;
     phone: string;
-    address: string;
-    eircode: string;
-    dob: string;
+    address: string | null;
+    eircode: string | null;
+    dob: string | null;
 }
 
 interface Enrollment {
