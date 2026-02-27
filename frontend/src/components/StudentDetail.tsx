@@ -1,17 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink } from 'lucide-react';
-
-interface Student {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    address: string | null;
-    eircode: string | null;
-    dob: string | null;
-}
+import { Student } from '../lib/types';
 
 interface Enrollment {
     id: string;

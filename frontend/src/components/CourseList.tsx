@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, Users, BookOpen, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
