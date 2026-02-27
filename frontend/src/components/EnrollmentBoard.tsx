@@ -354,8 +354,39 @@ export default function EnrollmentBoard() {
             updatePayload.invited_date = null;
         }
 
-        // For completed/withdrawn, update ALL variants
-        if (newStatus === 'completed' || newStatus === 'withdrawn') {
+        // For completed: only update THIS enrollment, delete sibling requested variants
+        // For withdrawn: update ALL variants (existing behavior)
+        if (newStatus === 'completed') {
+            const currentEnrollment = enrollments.find(e => e.id === id);
+            if (!currentEnrollment) return;
+
+            // 1. Update only the selected enrollment to completed
+            const { error } = await supabase.from('enrollments').update(updatePayload).eq('id', id);
+            if (error) { showToast('Error updating status', 'error'); return; }
+
+            // 2. Find sibling enrollments (same student + course, different variant, in 'requested' status)
+            const siblingRequestedIds = enrollments
+                .filter(e =>
+                    e.student_id === currentEnrollment.student_id &&
+                    e.course_id === currentEnrollment.course_id &&
+                    e.id !== id &&
+                    e.status === 'requested'
+                )
+                .map(e => e.id);
+
+            // 3. Delete sibling requested enrollments
+            if (siblingRequestedIds.length > 0) {
+                await supabase.from('enrollments').delete().in('id', siblingRequestedIds);
+            }
+
+            // 4. Update local state: mark selected as completed, remove deleted siblings
+            setEnrollments(prev => prev
+                .filter(e => !siblingRequestedIds.includes(e.id))
+                .map(e => e.id === id ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null, invited_date: updatePayload.invited_date ?? null } : e)
+            );
+            const deletedCount = siblingRequestedIds.length;
+            showToast(`Completed! ${deletedCount > 0 ? `Removed ${deletedCount} requested variant(s)` : ''}`, 'success');
+        } else if (newStatus === 'withdrawn') {
             const currentEnrollment = enrollments.find(e => e.id === id);
             if (!currentEnrollment) return;
 
@@ -424,7 +455,49 @@ export default function EnrollmentBoard() {
             updatePayload.invited_date = null;
         }
 
-        if (newStatus === 'completed' || newStatus === 'withdrawn') {
+        if (newStatus === 'completed') {
+            // For completed: only update selected enrollments, delete sibling requested variants
+            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
+            const siblingRequestedIds: string[] = [];
+            selectedEnrollments.forEach(curr => {
+                enrollments.filter(e =>
+                    e.student_id === curr.student_id &&
+                    e.course_id === curr.course_id &&
+                    !selectedIds.has(e.id) &&
+                    e.status === 'requested'
+                ).forEach(r => siblingRequestedIds.push(r.id));
+            });
+
+            // Update only selected enrollments to completed
+            const { error } = await supabase
+                .from('enrollments')
+                .update(updatePayload)
+                .in('id', idsToUpdate);
+
+            if (!error) {
+                // Delete sibling requested enrollments
+                if (siblingRequestedIds.length > 0) {
+                    await supabase.from('enrollments').delete().in('id', siblingRequestedIds);
+                }
+                setEnrollments(prev => prev
+                    .filter(e => !siblingRequestedIds.includes(e.id))
+                    .map(e => idsToUpdate.includes(e.id)
+                        ? { ...e, status: newStatus, confirmed_date: updatePayload.confirmed_date ?? null, invited_date: updatePayload.invited_date ?? null }
+                        : e
+                    )
+                );
+                setSelectedIds(new Set());
+                const msg = `${idsToUpdate.length} enrollment(s) → completed`;
+                const extra = siblingRequestedIds.length > 0 ? `, removed ${siblingRequestedIds.length} requested variant(s)` : '';
+                showToast(msg + extra, 'success');
+            } else {
+                showToast('Error updating status', 'error');
+            }
+            return;
+        }
+
+        if (newStatus === 'withdrawn') {
+            // For withdrawn: update ALL variants (existing behavior)
             const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
             const extraIds: string[] = [];
             selectedEnrollments.forEach(curr => {
