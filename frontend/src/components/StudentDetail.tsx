@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap } from 'lucide-react';
+import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink } from 'lucide-react';
 
 interface Student {
     id: string;
@@ -18,6 +18,7 @@ interface Enrollment {
     status: string;
     course_variant: string | null;
     created_at: string;
+    course_id: string;
     courses: { name: string } | null;
 }
 
@@ -27,14 +28,16 @@ interface Props {
     onEdit: () => void;
     onDelete: () => void;
     onEnroll: () => void;
+    onStudentUpdated?: (student: Student) => void;
+    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
 }
 
 const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
-    requested: { icon: <Clock size={12} />, className: 'bg-amber-50 text-amber-700 border-amber-200' },
-    invited: { icon: <Send size={12} />, className: 'bg-blue-50 text-blue-700 border-blue-200' },
-    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200' },
-    completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200' },
+    requested: { icon: <Clock size={12} />, className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20' },
+    invited: { icon: <Send size={12} />, className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20' },
+    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' },
+    rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20' },
+    completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20' },
     withdrawn: { icon: <XCircle size={12} />, className: 'bg-muted/10 text-muted border-border-subtle' },
 };
 
@@ -47,7 +50,115 @@ const AVATAR_GRADIENTS = [
     'from-cyan-500 to-blue-600',
 ];
 
-export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll }: Props) {
+// ─── Inline Editable Field ──────────────────────────────────
+function InlineEditField({
+    value,
+    field,
+    studentId,
+    type = 'text',
+    icon,
+    label,
+    onSaved,
+}: {
+    value: string;
+    field: string;
+    studentId: string;
+    type?: string;
+    icon: JSX.Element;
+    label: string;
+    onSaved: (field: string, value: string) => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [editValue, setEditValue] = useState(value);
+    const [saving, setSaving] = useState(false);
+
+    async function handleSave() {
+        if (editValue === value) {
+            setEditing(false);
+            return;
+        }
+        setSaving(true);
+        const { error } = await supabase
+            .from('students')
+            .update({ [field]: editValue || null })
+            .eq('id', studentId);
+        if (!error) {
+            onSaved(field, editValue);
+        }
+        setSaving(false);
+        setEditing(false);
+    }
+
+    function handleKeyDown(e: React.KeyboardEvent) {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') {
+            setEditValue(value);
+            setEditing(false);
+        }
+    }
+
+    if (editing) {
+        return (
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20">
+                <span className="text-brand-500 flex-shrink-0">{icon}</span>
+                <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-muted font-medium mb-1">{label}</p>
+                    <input
+                        type={type}
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={handleSave}
+                        autoFocus
+                        className="w-full text-sm text-primary bg-transparent border-none outline-none p-0"
+                    />
+                </div>
+                {saving ? (
+                    <Loader2 size={14} className="animate-spin text-brand-500 flex-shrink-0" />
+                ) : (
+                    <button
+                        onClick={handleSave}
+                        className="p-1 text-brand-500 hover:bg-brand-500/10 rounded transition-all flex-shrink-0"
+                    >
+                        <Check size={14} />
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all cursor-pointer group"
+            onClick={() => {
+                setEditValue(value);
+                setEditing(true);
+            }}
+        >
+            <span className="text-muted">{icon}</span>
+            <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted font-medium">{label}</p>
+                <p className="text-sm text-primary">{value || <span className="text-muted/50 italic">Not set</span>}</p>
+            </div>
+            <Edit2 size={12} className="text-muted/0 group-hover:text-muted/60 transition-all flex-shrink-0" />
+        </div>
+    );
+}
+
+// ─── Read-only Info Field ────────────────────────────────────
+function InfoField({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+    return (
+        <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all">
+            <span className="text-muted">{icon}</span>
+            <div>
+                <p className="text-[10px] text-muted font-medium">{label}</p>
+                <p className="text-sm text-primary">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -65,14 +176,11 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     }
 
     async function handleUpdateStatus(id: string, newStatus: string) {
-        // For completed/withdrawn, update ALL variants of this course for this student
         if (newStatus === 'completed' || newStatus === 'withdrawn') {
             const currentEnrollment = enrollments.find(e => e.id === id);
-            // @ts-ignore
             if (!currentEnrollment || !currentEnrollment.course_id) return;
 
             const relatedEnrollments = enrollments.filter(e =>
-                // @ts-ignore
                 e.course_id === currentEnrollment.course_id
             );
 
@@ -116,13 +224,21 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
     }
 
-    const infoItems = [
-        { icon: <Mail size={14} />, label: 'Email', value: student.email },
-        { icon: <Phone size={14} />, label: 'Phone', value: student.phone },
-        { icon: <MapPin size={14} />, label: 'Address', value: student.address },
-        { icon: <MapPin size={14} />, label: 'Eircode', value: student.eircode },
-        { icon: <Calendar size={14} />, label: 'Date of Birth', value: student.dob ? new Date(student.dob).toLocaleDateString('en-IE') : '' },
-    ].filter(item => item.value);
+    // Handle inline edit save
+    function handleFieldSaved(field: string, value: string) {
+        const updated = { ...student, [field]: value || null };
+        if (onStudentUpdated) {
+            onStudentUpdated(updated as Student);
+        }
+    }
+
+    // Navigate to enrollments filtered by course
+    function handleCourseClick(courseId: string) {
+        if (onNavigate) {
+            onClose();
+            onNavigate('enrollments', { courseId });
+        }
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end animate-fadeIn">
@@ -140,7 +256,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -149,36 +265,60 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 <div className="p-5 space-y-5">
                     {/* Actions */}
                     <div className="flex gap-2">
-                        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl transition-all">
+                        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
                             <Edit2 size={14} /> Edit
                         </button>
-                        <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all">
+                        <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
                             <UserPlus size={14} /> Enroll
                         </button>
-                        <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 rounded-xl transition-all">
+                        <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all">
                             <Trash2 size={14} />
                         </button>
                     </div>
 
-                    {/* Contact Info */}
-                    {infoItems.length > 0 && (
-                        <div className="space-y-2">
-                            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Contact Info</h3>
-                            <div className="space-y-1.5">
-                                {infoItems.map(item => (
-                                    <div key={item.label} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all">
-                                        <span className="text-muted">{item.icon}</span>
-                                        <div>
-                                            <p className="text-[10px] text-muted font-medium">{item.label}</p>
-                                            <p className="text-sm text-primary">{item.value}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    {/* Contact Info — Inline Editable */}
+                    <div className="space-y-2">
+                        <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Contact Info</h3>
+                        <div className="space-y-1.5">
+                            {student.email && (
+                                <InfoField icon={<Mail size={14} />} label="Email" value={student.email} />
+                            )}
+                            <InlineEditField
+                                icon={<Phone size={14} />}
+                                label="Phone"
+                                value={student.phone || ''}
+                                field="phone"
+                                type="tel"
+                                studentId={student.id}
+                                onSaved={handleFieldSaved}
+                            />
+                            <InlineEditField
+                                icon={<MapPin size={14} />}
+                                label="Address"
+                                value={student.address || ''}
+                                field="address"
+                                studentId={student.id}
+                                onSaved={handleFieldSaved}
+                            />
+                            <InlineEditField
+                                icon={<MapPin size={14} />}
+                                label="Eircode"
+                                value={student.eircode || ''}
+                                field="eircode"
+                                studentId={student.id}
+                                onSaved={handleFieldSaved}
+                            />
+                            {student.dob && (
+                                <InfoField
+                                    icon={<Calendar size={14} />}
+                                    label="Date of Birth"
+                                    value={new Date(student.dob).toLocaleDateString('en-IE')}
+                                />
+                            )}
                         </div>
-                    )}
+                    </div>
 
-                    {/* Enrollments */}
+                    {/* Enrollments — with clickable course names */}
                     <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Enrollments</h3>
                         {enrollments.length === 0 ? (
@@ -188,12 +328,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                         ) : (
                             <div className="space-y-2.5">
                                 {enrollments.map(en => (
-                                    <div key={en.id} className="p-3 rounded-xl bg-surface-50/50 border border-border-subtle hover:bg-surface transition-all group">
+                                    <div key={en.id} className="p-3 rounded-xl bg-surface/50 border border-border-subtle hover:bg-surface transition-all group">
                                         <div className="flex items-center justify-between mb-2">
                                             <div>
-                                                <p className="text-sm font-medium text-primary">{en.courses?.name || 'Unknown'}</p>
+                                                <button
+                                                    onClick={() => handleCourseClick(en.course_id)}
+                                                    className="text-sm font-medium text-primary hover:text-brand-500 transition-colors inline-flex items-center gap-1.5 group/link"
+                                                    title="View in Enrollment Board"
+                                                >
+                                                    {en.courses?.name || 'Unknown'}
+                                                    <ExternalLink size={11} className="opacity-0 group-hover/link:opacity-60 transition-opacity" />
+                                                </button>
                                                 {en.course_variant && (
-                                                    <span className="text-[10px] text-muted">{en.course_variant}</span>
+                                                    <span className="text-[10px] text-muted block">{en.course_variant}</span>
                                                 )}
                                             </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'}`}>
@@ -206,7 +353,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {en.status !== 'completed' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(en.id, 'completed')}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-teal-600 hover:bg-teal-50 hover:border-teal-200 transition-all"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/20 transition-all"
                                                     title="Mark as Completed"
                                                 >
                                                     <GraduationCap size={12} /> Complete
@@ -215,7 +362,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {en.status !== 'withdrawn' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(en.id, 'withdrawn')}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-50 hover:border-slate-200 transition-all"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-muted hover:bg-surface hover:border-border-strong transition-all"
                                                     title="Withdraw"
                                                 >
                                                     <XCircle size={12} /> Withdraw
@@ -240,7 +387,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             ) : (
                                                 <button
                                                     onClick={() => setConfirmDeleteId(en.id)}
-                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-200 transition-all"
+                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
                                                     title="Delete permanently"
                                                 >
                                                     <Trash2 size={12} />

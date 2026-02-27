@@ -34,16 +34,66 @@ const STATUS_BG: Record<string, string> = {
     rejected: 'bg-danger/10 text-danger',
 };
 
+// ─── Skeleton Components ─────────────────────────────────────
+function SkeletonStatCard() {
+    return (
+        <div className="relative bg-surface rounded-2xl shadow-card border border-border-subtle p-5 overflow-hidden animate-pulse">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-surface-elevated" />
+            <div className="flex items-start justify-between">
+                <div>
+                    <div className="h-3 w-24 rounded bg-surface-elevated mb-3" />
+                    <div className="h-10 w-16 rounded-lg bg-surface-elevated" />
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-surface-elevated" />
+            </div>
+        </div>
+    );
+}
+
+function SkeletonActivityItem() {
+    return (
+        <div className="flex items-center gap-3 p-2.5 rounded-xl animate-pulse">
+            <div className="w-2.5 h-2.5 rounded-full bg-surface-elevated flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+                <div className="h-4 w-48 rounded bg-surface-elevated mb-1" />
+                <div className="h-3 w-20 rounded bg-surface-elevated" />
+            </div>
+            <div className="h-5 w-16 rounded-full bg-surface-elevated" />
+        </div>
+    );
+}
+
+function SkeletonStatusBreakdown() {
+    return (
+        <div className="space-y-4 animate-pulse">
+            <div className="flex h-3 rounded-full overflow-hidden bg-surface-elevated" />
+            <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated/50">
+                        <div className="w-3 h-3 rounded-full bg-surface-elevated" />
+                        <div className="flex-1">
+                            <div className="h-3 w-16 rounded bg-surface-elevated mb-1" />
+                            <div className="h-4 w-10 rounded bg-surface-elevated" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function Dashboard({ onNavigate }: DashboardProps) {
     const [stats, setStats] = useState({ students: 0, courses: 0, enrollments: 0 });
     const [recent, setRecent] = useState<RecentEnrollment[]>([]);
     const [statusBreakdown, setStatusBreakdown] = useState<Record<string, number>>({});
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchData();
     }, []);
 
     async function fetchData() {
+        setLoading(true);
         const [studRes, courseRes, enrollRes] = await Promise.all([
             supabase.from('students').select('*', { count: 'exact', head: true }),
             supabase.from('courses').select('*', { count: 'exact', head: true }),
@@ -70,6 +120,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             }
             setStatusBreakdown(breakdown);
         }
+        setLoading(false);
     }
 
     const statCards = [
@@ -113,29 +164,33 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div className="space-y-6">
             {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {statCards.map((card, i) => (
-                    <div
-                        key={card.label}
-                        className="relative bg-surface rounded-2xl shadow-card card-hover border border-border-subtle p-5 overflow-hidden group hover:border-border-strong transition-all duration-300"
-                        style={{ animationDelay: `${i * 100}ms` }}
-                    >
-                        {/* Gradient accent top */}
-                        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradient}`} />
+                {loading ? (
+                    <>{Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}</>
+                ) : (
+                    statCards.map((card, i) => (
+                        <div
+                            key={card.label}
+                            className="relative bg-surface rounded-2xl shadow-card card-hover border border-border-subtle p-5 overflow-hidden group hover:border-border-strong transition-all duration-300"
+                            style={{ animationDelay: `${i * 100}ms` }}
+                        >
+                            {/* Gradient accent top */}
+                            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradient}`} />
 
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-muted mb-1 uppercase tracking-wider">{card.label}</p>
-                                <p className="text-4xl font-mono font-bold text-primary animate-countUp tracking-tight">{card.value}</p>
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-muted mb-1 uppercase tracking-wider">{card.label}</p>
+                                    <p className="text-4xl font-mono font-bold text-primary animate-countUp tracking-tight">{card.value}</p>
+                                </div>
+                                <div className={`p-3 rounded-xl ${card.iconBg} transition-transform group-hover:scale-110 shadow-sm`}>
+                                    {card.icon}
+                                </div>
                             </div>
-                            <div className={`p-3 rounded-xl ${card.iconBg} transition-transform group-hover:scale-110 shadow-sm`}>
-                                {card.icon}
-                            </div>
+
+                            {/* Decorative pattern */}
+                            <div className={`absolute -bottom-4 -right-4 w-20 h-20 bg-gradient-to-br ${card.gradient} rounded-full opacity-[0.04] group-hover:opacity-[0.08] transition-opacity`} />
                         </div>
-
-                        {/* Decorative pattern */}
-                        <div className={`absolute -bottom-4 -right-4 w-20 h-20 bg-gradient-to-br ${card.gradient} rounded-full opacity-[0.04] group-hover:opacity-[0.08] transition-opacity`} />
-                    </div>
-                ))}
+                    ))
+                )}
             </div>
 
             {/* Quick Actions */}
@@ -192,7 +247,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
                         <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
                     </h3>
-                    {totalStatus === 0 ? (
+                    {loading ? (
+                        <SkeletonStatusBreakdown />
+                    ) : totalStatus === 0 ? (
                         <div className="text-center py-8">
                             <GraduationCap size={40} className="mx-auto mb-2 text-muted/50" />
                             <p className="text-sm text-muted">No enrollments yet</p>
@@ -239,7 +296,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
                         <Clock size={14} className="text-brand-500" /> Recent Activity
                     </h3>
-                    {recent.length === 0 ? (
+                    {loading ? (
+                        <div className="space-y-1">
+                            {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
+                        </div>
+                    ) : recent.length === 0 ? (
                         <div className="text-center py-8">
                             <Clock size={40} className="mx-auto mb-2 text-muted/50" />
                             <p className="text-sm text-muted">No recent activity</p>

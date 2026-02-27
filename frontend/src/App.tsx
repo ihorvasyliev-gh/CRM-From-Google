@@ -28,6 +28,7 @@ function App() {
     const { user, loading, signOut } = useAuth();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [enrollmentFilter, setEnrollmentFilter] = useState<{ courseId?: string }>({});
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -70,6 +71,19 @@ function App() {
     function navigate(tab: string) {
         setActiveTab(tab);
         setSidebarOpen(false);
+        // Clear enrollment filter when navigating away via sidebar
+        if (tab !== 'enrollments') setEnrollmentFilter({});
+    }
+
+    // Called from child components (e.g., StudentDetail) to navigate with filters
+    function handleNavigate(tab: string, filter?: { courseId?: string }) {
+        setActiveTab(tab);
+        setSidebarOpen(false);
+        if (tab === 'enrollments' && filter?.courseId) {
+            setEnrollmentFilter({ courseId: filter.courseId });
+        } else {
+            setEnrollmentFilter({});
+        }
     }
 
     return (
@@ -227,9 +241,9 @@ function App() {
                 <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="animate-fadeIn mt-2 lg:mt-0">
                         {activeTab === 'dashboard' && <Dashboard onNavigate={navigate} />}
-                        {activeTab === 'students' && <StudentList />}
+                        {activeTab === 'students' && <StudentList onNavigate={handleNavigate} />}
                         {activeTab === 'courses' && <CourseList />}
-                        {activeTab === 'enrollments' && <EnrollmentBoard />}
+                        {activeTab === 'enrollments' && <EnrollmentBoard initialCourseFilter={enrollmentFilter.courseId} />}
                         {activeTab === 'documents' && <DocumentGenerator />}
                     </div>
                 </main>

@@ -147,18 +147,25 @@ function todayISO(): string {
 }
 
 // ─── Component ──────────────────────────────────────────────
-export default function EnrollmentBoard() {
+export default function EnrollmentBoard({ initialCourseFilter }: { initialCourseFilter?: string }) {
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Filters
-    const [selectedCourse, setSelectedCourse] = useState<string>('all');
+    const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
     const [selectedVariant, setSelectedVariant] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [showSecondary, setShowSecondary] = useState(false);
     const [sortOrder, setSortOrder] = useState<'date-asc' | 'date-desc' | 'name'>('date-asc');
+
+    // Sync filter when navigating from another view
+    useEffect(() => {
+        if (initialCourseFilter) {
+            setSelectedCourse(initialCourseFilter);
+        }
+    }, [initialCourseFilter]);
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);

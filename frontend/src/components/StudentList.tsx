@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
 import StudentModal from './StudentModal';
@@ -8,7 +8,39 @@ import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { Student, StudentFormData, getAvatarGradient } from '../lib/types';
 
-export default function StudentList() {
+const PAGE_SIZE = 30;
+
+// ─── Skeleton Row ────────────────────────────────────────────
+function SkeletonRow() {
+    return (
+        <tr className="animate-pulse">
+            <td className="px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-surface-elevated" />
+                    <div className="h-4 w-32 rounded-lg bg-surface-elevated" />
+                </div>
+            </td>
+            <td className="px-5 py-3.5">
+                <div className="h-4 w-40 rounded-lg bg-surface-elevated" />
+            </td>
+            <td className="px-5 py-3.5 hidden md:table-cell">
+                <div className="h-4 w-28 rounded-lg bg-surface-elevated" />
+            </td>
+            <td className="px-5 py-3.5 hidden lg:table-cell">
+                <div className="h-4 w-20 rounded-lg bg-surface-elevated" />
+            </td>
+            <td className="px-5 py-3.5 w-28">
+                <div className="h-4 w-16 rounded-lg bg-surface-elevated" />
+            </td>
+        </tr>
+    );
+}
+
+interface StudentListProps {
+    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
+}
+
+export default function StudentList({ onNavigate }: StudentListProps) {
     const [students, setStudents] = useState<Student[]>([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
@@ -21,7 +53,14 @@ export default function StudentList() {
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
 
+    // Infinite scroll state
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => { fetchStudents(); }, []);
+
+    // Reset visible count when search changes
+    useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
 
     async function fetchStudents() {
         setLoading(true);
@@ -29,6 +68,46 @@ export default function StudentList() {
         if (data) setStudents(data);
         setLoading(false);
     }
+
+    // Filter across ALL students (client-side, instant)
+    const filteredStudents = useMemo(() => {
+        if (!search.trim()) return students;
+        const q = search.toLowerCase();
+        return students.filter(s =>
+            `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) ||
+            (s.email || '').toLowerCase().includes(q) ||
+            (s.phone || '').toLowerCase().includes(q)
+        );
+    }, [students, search]);
+
+    // Only render up to visibleCount
+    const displayedStudents = useMemo(() =>
+        filteredStudents.slice(0, visibleCount),
+        [filteredStudents, visibleCount]
+    );
+
+    const hasMore = visibleCount < filteredStudents.length;
+
+    // IntersectionObserver for infinite scroll
+    const loadMore = useCallback(() => {
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, filteredStudents.length));
+    }, [filteredStudents.length]);
+
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore) {
+                    loadMore();
+                }
+            },
+            { rootMargin: '200px' }
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, loadMore]);
 
     async function handleSaveStudent(data: StudentFormData) {
         if (data.id) {
@@ -87,15 +166,11 @@ export default function StudentList() {
         }
     }
 
-    const filteredStudents = students.filter(s => {
-        if (!search.trim()) return true;
-        const q = search.toLowerCase();
-        return (
-            `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) ||
-            (s.email || '').toLowerCase().includes(q) ||
-            (s.phone || '').toLowerCase().includes(q)
-        );
-    });
+    // Callback to update student in local state (from inline edits in detail drawer)
+    function handleStudentUpdated(updated: Student) {
+        setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
+        setDetailStudent(updated);
+    }
 
     return (
         <div className="space-y-4">
@@ -137,8 +212,23 @@ export default function StudentList() {
             {/* Table */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 {loading ? (
-                    <div className="flex justify-center py-16">
-                        <Loader2 size={24} className="animate-spin text-brand-500" />
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
+                                <tr>
+                                    <th className="px-5 py-3.5">Name</th>
+                                    <th className="px-5 py-3.5">Email</th>
+                                    <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
+                                    <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
+                                    <th className="px-5 py-3.5 w-28">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border-subtle">
+                                {Array.from({ length: 8 }).map((_, i) => (
+                                    <SkeletonRow key={i} />
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 ) : filteredStudents.length === 0 ? (
                     <div className="text-center py-16">
@@ -169,7 +259,7 @@ export default function StudentList() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-subtle">
-                                {filteredStudents.map(student => (
+                                {displayedStudents.map(student => (
                                     <tr
                                         key={student.id}
                                         className="hover:bg-brand-50/30 cursor-pointer transition-all group"
@@ -213,8 +303,20 @@ export default function StudentList() {
                 )}
             </div>
 
-            <div className="text-xs text-muted text-center font-medium">
-                Showing {filteredStudents.length} of {students.length} students
+            {/* Infinite scroll sentinel + loading indicator */}
+            <div ref={sentinelRef} className="flex flex-col items-center gap-2 py-2">
+                {hasMore && (
+                    <div className="flex items-center gap-2 text-muted">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span className="text-xs font-medium">Loading more...</span>
+                    </div>
+                )}
+                <div className="text-xs text-muted text-center font-medium">
+                    Showing {displayedStudents.length} of {filteredStudents.length} students
+                    {search && filteredStudents.length !== students.length && (
+                        <span className="text-muted/60"> (filtered from {students.length})</span>
+                    )}
+                </div>
             </div>
 
             {detailStudent && (
@@ -224,6 +326,8 @@ export default function StudentList() {
                     onEdit={() => openEdit(detailStudent)}
                     onDelete={() => setDeleteTarget(detailStudent)}
                     onEnroll={openEnrollFromDetail}
+                    onStudentUpdated={handleStudentUpdated}
+                    onNavigate={onNavigate}
                 />
             )}
 

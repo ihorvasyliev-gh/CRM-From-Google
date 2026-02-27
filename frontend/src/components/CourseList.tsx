@@ -174,8 +174,30 @@ export default function CourseList() {
 
             {/* Course Cards */}
             {loading ? (
-                <div className="flex justify-center py-16">
-                    <Loader2 size={24} className="animate-spin text-brand-500" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden animate-pulse">
+                            <div className="h-1.5 bg-surface-elevated" />
+                            <div className="p-5">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-11 h-11 rounded-xl bg-surface-elevated" />
+                                        <div>
+                                            <div className="h-4 w-28 rounded bg-surface-elevated mb-2" />
+                                            <div className="h-3 w-20 rounded bg-surface-elevated" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="h-2 rounded-full bg-surface-elevated" />
+                                    <div className="flex gap-3">
+                                        <div className="h-3 w-16 rounded bg-surface-elevated" />
+                                        <div className="h-3 w-16 rounded bg-surface-elevated" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-16">
