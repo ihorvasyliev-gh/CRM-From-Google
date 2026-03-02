@@ -6,6 +6,7 @@ import {
     MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown, FileArchive, Loader2
 } from 'lucide-react';
 import { generateDocumentsArchive } from '../lib/documentUtils';
+import { buildEmailBody, buildEmailSubject } from '../lib/appConfig';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
@@ -325,9 +326,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         const first = selectedEnrollments[0];
         const courseName = first ? getCoursePill(first) : 'Course';
         const dateFormatted = formatDate(inviteDate);
-        const subject = encodeURIComponent(`${courseName} — ${dateFormatted}`);
+        const subject = encodeURIComponent(buildEmailSubject(courseName, dateFormatted));
+        const body = encodeURIComponent(buildEmailBody(courseName, dateFormatted));
         const bcc = uniqueEmails.map(e => encodeURIComponent(e)).join(',');
-        window.open(`mailto:?bcc=${bcc}&subject=${subject}`, '_self');
+        window.open(`mailto:?bcc=${bcc}&subject=${subject}&body=${body}`, '_self');
         setInviteDateTarget(null);
     }
 

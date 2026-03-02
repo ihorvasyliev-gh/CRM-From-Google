@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import Dashboard from './components/Dashboard';
 import StudentList from './components/StudentList';
@@ -7,6 +7,7 @@ import CourseList from './components/CourseList';
 import EnrollmentBoard from './components/EnrollmentBoard';
 import LoginPage from './components/LoginPage';
 import DocumentGenerator from './components/DocumentGenerator';
+import Settings from './components/Settings';
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
     { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board' },
     { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms' },
+    { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration' },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -22,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
     courses: 'Courses',
     enrollments: 'Enrollments',
     documents: 'Documents',
+    settings: 'Settings',
 };
 
 function App() {
@@ -232,6 +235,7 @@ function App() {
                                 {activeTab === 'courses' && 'View and manage course catalog'}
                                 {activeTab === 'enrollments' && 'Track and manage enrollments'}
                                 {activeTab === 'documents' && 'Generate personalized documents'}
+                                {activeTab === 'settings' && 'Configure email templates and preferences'}
                             </p>
                         </div>
                     </div>
@@ -245,6 +249,7 @@ function App() {
                         {activeTab === 'courses' && <CourseList />}
                         {activeTab === 'enrollments' && <EnrollmentBoard initialCourseFilter={enrollmentFilter.courseId} />}
                         {activeTab === 'documents' && <DocumentGenerator />}
+                        {activeTab === 'settings' && <Settings />}
                     </div>
                 </main>
             </div>
