@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info } from 'lucide-react';
-import { getConfig, setConfig, resetConfig, DEFAULT_CONFIG, type AppConfig } from '../lib/appConfig';
+import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
 
 export default function Settings() {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
@@ -61,10 +61,10 @@ export default function Settings() {
                         onClick={handleSave}
                         disabled={!hasChanges}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-all ${saved
-                                ? 'bg-success/20 text-success border border-success/30'
-                                : hasChanges
-                                    ? 'bg-brand-500 text-white hover:bg-brand-600 shadow-md shadow-brand-500/20'
-                                    : 'bg-surface-elevated text-muted border border-border-subtle cursor-not-allowed'
+                            ? 'bg-success/20 text-success border border-success/30'
+                            : hasChanges
+                                ? 'bg-brand-500 text-white hover:bg-brand-600 shadow-md shadow-brand-500/20'
+                                : 'bg-surface-elevated text-muted border border-border-subtle cursor-not-allowed'
                             }`}
                     >
                         <Save size={14} />
