@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     CheckCircle, Clock, Send, Search, Copy, Calendar,
     Filter, Check, X, Plus, Trash2, ChevronDown, GraduationCap,
-    MoreHorizontal, ArrowRight, LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown, FileArchive, Loader2
+    LogOut, Ban, Globe, Mail, Star, FileText, Pencil, ArrowUpDown, FileArchive, Loader2
 } from 'lucide-react';
 import { generateDocumentsArchive } from '../lib/documentUtils';
 import { buildEmailBody, buildEmailSubject } from '../lib/appConfig';
@@ -182,13 +182,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [inviteDate, setInviteDate] = useState(todayISO());
     const [savedInviteDates, setSavedInviteDates] = useState<string[]>([]);
 
-    // Action menu
-    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const menuRef = useRef<HTMLDivElement>(null);
-
     // Edit Note
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
+
+    // Bulk delete
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
     const [generatingDocs, setGeneratingDocs] = useState(false);
 
@@ -230,16 +229,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setToast({ message, type });
     }, []);
 
-    // Close menu on click outside
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setOpenMenuId(null);
-            }
-        }
-        if (openMenuId) document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
-    }, [openMenuId]);
+
 
     // ─── Data Fetching ──────────────────────────────────────
     useEffect(() => {
@@ -426,7 +416,6 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 showToast('Error updating status', 'error');
             }
         }
-        setOpenMenuId(null);
     }
 
     // ─── Bulk Update ────────────────────────────────────────
@@ -586,7 +575,6 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     function openEditNote(enrollment: Enrollment) {
         setEditNoteTarget({ id: enrollment.id, note: enrollment.notes || '' });
         setEditNoteText(enrollment.notes || '');
-        setOpenMenuId(null);
     }
 
     async function saveNote() {
@@ -624,6 +612,21 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             showToast('Failed to delete enrollment', 'error');
         }
         setDeleteTarget(null);
+    }
+
+    // ─── Bulk Delete ────────────────────────────────────────
+    async function handleBulkDelete() {
+        if (selectedIds.size === 0) return;
+        const ids = Array.from(selectedIds);
+        const { error } = await supabase.from('enrollments').delete().in('id', ids);
+        if (!error) {
+            setEnrollments(prev => prev.filter(e => !ids.includes(e.id)));
+            setSelectedIds(new Set());
+            showToast(`${ids.length} enrollment(s) deleted`, 'success');
+        } else {
+            showToast('Failed to delete enrollments', 'error');
+        }
+        setBulkDeleteOpen(false);
     }
 
     // ─── Filtering ──────────────────────────────────────────
@@ -1007,7 +1010,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 )}
                                 {items.map(enrollment => {
                                     const isSelected = selectedIds.has(enrollment.id);
-                                    const isMenuOpen = openMenuId === enrollment.id;
+
 
                                     return (
                                         <div
@@ -1054,53 +1057,17 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                                         <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight">
                                                             {enrollment.students?.first_name} {enrollment.students?.last_name}
                                                         </p>
-                                                        {/* ⋯ Action Menu */}
-                                                        <div className="relative" ref={isMenuOpen ? menuRef : null}>
-                                                            <button
-                                                                onClick={e => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : enrollment.id); }}
-                                                                className={`p-1 rounded-md transition-all ${isMenuOpen
-                                                                    ? 'bg-surface-elevated text-primary shadow-sm ring-1 ring-border-strong'
-                                                                    : 'text-muted hover:bg-surface hover:text-primary'
-                                                                    }`}
-                                                            >
-                                                                <MoreHorizontal size={14} />
-                                                            </button>
-
-                                                            {isMenuOpen && (
-                                                                <div className="absolute right-0 top-7 z-50 w-44 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1.5 animate-scaleIn origin-top-right">
-                                                                    {ALL_STATUSES.filter(s => s !== status).map(s => {
-                                                                        const sCfg = STATUS_CONFIG[s];
-                                                                        return (
-                                                                            <button
-                                                                                key={s}
-                                                                                onClick={e => { e.stopPropagation(); updateStatus(enrollment.id, s); }}
-                                                                                className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface transition-all"
-                                                                            >
-                                                                                <ArrowRight size={12} className="text-muted" />
-                                                                                <span className={sCfg.color}>{sCfg.icon}</span>
-                                                                                <span className="text-primary">Move to {sCfg.label}</span>
-                                                                            </button>
-                                                                        );
-                                                                    })}
-                                                                    <div className="border-t border-border-subtle my-1" />
-                                                                    <button
-                                                                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 hover:bg-surface transition-all text-primary"
-                                                                    >
-                                                                        <Pencil size={12} className="text-muted" />
-                                                                        Edit Note
-                                                                    </button>
-                                                                    <div className="border-t border-border-subtle my-1" />
-                                                                    <button
-                                                                        onClick={e => { e.stopPropagation(); setDeleteTarget(enrollment); setOpenMenuId(null); }}
-                                                                        className="w-full px-3 py-2 text-left text-xs font-medium flex items-center gap-2 text-red-500 hover:bg-red-50 transition-all"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                        Delete
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        {/* ✏ Edit Note */}
+                                                        <button
+                                                            onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                                            className={`p-1 rounded-md transition-all ${enrollment.notes
+                                                                ? 'text-brand-500 hover:bg-brand-500/10'
+                                                                : 'text-muted/40 hover:text-muted hover:bg-surface'
+                                                                }`}
+                                                            title="Edit Note"
+                                                        >
+                                                            <Pencil size={14} />
+                                                        </button>
                                                     </div>
 
                                                     {/* Course pill */}
@@ -1235,54 +1202,90 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             {/* ═══ Floating Action Bar ═══ */}
             {selectedCount > 0 && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slideUp">
-                    <div className="glass-dark rounded-2xl shadow-float px-6 py-3.5 flex items-center gap-4">
-                        <span className="text-sm font-semibold text-white">
-                            {selectedCount} selected
+                    <div className="glass-dark rounded-2xl shadow-float px-4 py-2.5 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-white mr-1">
+                            {selectedCount}
                         </span>
 
-                        <div className="w-px h-6 bg-white/10" />
+                        <div className="w-px h-5 bg-white/10" />
 
                         <button
                             onClick={handleCopySelectedEmails}
-                            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
+                            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
+                            title="Copy Emails"
                         >
-                            <Copy size={14} /> Copy Emails
+                            <Copy size={15} />
                         </button>
 
                         <button
                             onClick={() => bulkUpdateStatus('invited')}
-                            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm"
+                            className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm"
+                            title="Invite"
                         >
-                            <Send size={14} /> Invite
+                            <Send size={15} />
                         </button>
 
                         <button
                             onClick={() => bulkUpdateStatus('confirmed')}
-                            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-sm"
+                            className="p-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-sm"
+                            title="Confirm"
                         >
-                            <CheckCircle size={14} /> Confirm
+                            <CheckCircle size={15} />
                         </button>
 
                         <button
                             onClick={() => bulkUpdateStatus('completed')}
-                            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
+                            className="p-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
+                            title="Complete"
                         >
-                            <GraduationCap size={14} /> Complete
+                            <GraduationCap size={15} />
                         </button>
+
+                        <div className="w-px h-5 bg-white/10" />
+
+                        <button
+                            onClick={() => bulkUpdateStatus('withdrawn')}
+                            className="p-2 rounded-lg bg-gray-500 hover:bg-gray-600 text-white transition-all shadow-sm"
+                            title="Withdrawn"
+                        >
+                            <LogOut size={15} />
+                        </button>
+
+                        <button
+                            onClick={() => bulkUpdateStatus('rejected')}
+                            className="p-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white transition-all shadow-sm"
+                            title="Rejected"
+                        >
+                            <Ban size={15} />
+                        </button>
+
+                        <div className="w-px h-5 bg-white/10" />
 
                         <button
                             onClick={handleGenerateDocuments}
                             disabled={generatingDocs}
-                            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-sm`}
+                            className={`p-2 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-sm`}
+                            title="Generate Docs"
                         >
-                            {generatingDocs ? <Loader2 size={14} className="animate-spin" /> : <FileArchive size={14} />} Gen Docs
+                            {generatingDocs ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />}
                         </button>
 
                         <button
-                            onClick={clearSelection}
-                            className="text-white/50 hover:text-white transition-all ml-1 p-1 hover:bg-white/10 rounded-lg"
+                            onClick={() => setBulkDeleteOpen(true)}
+                            className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm"
+                            title="Delete Selected"
                         >
-                            <X size={16} />
+                            <Trash2 size={15} />
+                        </button>
+
+                        <div className="w-px h-5 bg-white/10" />
+
+                        <button
+                            onClick={clearSelection}
+                            className="text-white/50 hover:text-white transition-all p-1.5 hover:bg-white/10 rounded-lg"
+                            title="Clear Selection"
+                        >
+                            <X size={15} />
                         </button>
                     </div>
                 </div>
@@ -1453,6 +1456,14 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 confirmLabel="Remove"
                 onConfirm={handleDeleteEnrollment}
                 onCancel={() => setDeleteTarget(null)}
+            />
+            <ConfirmDialog
+                open={bulkDeleteOpen}
+                title="Delete Selected Enrollments"
+                message={`Delete ${selectedCount} selected enrollment(s)? This cannot be undone.`}
+                confirmLabel="Delete All"
+                onConfirm={handleBulkDelete}
+                onCancel={() => setBulkDeleteOpen(false)}
             />
             <Toast toast={toast} onDismiss={() => setToast(null)} />
 
