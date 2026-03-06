@@ -11,38 +11,7 @@ import './index.css'
 
 const queryClient = new QueryClient()
 
-if (import.meta.env.PROD) {
-    // Disable React DevTools
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const globalHook = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
-    if (typeof globalHook === 'object') {
-        const noop = () => { };
-        for (const key in globalHook) {
-            globalHook[key] = typeof globalHook[key] === 'function' ? noop : null;
-        }
-    }
 
-    // Disable console logs as an extra measure
-    const noop = () => { };
-    ['log', 'debug', 'info', 'warn', 'error'].forEach((method) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (console as any)[method] = noop;
-    });
-
-    // Disable right-click
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // Disable common DevTools keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        if (
-            e.key === 'F12' ||
-            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-            (e.ctrlKey && e.key === 'U')
-        ) {
-            e.preventDefault();
-        }
-    });
-}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
@@ -59,7 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         } />
                     </Routes>
                 </BrowserRouter>
-                <ReactQueryDevtools initialIsOpen={false} />
+                {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
             </QueryClientProvider>
         </ErrorBoundary>
     </React.StrictMode>,
