@@ -1,0 +1,185 @@
+import { useState, useEffect } from 'react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap } from 'lucide-react';
+import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import { getCoursePill } from '../../hooks/useBulkActions';
+import { formatShortDate, formatDateLong } from '../../lib/dateUtils';
+import { STATUS_CONFIG } from '../../lib/statusConfig';
+
+interface EnrollmentCardProps {
+    enrollment: EnrollmentRow;
+    status: string;
+    isSelected: boolean;
+    toggleSelect: (id: string) => void;
+    togglePriority: (id: string, current: boolean) => void;
+    queuePosition?: number;
+    openEditNote: (enrollment: EnrollmentRow) => void;
+}
+
+export default function EnrollmentCard({
+    enrollment,
+    status,
+    isSelected,
+    toggleSelect,
+    togglePriority,
+    queuePosition,
+    openEditNote
+}: EnrollmentCardProps) {
+    const cfg = STATUS_CONFIG[status];
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (status === 'invited') {
+            const interval = setInterval(() => setNow(Date.now()), 60000);
+            return () => clearInterval(interval);
+        }
+    }, [status]);
+
+    return (
+        <div
+            className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
+                ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
+                : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
+                }`}
+            onClick={() => toggleSelect(enrollment.id)}
+            title={[
+                enrollment.students?.email,
+                enrollment.students?.phone,
+            ].filter(Boolean).join(' • ') || undefined}
+        >
+            <div className="flex items-start gap-3">
+                {/* Left Actions Column */}
+                <div className="flex flex-col items-center gap-2 mt-0.5">
+                    {/* Checkbox */}
+                    <div
+                        className={`w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${isSelected
+                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                            : 'border-border-strong group-hover:border-brand-500/50 bg-background'
+                            }`}
+                    >
+                        {isSelected && <Check size={10} strokeWidth={3} />}
+                    </div>
+
+                    {/* Star Priority */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            togglePriority(enrollment.id, !!enrollment.is_priority);
+                        }}
+                        className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
+                            ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                            : 'text-muted/40 hover:text-warning/60'
+                            }`}
+                        title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                    >
+                        <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                    </button>
+
+                    {/* Queue Number */}
+                    {status === 'requested' && queuePosition !== undefined && (
+                        <div className="flex-shrink-0 mt-0.5">
+                            <span
+                                className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
+                                title="Position in queue for this course"
+                            >
+                                #{queuePosition}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Invitation Timer */}
+                    {status === 'invited' && (() => {
+                        const invitedAt = enrollment.invited_at;
+                        if (!invitedAt) return null;
+                        const deadline = new Date(invitedAt).getTime() + 7 * 24 * 60 * 60 * 1000;
+                        const remaining = deadline - now;
+                        const isExpired = remaining <= 0;
+
+                        if (isExpired) {
+                            const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                            return (
+                                <div className="flex-shrink-0 mt-0.5" title={`Expired • Invited on ${invitedDate}`}>
+                                    <Timer size={16} className="text-red-400 drop-shadow-sm" />
+                                </div>
+                            );
+                        }
+
+                        const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                        const timerText = days > 0 ? `${days}d ${hours}h remaining` : `${hours}h remaining`;
+                        return (
+                            <div className="flex-shrink-0 mt-0.5" title={timerText}>
+                                <Timer size={16} className="text-muted-strong drop-shadow-sm" />
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    {/* Name + Actions */}
+                    <div className="flex justify-between items-start">
+                        <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight flex items-center gap-1.5">
+                            <span className="truncate">
+                                {enrollment.students?.first_name} {enrollment.students?.last_name}
+                            </span>
+                        </p>
+                        {/* ✏ Edit Note */}
+                        <button
+                            onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                            className={`p-1 rounded-md transition-all ${enrollment.notes
+                                ? 'text-brand-500 hover:bg-brand-500/10'
+                                : 'text-muted/40 hover:text-muted hover:bg-surface'
+                                }`}
+                            title="Edit Note"
+                        >
+                            <Pencil size={14} />
+                        </button>
+                    </div>
+
+                    {/* Course pill */}
+                    <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-1 ${cfg.pillBg}`}>
+                        {getCoursePill(enrollment)}
+                    </span>
+
+                    {/* Info row */}
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted">
+                        <span>{formatShortDate(enrollment.created_at)}</span>
+                        {enrollment.invited_date && enrollment.status !== 'completed' && (
+                            <>
+                                <span>•</span>
+                                <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                                    <Send size={10} />
+                                    {formatDateLong(enrollment.invited_date)}
+                                </span>
+                            </>
+                        )}
+                        {enrollment.confirmed_date && enrollment.status !== 'completed' && (
+                            <>
+                                <span>•</span>
+                                <span className="text-emerald-600 font-medium flex items-center gap-0.5">
+                                    <CheckCircle size={10} />
+                                    {formatDateLong(enrollment.confirmed_date)}
+                                </span>
+                            </>
+                        )}
+                        {enrollment.completed_date && enrollment.status === 'completed' && (
+                            <>
+                                <span>•</span>
+                                <span className="text-brand-500 font-medium flex items-center gap-0.5">
+                                    <GraduationCap size={10} />
+                                    {formatDateLong(enrollment.completed_date)}
+                                </span>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Notes */}
+                    {enrollment.notes && (
+                        <p className="text-[11px] text-muted italic mt-1 bg-surface px-2 py-1 rounded-md truncate">
+                            📝 {enrollment.notes}
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

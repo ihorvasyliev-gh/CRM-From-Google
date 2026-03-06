@@ -1,0 +1,99 @@
+import { Check, Copy } from 'lucide-react';
+import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import { STATUS_CONFIG } from '../../lib/statusConfig';
+import EnrollmentCard from './EnrollmentCard';
+
+interface StatusColumnProps {
+    status: string;
+    items: EnrollmentRow[];
+    selectedIds: Set<string>;
+    selectAllInColumn: (status: string) => void;
+    handleCopyEmails: (items: EnrollmentRow[], label: string) => void;
+    toggleSelect: (id: string) => void;
+    togglePriority: (id: string, current: boolean) => void;
+    openEditNote: (enrollment: EnrollmentRow) => void;
+    queuePositions: Map<string, number>;
+}
+
+export default function StatusColumn({
+    status,
+    items,
+    selectedIds,
+    selectAllInColumn,
+    handleCopyEmails,
+    toggleSelect,
+    togglePriority,
+    openEditNote,
+    queuePositions
+}: StatusColumnProps) {
+    const cfg = STATUS_CONFIG[status];
+    if (!cfg) return null;
+
+    const allSelected = items.length > 0 && items.every(e => selectedIds.has(e.id));
+    const someSelected = items.some(e => selectedIds.has(e.id));
+
+    return (
+        <div className="flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+            {/* Column Header */}
+            <div className={`p-3.5 border-b-2 ${cfg.border} bg-surface-elevated/50`}>
+                <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
+                        <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
+                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
+                            {items.length}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        {items.length > 0 && (
+                            <button
+                                onClick={() => handleCopyEmails(items, cfg.label)}
+                                className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                title={`Copy all ${cfg.label} emails`}
+                            >
+                                <Copy size={14} />
+                            </button>
+                        )}
+                        {items.length > 0 && (
+                            <button
+                                onClick={() => selectAllInColumn(status)}
+                                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
+                                    ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                    : someSelected
+                                        ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
+                                        : 'border-border-strong hover:border-brand-500/50'
+                                    }`}
+                            >
+                                {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Cards */}
+            <div className="p-2 overflow-y-auto flex-1 space-y-2 bg-surface min-h-0 min-h-[500px]">
+                {items.length === 0 && (
+                    <div className="text-center py-8 text-muted/60">
+                        <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-2 ${cfg.color} opacity-40`}>
+                            {cfg.icon}
+                        </div>
+                        <p className="text-xs uppercase tracking-wider font-semibold">No enrollments</p>
+                    </div>
+                )}
+                {items.map(enrollment => (
+                    <EnrollmentCard
+                        key={enrollment.id}
+                        enrollment={enrollment}
+                        status={status}
+                        isSelected={selectedIds.has(enrollment.id)}
+                        toggleSelect={toggleSelect}
+                        togglePriority={togglePriority}
+                        openEditNote={openEditNote}
+                        queuePosition={queuePositions.get(enrollment.id)}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
