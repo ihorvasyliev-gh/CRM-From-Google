@@ -48,15 +48,35 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Recor
     };
 }
 
+/** Result of a document generation run. */
+export interface GenerationResult {
+    totalTemplates: number;
+    successTemplates: string[];
+    failedTemplates: { name: string; error: string }[];
+    totalDocs: number;
+    failedDocs: { student: string; template: string; error: string }[];
+    attendanceOk: boolean;
+    attendanceError?: string;
+}
+
 export async function generateDocumentsArchive(
     enrollments: EnrollmentWithRelations[],
     templates: TemplateDescriptor[],
     archiveName: string,
     attendanceTemplateStoragePath?: string,
     customVariables?: Record<string, string>
-): Promise<void> {
+): Promise<GenerationResult> {
     const zip = new JSZip();
     const useSubfolders = templates.length > 1;
+
+    const result: GenerationResult = {
+        totalTemplates: templates.length,
+        successTemplates: [],
+        failedTemplates: [],
+        totalDocs: 0,
+        failedDocs: [],
+        attendanceOk: true,
+    };
 
     // Generate documents for each template
     for (const tpl of templates) {
@@ -65,13 +85,17 @@ export async function generateDocumentsArchive(
             .download(tpl.storagePath);
 
         if (downloadError || !templateData) {
+            const errMsg = downloadError?.message || 'File not found in storage';
             console.error(`Failed to download template "${tpl.name}":`, downloadError);
+            result.failedTemplates.push({ name: tpl.name, error: `Download failed: ${errMsg}` });
             continue;
         }
 
         const templateBuffer = await templateData.arrayBuffer();
         // Derive a folder name from the template file name (without .docx extension)
         const folderName = tpl.name.replace(/\.docx$/i, '').replace(/[^a-zA-Z0-9_.\-\s]/g, '').replace(/\s+/g, '_');
+
+        let templateSuccess = true;
 
         for (const enrollment of enrollments) {
             const student = enrollment.students;
@@ -95,9 +119,21 @@ export async function generateDocumentsArchive(
 
                 const filePath = useSubfolders ? `${folderName}/${fileName}` : fileName;
                 zip.file(filePath, generatedDoc);
+                result.totalDocs++;
             } catch (docErr) {
+                const errMsg = docErr instanceof Error ? docErr.message : String(docErr);
                 console.error(`Error generating doc for ${student.first_name} ${student.last_name} (template: ${tpl.name}):`, docErr);
+                result.failedDocs.push({
+                    student: `${student.first_name} ${student.last_name}`,
+                    template: tpl.name,
+                    error: errMsg,
+                });
+                templateSuccess = false;
             }
+        }
+
+        if (templateSuccess) {
+            result.successTemplates.push(tpl.name);
         }
     }
 
@@ -109,7 +145,10 @@ export async function generateDocumentsArchive(
                 .download(attendanceTemplateStoragePath);
 
             if (attDownloadError || !attTemplateData) {
+                const errMsg = attDownloadError?.message || 'File not found';
                 console.error('Failed to download attendance template:', attDownloadError);
+                result.attendanceOk = false;
+                result.attendanceError = `Download failed: ${errMsg}`;
             } else {
                 const attTemplateBuffer = await attTemplateData.arrayBuffer();
                 const attPizZip = new PizZip(attTemplateBuffer);
@@ -153,11 +192,16 @@ export async function generateDocumentsArchive(
                 zip.file('Attendance_Sheet.docx', generatedAttDoc);
             }
         } catch (attErr) {
+            const errMsg = attErr instanceof Error ? attErr.message : String(attErr);
             console.error('Error generating attendance sheet:', attErr);
+            result.attendanceOk = false;
+            result.attendanceError = errMsg;
         }
     }
 
     // Download ZIP
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     saveAs(zipBlob, archiveName);
+
+    return result;
 }

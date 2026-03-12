@@ -331,7 +331,7 @@ export default function DocumentGenerator() {
                 storagePath: t.storage_path,
             }));
 
-            await generateDocumentsArchive(
+            const result = await generateDocumentsArchive(
                 confirmedForCourse,
                 tplDescriptors,
                 zipName,
@@ -339,7 +339,23 @@ export default function DocumentGenerator() {
                 customVarMap
             );
 
-            showToast(`Generated ${confirmedForCourse.length} document(s) with ${activeTemplates.length} template(s)!`, 'success');
+            // Build a detailed status message
+            if (result.failedTemplates.length > 0 || result.failedDocs.length > 0) {
+                const failedNames = result.failedTemplates.map(f => `"${f.name}": ${f.error}`).join('; ');
+                const failedDocDetails = result.failedDocs.length > 0
+                    ? ` | ${result.failedDocs.length} doc(s) failed to render`
+                    : '';
+                const msg = result.failedTemplates.length > 0
+                    ? `Failed templates: ${failedNames}${failedDocDetails}. Generated: ${result.totalDocs} doc(s) from ${result.successTemplates.length}/${result.totalTemplates} template(s).`
+                    : `${result.failedDocs.length} doc(s) failed: ${result.failedDocs.slice(0, 3).map(d => `${d.student} (${d.template}): ${d.error}`).join('; ')}. Total generated: ${result.totalDocs}.`;
+                showToast(msg, 'error');
+            } else {
+                showToast(`Generated ${result.totalDocs} document(s) with ${result.successTemplates.length} template(s)!`, 'success');
+            }
+
+            if (!result.attendanceOk && result.attendanceError) {
+                showToast(`Attendance sheet failed: ${result.attendanceError}`, 'error');
+            }
         } catch (err: unknown) {
             console.error('Generation error:', err);
             showToast(`Generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
