@@ -223,7 +223,7 @@ export function useBulkActions({
         setGeneratingDocs(true);
         try {
             const [docRes, attRes] = await Promise.all([
-                supabase.from('document_templates').select('*').order('updated_at', { ascending: false }).limit(1),
+                supabase.from('document_templates').select('*').eq('is_active', true).order('created_at', { ascending: true }),
                 supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1)
             ]);
 
@@ -231,10 +231,13 @@ export function useBulkActions({
             const data = docRes.data;
 
             if (error || !data || data.length === 0) {
-                throw new Error('No template uploaded.');
+                throw new Error('No active template found. Please upload and activate at least one template.');
             }
 
-            const template = data[0];
+            const templateDescriptors = data.map((t: { name: string; storage_path: string }) => ({
+                name: t.name,
+                storagePath: t.storage_path,
+            }));
             const attTemplate = attRes.data && attRes.data.length > 0 ? attRes.data[0] : null;
 
             const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
@@ -246,12 +249,12 @@ export function useBulkActions({
 
             await generateDocumentsArchive(
                 selectedEnrollments,
-                template.storage_path,
+                templateDescriptors,
                 archiveName,
                 attTemplate?.storage_path
             );
 
-            showToast(`Generated ${selectedEnrollments.length} document(s)!`, 'success');
+            showToast(`Generated ${selectedEnrollments.length} document(s) with ${templateDescriptors.length} template(s)!`, 'success');
             clearSelection();
         } catch (err: unknown) {
             console.error('Generation error:', err);

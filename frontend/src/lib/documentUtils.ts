@@ -12,6 +12,11 @@ export interface EnrollmentWithRelations extends Enrollment {
     courses: Course | null;
 }
 
+/** Descriptor for a template to be rendered. */
+export interface TemplateDescriptor {
+    name: string;
+    storagePath: string;
+}
 
 export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Record<string, string> {
     const s = enrollment.students;
@@ -45,49 +50,57 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Recor
 
 export async function generateDocumentsArchive(
     enrollments: EnrollmentWithRelations[],
-    templateStoragePath: string,
+    templates: TemplateDescriptor[],
     archiveName: string,
     attendanceTemplateStoragePath?: string
 ): Promise<void> {
-    // 1. Download template from storage
-    const { data: templateData, error: downloadError } = await supabase.storage
-        .from('templates')
-        .download(templateStoragePath);
-
-    if (downloadError || !templateData) throw downloadError || new Error('Failed to download template');
-
-    const templateBuffer = await templateData.arrayBuffer();
-
-    // 2. Generate a document for each participant
     const zip = new JSZip();
+    const useSubfolders = templates.length > 1;
 
-    for (const enrollment of enrollments) {
-        const student = enrollment.students;
-        if (!student) continue;
+    // Generate documents for each template
+    for (const tpl of templates) {
+        const { data: templateData, error: downloadError } = await supabase.storage
+            .from('templates')
+            .download(tpl.storagePath);
 
-        try {
-            const pizZip = new PizZip(templateBuffer);
-            const doc = new Docxtemplater(pizZip, {
-                paragraphLoop: true,
-                linebreaks: true,
-                delimiters: { start: '{', end: '}' },
-            });
+        if (downloadError || !templateData) {
+            console.error(`Failed to download template "${tpl.name}":`, downloadError);
+            continue;
+        }
 
-            const data = buildPlaceholderData(enrollment);
-            doc.render(data);
+        const templateBuffer = await templateData.arrayBuffer();
+        // Derive a folder name from the template file name (without .docx extension)
+        const folderName = tpl.name.replace(/\.docx$/i, '').replace(/[^a-zA-Z0-9_.\-\s]/g, '').replace(/\s+/g, '_');
 
-            const generatedDoc = doc.getZip().generate({ type: 'arraybuffer' });
-            const fileName = `${student.first_name || 'Unknown'}_${student.last_name || 'Unknown'}.docx`
-                .replace(/[^a-zA-Z0-9_.\-\s]/g, '')
-                .replace(/\s+/g, '_');
+        for (const enrollment of enrollments) {
+            const student = enrollment.students;
+            if (!student) continue;
 
-            zip.file(fileName, generatedDoc);
-        } catch (docErr) {
-            console.error(`Error generating doc for ${student.first_name} ${student.last_name}:`, docErr);
+            try {
+                const pizZip = new PizZip(templateBuffer);
+                const doc = new Docxtemplater(pizZip, {
+                    paragraphLoop: true,
+                    linebreaks: true,
+                    delimiters: { start: '{', end: '}' },
+                });
+
+                const data = buildPlaceholderData(enrollment);
+                doc.render(data);
+
+                const generatedDoc = doc.getZip().generate({ type: 'arraybuffer' });
+                const fileName = `${student.first_name || 'Unknown'}_${student.last_name || 'Unknown'}.docx`
+                    .replace(/[^a-zA-Z0-9_.\-\s]/g, '')
+                    .replace(/\s+/g, '_');
+
+                const filePath = useSubfolders ? `${folderName}/${fileName}` : fileName;
+                zip.file(filePath, generatedDoc);
+            } catch (docErr) {
+                console.error(`Error generating doc for ${student.first_name} ${student.last_name} (template: ${tpl.name}):`, docErr);
+            }
         }
     }
 
-    // 3. Generate Attendance Sheet (if template provided and enrollments exist)
+    // Generate Attendance Sheet (if template provided and enrollments exist)
     if (attendanceTemplateStoragePath && enrollments.length > 0) {
         try {
             const { data: attTemplateData, error: attDownloadError } = await supabase.storage
@@ -143,7 +156,7 @@ export async function generateDocumentsArchive(
         }
     }
 
-    // 4. Download ZIP
+    // Download ZIP
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     saveAs(zipBlob, archiveName);
 }

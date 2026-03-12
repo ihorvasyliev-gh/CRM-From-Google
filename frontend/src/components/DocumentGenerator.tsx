@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive } from 'lucide-react';
-import { generateDocumentsArchive, type EnrollmentWithRelations } from '../lib/documentUtils';
+import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight } from 'lucide-react';
+import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
 import { formatDateLong } from '../lib/dateUtils';
 import { DocumentTemplate, Course } from '../lib/types';
 
@@ -57,7 +57,7 @@ const PLACEHOLDER_CATEGORIES = [
 export default function DocumentGenerator() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [enrollments, setEnrollments] = useState<EnrollmentWithRelations[]>([]);
-    const [template, setTemplate] = useState<DocumentTemplate | null>(null);
+    const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
     const [attTemplate, setAttTemplate] = useState<DocumentTemplate | null>(null);
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
     const [loading, setLoading] = useState(true);
@@ -83,16 +83,19 @@ export default function DocumentGenerator() {
         const [coursesRes, enrollmentsRes, templateRes, attTemplateRes] = await Promise.all([
             supabase.from('courses').select('*').order('name'),
             supabase.from('enrollments').select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)').order('created_at', { ascending: false }),
-            supabase.from('document_templates').select('*').order('updated_at', { ascending: false }).limit(1),
+            supabase.from('document_templates').select('*').order('created_at', { ascending: true }),
             supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
         ]);
 
         if (coursesRes.data) setCourses(coursesRes.data);
         if (enrollmentsRes.data) setEnrollments(enrollmentsRes.data as EnrollmentWithRelations[]);
-        if (templateRes.data && templateRes.data.length > 0) setTemplate(templateRes.data[0]);
+        if (templateRes.data) setTemplates(templateRes.data);
         if (attTemplateRes.data && attTemplateRes.data.length > 0) setAttTemplate(attTemplateRes.data[0]);
         setLoading(false);
     }
+
+    // ─── Active templates ───────────────────────────────────
+    const activeTemplates = useMemo(() => templates.filter(t => t.is_active), [templates]);
 
     // ─── Courses with confirmed enrollments ─────────────────
     const coursesWithConfirmed = useMemo(() => {
@@ -118,8 +121,8 @@ export default function DocumentGenerator() {
 
     const selectedCourse = courses.find(c => c.id === selectedCourseId);
 
-    // ─── Template Upload ────────────────────────────────────
-    async function handleUpload(file: File, isAttendance: boolean) {
+    // ─── Template Upload (add new) ──────────────────────────
+    async function handleUploadTemplate(file: File) {
         if (!file.name.endsWith('.docx')) {
             showToast('Only .docx files are supported', 'error');
             return;
@@ -129,63 +132,118 @@ export default function DocumentGenerator() {
             return;
         }
 
-        const setUploadFn = isAttendance ? setAttUploading : setUploading;
-        setUploadFn(true);
+        setUploading(true);
         try {
-            const storagePath = `template_${isAttendance ? 'att_' : ''}${Date.now()}.docx`;
-            const currentTemplate = isAttendance ? attTemplate : template;
-            const table = isAttendance ? 'attendance_templates' : 'document_templates';
+            const storagePath = `template_${Date.now()}.docx`;
 
-            // Delete old template file if exists
-            if (currentTemplate?.storage_path) {
-                await supabase.storage.from('templates').remove([currentTemplate.storage_path]);
-            }
-
-            // Upload new template
             const { error: uploadError } = await supabase.storage
                 .from('templates')
                 .upload(storagePath, file, { cacheControl: '3600', upsert: true });
 
             if (uploadError) throw uploadError;
 
-            // Upsert template record
-            if (currentTemplate) {
-                const { error } = await supabase
-                    .from(table)
-                    .update({ name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() })
-                    .eq('id', currentTemplate.id);
-                if (error) throw error;
-                const newTpl = { ...currentTemplate, name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() };
-                if (isAttendance) setAttTemplate(newTpl); else setTemplate(newTpl);
-            } else {
-                const { data, error } = await supabase
-                    .from(table)
-                    .insert({ name: file.name, storage_path: storagePath })
-                    .select()
-                    .single();
-                if (error) throw error;
-                if (isAttendance) setAttTemplate(data); else setTemplate(data);
-            }
+            const { data, error } = await supabase
+                .from('document_templates')
+                .insert({ name: file.name, storage_path: storagePath, is_active: true })
+                .select()
+                .single();
+            if (error) throw error;
 
-            showToast(`${isAttendance ? 'Attendance ' : ''}Template uploaded successfully!`, 'success');
+            setTemplates(prev => [...prev, data]);
+            showToast('Template uploaded successfully!', 'success');
         } catch (err: unknown) {
             console.error('Upload error:', err);
             showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         } finally {
-            setUploadFn(false);
+            setUploading(false);
+        }
+    }
+
+    // ─── Attendance Template Upload ─────────────────────────
+    async function handleUploadAttendance(file: File) {
+        if (!file.name.endsWith('.docx')) {
+            showToast('Only .docx files are supported', 'error');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('File size must be less than 5MB', 'error');
+            return;
+        }
+
+        setAttUploading(true);
+        try {
+            const storagePath = `template_att_${Date.now()}.docx`;
+
+            if (attTemplate?.storage_path) {
+                await supabase.storage.from('templates').remove([attTemplate.storage_path]);
+            }
+
+            const { error: uploadError } = await supabase.storage
+                .from('templates')
+                .upload(storagePath, file, { cacheControl: '3600', upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            if (attTemplate) {
+                const { error } = await supabase
+                    .from('attendance_templates')
+                    .update({ name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() })
+                    .eq('id', attTemplate.id);
+                if (error) throw error;
+                setAttTemplate({ ...attTemplate, name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() });
+            } else {
+                const { data, error } = await supabase
+                    .from('attendance_templates')
+                    .insert({ name: file.name, storage_path: storagePath })
+                    .select()
+                    .single();
+                if (error) throw error;
+                setAttTemplate(data);
+            }
+
+            showToast('Attendance Template uploaded successfully!', 'success');
+        } catch (err: unknown) {
+            console.error('Upload error:', err);
+            showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setAttUploading(false);
+        }
+    }
+
+    // ─── Toggle Template Active ─────────────────────────────
+    async function handleToggleActive(tpl: DocumentTemplate) {
+        const newActive = !tpl.is_active;
+        try {
+            const { error } = await supabase
+                .from('document_templates')
+                .update({ is_active: newActive })
+                .eq('id', tpl.id);
+            if (error) throw error;
+            setTemplates(prev => prev.map(t => t.id === tpl.id ? { ...t, is_active: newActive } : t));
+        } catch (err: unknown) {
+            showToast(`Failed to toggle: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
     }
 
     // ─── Delete Template ────────────────────────────────────
-    async function handleDelete(isAttendance: boolean) {
-        const currentTemplate = isAttendance ? attTemplate : template;
-        if (!currentTemplate) return;
-        const table = isAttendance ? 'attendance_templates' : 'document_templates';
+    async function handleDeleteTemplate(tpl: DocumentTemplate) {
         try {
-            await supabase.storage.from('templates').remove([currentTemplate.storage_path]);
-            await supabase.from(table).delete().eq('id', currentTemplate.id);
-            if (isAttendance) setAttTemplate(null); else setTemplate(null);
-            showToast(`${isAttendance ? 'Attendance ' : ''}Template deleted`, 'success');
+            await supabase.storage.from('templates').remove([tpl.storage_path]);
+            await supabase.from('document_templates').delete().eq('id', tpl.id);
+            setTemplates(prev => prev.filter(t => t.id !== tpl.id));
+            showToast('Template deleted', 'success');
+        } catch (err: unknown) {
+            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        }
+    }
+
+    async function handleDeleteAttendance() {
+        if (!attTemplate) return;
+        try {
+            await supabase.storage.from('templates').remove([attTemplate.storage_path]);
+            await supabase.from('attendance_templates').delete().eq('id', attTemplate.id);
+            setAttTemplate(null);
+            showToast('Attendance Template deleted', 'success');
         } catch (err: unknown) {
             showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
@@ -193,21 +251,26 @@ export default function DocumentGenerator() {
 
     // ─── Generate Documents ─────────────────────────────────
     async function handleGenerate() {
-        if (!template || confirmedForCourse.length === 0) return;
+        if (activeTemplates.length === 0 || confirmedForCourse.length === 0) return;
 
         setGenerating(true);
         try {
             const courseName = selectedCourse?.name || 'Course';
             const zipName = `${courseName.replace(/[^a-zA-Z0-9_.\-\s]/g, '').replace(/\s+/g, '_')}_Documents.zip`;
 
+            const tplDescriptors: TemplateDescriptor[] = activeTemplates.map(t => ({
+                name: t.name,
+                storagePath: t.storage_path,
+            }));
+
             await generateDocumentsArchive(
                 confirmedForCourse,
-                template.storage_path,
+                tplDescriptors,
                 zipName,
                 attTemplate?.storage_path
             );
 
-            showToast(`Generated ${confirmedForCourse.length} document(s)!`, 'success');
+            showToast(`Generated ${confirmedForCourse.length} document(s) with ${activeTemplates.length} template(s)!`, 'success');
         } catch (err: unknown) {
             console.error('Generation error:', err);
             showToast(`Generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
@@ -247,36 +310,67 @@ export default function DocumentGenerator() {
                             <FileText size={22} />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-primary">Word Document Template</h3>
+                            <h3 className="text-lg font-bold text-primary">Word Document Templates</h3>
                             <p className="text-sm text-muted mt-0.5">
-                                Upload a Word template (.docx) with placeholders like {'{firstName}'}, {'{lastName}'}, {'{email}'}, {'{courseDate}'}, etc.
-                                This template will be used to generate personalized documents for each student.
+                                Upload Word templates (.docx) with placeholders like {'{firstName}'}, {'{lastName}'}, {'{email}'}, {'{courseDate}'}, etc.
+                                Toggle each template on/off to control which ones are used during generation.
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Current Template */}
-                <div className="px-5 py-3 bg-surface-elevated/50 border-b border-border-subtle">
-                    {template ? (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <FileArchive size={16} className="text-violet-500" />
-                                <span className="text-sm font-semibold text-primary">Current template:</span>
-                                <span className="text-sm text-muted">{template.name}</span>
-                            </div>
-                            <button
-                                onClick={() => handleDelete(false)}
-                                className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
-                                title="Delete template"
-                            >
-                                <Trash2 size={14} />
-                            </button>
+                {/* Templates List */}
+                <div className="px-5 py-3 border-b border-border-subtle">
+                    {templates.length > 0 ? (
+                        <div className="space-y-2">
+                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
+                                Uploaded Templates ({templates.length})
+                            </p>
+                            {templates.map(tpl => (
+                                <div
+                                    key={tpl.id}
+                                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+                                        tpl.is_active
+                                            ? 'bg-violet-50/50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30'
+                                            : 'bg-surface-elevated/50 border-border-subtle opacity-60'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <button
+                                            onClick={() => handleToggleActive(tpl)}
+                                            className="flex-shrink-0 transition-colors"
+                                            title={tpl.is_active ? 'Deactivate template' : 'Activate template'}
+                                        >
+                                            {tpl.is_active ? (
+                                                <ToggleRight size={24} className="text-violet-500" />
+                                            ) : (
+                                                <ToggleLeft size={24} className="text-surface-400" />
+                                            )}
+                                        </button>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <FileArchive size={14} className={tpl.is_active ? 'text-violet-500' : 'text-surface-400'} />
+                                                <span className="text-sm font-semibold text-primary truncate">{tpl.name}</span>
+                                            </div>
+                                            <p className="text-[11px] text-muted mt-0.5">
+                                                Added {new Date(tpl.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDeleteTemplate(tpl)}
+                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
+                                        title="Delete template"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">
                             <AlertCircle size={16} className="text-amber-500" />
-                            <span className="text-sm text-amber-600 font-medium">No template uploaded yet</span>
+                            <span className="text-sm text-amber-600 font-medium">No templates uploaded yet</span>
                         </div>
                     )}
                 </div>
@@ -325,7 +419,7 @@ export default function DocumentGenerator() {
                             className="hidden"
                             onChange={e => {
                                 const file = e.target.files?.[0];
-                                if (file) handleUpload(file, false);
+                                if (file) handleUploadTemplate(file);
                                 e.target.value = '';
                             }}
                         />
@@ -335,11 +429,11 @@ export default function DocumentGenerator() {
                             ) : (
                                 <Upload size={16} />
                             )}
-                            {template ? 'Replace Template' : 'Upload Template'}
+                            Add New Template
                         </div>
                     </label>
                     <p className="text-[11px] text-muted mt-2 text-center">
-                        Maximum file size: 5MB. Supported placeholders: {'{firstName}'}, {'{lastName}'}, {'{email}'}, {'{mobileNumber}'}, {'{address}'}, {'{eircode}'}, {'{dateOfBirth}'}, {'{courseTitle}'}, {'{courseDate}'} and more.
+                        Maximum file size: 5MB. You can upload multiple templates and toggle them on/off.
                     </p>
                 </div>
             </div>
@@ -370,7 +464,7 @@ export default function DocumentGenerator() {
                                 <span className="text-sm text-muted">{attTemplate.name}</span>
                             </div>
                             <button
-                                onClick={() => handleDelete(true)}
+                                onClick={handleDeleteAttendance}
                                 className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
                                 title="Delete template"
                             >
@@ -393,7 +487,7 @@ export default function DocumentGenerator() {
                             className="hidden"
                             onChange={e => {
                                 const file = e.target.files?.[0];
-                                if (file) handleUpload(file, true);
+                                if (file) handleUploadAttendance(file);
                                 e.target.value = '';
                             }}
                         />
@@ -422,7 +516,7 @@ export default function DocumentGenerator() {
                         <div>
                             <h3 className="text-lg font-bold text-primary">Generate Documents</h3>
                             <p className="text-sm text-muted mt-0.5">
-                                Select a course to generate personalized documents for all confirmed participants. Documents will be downloaded as a ZIP archive.
+                                Select a course to generate personalized documents for all confirmed participants using {activeTemplates.length} active template{activeTemplates.length !== 1 ? 's' : ''}.
                             </p>
                         </div>
                     </div>
@@ -539,8 +633,8 @@ export default function DocumentGenerator() {
                     {/* Generate Button */}
                     <button
                         onClick={handleGenerate}
-                        disabled={!template || confirmedForCourse.length === 0 || generating}
-                        className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-bold transition-all ${!template || confirmedForCourse.length === 0
+                        disabled={activeTemplates.length === 0 || confirmedForCourse.length === 0 || generating}
+                        className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-bold transition-all ${activeTemplates.length === 0 || confirmedForCourse.length === 0
                             ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
                             : generating
                                 ? 'bg-emerald-400 text-white cursor-wait'
@@ -550,19 +644,19 @@ export default function DocumentGenerator() {
                         {generating ? (
                             <>
                                 <Loader2 size={18} className="animate-spin" />
-                                Generating {confirmedForCourse.length} document(s)...
+                                Generating {confirmedForCourse.length} document(s) × {activeTemplates.length} template(s)...
                             </>
                         ) : (
                             <>
                                 <FileArchive size={18} />
-                                Generate & Download ZIP ({confirmedForCourse.length} document{confirmedForCourse.length !== 1 ? 's' : ''})
+                                Generate & Download ZIP ({confirmedForCourse.length} student{confirmedForCourse.length !== 1 ? 's' : ''} × {activeTemplates.length} template{activeTemplates.length !== 1 ? 's' : ''})
                             </>
                         )}
                     </button>
 
-                    {!template && (
+                    {activeTemplates.length === 0 && (
                         <p className="text-xs text-amber-500 text-center font-medium">
-                            ⚠ Please upload a template first before generating documents
+                            ⚠ Please upload and activate at least one template before generating documents
                         </p>
                     )}
                 </div>

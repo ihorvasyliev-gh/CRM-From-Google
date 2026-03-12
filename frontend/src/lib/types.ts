@@ -50,6 +50,7 @@ export interface DocumentTemplate {
     id: string;
     name: string;
     storage_path: string;
+    is_active: boolean;
     created_at: string;
     updated_at: string;
 }
