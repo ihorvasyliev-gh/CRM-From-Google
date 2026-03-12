@@ -55,6 +55,13 @@ export interface DocumentTemplate {
     updated_at: string;
 }
 
+export interface TemplateVariable {
+    id: string;
+    var_key: string;
+    var_value: string;
+    created_at: string;
+}
+
 // ─── UI Utilities ────────────────────────────────────────────
 
 export const AVATAR_GRADIENTS = [

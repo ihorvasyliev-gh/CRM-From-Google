@@ -222,10 +222,18 @@ export function useBulkActions({
         if (selectedIds.size === 0) return;
         setGeneratingDocs(true);
         try {
-            const [docRes, attRes] = await Promise.all([
+            const [docRes, attRes, varsRes] = await Promise.all([
                 supabase.from('document_templates').select('*').eq('is_active', true).order('created_at', { ascending: true }),
-                supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1)
+                supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
+                supabase.from('template_variables').select('var_key, var_value')
             ]);
+
+            const customVars: Record<string, string> = {};
+            if (varsRes.data) {
+                varsRes.data.forEach((v: { var_key: string; var_value: string }) => {
+                    customVars[v.var_key] = v.var_value;
+                });
+            }
 
             const error = docRes.error;
             const data = docRes.data;
@@ -251,7 +259,8 @@ export function useBulkActions({
                 selectedEnrollments,
                 templateDescriptors,
                 archiveName,
-                attTemplate?.storage_path
+                attTemplate?.storage_path,
+                customVars
             );
 
             showToast(`Generated ${selectedEnrollments.length} document(s) with ${templateDescriptors.length} template(s)!`, 'success');

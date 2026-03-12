@@ -52,7 +52,8 @@ export async function generateDocumentsArchive(
     enrollments: EnrollmentWithRelations[],
     templates: TemplateDescriptor[],
     archiveName: string,
-    attendanceTemplateStoragePath?: string
+    attendanceTemplateStoragePath?: string,
+    customVariables?: Record<string, string>
 ): Promise<void> {
     const zip = new JSZip();
     const useSubfolders = templates.length > 1;
@@ -84,7 +85,7 @@ export async function generateDocumentsArchive(
                     delimiters: { start: '{', end: '}' },
                 });
 
-                const data = buildPlaceholderData(enrollment);
+                const data = { ...buildPlaceholderData(enrollment), ...customVariables };
                 doc.render(data);
 
                 const generatedDoc = doc.getZip().generate({ type: 'arraybuffer' });
@@ -147,7 +148,7 @@ export async function generateDocumentsArchive(
                     }
                 }
 
-                attDoc.render(attData);
+                attDoc.render({ ...attData, ...customVariables });
                 const generatedAttDoc = attDoc.getZip().generate({ type: 'arraybuffer' });
                 zip.file('Attendance_Sheet.docx', generatedAttDoc);
             }

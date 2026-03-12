@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight } from 'lucide-react';
+import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable } from 'lucide-react';
 import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
 import { formatDateLong } from '../lib/dateUtils';
-import { DocumentTemplate, Course } from '../lib/types';
+import { DocumentTemplate, Course, TemplateVariable } from '../lib/types';
 
 
 // ─── Placeholder Categories ─────────────────────────────────
@@ -68,6 +68,14 @@ export default function DocumentGenerator() {
     const [showPlaceholders, setShowPlaceholders] = useState(true);
     const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
 
+    // ─── Custom Variables State ─────────────────────────────
+    const [customVars, setCustomVars] = useState<TemplateVariable[]>([]);
+    const [newVarKey, setNewVarKey] = useState('');
+    const [newVarValue, setNewVarValue] = useState('');
+    const [addingVar, setAddingVar] = useState(false);
+    const [editingVarId, setEditingVarId] = useState<string | null>(null);
+    const [editingVarValue, setEditingVarValue] = useState('');
+
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 4000);
@@ -80,17 +88,19 @@ export default function DocumentGenerator() {
 
     async function fetchData() {
         setLoading(true);
-        const [coursesRes, enrollmentsRes, templateRes, attTemplateRes] = await Promise.all([
+        const [coursesRes, enrollmentsRes, templateRes, attTemplateRes, varsRes] = await Promise.all([
             supabase.from('courses').select('*').order('name'),
             supabase.from('enrollments').select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)').order('created_at', { ascending: false }),
             supabase.from('document_templates').select('*').order('created_at', { ascending: true }),
             supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
+            supabase.from('template_variables').select('*').order('created_at', { ascending: true }),
         ]);
 
         if (coursesRes.data) setCourses(coursesRes.data);
         if (enrollmentsRes.data) setEnrollments(enrollmentsRes.data as EnrollmentWithRelations[]);
         if (templateRes.data) setTemplates(templateRes.data);
         if (attTemplateRes.data && attTemplateRes.data.length > 0) setAttTemplate(attTemplateRes.data[0]);
+        if (varsRes.data) setCustomVars(varsRes.data);
         setLoading(false);
     }
 
@@ -249,6 +259,64 @@ export default function DocumentGenerator() {
         }
     }
 
+    // ─── Custom Variable Handlers ────────────────────────────
+    async function handleAddVariable() {
+        const key = newVarKey.trim();
+        const value = newVarValue.trim();
+        if (!key) { showToast('Variable name is required', 'error'); return; }
+
+        setAddingVar(true);
+        try {
+            const { data, error } = await supabase
+                .from('template_variables')
+                .insert({ var_key: key, var_value: value })
+                .select()
+                .single();
+            if (error) throw error;
+            setCustomVars(prev => [...prev, data]);
+            setNewVarKey('');
+            setNewVarValue('');
+            showToast(`Variable {${key}} added`, 'success');
+        } catch (err: unknown) {
+            showToast(`Failed to add variable: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setAddingVar(false);
+        }
+    }
+
+    async function handleDeleteVariable(v: TemplateVariable) {
+        try {
+            const { error } = await supabase.from('template_variables').delete().eq('id', v.id);
+            if (error) throw error;
+            setCustomVars(prev => prev.filter(cv => cv.id !== v.id));
+            showToast(`Variable {${v.var_key}} deleted`, 'success');
+        } catch (err: unknown) {
+            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        }
+    }
+
+    async function handleSaveVariableValue(v: TemplateVariable) {
+        try {
+            const { error } = await supabase
+                .from('template_variables')
+                .update({ var_value: editingVarValue })
+                .eq('id', v.id);
+            if (error) throw error;
+            setCustomVars(prev => prev.map(cv => cv.id === v.id ? { ...cv, var_value: editingVarValue } : cv));
+            setEditingVarId(null);
+            showToast(`Variable {${v.var_key}} updated`, 'success');
+        } catch (err: unknown) {
+            showToast(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        }
+    }
+
+    /** Build a Record from custom vars for template rendering */
+    const customVarMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        customVars.forEach(v => { map[v.var_key] = v.var_value; });
+        return map;
+    }, [customVars]);
+
     // ─── Generate Documents ─────────────────────────────────
     async function handleGenerate() {
         if (activeTemplates.length === 0 || confirmedForCourse.length === 0) return;
@@ -267,7 +335,8 @@ export default function DocumentGenerator() {
                 confirmedForCourse,
                 tplDescriptors,
                 zipName,
-                attTemplate?.storage_path
+                attTemplate?.storage_path,
+                customVarMap
             );
 
             showToast(`Generated ${confirmedForCourse.length} document(s) with ${activeTemplates.length} template(s)!`, 'success');
@@ -405,6 +474,22 @@ export default function DocumentGenerator() {
                                         </div>
                                     </div>
                                 ))}
+                                {customVars.length > 0 && (
+                                    <div>
+                                        <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Custom Variables</p>
+                                        <div className="space-y-1">
+                                            {customVars.map(v => (
+                                                <div key={v.id} className="flex items-center gap-2 text-[13px]">
+                                                    <code className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono text-xs">
+                                                        {`{${v.var_key}}`}
+                                                    </code>
+                                                    <span className="text-muted">—</span>
+                                                    <span className="text-primary">{v.var_value || <em className="text-muted">empty</em>}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -434,6 +519,147 @@ export default function DocumentGenerator() {
                     </label>
                     <p className="text-[11px] text-muted mt-2 text-center">
                         Maximum file size: 5MB. You can upload multiple templates and toggle them on/off.
+                    </p>
+                </div>
+            </div>
+
+            {/* ═══ Custom Variables Card ═══ */}
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="p-5 border-b border-surface-100">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl text-emerald-600 flex-shrink-0">
+                            <Variable size={22} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-primary">Custom Variables</h3>
+                            <p className="text-sm text-muted mt-0.5">
+                                Define custom placeholders (e.g. {'{Tutor}'}) and their values. These will be substituted into all templates during generation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Variable List */}
+                <div className="px-5 py-3 border-b border-border-subtle">
+                    {customVars.length > 0 ? (
+                        <div className="space-y-2">
+                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
+                                Defined Variables ({customVars.length})
+                            </p>
+                            {customVars.map(v => (
+                                <div
+                                    key={v.id}
+                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl border bg-emerald-50/50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30 transition-all"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <code className="text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded font-mono text-xs flex-shrink-0">
+                                            {`{${v.var_key}}`}
+                                        </code>
+                                        <span className="text-muted flex-shrink-0">→</span>
+                                        {editingVarId === v.id ? (
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <input
+                                                    type="text"
+                                                    value={editingVarValue}
+                                                    onChange={e => setEditingVarValue(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveVariableValue(v); if (e.key === 'Escape') setEditingVarId(null); }}
+                                                    className="flex-1 min-w-0 px-2 py-1 text-sm rounded-lg border border-emerald-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                                    autoFocus
+                                                />
+                                                <button
+                                                    onClick={() => handleSaveVariableValue(v)}
+                                                    className="text-emerald-600 hover:text-emerald-700 p-1 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
+                                                    title="Save"
+                                                >
+                                                    <Check size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingVarId(null)}
+                                                    className="text-surface-400 hover:text-surface-600 p-1 rounded-lg hover:bg-surface-100 transition-all flex-shrink-0"
+                                                    title="Cancel"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span
+                                                className="text-sm text-primary truncate cursor-pointer hover:text-emerald-600 transition-colors"
+                                                onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}
+                                                title="Click to edit"
+                                            >
+                                                {v.var_value || <em className="text-muted">empty — click to set</em>}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                        {editingVarId !== v.id && (
+                                            <button
+                                                onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}
+                                                className="text-surface-400 hover:text-emerald-500 p-1.5 rounded-lg hover:bg-emerald-50 transition-all"
+                                                title="Edit value"
+                                            >
+                                                <Pencil size={13} />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleDeleteVariable(v)}
+                                            className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
+                                            title="Delete variable"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <Info size={16} className="text-surface-400" />
+                            <span className="text-sm text-muted">No custom variables defined yet</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Add Variable Form */}
+                <div className="px-5 pb-5 pt-4">
+                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Add New Variable</p>
+                    <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                            <label className="block text-[11px] text-muted mb-1">Variable Name</label>
+                            <input
+                                type="text"
+                                value={newVarKey}
+                                onChange={e => setNewVarKey(e.target.value)}
+                                placeholder="e.g. Tutor"
+                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-[11px] text-muted mb-1">Value</label>
+                            <input
+                                type="text"
+                                value={newVarValue}
+                                onChange={e => setNewVarValue(e.target.value)}
+                                placeholder="e.g. John Smith"
+                                onKeyDown={e => { if (e.key === 'Enter') handleAddVariable(); }}
+                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                        </div>
+                        <button
+                            onClick={handleAddVariable}
+                            disabled={!newVarKey.trim() || addingVar}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0 ${
+                                !newVarKey.trim() || addingVar
+                                    ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
+                                    : 'text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm hover:shadow-md hover:shadow-emerald-500/25'
+                            }`}
+                        >
+                            {addingVar ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                            Add
+                        </button>
+                    </div>
+                    <p className="text-[11px] text-muted mt-2">
+                        Use <code className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded font-mono">{'{{VariableName}}'}</code> in your Word templates to reference these variables.
                     </p>
                 </div>
             </div>
