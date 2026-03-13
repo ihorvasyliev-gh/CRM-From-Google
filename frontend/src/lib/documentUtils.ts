@@ -204,21 +204,19 @@ export async function generateDocumentsArchive(
     }
 
     // Generate Address Labels (if template provided and enrollments exist)
-    console.log('[Labels] labelTemplateStoragePath:', labelTemplateStoragePath, '| enrollments:', enrollments.length);
+    alert('[Labels] path=' + (labelTemplateStoragePath || 'EMPTY') + ' | enrollments=' + enrollments.length);
     if (labelTemplateStoragePath && enrollments.length > 0) {
         try {
-            console.log('[Labels] Downloading template...');
             const { data: lblTemplateData, error: lblDownloadError } = await supabase.storage
                 .from('templates')
                 .download(labelTemplateStoragePath);
 
             if (lblDownloadError || !lblTemplateData) {
                 const errMsg = lblDownloadError?.message || 'File not found';
-                console.error('[Labels] Failed to download label template:', lblDownloadError);
                 result.labelsOk = false;
                 result.labelsError = `Download failed: ${errMsg}`;
+                alert('[Labels] Download FAILED: ' + errMsg);
             } else {
-                console.log('[Labels] Template downloaded, size:', lblTemplateData.size);
                 const lblTemplateBuffer = await lblTemplateData.arrayBuffer();
                 const lblPizZip = new PizZip(lblTemplateBuffer);
                 const lblDoc = new Docxtemplater(lblPizZip, {
@@ -247,18 +245,16 @@ export async function generateDocumentsArchive(
                     }
                 }
 
-                console.log('[Labels] Rendering with keys:', Object.keys(lblData).length);
                 lblDoc.render({ ...lblData, ...customVariables });
                 const generatedLblDoc = lblDoc.getZip().generate({ type: 'arraybuffer' });
-                console.log('[Labels] Generated, size:', generatedLblDoc.byteLength);
                 zip.file('Address_Labels.docx', generatedLblDoc);
-                console.log('[Labels] Added to ZIP');
+                alert('[Labels] SUCCESS — added to ZIP');
             }
         } catch (lblErr) {
             const errMsg = lblErr instanceof Error ? lblErr.message : String(lblErr);
-            console.error('[Labels] Error generating address labels:', lblErr);
             result.labelsOk = false;
             result.labelsError = errMsg;
+            alert('[Labels] ERROR: ' + errMsg);
         }
     }
 
