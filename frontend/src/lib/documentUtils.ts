@@ -204,7 +204,6 @@ export async function generateDocumentsArchive(
     }
 
     // Generate Address Labels (if template provided and enrollments exist)
-    alert('[Labels] path=' + (labelTemplateStoragePath || 'EMPTY') + ' | enrollments=' + enrollments.length);
     if (labelTemplateStoragePath && enrollments.length > 0) {
         try {
             const { data: lblTemplateData, error: lblDownloadError } = await supabase.storage
@@ -248,13 +247,11 @@ export async function generateDocumentsArchive(
                 lblDoc.render({ ...lblData, ...customVariables });
                 const generatedLblDoc = lblDoc.getZip().generate({ type: 'arraybuffer' });
                 zip.file('Address_Labels.docx', generatedLblDoc);
-                alert('[Labels] SUCCESS — added to ZIP');
             }
         } catch (lblErr) {
             const errMsg = lblErr instanceof Error ? lblErr.message : String(lblErr);
             result.labelsOk = false;
             result.labelsError = errMsg;
-            alert('[Labels] ERROR: ' + errMsg);
         }
     }
 

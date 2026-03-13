@@ -398,8 +398,6 @@ export default function DocumentGenerator() {
                 storagePath: t.storage_path,
             }));
 
-            alert('[handleGenerate] labelTemplate=' + JSON.stringify(labelTemplate));
-
             const result = await generateDocumentsArchive(
                 confirmedForCourse,
                 tplDescriptors,
