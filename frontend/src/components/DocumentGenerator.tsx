@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable } from 'lucide-react';
+import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag } from 'lucide-react';
 import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
 import { formatDateLong } from '../lib/dateUtils';
 import { DocumentTemplate, Course, TemplateVariable } from '../lib/types';
@@ -59,10 +59,12 @@ export default function DocumentGenerator() {
     const [enrollments, setEnrollments] = useState<EnrollmentWithRelations[]>([]);
     const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
     const [attTemplate, setAttTemplate] = useState<DocumentTemplate | null>(null);
+    const [labelTemplate, setLabelTemplate] = useState<DocumentTemplate | null>(null);
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [attUploading, setAttUploading] = useState(false);
+    const [labelUploading, setLabelUploading] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [showPlaceholders, setShowPlaceholders] = useState(true);
@@ -88,12 +90,13 @@ export default function DocumentGenerator() {
 
     async function fetchData() {
         setLoading(true);
-        const [coursesRes, enrollmentsRes, templateRes, attTemplateRes, varsRes] = await Promise.all([
+        const [coursesRes, enrollmentsRes, templateRes, attTemplateRes, varsRes, lblTemplateRes] = await Promise.all([
             supabase.from('courses').select('*').order('name'),
             supabase.from('enrollments').select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)').order('created_at', { ascending: false }),
             supabase.from('document_templates').select('*').order('created_at', { ascending: true }),
             supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
             supabase.from('template_variables').select('*').order('created_at', { ascending: true }),
+            supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1),
         ]);
 
         if (coursesRes.data) setCourses(coursesRes.data);
@@ -101,6 +104,7 @@ export default function DocumentGenerator() {
         if (templateRes.data) setTemplates(templateRes.data);
         if (attTemplateRes.data && attTemplateRes.data.length > 0) setAttTemplate(attTemplateRes.data[0]);
         if (varsRes.data) setCustomVars(varsRes.data);
+        if (lblTemplateRes.data && lblTemplateRes.data.length > 0) setLabelTemplate(lblTemplateRes.data[0]);
         setLoading(false);
     }
 
@@ -259,6 +263,69 @@ export default function DocumentGenerator() {
         }
     }
 
+    // ─── Label Template Upload ───────────────────────────────
+    async function handleUploadLabels(file: File) {
+        if (!file.name.endsWith('.docx')) {
+            showToast('Only .docx files are supported', 'error');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('File size must be less than 5MB', 'error');
+            return;
+        }
+
+        setLabelUploading(true);
+        try {
+            const storagePath = `template_lbl_${Date.now()}.docx`;
+
+            if (labelTemplate?.storage_path) {
+                await supabase.storage.from('templates').remove([labelTemplate.storage_path]);
+            }
+
+            const { error: uploadError } = await supabase.storage
+                .from('templates')
+                .upload(storagePath, file, { cacheControl: '3600', upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            if (labelTemplate) {
+                const { error } = await supabase
+                    .from('label_templates')
+                    .update({ name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() })
+                    .eq('id', labelTemplate.id);
+                if (error) throw error;
+                setLabelTemplate({ ...labelTemplate, name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() });
+            } else {
+                const { data, error } = await supabase
+                    .from('label_templates')
+                    .insert({ name: file.name, storage_path: storagePath })
+                    .select()
+                    .single();
+                if (error) throw error;
+                setLabelTemplate(data);
+            }
+
+            showToast('Label Template uploaded successfully!', 'success');
+        } catch (err: unknown) {
+            console.error('Upload error:', err);
+            showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setLabelUploading(false);
+        }
+    }
+
+    async function handleDeleteLabels() {
+        if (!labelTemplate) return;
+        try {
+            await supabase.storage.from('templates').remove([labelTemplate.storage_path]);
+            await supabase.from('label_templates').delete().eq('id', labelTemplate.id);
+            setLabelTemplate(null);
+            showToast('Label Template deleted', 'success');
+        } catch (err: unknown) {
+            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        }
+    }
+
     // ─── Custom Variable Handlers ────────────────────────────
     async function handleAddVariable() {
         const key = newVarKey.trim();
@@ -336,7 +403,8 @@ export default function DocumentGenerator() {
                 tplDescriptors,
                 zipName,
                 attTemplate?.storage_path,
-                customVarMap
+                customVarMap,
+                labelTemplate?.storage_path
             );
 
             // Build a detailed status message
@@ -355,6 +423,10 @@ export default function DocumentGenerator() {
 
             if (!result.attendanceOk && result.attendanceError) {
                 showToast(`Attendance sheet failed: ${result.attendanceError}`, 'error');
+            }
+
+            if (!result.labelsOk && result.labelsError) {
+                showToast(`Address labels failed: ${result.labelsError}`, 'error');
             }
         } catch (err: unknown) {
             console.error('Generation error:', err);
@@ -744,6 +816,74 @@ export default function DocumentGenerator() {
                     </label>
                     <p className="text-[11px] text-muted mt-2 text-center">
                         Maximum file size: 5MB. Supported placeholders: {'{courseTitle}'}, {'{courseDate}'}, {'{firstName1}'}, {'{lastName1}'} ... up to {'{email34}'}.
+                    </p>
+                </div>
+            </div>
+
+            {/* ═══ Address Labels Template Card ═══ */}
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="p-5 border-b border-surface-100">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl text-amber-600 flex-shrink-0">
+                            <Tag size={22} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-primary">Address Labels Template</h3>
+                            <p className="text-sm text-muted mt-0.5">
+                                Upload a Word template (.docx) for address label stickers.
+                                Use flat numbered placeholders up to 30 (e.g., {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'}).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="px-5 py-3 bg-surface-elevated/50 border-b border-border-subtle">
+                    {labelTemplate ? (
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FileArchive size={16} className="text-amber-500" />
+                                <span className="text-sm font-semibold text-primary">Current template:</span>
+                                <span className="text-sm text-muted">{labelTemplate.name}</span>
+                            </div>
+                            <button
+                                onClick={handleDeleteLabels}
+                                className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
+                                title="Delete template"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <AlertCircle size={16} className="text-amber-500" />
+                            <span className="text-sm text-amber-600 font-medium">No label template uploaded yet</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="px-5 pb-5 pt-5">
+                    <label className={`block w-full cursor-pointer ${labelUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        <input
+                            type="file"
+                            accept=".docx"
+                            className="hidden"
+                            onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) handleUploadLabels(file);
+                                e.target.value = '';
+                            }}
+                        />
+                        <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 transition-all shadow-sm hover:shadow-md hover:shadow-amber-500/25">
+                            {labelUploading ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Upload size={16} />
+                            )}
+                            {labelTemplate ? 'Replace Label Template' : 'Upload Label Template'}
+                        </div>
+                    </label>
+                    <p className="text-[11px] text-muted mt-2 text-center">
+                        Maximum file size: 5MB. Supported placeholders: {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'} ... up to 30.
                     </p>
                 </div>
             </div>

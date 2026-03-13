@@ -57,6 +57,8 @@ export interface GenerationResult {
     failedDocs: { student: string; template: string; error: string }[];
     attendanceOk: boolean;
     attendanceError?: string;
+    labelsOk: boolean;
+    labelsError?: string;
 }
 
 export async function generateDocumentsArchive(
@@ -64,7 +66,8 @@ export async function generateDocumentsArchive(
     templates: TemplateDescriptor[],
     archiveName: string,
     attendanceTemplateStoragePath?: string,
-    customVariables?: Record<string, string>
+    customVariables?: Record<string, string>,
+    labelTemplateStoragePath?: string
 ): Promise<GenerationResult> {
     const zip = new JSZip();
     const useSubfolders = templates.length > 1;
@@ -76,6 +79,7 @@ export async function generateDocumentsArchive(
         totalDocs: 0,
         failedDocs: [],
         attendanceOk: true,
+        labelsOk: true,
     };
 
     // Generate documents for each template
@@ -196,6 +200,59 @@ export async function generateDocumentsArchive(
             console.error('Error generating attendance sheet:', attErr);
             result.attendanceOk = false;
             result.attendanceError = errMsg;
+        }
+    }
+
+    // Generate Address Labels (if template provided and enrollments exist)
+    if (labelTemplateStoragePath && enrollments.length > 0) {
+        try {
+            const { data: lblTemplateData, error: lblDownloadError } = await supabase.storage
+                .from('templates')
+                .download(labelTemplateStoragePath);
+
+            if (lblDownloadError || !lblTemplateData) {
+                const errMsg = lblDownloadError?.message || 'File not found';
+                console.error('Failed to download label template:', lblDownloadError);
+                result.labelsOk = false;
+                result.labelsError = `Download failed: ${errMsg}`;
+            } else {
+                const lblTemplateBuffer = await lblTemplateData.arrayBuffer();
+                const lblPizZip = new PizZip(lblTemplateBuffer);
+                const lblDoc = new Docxtemplater(lblPizZip, {
+                    paragraphLoop: true,
+                    linebreaks: true,
+                    delimiters: { start: '{', end: '}' },
+                });
+
+                // Build flat data for 30 slots
+                const lblData: Record<string, string> = {};
+
+                for (let i = 0; i < 30; i++) {
+                    const idx = i + 1;
+                    const student = enrollments[i]?.students;
+
+                    if (student) {
+                        lblData[`firstName${idx}`] = student.first_name || '';
+                        lblData[`lastName${idx}`] = student.last_name || '';
+                        lblData[`address${idx}`] = student.address || '';
+                        lblData[`eircode${idx}`] = student.eircode || '';
+                    } else {
+                        lblData[`firstName${idx}`] = '';
+                        lblData[`lastName${idx}`] = '';
+                        lblData[`address${idx}`] = '';
+                        lblData[`eircode${idx}`] = '';
+                    }
+                }
+
+                lblDoc.render({ ...lblData, ...customVariables });
+                const generatedLblDoc = lblDoc.getZip().generate({ type: 'arraybuffer' });
+                zip.file('Address_Labels.docx', generatedLblDoc);
+            }
+        } catch (lblErr) {
+            const errMsg = lblErr instanceof Error ? lblErr.message : String(lblErr);
+            console.error('Error generating address labels:', lblErr);
+            result.labelsOk = false;
+            result.labelsError = errMsg;
         }
     }
 
