@@ -831,7 +831,7 @@ export default function DocumentGenerator() {
                             <h3 className="text-lg font-bold text-primary">Address Labels Template</h3>
                             <p className="text-sm text-muted mt-0.5">
                                 Upload a Word template (.docx) for address label stickers.
-                                Use flat numbered placeholders up to 30 (e.g., {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'}).
+                                Use flat numbered placeholders up to 28 (e.g., {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'}).
                             </p>
                         </div>
                     </div>
@@ -883,7 +883,7 @@ export default function DocumentGenerator() {
                         </div>
                     </label>
                     <p className="text-[11px] text-muted mt-2 text-center">
-                        Maximum file size: 5MB. Supported placeholders: {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'} ... up to 30.
+                        Maximum file size: 5MB. Supported placeholders: {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'} ... up to 28.
                     </p>
                 </div>
             </div>
