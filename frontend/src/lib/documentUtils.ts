@@ -280,6 +280,54 @@ export async function generateDocumentsArchive(
             
             worksheet.addRows(rows);
 
+            // 1. Format the header row
+            const headerRow = worksheet.getRow(1);
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+            headerRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0F172A' } // Dark blue
+            };
+            headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+            headerRow.height = 25;
+
+            // 2. Format all data cells and add borders
+            worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+                row.eachCell({ includeEmpty: false }, (cell) => {
+                    cell.border = {
+                        top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                        left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                        right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    };
+                    if (rowNumber > 1) {
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+                        // Alternating row colors
+                        if (rowNumber % 2 === 0) {
+                            cell.fill = {
+                                type: 'pattern',
+                                pattern: 'solid',
+                                fgColor: { argb: 'FFF3F4F6' } // Light gray
+                            };
+                        }
+                    }
+                });
+            });
+
+            // 3. Auto-fit columns
+            worksheet.columns.forEach(column => {
+                if (!column || !column.eachCell) return;
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 0;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                // Set a minimum width and add some padding, cap at a reasonable maximum width
+                column.width = Math.min(Math.max(12, maxLength + 3), 50);
+            });
+
             const excelBuffer = await workbook.xlsx.writeBuffer();
             zip.file('Participants.xlsx', excelBuffer);
         } catch (excelErr) {
