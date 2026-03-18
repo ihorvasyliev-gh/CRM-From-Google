@@ -2,9 +2,11 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
 import { supabase } from './supabase';
 import { Student, Course, Enrollment } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
+import type { ExcelColumn } from './appConfig';
 
 /** Enrollment with joined student and course data (from Supabase select with joins). */
 export interface EnrollmentWithRelations extends Enrollment {
@@ -67,7 +69,8 @@ export async function generateDocumentsArchive(
     archiveName: string,
     attendanceTemplateStoragePath?: string,
     customVariables?: Record<string, string>,
-    labelTemplateStoragePath?: string
+    labelTemplateStoragePath?: string,
+    excelColumns?: ExcelColumn[]
 ): Promise<GenerationResult> {
     const zip = new JSZip();
     const useSubfolders = templates.length > 1;
@@ -252,6 +255,28 @@ export async function generateDocumentsArchive(
             const errMsg = lblErr instanceof Error ? lblErr.message : String(lblErr);
             result.labelsOk = false;
             result.labelsError = errMsg;
+        }
+    }
+
+    // Generate Excel spreadsheet with participant data
+    if (excelColumns && excelColumns.length > 0 && enrollments.length > 0) {
+        try {
+            const rows = enrollments.map(enrollment => {
+                const placeholderData = { ...buildPlaceholderData(enrollment), ...customVariables };
+                const row: Record<string, string> = {};
+                for (const col of excelColumns) {
+                    row[col.header] = placeholderData[col.placeholder] || '';
+                }
+                return row;
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Participants');
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            zip.file('Participants.xlsx', excelBuffer);
+        } catch (xlsxErr) {
+            console.error('Error generating Excel file:', xlsxErr);
         }
     }
 

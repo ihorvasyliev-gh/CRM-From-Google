@@ -26,7 +26,7 @@ export default function Settings() {
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
-    const buttonHtml = `<a href="${linkStr}" style="display: inline-block; background-color: #0ea5e9; color: #ffffff; padding: 14px 28px; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.2);">Confirm Participation</a>`;
+    const buttonHtml = `<a href="${linkStr}" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 18px 36px; font-size: 20px; font-weight: 900; text-decoration: none; border-radius: 12px; letter-spacing: 0.5px; box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.3);">✅ PRESS HERE TO CONFIRM YOUR PARTICIPATION</a>`;
     const previewBody = config.htmlEmailTemplate
         .replace(/\{courseTitle\}/g, 'Introduction to Digital Skills')
         .replace(/\{date\}/g, '15 Mar 2026')

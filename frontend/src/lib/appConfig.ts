@@ -1,6 +1,13 @@
 // ─── App Configuration (localStorage-based) ────────────────────
 // Centralized config for email templates, display preferences, etc.
 
+export interface ExcelColumn {
+    /** Column header text shown in the Excel file */
+    header: string;
+    /** Placeholder key from the same set used by Word templates (e.g. 'firstName', 'email') */
+    placeholder: string;
+}
+
 export interface AppConfig {
     /** HTML Email body template. Supports placeholders: {courseTitle}, {date}, {confirmationButton}, {confirmationLink} */
     htmlEmailTemplate: string;
@@ -8,9 +15,20 @@ export interface AppConfig {
     emailSubjectFormat: string;
     /** Date display format across the app */
     dateFormat: 'en-IE' | 'en-US' | 'ISO';
+    /** Columns to include in the Excel spreadsheet exported with the archive */
+    excelColumns: ExcelColumn[];
 }
 
 const STORAGE_KEY = 'crm_app_config';
+
+export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
+    { header: 'First Name', placeholder: 'firstName' },
+    { header: 'Last Name', placeholder: 'lastName' },
+    { header: 'Email', placeholder: 'email' },
+    { header: 'Phone', placeholder: 'mobileNumber' },
+    { header: 'Course', placeholder: 'courseTitle' },
+    { header: 'Course Date', placeholder: 'courseDate' },
+];
 
 export const DEFAULT_CONFIG: AppConfig = {
     htmlEmailTemplate: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 40px 20px;">
@@ -48,6 +66,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 </div>`,
     emailSubjectFormat: '{courseName} — {date}',
     dateFormat: 'en-IE',
+    excelColumns: DEFAULT_EXCEL_COLUMNS,
 };
 
 /** Read the full config, merging saved values over defaults. */
@@ -81,7 +100,7 @@ export function buildEmailBodyHtml(courseTitle: string, date: string, confirmati
     const config = getConfig();
     const linkStr = confirmationLink || '#';
     const buttonHtml = confirmationLink
-        ? `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#0ea5e9" style="background-color: #0ea5e9; border-radius: 8px;"><a href="${linkStr}" target="_blank" style="display: inline-block; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 14px 28px; border: 1px solid #0ea5e9; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">Confirm Participation</a></td></tr></table>`
+        ? `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#16a34a" style="background-color: #16a34a; border-radius: 12px;"><a href="${linkStr}" target="_blank" style="display: inline-block; font-size: 20px; font-weight: 900; color: #ffffff; text-decoration: none; padding: 18px 36px; border: 2px solid #16a34a; border-radius: 12px; letter-spacing: 0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">✅ PRESS HERE TO CONFIRM YOUR PARTICIPATION</a></td></tr></table>`
         : '';
         
     return config.htmlEmailTemplate

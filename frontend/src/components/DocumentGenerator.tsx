@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag } from 'lucide-react';
+import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
 import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
 import { formatDateLong } from '../lib/dateUtils';
 import { DocumentTemplate, Course, TemplateVariable } from '../lib/types';
+import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/appConfig';
 
 
 // ─── Placeholder Categories ─────────────────────────────────
@@ -77,6 +78,11 @@ export default function DocumentGenerator() {
     const [addingVar, setAddingVar] = useState(false);
     const [editingVarId, setEditingVarId] = useState<string | null>(null);
     const [editingVarValue, setEditingVarValue] = useState('');
+
+    // ─── Excel Columns State ────────────────────────────────
+    const [excelColumns, setExcelColumns] = useState<ExcelColumn[]>(() => getConfig().excelColumns);
+    const [newColHeader, setNewColHeader] = useState('');
+    const [newColPlaceholder, setNewColPlaceholder] = useState('');
 
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
@@ -404,7 +410,8 @@ export default function DocumentGenerator() {
                 zipName,
                 attTemplate?.storage_path,
                 customVarMap,
-                labelTemplate?.storage_path
+                labelTemplate?.storage_path,
+                excelColumns
             );
 
             // Build a detailed status message
@@ -884,6 +891,124 @@ export default function DocumentGenerator() {
                     </label>
                     <p className="text-[11px] text-muted mt-2 text-center">
                         Maximum file size: 5MB. Supported placeholders: {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'} ... up to 28.
+                    </p>
+                </div>
+            </div>
+
+            {/* ═══ Excel Export Columns Card ═══ */}
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="p-5 border-b border-surface-100">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2.5 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl text-teal-600 flex-shrink-0">
+                            <Table2 size={22} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-primary">Excel Export Columns</h3>
+                            <p className="text-sm text-muted mt-0.5">
+                                Configure which columns appear in the <strong>Participants.xlsx</strong> file included in the generated archive.
+                                Uses the same placeholders as Word templates.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Current columns list */}
+                <div className="px-5 py-3 border-b border-border-subtle">
+                    {excelColumns.length > 0 ? (
+                        <div className="space-y-2">
+                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
+                                Columns ({excelColumns.length})
+                            </p>
+                            {excelColumns.map((col, idx) => (
+                                <div
+                                    key={`${col.placeholder}-${idx}`}
+                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl border bg-teal-50/50 border-teal-200 dark:bg-teal-500/10 dark:border-teal-500/30 transition-all"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <span className="text-xs font-mono text-muted w-5 text-center flex-shrink-0">{idx + 1}</span>
+                                        <span className="text-sm font-semibold text-primary">{col.header}</span>
+                                        <span className="text-muted flex-shrink-0">→</span>
+                                        <code className="text-teal-600 bg-teal-100 px-2 py-0.5 rounded font-mono text-xs">
+                                            {`{${col.placeholder}}`}
+                                        </code>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const updated = excelColumns.filter((_, i) => i !== idx);
+                                            setExcelColumns(updated);
+                                            persistConfig({ excelColumns: updated });
+                                        }}
+                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
+                                        title="Remove column"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <AlertCircle size={16} className="text-amber-500" />
+                            <span className="text-sm text-amber-600 font-medium">No columns configured — no Excel file will be generated</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Add column form */}
+                <div className="px-5 pb-5 pt-4">
+                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Add Column</p>
+                    <div className="flex items-end gap-3">
+                        <div className="flex-1">
+                            <label className="block text-[11px] text-muted mb-1">Column Header</label>
+                            <input
+                                type="text"
+                                value={newColHeader}
+                                onChange={e => setNewColHeader(e.target.value)}
+                                placeholder="e.g. Full Name"
+                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-[11px] text-muted mb-1">Placeholder Key</label>
+                            <input
+                                type="text"
+                                value={newColPlaceholder}
+                                onChange={e => setNewColPlaceholder(e.target.value)}
+                                placeholder="e.g. fullName"
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && newColHeader.trim() && newColPlaceholder.trim()) {
+                                        const updated = [...excelColumns, { header: newColHeader.trim(), placeholder: newColPlaceholder.trim() }];
+                                        setExcelColumns(updated);
+                                        persistConfig({ excelColumns: updated });
+                                        setNewColHeader('');
+                                        setNewColPlaceholder('');
+                                    }
+                                }}
+                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                            />
+                        </div>
+                        <button
+                            onClick={() => {
+                                if (!newColHeader.trim() || !newColPlaceholder.trim()) return;
+                                const updated = [...excelColumns, { header: newColHeader.trim(), placeholder: newColPlaceholder.trim() }];
+                                setExcelColumns(updated);
+                                persistConfig({ excelColumns: updated });
+                                setNewColHeader('');
+                                setNewColPlaceholder('');
+                            }}
+                            disabled={!newColHeader.trim() || !newColPlaceholder.trim()}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0 ${
+                                !newColHeader.trim() || !newColPlaceholder.trim()
+                                    ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
+                                    : 'text-white bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 shadow-sm hover:shadow-md hover:shadow-teal-500/25'
+                            }`}
+                        >
+                            <Plus size={14} />
+                            Add
+                        </button>
+                    </div>
+                    <p className="text-[11px] text-muted mt-2">
+                        Use placeholder keys from the Available Variables list above (e.g. <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">firstName</code>, <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">email</code>, <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">courseDate</code>).
                     </p>
                 </div>
             </div>

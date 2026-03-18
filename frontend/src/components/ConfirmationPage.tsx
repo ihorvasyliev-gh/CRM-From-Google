@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, AlertCircle, Loader2, Mail, Sparkles, GraduationCap } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap } from 'lucide-react';
 
 type PageState = 'loading' | 'form' | 'submitting' | 'success' | 'error' | 'invalid';
 
@@ -175,10 +175,10 @@ export default function ConfirmationPage() {
 
                                 <button
                                     type="submit"
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold text-sm py-3 px-6 rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all active:scale-[0.98]"
+                                    className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black text-lg py-5 px-8 rounded-2xl shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all active:scale-[0.98] ring-4 ring-emerald-500/20 animate-pulse"
                                 >
-                                    <Sparkles size={16} />
-                                    Confirm My Participation
+                                    <span className="text-2xl">✅</span>
+                                    <span className="tracking-wide">PRESS HERE TO CONFIRM</span>
                                 </button>
                             </div>
                         </form>
