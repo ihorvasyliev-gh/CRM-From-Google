@@ -257,13 +257,17 @@ export function useBulkActions({
             const dateStr = `${String(d.getDate()).padStart(2, '0')} ${String(d.getMonth() + 1).padStart(2, '0')} ${d.getFullYear()}`;
             const archiveName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
 
+            const { getConfig } = await import('../lib/appConfig');
+            const excelColumns = getConfig().excelColumns;
+
             await generateDocumentsArchive(
                 selectedEnrollments,
                 templateDescriptors,
                 archiveName,
                 attTemplate?.storage_path,
                 customVars,
-                lblTemplate?.storage_path
+                lblTemplate?.storage_path,
+                excelColumns
             );
 
             showToast(`Generated ${selectedEnrollments.length} document(s) with ${templateDescriptors.length} template(s)!`, 'success');
