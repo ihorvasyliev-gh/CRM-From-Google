@@ -11,10 +11,11 @@ export default defineConfig(({ command }) => ({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    vendor: ['react', 'react-dom', 'lucide-react']
+                    vendor: ['react', 'react-dom', 'lucide-react', 'react-router-dom'],
+                    'doc-utils': ['docxtemplater', 'pizzip', 'jszip', 'exceljs', 'file-saver']
                 }
             }
         },
-        chunkSizeWarningLimit: 1000
+        chunkSizeWarningLimit: 1600
     }
 }))
