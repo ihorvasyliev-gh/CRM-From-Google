@@ -2,7 +2,7 @@ import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from './supabase';
 import { Student, Course, Enrollment } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
@@ -261,22 +261,29 @@ export async function generateDocumentsArchive(
     // Generate Excel spreadsheet with participant data
     if (excelColumns && excelColumns.length > 0 && enrollments.length > 0) {
         try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Participants');
+
+            worksheet.columns = excelColumns.map(col => ({
+                header: col.header,
+                key: col.placeholder,
+            }));
+
             const rows = enrollments.map(enrollment => {
                 const placeholderData = { ...buildPlaceholderData(enrollment), ...customVariables };
                 const row: Record<string, string> = {};
                 for (const col of excelColumns) {
-                    row[col.header] = placeholderData[col.placeholder] || '';
+                    row[col.placeholder] = placeholderData[col.placeholder] || '';
                 }
                 return row;
             });
+            
+            worksheet.addRows(rows);
 
-            const worksheet = XLSX.utils.json_to_sheet(rows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Participants');
-            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            const excelBuffer = await workbook.xlsx.writeBuffer();
             zip.file('Participants.xlsx', excelBuffer);
-        } catch (xlsxErr) {
-            console.error('Error generating Excel file:', xlsxErr);
+        } catch (excelErr) {
+            console.error('Error generating Excel file:', excelErr);
         }
     }
 
