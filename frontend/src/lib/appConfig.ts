@@ -31,36 +31,31 @@ export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-    htmlEmailTemplate: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 40px 20px;">
+    htmlEmailTemplate: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 16px 12px;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
     <!-- Header -->
-    <div style="background-color: #0ea5e9; padding: 32px 32px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">You're Invited!</h1>
+    <div style="background-color: #0ea5e9; padding: 18px 24px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">You're Invited!</h1>
     </div>
     
     <!-- Body -->
-    <div style="padding: 40px 32px;">
-      <p style="margin-top: 0; margin-bottom: 20px; font-size: 16px; color: #374151; line-height: 1.6;">Hello!</p>
-      
-      <p style="margin-top: 0; margin-bottom: 24px; font-size: 16px; color: #374151; line-height: 1.6;">We are thrilled to invite you to our upcoming course. Join us to expand your skills and knowledge:</p>
+    <div style="padding: 20px 24px;">
+      <p style="margin: 0 0 12px 0; font-size: 15px; color: #374151; line-height: 1.5;">You've been invited to join an upcoming course:</p>
       
       <!-- Course Details Box -->
-      <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #0ea5e9; padding: 20px 24px; margin: 0 0 32px 0; border-radius: 6px;">
-        <h2 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 700; color: #0369a1;">{courseTitle}</h2>
-        <p style="margin: 0; font-size: 16px; color: #0c4a6e; font-weight: 500;">🗓️ Date: {date}</p>
+      <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #0ea5e9; padding: 14px 18px; margin: 0 0 16px 0; border-radius: 6px;">
+        <h2 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 700; color: #0369a1;">{courseTitle}</h2>
+        <p style="margin: 0; font-size: 15px; color: #0c4a6e; font-weight: 500;">🗓️ Date: {date}</p>
       </div>
       
-      <p style="margin-top: 0; margin-bottom: 8px; font-size: 16px; color: #374151; line-height: 1.6; font-weight: 600;">Secure your spot today!</p>
-      <p style="margin-top: 0; margin-bottom: 32px; font-size: 16px; color: #374151; line-height: 1.6;">Spaces are strictly limited. To guarantee your participation, please confirm your attendance within 7 days of receiving this email.</p>
+      <p style="margin: 0 0 16px 0; font-size: 15px; color: #374151; line-height: 1.5;">Spaces are limited — please confirm within <strong>7 days</strong>.</p>
       
-      <p style="margin-top: 0; margin-bottom: 20px; font-size: 18px; font-weight: 700; color: #111827; text-align: center;">👇 Please click the button below to register:</p>
-      
-      <div style="text-align: center; margin: 0 0 40px 0;">
+      <div style="text-align: center; margin: 0 0 16px 0; padding: 16px 0; background-color: #f0fdf4; border-radius: 8px; border: 2px dashed #059669;">
+        <p style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #059669;">👇 TAP THE BUTTON TO REGISTER 👇</p>
         {confirmationButton}
       </div>
       
-      <p style="margin-top: 0; margin-bottom: 8px; font-size: 16px; color: #475569; line-height: 1.6;">We look forward to welcoming you!</p>
-      <p style="margin: 0; font-size: 15px; color: #64748b; line-height: 1.6;">If you have any questions or can no longer attend, please don't hesitate to reach out.</p>
+      <p style="margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5; text-align: center;">Questions? Simply reply to this email.</p>
     </div>
   </div>
 </div>`,
