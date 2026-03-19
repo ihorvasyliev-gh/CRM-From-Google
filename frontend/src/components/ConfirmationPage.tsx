@@ -175,10 +175,10 @@ export default function ConfirmationPage() {
 
                                 <button
                                     type="submit"
-                                    className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black text-lg py-5 px-8 rounded-2xl shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all active:scale-[0.98] ring-4 ring-emerald-500/20 animate-pulse"
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 transition-all active:scale-[0.98]"
                                 >
-                                    <span className="text-2xl">✅</span>
-                                    <span className="tracking-wide">PRESS HERE TO CONFIRM</span>
+                                    <span className="text-xl">✓</span>
+                                    <span>Confirm My Participation</span>
                                 </button>
                             </div>
                         </form>

@@ -49,12 +49,12 @@ describe('appConfig', () => {
         it('includes confirmation link block if provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm');
             expect(result).toContain('https://example.com/confirm');
-            expect(result).toContain('PRESS HERE TO CONFIRM YOUR PARTICIPATION');
+            expect(result).toContain('Confirm My Participation');
         });
 
         it('does not include confirmation block if no link provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20');
-            expect(result).not.toContain('PRESS HERE TO CONFIRM YOUR PARTICIPATION');
+            expect(result).not.toContain('Confirm My Participation');
         });
     });
 
