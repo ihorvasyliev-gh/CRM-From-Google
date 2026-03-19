@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       <p style="margin: 0 0 16px 0; font-size: 15px; color: #374151; line-height: 1.5;">Spaces are limited — please confirm within <strong>7 days</strong>.</p>
       
       <div style="text-align: center; margin: 0 0 16px 0; padding: 16px 0; background-color: #f0fdf4; border-radius: 8px; border: 2px dashed #059669;">
-        <p style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #059669;">👇 TAP THE BUTTON TO REGISTER 👇</p>
+        <p style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #059669;">👇 TAP THE BUTTON TO CONFIRM 👇</p>
         {confirmationButton}
       </div>
       
@@ -59,7 +59,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     </div>
   </div>
 </div>`,
-    emailSubjectFormat: '{courseName} — {date}',
+    emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     dateFormat: 'en-IE',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
 };
