@@ -10,11 +10,13 @@ Welcome to your new digital control center! This CRM system is designed to make 
 
 **What can this system do for you?**
 - **Real-time Enrollment Management:** Easily see who is signed up for which course. You can move students between different statuses (like "Requested", "Invited", "Confirmed", or "Completed") using a simple and intuitive board. Thanks to real-time synchronization, any changes (like a participant confirming their attendance via a link) instantly reflect on your board without needing to refresh the page.
+- **Browser Push Notifications:** Stay informed even when the CRM tab is in the background. The system will alert you with a desktop notification the moment a student confirms their enrollment.
 - **Smart Email Invitations:** The system helps you send beautiful HTML emails to clients (compatible with Outlook as well). Emails are automatically populated with individual data and include dynamic shortcodes like a unique confirmation link `{confirmationLink}`, course title, and date.
 - **Short Confirmation Links:** Long, ugly links are a thing of the past. Users receive unique short tokens via email for confirmation.
-- **Document & Attendance Sheet Generation:** Stop manually typing out certificates! 
+- **Document & Excel Generation:** Stop manually typing out certificates and spreadsheets! 
   - Upload your standard Word document template.
   - You can use an **Attendance Sheet** template, which supports automatic data population for up to 34 students per document.
+  - **Excel Export:** Generate a beautifully formatted Excel file listing all selected people, with automatic column width adjustment for a professional look.
   - The system compiles a batch of personalized documents into a smart-named ZIP archive (e.g., `[Course Name] [Current Date].zip`).
 - **Student Prioritization:** Mark important students with a priority flag so they always appear at the top of the list.
 - **Smart Date Handling:** The system remembers dates you've invited students to courses, making it easy to re-select dates with one click.
@@ -35,19 +37,23 @@ This project is built using a modern, scalable, and type-safe web stack. It uses
 - **Build Tool:** [Vite](https://vitejs.dev/) for lightning-fast Hot Module Replacement (HMR) and optimized builds.
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/) for utility-first, responsive styling. UI icons are provided by `lucide-react`.
 - **Routing:** [React Router v6](https://reactrouter.com/) for seamless client-side navigation.
+- **Browser API:** [Notification API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API) for desktop alerts.
 
 ### Backend & Infrastructure
 - **BaaS (Backend as a Service):** [Supabase](https://supabase.com/)
   - **Database:** PostgreSQL for relational data storage (Students, Courses, Enrollments, Tokens, Email Settings).
-  - **Realtime:** Uses Supabase Realtime subscriptions to instantly reflect changes on the client (e.g., updating the dashboard when statuses change).
+  - **Realtime:** Uses Supabase Realtime subscriptions to instantly reflect changes on the client (e.g., updating the dashboard when statuses change or firing notifications).
   - **Auth:** Supabase Auth for secure, role-based user authentication.
   - **Storage:** Supabase Storage for hosting `.docx` templates used in document generation.
   - **RPC (Database Functions):** Implemented SQL stored procedures (e.g., `create_confirmation_token`, `resolve_confirmation_token`) to manage tokens and enable short link functionality.
 - **Hosting/Deployment:** Configured for deployment on **Cloudflare Pages**.
 
 ### Key Libraries & Functionality
-- **Document Generation (Client-Side):** The system generates and populates `.docx` files completely client-side using a combination of `docxtemplater`, `pizzip`, `jszip`, and `file-saver`. This allows for complex template mapping (including lists) without hitting a backend server.
+- **Document & Spreadsheet Generation (Client-Side):** The system generates and populates `.docx` and `.xlsx` files completely client-side.
+  - Word: `docxtemplater`, `pizzip`, `jszip`, `file-saver`.
+  - Excel: `exceljs`.
 - **Email Generation:** Generates formatted `mailto` links with a rich HTML Body (Outlook supported).
+- **Notifications:** Custom hook `useConfirmationNotifier` manages real-time event subscriptions and browser-native alerts.
 - **Smooth UI/UX:** Animations, modals, toast notifications, bulk actions support, and contextual note editing for enrollments – designed for a premium user experience.
 
 ### External Integrations
