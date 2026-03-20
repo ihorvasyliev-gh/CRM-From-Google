@@ -1,8 +1,10 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
+import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
+import { isNotificationSupported, requestNotificationPermission, getNotificationPermission } from './lib/notifications';
 
 // Lazy load heavy route components
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -33,6 +35,17 @@ const PAGE_TITLES: Record<string, string> = {
 function App() {
     const { user, loading, signOut } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [showNotifBanner, setShowNotifBanner] = useState(false);
+
+    // Fire browser notifications for enrollment confirmations
+    useConfirmationNotifier();
+
+    // Show notification permission banner once if not yet decided
+    useEffect(() => {
+        if (isNotificationSupported() && getNotificationPermission() === 'default') {
+            setShowNotifBanner(true);
+        }
+    }, []);
 
     const location = useLocation();
     const navigateFn = useNavigate();
@@ -207,6 +220,32 @@ function App() {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-screen overflow-y-auto relative z-10 min-w-0">
+                {/* Notification Permission Banner */}
+                {showNotifBanner && (
+                    <div className="bg-brand-500/10 border-b border-brand-500/20 px-4 py-2.5 flex items-center justify-between gap-3 animate-fadeIn">
+                        <div className="flex items-center gap-2 text-sm">
+                            <Bell size={16} className="text-brand-500 flex-shrink-0" />
+                            <span className="text-primary">Enable notifications to be alerted when students confirm courses</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                                onClick={async () => {
+                                    await requestNotificationPermission();
+                                    setShowNotifBanner(false);
+                                }}
+                                className="px-3 py-1 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+                            >
+                                Enable
+                            </button>
+                            <button
+                                onClick={() => setShowNotifBanner(false)}
+                                className="text-muted hover:text-primary transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    </div>
+                )}
                 {/* Mobile Header (Glassmorphism) */}
                 <header className="lg:hidden h-14 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-4 flex items-center justify-between sticky top-0 z-30 transition-colors">
                     <button
