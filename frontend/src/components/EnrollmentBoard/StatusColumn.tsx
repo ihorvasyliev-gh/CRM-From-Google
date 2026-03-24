@@ -1,4 +1,6 @@
 import { Check, Copy } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
+import { CustomTooltip } from '../ui/Tooltip';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
@@ -27,13 +29,23 @@ export default function StatusColumn({
     queuePositions
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
+    
+    const { isOver, setNodeRef } = useDroppable({
+        id: status
+    });
+
     if (!cfg) return null;
 
     const allSelected = items.length > 0 && items.every(e => selectedIds.has(e.id));
     const someSelected = items.some(e => selectedIds.has(e.id));
 
     return (
-        <div className="flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+        <div 
+            ref={setNodeRef}
+            className={`flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-all duration-200 ${
+                isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 scale-[1.01]' : ''
+            }`}
+        >
             {/* Column Header */}
             <div className={`p-3.5 border-b-2 ${cfg.border} bg-surface-elevated/50`}>
                 <div className="flex items-center justify-between mb-1.5">
@@ -46,13 +58,14 @@ export default function StatusColumn({
                     </div>
                     <div className="flex items-center gap-1">
                         {items.length > 0 && (
-                            <button
-                                onClick={() => handleCopyEmails(items, cfg.label)}
-                                className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
-                                title={`Copy all ${cfg.label} emails`}
-                            >
-                                <Copy size={14} />
-                            </button>
+                            <CustomTooltip content={`Copy all ${cfg.label} emails`}>
+                                <button
+                                    onClick={() => handleCopyEmails(items, cfg.label)}
+                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                >
+                                    <Copy size={14} />
+                                </button>
+                            </CustomTooltip>
                         )}
                         {items.length > 0 && (
                             <button

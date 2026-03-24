@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText } from 'lucide-react';
+import { DndContext, DragEndEvent, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -228,6 +229,24 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setDeleteTarget(null);
     }
 
+    const sensors = useSensors(
+        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
+    );
+
+    async function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+        if (!over) return;
+        
+        const enrollmentId = active.id as string;
+        const oldStatus = active.data.current?.status;
+        const newStatus = over.id as string;
+        
+        if (oldStatus && newStatus && oldStatus !== newStatus) {
+            await enrollmentsHook.updateStatus(enrollmentId, newStatus);
+        }
+    }
+
     return (
         <div className="h-full flex flex-col space-y-4 pb-8">
             <FilterBar
@@ -251,9 +270,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 statusCounts={statusCounts}
             />
 
-            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {PIPELINE_STATUSES.map(status => (
-                    <StatusColumn
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    {PIPELINE_STATUSES.map(status => (
+                        <StatusColumn
                         key={status}
                         status={status}
                         items={byStatus[status] || []}
@@ -266,7 +286,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         queuePositions={queuePositions}
                     />
                 ))}
-            </div>
+                </div>
+            </DndContext>
 
             {/* Secondary Statuses */}
             {secondaryCount > 0 && (
@@ -353,12 +374,14 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
             <BulkActionBar
                 selectedCount={bulkActions.selectedIds.size}
+                selectedEnrollments={enrollments.filter(e => bulkActions.selectedIds.has(e.id))}
                 generatingDocs={bulkActions.generatingDocs}
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
                 bulkUpdateStatus={bulkActions.bulkUpdateStatus}
                 handleGenerateDocuments={bulkActions.handleGenerateDocuments}
                 setBulkDeleteOpen={setBulkDeleteOpen}
                 clearSelection={bulkActions.clearSelection}
+                toggleSelect={bulkActions.toggleSelect}
             />
 
             {/* Modals go here */}

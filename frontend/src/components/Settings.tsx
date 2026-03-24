@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
@@ -7,13 +7,16 @@ import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appCon
 export default function Settings() {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
     const [saved, setSaved] = useState(false);
-    const [showPreview, setShowPreview] = useState(false);
+    const [showPreview, setShowPreview] = useState(true);
+
+    const isValidTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
 
     const handleSave = useCallback(() => {
+        if (!isValidTemplate) return;
         setConfig(config);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-    }, [config]);
+    }, [config, isValidTemplate]);
 
     const handleReset = useCallback(() => {
         const defaults = resetConfig();
@@ -23,6 +26,7 @@ export default function Settings() {
     }, []);
 
     const hasChanges = JSON.stringify(config) !== JSON.stringify(getConfig());
+    const canSave = hasChanges && isValidTemplate;
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
@@ -38,7 +42,7 @@ export default function Settings() {
         .replace(/\{date\}/g, '15 Mar 2026');
 
     return (
-        <div className="space-y-6 pb-8 max-w-3xl">
+        <div className="space-y-6 pb-8 max-w-5xl">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -60,10 +64,10 @@ export default function Settings() {
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={!hasChanges}
+                        disabled={!canSave}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-all ${saved
                             ? 'bg-success/20 text-success border border-success/30'
-                            : hasChanges
+                            : canSave
                                 ? 'bg-brand-500 text-white hover:bg-brand-600 shadow-md shadow-brand-500/20'
                                 : 'bg-surface-elevated text-muted border border-border-subtle cursor-not-allowed'
                             }`}
@@ -95,40 +99,49 @@ export default function Settings() {
                     </button>
                 </div>
 
-                <div className="p-5 space-y-4">
-                    {/* Placeholder hints */}
-                    <div className="flex items-start gap-2 p-3 bg-info/5 border border-info/10 rounded-xl">
-                        <Info size={14} className="text-info mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-muted leading-relaxed">
-                            Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseTitle}'}</code> — course name,{' '}
-                            <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{date}'}</code> — invite date,{' '}
-                            <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationLink}'}</code> — raw URL,{' '}
-                            <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled HTML button
-                        </p>
-                    </div>
+                <div className={`p-5 grid grid-cols-1 ${showPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
+                    <div className="space-y-4">
+                        {/* Placeholder hints */}
+                        <div className="flex items-start gap-2 p-3 bg-info/5 border border-info/10 rounded-xl">
+                            <Info size={14} className="text-info mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-muted leading-relaxed">
+                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseTitle}'}</code> — course name,{' '}
+                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{date}'}</code> — invite date,{' '}
+                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationLink}'}</code> — raw URL,{' '}
+                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled HTML button
+                            </p>
+                        </div>
 
-                    <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
-                        <ReactQuill 
-                            theme="snow"
-                            value={config.htmlEmailTemplate}
-                            onChange={(content) => setLocalConfig({ ...config, htmlEmailTemplate: content })}
-                            modules={{
-                                toolbar: [
-                                    ['bold', 'italic', 'underline', 'strike'],
-                                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                    ['link'],
-                                    ['clean'],
-                                    [{ 'font': [] }],
-                                    [{ 'color': [] }, { 'background': [] }],
-                                ]
-                            }}
-                        />
+                        <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
+                            <ReactQuill 
+                                theme="snow"
+                                value={config.htmlEmailTemplate}
+                                onChange={(content) => setLocalConfig({ ...config, htmlEmailTemplate: content })}
+                                modules={{
+                                    toolbar: [
+                                        ['bold', 'italic', 'underline', 'strike'],
+                                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                        ['link'],
+                                        ['clean'],
+                                        [{ 'font': [] }],
+                                        [{ 'color': [] }, { 'background': [] }],
+                                    ]
+                                }}
+                            />
+                        </div>
+
+                        {!isValidTemplate && (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fadeIn">
+                                <AlertTriangle size={16} className="flex-shrink-0" />
+                                <span><strong>Warning:</strong> Template must include at least one confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Preview */}
                     {showPreview && (
-                        <div className="space-y-3 animate-fadeIn">
-                            <div className="text-xs font-bold text-muted uppercase tracking-wider">Preview</div>
+                        <div className="space-y-3 animate-fadeIn h-full">
+                            <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
                             <div className="p-4 bg-background border border-border-subtle rounded-xl">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>

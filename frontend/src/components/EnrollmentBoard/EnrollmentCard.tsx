@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap } from 'lucide-react';
+import { CustomTooltip } from '../ui/Tooltip';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatShortDate, formatDateLong } from '../../lib/dateUtils';
@@ -27,6 +30,17 @@ export default function EnrollmentCard({
     const cfg = STATUS_CONFIG[status];
     const [now, setNow] = useState(() => Date.now());
 
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: enrollment.id,
+        data: { status }
+    });
+
+    const style = transform ? {
+        transform: CSS.Translate.toString(transform),
+        zIndex: isDragging ? 50 : undefined,
+        opacity: isDragging ? 0.3 : 1,
+    } : undefined;
+
     useEffect(() => {
         if (status === 'invited') {
             const interval = setInterval(() => setNow(Date.now()), 60000);
@@ -36,15 +50,15 @@ export default function EnrollmentCard({
 
     return (
         <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
             className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
                 ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
                 : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
                 }`}
             onClick={() => toggleSelect(enrollment.id)}
-            title={[
-                enrollment.students?.email,
-                enrollment.students?.phone,
-            ].filter(Boolean).join(' • ') || undefined}
         >
             <div className="flex items-start gap-3">
                 {/* Left Actions Column */}
@@ -60,29 +74,31 @@ export default function EnrollmentCard({
                     </div>
 
                     {/* Star Priority */}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            togglePriority(enrollment.id, !!enrollment.is_priority);
-                        }}
-                        className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
-                            ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                            : 'text-muted/40 hover:text-warning/60'
-                            }`}
-                        title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
-                    >
-                        <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                    </button>
+                    <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"} side="right">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                togglePriority(enrollment.id, !!enrollment.is_priority);
+                            }}
+                            className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
+                                ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                                : 'text-muted/40 hover:text-warning/60'
+                                }`}
+                        >
+                            <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                        </button>
+                    </CustomTooltip>
 
                     {/* Queue Number */}
                     {status === 'requested' && queuePosition !== undefined && (
                         <div className="flex-shrink-0 mt-0.5">
-                            <span
-                                className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
-                                title="Position in queue for this course"
-                            >
-                                #{queuePosition}
-                            </span>
+                            <CustomTooltip content="Position in queue for this course" side="right">
+                                <span
+                                    className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
+                                >
+                                    #{queuePosition}
+                                </span>
+                            </CustomTooltip>
                         </div>
                     )}
 
@@ -97,9 +113,11 @@ export default function EnrollmentCard({
                         if (isExpired) {
                             const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
-                                <div className="flex-shrink-0 mt-0.5" title={`Expired • Invited on ${invitedDate}`}>
-                                    <Timer size={16} className="text-red-400 drop-shadow-sm" />
-                                </div>
+                                <CustomTooltip content={`Expired • Invited on ${invitedDate}`} side="right">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        <Timer size={16} className="text-red-400 drop-shadow-sm" />
+                                    </div>
+                                </CustomTooltip>
                             );
                         }
 
@@ -107,9 +125,11 @@ export default function EnrollmentCard({
                         const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
                         const timerText = days > 0 ? `${days}d ${hours}h remaining` : `${hours}h remaining`;
                         return (
-                            <div className="flex-shrink-0 mt-0.5" title={timerText}>
-                                <Timer size={16} className="text-muted-strong drop-shadow-sm" />
-                            </div>
+                            <CustomTooltip content={timerText} side="right">
+                                <div className="flex-shrink-0 mt-0.5">
+                                    <Timer size={16} className="text-muted-strong drop-shadow-sm" />
+                                </div>
+                            </CustomTooltip>
                         );
                     })()}
                 </div>
@@ -123,16 +143,17 @@ export default function EnrollmentCard({
                             </span>
                         </p>
                         {/* ✏ Edit Note */}
-                        <button
-                            onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                            className={`p-1 rounded-md transition-all ${enrollment.notes
-                                ? 'text-brand-500 hover:bg-brand-500/10'
-                                : 'text-muted/40 hover:text-muted hover:bg-surface'
-                                }`}
-                            title="Edit Note"
-                        >
-                            <Pencil size={14} />
-                        </button>
+                        <CustomTooltip content="Edit Note" side="top">
+                            <button
+                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                className={`p-1 rounded-md transition-all ${enrollment.notes
+                                    ? 'text-brand-500 hover:bg-brand-500/10'
+                                    : 'text-muted/40 hover:text-muted hover:bg-surface'
+                                    }`}
+                            >
+                                <Pencil size={14} />
+                            </button>
+                        </CustomTooltip>
                     </div>
 
                     {/* Course pill */}
