@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap } from 'lucide-react';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatShortDate, formatDateLong } from '../../lib/dateUtils';
@@ -16,6 +15,7 @@ interface EnrollmentCardProps {
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
     openEditNote: (enrollment: EnrollmentRow) => void;
+    isOverlay?: boolean;
 }
 
 export default function EnrollmentCard({
@@ -25,21 +25,21 @@ export default function EnrollmentCard({
     toggleSelect,
     togglePriority,
     queuePosition,
-    openEditNote
+    openEditNote,
+    isOverlay
 }: EnrollmentCardProps) {
     const cfg = STATUS_CONFIG[status];
     const [now, setNow] = useState(() => Date.now());
 
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: enrollment.id,
-        data: { status }
+        data: { status },
+        disabled: isOverlay
     });
 
-    const style = transform ? {
-        transform: CSS.Translate.toString(transform),
-        zIndex: isDragging ? 50 : undefined,
-        opacity: isDragging ? 0.3 : 1,
-    } : undefined;
+    const style = {
+        opacity: isDragging && !isOverlay ? 0.3 : 1,
+    };
 
     useEffect(() => {
         if (status === 'invited') {
@@ -50,11 +50,11 @@ export default function EnrollmentCard({
 
     return (
         <div
-            ref={setNodeRef}
+            ref={isOverlay ? undefined : setNodeRef}
             style={style}
-            {...attributes}
-            {...listeners}
-            className={`group relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
+            {...(isOverlay ? {} : attributes)}
+            {...(isOverlay ? {} : listeners)}
+            className={`group relative p-3 rounded-xl border transition-all ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 scale-[1.02] bg-surface z-[100] rotate-2' : 'cursor-pointer'} ${isSelected
                 ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
                 : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
                 }`}

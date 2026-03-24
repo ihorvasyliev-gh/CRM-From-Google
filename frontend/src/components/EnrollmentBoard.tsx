@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText } from 'lucide-react';
-import { DndContext, DragEndEvent, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -12,6 +12,7 @@ import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } fr
 
 import FilterBar from './EnrollmentBoard/FilterBar';
 import StatusColumn from './EnrollmentBoard/StatusColumn';
+import EnrollmentCard from './EnrollmentBoard/EnrollmentCard';
 import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -35,6 +36,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [confirmDate, setConfirmDate] = useState(todayISO());
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
+    const [activeId, setActiveId] = useState<string | null>(null);
 
     // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
@@ -235,6 +237,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     );
 
     async function handleDragEnd(event: DragEndEvent) {
+        setActiveId(null);
         const { active, over } = event;
         if (!over) return;
         
@@ -245,6 +248,14 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (oldStatus && newStatus && oldStatus !== newStatus) {
             await enrollmentsHook.updateStatus(enrollmentId, newStatus);
         }
+    }
+
+    function handleDragStart(event: DragStartEvent) {
+        setActiveId(event.active.id as string);
+    }
+
+    function handleDragCancel() {
+        setActiveId(null);
     }
 
     return (
@@ -270,7 +281,13 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 statusCounts={statusCounts}
             />
 
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext 
+                sensors={sensors} 
+                collisionDetection={closestCenter} 
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+            >
                 <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {PIPELINE_STATUSES.map(status => (
                         <StatusColumn
@@ -287,6 +304,25 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                     />
                 ))}
                 </div>
+
+                <DragOverlay>
+                    {activeId ? (() => {
+                        const activeEnrollment = enrollments.find(e => e.id === activeId);
+                        if (!activeEnrollment) return null;
+                        return (
+                            <EnrollmentCard
+                                enrollment={activeEnrollment}
+                                status={activeEnrollment.status}
+                                isSelected={bulkActions.selectedIds.has(activeId)}
+                                toggleSelect={bulkActions.toggleSelect}
+                                togglePriority={enrollmentsHook.togglePriority}
+                                openEditNote={openEditNote}
+                                queuePosition={queuePositions.get(activeId)}
+                                isOverlay
+                            />
+                        );
+                    })() : null}
+                </DragOverlay>
             </DndContext>
 
             {/* Secondary Statuses */}
