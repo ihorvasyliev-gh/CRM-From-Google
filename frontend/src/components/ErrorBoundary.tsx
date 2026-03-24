@@ -22,6 +22,21 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error('Uncaught error in ErrorBoundary:', error, errorInfo);
+
+        // Handle Vite chunk loading errors automatically
+        const isChunkLoadError = error.message?.includes('Failed to fetch dynamically imported module') || 
+                                 error.message?.includes('Importing a module script failed');
+                                 
+        if (isChunkLoadError) {
+            const lastReload = sessionStorage.getItem('chunk_load_error_time');
+            const now = Date.now();
+            const isRecent = lastReload && (now - parseInt(lastReload, 10)) < 10000; // Prevent infinite reload loops (10s threshold)
+
+            if (!isRecent) {
+                sessionStorage.setItem('chunk_load_error_time', now.toString());
+                window.location.reload();
+            }
+        }
     }
 
     private handleReload = () => {
