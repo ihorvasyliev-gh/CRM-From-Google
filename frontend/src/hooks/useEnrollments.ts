@@ -132,6 +132,30 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             if (error) throw new Error('Error updating status');
             return { id, updatePayload, type: 'single' as const };
         },
+        onMutate: async ({ id, newStatus, confirmedDate, invitedDate }) => {
+            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
+            
+            setEnrollments(prev => prev.map(e => {
+                if (e.id === id) {
+                    const optimisticUpdate: Partial<EnrollmentRow> = { status: newStatus as any };
+                    if (newStatus === 'confirmed' && confirmedDate) optimisticUpdate.confirmed_date = confirmedDate;
+                    if (newStatus === 'invited' && invitedDate) optimisticUpdate.invited_date = invitedDate;
+                    if (newStatus === 'completed') optimisticUpdate.completed_date = e.confirmed_date || todayISO();
+                    else optimisticUpdate.completed_date = null;
+
+                    if (newStatus === 'requested' || newStatus === 'rejected') {
+                        optimisticUpdate.confirmed_date = null;
+                        optimisticUpdate.invited_date = null;
+                        optimisticUpdate.invited_at = null;
+                    }
+                    return { ...e, ...optimisticUpdate } as EnrollmentRow;
+                }
+                return e;
+            }));
+
+            return { previousEnrollments };
+        },
         onSuccess: (result) => {
             if (result.type === 'completed') {
                 setEnrollments(prev => prev
@@ -151,7 +175,10 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
                 ));
             }
         },
-        onError: () => showToast('Error updating status', 'error')
+        onError: (_err, _variables, context) => {
+            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+            showToast('Error updating status', 'error');
+        }
     });
 
     async function updateStatus(id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) {

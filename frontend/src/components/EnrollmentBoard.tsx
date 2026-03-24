@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useDebounce } from '../hooks/useDebounce';
 
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
@@ -38,6 +39,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
     const [selectedVariant, setSelectedVariant] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [showSecondary, setShowSecondary] = useState(false);
@@ -77,7 +79,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (selectedVariant !== 'all') {
             result = result.filter(e => (e.course_variant || '').trim().toLowerCase() === selectedVariant.toLowerCase());
         }
-        if (searchQuery.trim()) {
+        if (debouncedSearchQuery.trim()) {
             result = result.filter(e =>
                 matchesSearch({
                     firstName: e.students?.first_name,
@@ -85,7 +87,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                     email: e.students?.email,
                     phone: e.students?.phone,
                     notes: e.notes,
-                }, searchQuery)
+                }, debouncedSearchQuery)
             );
         }
         if (dateFrom) {
@@ -98,7 +100,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             result = result.filter(e => new Date(e.created_at) <= to);
         }
         return result;
-    }, [enrollments, selectedCourse, selectedVariant, searchQuery, dateFrom, dateTo]);
+    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {

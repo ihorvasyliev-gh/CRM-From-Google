@@ -1,8 +1,5 @@
-import Docxtemplater from 'docxtemplater';
-import PizZip from 'pizzip';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
-import ExcelJS from 'exceljs';
+// Document generation libraries are imported dynamically in generateDocumentsArchive
+// to reduce the main bundle size and improve initial load time.
 import { supabase } from './supabase';
 import { Student, Course, Enrollment } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
@@ -72,6 +69,22 @@ export async function generateDocumentsArchive(
     labelTemplateStoragePath?: string,
     excelColumns?: ExcelColumn[]
 ): Promise<GenerationResult> {
+    // Dynamically import heavy libraries for document generation
+    const JSZipModule = await import('jszip');
+    const JSZip = JSZipModule.default || JSZipModule;
+    
+    const PizZipModule = await import('pizzip');
+    const PizZip = PizZipModule.default || PizZipModule;
+    
+    const DocxtemplaterModule = await import('docxtemplater');
+    const Docxtemplater = DocxtemplaterModule.default || DocxtemplaterModule;
+    
+    const FileSaverModule = await import('file-saver');
+    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
+    
+    const ExcelJSModule = await import('exceljs');
+    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+
     const zip = new JSZip();
     const useSubfolders = templates.length > 1;
 

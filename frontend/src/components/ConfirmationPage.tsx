@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap } from 'lucide-react';
 
-type PageState = 'loading' | 'form' | 'submitting' | 'success' | 'error' | 'invalid';
+type PageState = 'loading' | 'form' | 'success' | 'invalid';
 
 export default function ConfirmationPage() {
     const [state, setState] = useState<PageState>('loading');
@@ -11,7 +11,8 @@ export default function ConfirmationPage() {
     const [courseDate, setCourseDate] = useState('');
     const [email, setEmail] = useState('');
     const [resultMessage, setResultMessage] = useState('');
-    const [isSuccess, setIsSuccess] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [inlineError, setInlineError] = useState('');
 
     const resolveToken = useCallback(async (token: string) => {
         const { data, error } = await supabase.rpc('resolve_confirmation_token', { p_token: token });
@@ -63,24 +64,27 @@ export default function ConfirmationPage() {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!email.trim()) return;
-        setState('submitting');
+        if (!email.trim() || isSubmitting) return;
+        setIsSubmitting(true);
+        setInlineError('');
 
         const { data, error } = await supabase.rpc('public_confirm_enrollment', {
             p_email: email.trim(),
             p_course_id: courseId,
         });
 
+        setIsSubmitting(false);
         if (error) {
-            setResultMessage('Something went wrong. Please try again later.');
-            setIsSuccess(false);
-            setState('error');
+            setInlineError('Something went wrong. Please try again later.');
             return;
         }
 
-        setResultMessage(data.message);
-        setIsSuccess(data.success);
-        setState(data.success ? 'success' : 'error');
+        if (data.success) {
+            setResultMessage(data.message);
+            setState('success');
+        } else {
+            setInlineError(data.message || 'Confirmation failed.');
+        }
     }
 
     // ─── Render ─────────────────────────────────────────────
@@ -158,14 +162,15 @@ export default function ConfirmationPage() {
                                         Your Email Address
                                     </label>
                                     <div className="relative">
-                                        <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                        <Mail size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-zinc-600' : 'text-zinc-500'}`} />
                                         <input
                                             type="email"
                                             required
                                             value={email}
+                                            disabled={isSubmitting}
                                             onChange={(e) => setEmail(e.target.value)}
                                             placeholder="Enter the email you registered with"
-                                            className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                            className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     <p className="text-xs text-zinc-600 mt-2">
@@ -173,28 +178,37 @@ export default function ConfirmationPage() {
                                     </p>
                                 </div>
 
+                                {inlineError && (
+                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
+                                        <AlertCircle size={16} className="shrink-0" />
+                                        <p>{inlineError}</p>
+                                    </div>
+                                )}
+
                                 <button
                                     type="submit"
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 transition-all active:scale-[0.98]"
+                                    disabled={isSubmitting}
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed"
                                 >
-                                    <span className="text-xl">✓</span>
-                                    <span>Confirm My Participation</span>
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 size={24} className="animate-spin text-white/70" />
+                                            <span>Confirming...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xl">✓</span>
+                                            <span>Confirm My Participation</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
                     )}
 
-                    {/* ─── Submitting ─── */}
-                    {state === 'submitting' && (
-                        <div className="p-12 flex flex-col items-center gap-4">
-                            <Loader2 size={32} className="animate-spin text-indigo-500" />
-                            <p className="text-zinc-400 text-sm">Confirming your attendance...</p>
-                        </div>
-                    )}
-
                     {/* ─── Success ─── */}
                     {state === 'success' && (
-                        <div className="p-12 flex flex-col items-center gap-4 text-center">
+                        <div className="p-12 flex flex-col items-center gap-4 text-center animate-fadeIn">
                             <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
                                 <CheckCircle size={32} className="text-emerald-400" />
                             </div>
@@ -213,24 +227,6 @@ export default function ConfirmationPage() {
                         </div>
                     )}
 
-                    {/* ─── Error ─── */}
-                    {state === 'error' && (
-                        <div className="p-12 flex flex-col items-center gap-4 text-center">
-                            <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center">
-                                <AlertCircle size={32} className="text-red-400" />
-                            </div>
-                            <h2 className="text-xl font-bold">{isSuccess ? 'Notice' : 'Confirmation Failed'}</h2>
-                            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">
-                                {resultMessage}
-                            </p>
-                            <button
-                                onClick={() => { setState('form'); setEmail(''); }}
-                                className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
-                            >
-                                ← Try again
-                            </button>
-                        </div>
-                    )}
                 </div>
 
                 {/* Footer */}
