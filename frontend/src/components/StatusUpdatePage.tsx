@@ -1,13 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, AlertCircle, Loader2, Mail, Briefcase, Clock, Building2 } from 'lucide-react';
 
-type PageState = 'loading' | 'form' | 'success' | 'invalid';
+type PageState = 'form' | 'success';
 
 export default function StatusUpdatePage() {
-    const [state, setState] = useState<PageState>('loading');
-    const [studentName, setStudentName] = useState('');
-    const [prefillEmail, setPrefillEmail] = useState('');
+    const [state, setState] = useState<PageState>('form');
     const [email, setEmail] = useState('');
     const [isWorking, setIsWorking] = useState<boolean | null>(null);
     const [startedMonth, setStartedMonth] = useState('');
@@ -16,30 +14,6 @@ export default function StatusUpdatePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [inlineError, setInlineError] = useState('');
     const [resultMessage, setResultMessage] = useState('');
-
-    const resolveToken = useCallback(async (token: string) => {
-        const { data, error } = await supabase.rpc('resolve_status_token', { p_token: token });
-        if (error || !data || data.length === 0) {
-            setState('invalid');
-            return;
-        }
-        const row = data[0];
-        setStudentName(`${row.first_name || ''} ${row.last_name || ''}`.trim());
-        setPrefillEmail(row.email || '');
-        setEmail(row.email || '');
-        setState('form');
-    }, []);
-
-    useEffect(() => {
-        const path = window.location.pathname;
-        if (path.startsWith('/s/')) {
-            const token = path.split('/s/')[1];
-            if (!token) { setState('invalid'); return; }
-            resolveToken(token);
-        } else {
-            setState('invalid');
-        }
-    }, [resolveToken]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -51,11 +25,7 @@ export default function StatusUpdatePage() {
         setIsSubmitting(true);
         setInlineError('');
 
-        const path = window.location.pathname;
-        const token = path.split('/s/')[1] || '';
-
         const { data, error } = await supabase.rpc('submit_employment_status', {
-            p_token: token,
             p_email: email.trim(),
             p_is_working: isWorking,
             p_started_month: isWorking ? startedMonth || null : null,
@@ -113,28 +83,6 @@ export default function StatusUpdatePage() {
                 {/* Card */}
                 <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden">
 
-                    {/* ─── Loading ─── */}
-                    {state === 'loading' && (
-                        <div className="p-12 flex flex-col items-center gap-4">
-                            <Loader2 size={32} className="animate-spin text-violet-500" />
-                            <p className="text-zinc-400 text-sm">Loading your information...</p>
-                        </div>
-                    )}
-
-                    {/* ─── Invalid / Expired Link ─── */}
-                    {state === 'invalid' && (
-                        <div className="p-12 flex flex-col items-center gap-4 text-center">
-                            <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center">
-                                <AlertCircle size={28} className="text-red-400" />
-                            </div>
-                            <h2 className="text-xl font-bold">Invalid or Expired Link</h2>
-                            <p className="text-zinc-400 text-sm leading-relaxed">
-                                This status update link is invalid or has expired.
-                                Please contact the organizer for a new link.
-                            </p>
-                        </div>
-                    )}
-
                     {/* ─── Form ─── */}
                     {state === 'form' && (
                         <form onSubmit={handleSubmit}>
@@ -146,7 +94,7 @@ export default function StatusUpdatePage() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Employment status update</p>
-                                        <h2 className="text-lg font-bold text-white">Hi, {studentName}!</h2>
+                                        <h2 className="text-lg font-bold text-white">How are things going?</h2>
                                     </div>
                                 </div>
                                 <p className="text-sm text-zinc-400 leading-relaxed">
@@ -174,9 +122,6 @@ export default function StatusUpdatePage() {
                                             className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                     </div>
-                                    {prefillEmail && email === prefillEmail && (
-                                        <p className="text-xs text-zinc-600 mt-1.5">✓ Pre-filled from your records</p>
-                                    )}
                                 </div>
 
                                 {/* Are you working? */}

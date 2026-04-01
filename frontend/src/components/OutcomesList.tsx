@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Search, Mail, Copy, CheckCircle, Clock, AlertCircle, Send, Loader2, Filter, X } from 'lucide-react';
+import { Briefcase, Search, Mail, Copy, CheckCircle, Send, Loader2, Filter, X } from 'lucide-react';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
@@ -18,12 +18,12 @@ interface GraduateRow {
     field_of_work: string | null;
     employment_type: string | null;
     status_updated_at: string | null;
-    // Token tracking
-    token_status: 'not_contacted' | 'pending' | 'expired' | 'responded';
+    // Tracking
+    tracking_status: 'not_contacted' | 'invited' | 'responded';
     last_sent_at: string | null;
 }
 
-type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'expired' | 'responded';
+type OutcomeFilter = 'all' | 'not_contacted' | 'invited' | 'responded';
 
 export default function OutcomesList() {
     const [graduates, setGraduates] = useState<GraduateRow[]>([]);
@@ -57,14 +57,8 @@ export default function OutcomesList() {
             .from('employment_status')
             .select('*');
 
-        // Get all status_tokens
-        const { data: tokens } = await supabase
-            .from('status_tokens')
-            .select('*');
-
         // Build a map of unique students
         const studentMap = new Map<string, GraduateRow>();
-        const now = new Date();
 
         for (const e of enrollments) {
             const student = e.students as unknown as { id: string; first_name: string; last_name: string; email: string };
@@ -75,24 +69,9 @@ export default function OutcomesList() {
                 // Find employment status
                 const empStatus = empStatuses?.find(es => es.student_id === student.id);
 
-                // Find latest token for this student
-                const studentTokens = tokens
-                    ?.filter(t => t.student_id === student.id)
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
-
-                const latestToken = studentTokens[0];
-                let tokenStatus: GraduateRow['token_status'] = 'not_contacted';
-                let lastSentAt: string | null = null;
-
-                if (latestToken) {
-                    lastSentAt = latestToken.created_at;
-                    if (latestToken.responded_at) {
-                        tokenStatus = 'responded';
-                    } else if (new Date(latestToken.expires_at) < now) {
-                        tokenStatus = 'expired';
-                    } else {
-                        tokenStatus = 'pending';
-                    }
+                let trackingStatus: GraduateRow['tracking_status'] = 'not_contacted';
+                if (empStatus) {
+                    trackingStatus = empStatus.status as 'invited' | 'responded';
                 }
 
                 studentMap.set(student.id, {
@@ -105,9 +84,9 @@ export default function OutcomesList() {
                     started_month: empStatus?.started_month ?? null,
                     field_of_work: empStatus?.field_of_work ?? null,
                     employment_type: empStatus?.employment_type ?? null,
-                    status_updated_at: empStatus?.last_updated_at ?? null,
-                    token_status: tokenStatus,
-                    last_sent_at: lastSentAt,
+                    status_updated_at: empStatus?.last_responded_at ?? null,
+                    tracking_status: trackingStatus,
+                    last_sent_at: empStatus?.last_invited_at ?? null,
                 });
             } else {
                 // Add course to existing student
@@ -140,7 +119,7 @@ export default function OutcomesList() {
     const filtered = useMemo(() => {
         let result = graduates;
         if (filterStatus !== 'all') {
-            result = result.filter(g => g.token_status === filterStatus);
+            result = result.filter(g => g.tracking_status === filterStatus);
         }
         if (filterCourse !== 'all') {
             result = result.filter(g => g.courses.includes(filterCourse));
@@ -159,8 +138,8 @@ export default function OutcomesList() {
 
     // Status counts
     const statusCounts = useMemo(() => {
-        const counts = { all: graduates.length, not_contacted: 0, pending: 0, expired: 0, responded: 0 };
-        graduates.forEach(g => { counts[g.token_status]++; });
+        const counts = { all: graduates.length, not_contacted: 0, invited: 0, responded: 0 };
+        graduates.forEach(g => { counts[g.tracking_status]++; });
         return counts;
     }, [graduates]);
 
@@ -179,7 +158,7 @@ export default function OutcomesList() {
     }
 
     function selectAll() {
-        const allSelected = filtered.every(g => selectedIds.has(g.student_id));
+        const allSelected = filtered.length > 0 && filtered.every(g => selectedIds.has(g.student_id));
         setSelectedIds(prev => {
             const next = new Set(prev);
             filtered.forEach(g => {
@@ -203,87 +182,57 @@ export default function OutcomesList() {
         setSending(true);
 
         const selected = graduates.filter(g => selectedIds.has(g.student_id));
-        const tokenMap = new Map<string, string>(); // student_id → token
+        const ids = selected.map(g => g.student_id);
 
-        // Generate tokens for each selected student
-        for (const grad of selected) {
-            try {
-                const { data: token, error } = await supabase.rpc('create_status_token', {
-                    p_student_id: grad.student_id,
-                });
-                if (!error && token) {
-                    tokenMap.set(grad.student_id, token);
-                }
-            } catch (err) {
-                console.error('Token generation failed for', grad.email, err);
-            }
+        try {
+            // Update DB status to invited
+            await supabase.rpc('mark_students_outcomes_invited', {
+                p_student_ids: ids
+            });
+
+            // Build bulk generic email
+            const statusLink = `${window.location.origin}/status`;
+            const htmlBody = buildStatusEmailBodyHtml(statusLink);
+            const subject = encodeURIComponent(buildStatusEmailSubject());
+
+            const blobHtml = new Blob([htmlBody], { type: 'text/html' });
+            const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/html': blobHtml,
+                'text/plain': blobText,
+            })]);
+            
+            showToast(`Status requests sent to ${selected.length} graduate(s). Template copied!`, 'success');
+
+            // Open mailto with bcc
+            const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
+            const bcc = emails.map(e => encodeURIComponent(e)).join(',');
+            window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
+
+            // Refresh data to show updated token statuses
+            await fetchGraduates();
+            setSelectedIds(new Set());
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to send status requests.', 'error');
+        } finally {
+            setSending(false);
         }
-
-        // Build the email body using the first student as the template example
-        // Since links are personal, we can only copy a generic template + open mailto
-        const firstGrad = selected[0];
-        const firstToken = tokenMap.get(firstGrad.student_id) || '';
-        const statusLink = `${window.location.origin}/s/${firstToken}`;
-        const htmlBody = buildStatusEmailBodyHtml(firstGrad.first_name || 'there', statusLink);
-        const subject = encodeURIComponent(buildStatusEmailSubject());
-
-        // If only 1 student selected, copy their personal email body
-        // If multiple, copy a note about personal links
-        if (selected.length === 1) {
-            try {
-                const blobHtml = new Blob([htmlBody], { type: 'text/html' });
-                const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
-                await navigator.clipboard.write([new ClipboardItem({
-                    'text/html': blobHtml,
-                    'text/plain': blobText,
-                })]);
-                showToast('HTML template copied! Press Ctrl+V in your email.', 'success');
-            } catch {
-                showToast('Could not copy HTML to clipboard.', 'error');
-            }
-        } else {
-            // For bulk: copy individual links as a list
-            const linksList = selected.map(g => {
-                const t = tokenMap.get(g.student_id) || '?';
-                return `${g.first_name} ${g.last_name}: ${window.location.origin}/s/${t}`;
-            }).join('\n');
-
-            try {
-                await navigator.clipboard.writeText(
-                    `Personal status update links (expire in 7 days):\n\n${linksList}\n\nEach student needs their own unique link.`
-                );
-                showToast(`${selected.length} personal links copied! Send each link to the respective student.`, 'success');
-            } catch {
-                showToast('Could not copy links to clipboard.', 'error');
-            }
-        }
-
-        // Open mailto with bcc
-        const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
-        const bcc = emails.map(e => encodeURIComponent(e)).join(',');
-        window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
-
-        // Refresh data to show updated token statuses
-        await fetchGraduates();
-        setSelectedIds(new Set());
-        setSending(false);
     }
 
-    function getTokenStatusBadge(status: GraduateRow['token_status']) {
+    function getTrackingBadge(status: GraduateRow['tracking_status']) {
         switch (status) {
             case 'responded':
                 return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500"><CheckCircle size={10} /> Responded</span>;
-            case 'pending':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400"><Send size={10} /> Pending</span>;
-            case 'expired':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400"><AlertCircle size={10} /> No Response</span>;
+            case 'invited':
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400"><Send size={10} /> Invited</span>;
             default:
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-500/20 text-zinc-400"><Clock size={10} /> Not Contacted</span>;
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-500/20 text-zinc-400"><Mail size={10} /> Not Contacted</span>;
         }
     }
 
     function getEmploymentBadge(grad: GraduateRow) {
-        if (grad.is_working === null) {
+        if (grad.tracking_status !== 'responded') {
             return <span className="text-xs text-muted italic">No data</span>;
         }
         if (grad.is_working) {
@@ -330,8 +279,8 @@ export default function OutcomesList() {
                     <p className="text-2xl font-bold text-emerald-500 mt-1">{workingCount}</p>
                 </div>
                 <div className="bg-surface rounded-2xl border border-border-subtle p-4">
-                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Awaiting Response</p>
-                    <p className="text-2xl font-bold text-orange-500 mt-1">{statusCounts.pending + statusCounts.expired}</p>
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Pending Responses</p>
+                    <p className="text-2xl font-bold text-blue-500 mt-1">{statusCounts.invited}</p>
                 </div>
             </div>
 
@@ -379,7 +328,7 @@ export default function OutcomesList() {
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-muted">Status:</span>
                             <div className="flex gap-1">
-                                {(['all', 'not_contacted', 'pending', 'expired', 'responded'] as const).map(s => (
+                                {(['all', 'not_contacted', 'invited', 'responded'] as const).map(s => (
                                     <button
                                         key={s}
                                         onClick={() => setFilterStatus(s)}
@@ -389,7 +338,7 @@ export default function OutcomesList() {
                                                 : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
                                         }`}
                                     >
-                                        {s === 'all' ? 'All' : s === 'not_contacted' ? 'Not Contacted' : s === 'pending' ? 'Pending' : s === 'expired' ? 'No Response' : 'Responded'}
+                                        {s === 'all' ? 'All' : s === 'not_contacted' ? 'Not Contacted' : s === 'invited' ? 'Invited' : 'Responded'}
                                         {' '}({statusCounts[s]})
                                     </button>
                                 ))}
@@ -499,8 +448,8 @@ export default function OutcomesList() {
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
-                                                {getTokenStatusBadge(grad.token_status)}
-                                                {grad.last_sent_at && (
+                                                {getTrackingBadge(grad.tracking_status)}
+                                                {grad.tracking_status === 'invited' && grad.last_sent_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
@@ -547,9 +496,9 @@ export default function OutcomesList() {
                         className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {sending ? (
-                            <><Loader2 size={12} className="animate-spin" /> Generating...</>
+                            <><Loader2 size={12} className="animate-spin" /> Moving...</>
                         ) : (
-                            <><Mail size={12} /> Send Status Request</>
+                            <><Mail size={12} /> Send Email & Move to Invited</>
                         )}
                     </button>
                     <button

@@ -22,7 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     <Routes>
                         <Route path="/confirm" element={<ConfirmationPage />} />
                         <Route path="/c/:token" element={<ConfirmationPage />} />
-                        <Route path="/s/:token" element={<StatusUpdatePage />} />
+                        <Route path="/status" element={<StatusUpdatePage />} />
                         <Route path="/*" element={
                             <AuthProvider>
                                 <App />

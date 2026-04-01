@@ -43,10 +43,9 @@ export default function Settings() {
         .replace(/\{date\}/g, '15 Mar 2026');
 
     // Status template preview
-    const statusLinkStr = 'https://example.com/s/Xk9mQ2';
+    const statusLinkStr = 'https://example.com/status';
     const statusButtonHtml = `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color: #7c3aed; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><a href="${statusLinkStr}" target="_blank" style="display: inline-block; font-size: 18px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 16px 36px; border: 1px solid #7c3aed; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">📝 Update My Status</a></td></tr></table>`;
     const statusPreviewBody = config.statusEmailTemplate
-        .replace(/\{firstName\}/g, 'John')
         .replace(/\{statusLink\}/g, statusLinkStr)
         .replace(/\{statusButton\}/g, statusButtonHtml);
 
@@ -226,7 +225,7 @@ export default function Settings() {
                         <div className="flex items-start gap-2 p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
                             <Info size={14} className="text-violet-500 mt-0.5 flex-shrink-0" />
                             <p className="text-xs text-muted leading-relaxed">
-                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{firstName}'}</code> — student name,{' '}
+                                Available placeholders:{' '}
                                 <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusLink}'}</code> — raw URL,{' '}
                                 <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusButton}'}</code> — styled HTML button
                             </p>
