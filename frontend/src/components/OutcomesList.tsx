@@ -108,6 +108,21 @@ export default function OutcomesList() {
 
     useEffect(() => {
         fetchGraduates();
+
+        const channel = supabase
+            .channel('outcomes_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'employment_status' },
+                () => {
+                    fetchGraduates();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchGraduates]);
 
     // Unique courses for filter
