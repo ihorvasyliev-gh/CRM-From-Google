@@ -17,6 +17,10 @@ export interface AppConfig {
     dateFormat: 'en-IE' | 'en-US' | 'ISO';
     /** Columns to include in the Excel spreadsheet exported with the archive */
     excelColumns: ExcelColumn[];
+    /** HTML Email body template for status clarification. Supports: {firstName}, {statusButton}, {statusLink} */
+    statusEmailTemplate: string;
+    /** Email subject for status clarification emails */
+    statusEmailSubjectFormat: string;
 }
 
 const STORAGE_KEY = 'crm_app_config';
@@ -62,6 +66,30 @@ export const DEFAULT_CONFIG: AppConfig = {
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     dateFormat: 'en-IE',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
+    statusEmailTemplate: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; padding: 16px 12px;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+    <!-- Header -->
+    <div style="background-color: #7c3aed; padding: 18px 24px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Quick Status Update</h1>
+    </div>
+    
+    <!-- Body -->
+    <div style="padding: 20px 24px;">
+      <p style="margin: 0 0 12px 0; font-size: 15px; color: #374151; line-height: 1.5;">Hi {firstName},</p>
+      <p style="margin: 0 0 12px 0; font-size: 15px; color: #374151; line-height: 1.5;">We hope you're doing well! As a graduate of our programme, we'd love to hear how things are going for you.</p>
+      <p style="margin: 0 0 16px 0; font-size: 15px; color: #374151; line-height: 1.5;">Could you take 30 seconds to let us know your current employment status? This helps us understand the impact of our courses and improve our programmes.</p>
+      
+      <div style="text-align: center; margin: 0 0 16px 0; padding: 16px 0; background-color: #f5f3ff; border-radius: 8px; border: 2px dashed #7c3aed;">
+        <p style="margin: 0 0 12px 0; font-size: 16px; font-weight: 700; color: #7c3aed;">👇 TAP THE BUTTON BELOW 👇</p>
+        {statusButton}
+      </div>
+      
+      <p style="margin: 0 0 8px 0; font-size: 13px; color: #94a3b8; line-height: 1.5; text-align: center;">This link will expire in 7 days.</p>
+      <p style="margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5; text-align: center;">Your information is confidential and used only for internal statistics.</p>
+    </div>
+  </div>
+</div>`,
+    statusEmailSubjectFormat: 'Quick Status Update — How are things going?',
 };
 
 /** Read the full config, merging saved values over defaults. */
@@ -111,4 +139,21 @@ export function buildEmailSubject(courseName: string, date: string): string {
     return config.emailSubjectFormat
         .replace(/\{courseName\}/g, courseName)
         .replace(/\{date\}/g, date);
+}
+
+/** Build the status clarification email body HTML. */
+export function buildStatusEmailBodyHtml(firstName: string, statusLink: string): string {
+    const config = getConfig();
+    const buttonHtml = `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color: #7c3aed; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><a href="${statusLink}" target="_blank" style="display: inline-block; font-size: 18px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 16px 36px; border: 1px solid #7c3aed; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">📝 Update My Status</a></td></tr></table>`;
+
+    return config.statusEmailTemplate
+        .replace(/\{firstName\}/g, firstName)
+        .replace(/\{statusLink\}/g, statusLink)
+        .replace(/\{statusButton\}/g, buttonHtml);
+}
+
+/** Build the status clarification email subject. */
+export function buildStatusEmailSubject(): string {
+    const config = getConfig();
+    return config.statusEmailSubjectFormat;
 }

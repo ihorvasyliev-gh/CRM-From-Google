@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
@@ -10,9 +10,10 @@ export default function Settings() {
     const [showPreview, setShowPreview] = useState(true);
 
     const isValidTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
+    const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
 
     const handleSave = useCallback(() => {
-        if (!isValidTemplate) return;
+        if (!isValidTemplate || !isValidStatusTemplate) return;
         setConfig(config);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -26,7 +27,7 @@ export default function Settings() {
     }, []);
 
     const hasChanges = JSON.stringify(config) !== JSON.stringify(getConfig());
-    const canSave = hasChanges && isValidTemplate;
+    const canSave = hasChanges && isValidTemplate && isValidStatusTemplate;
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
@@ -40,6 +41,16 @@ export default function Settings() {
     const previewSubject = config.emailSubjectFormat
         .replace(/\{courseName\}/g, 'Introduction to Digital Skills')
         .replace(/\{date\}/g, '15 Mar 2026');
+
+    // Status template preview
+    const statusLinkStr = 'https://example.com/s/Xk9mQ2';
+    const statusButtonHtml = `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color: #7c3aed; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><a href="${statusLinkStr}" target="_blank" style="display: inline-block; font-size: 18px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 16px 36px; border: 1px solid #7c3aed; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">📝 Update My Status</a></td></tr></table>`;
+    const statusPreviewBody = config.statusEmailTemplate
+        .replace(/\{firstName\}/g, 'John')
+        .replace(/\{statusLink\}/g, statusLinkStr)
+        .replace(/\{statusButton\}/g, statusButtonHtml);
+
+    const [showStatusPreview, setShowStatusPreview] = useState(true);
 
     return (
         <div className="space-y-6 pb-8 max-w-5xl">
@@ -184,6 +195,108 @@ export default function Settings() {
                         onChange={e => setLocalConfig({ ...config, emailSubjectFormat: e.target.value })}
                         className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
                         placeholder="e.g. {courseName} — {date}"
+                    />
+                </div>
+            </section>
+
+            {/* ═══ Status Clarification Template ═══ */}
+            <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-violet-500/10 rounded-lg">
+                            <Briefcase size={16} className="text-violet-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-primary">Status Clarification Template</h3>
+                            <p className="text-xs text-muted mt-0.5">Email sent to graduates to check employment status</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowStatusPreview(!showStatusPreview)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
+                    >
+                        {showStatusPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {showStatusPreview ? 'Hide' : 'Preview'}
+                    </button>
+                </div>
+
+                <div className={`p-5 grid grid-cols-1 ${showStatusPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
+                    <div className="space-y-4">
+                        {/* Placeholder hints */}
+                        <div className="flex items-start gap-2 p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
+                            <Info size={14} className="text-violet-500 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-muted leading-relaxed">
+                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{firstName}'}</code> — student name,{' '}
+                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusLink}'}</code> — raw URL,{' '}
+                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusButton}'}</code> — styled HTML button
+                            </p>
+                        </div>
+
+                        <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
+                            <ReactQuill
+                                theme="snow"
+                                value={config.statusEmailTemplate}
+                                onChange={(content) => setLocalConfig({ ...config, statusEmailTemplate: content })}
+                                modules={{
+                                    toolbar: [
+                                        ['bold', 'italic', 'underline', 'strike'],
+                                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                        ['link'],
+                                        ['clean'],
+                                        [{ 'font': [] }],
+                                        [{ 'color': [] }, { 'background': [] }],
+                                    ]
+                                }}
+                            />
+                        </div>
+
+                        {!isValidStatusTemplate && (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fadeIn">
+                                <AlertTriangle size={16} className="flex-shrink-0" />
+                                <span><strong>Warning:</strong> Template must include at least one status tag (<code>{'{statusButton}'}</code> or <code>{'{statusLink}'}</code>).</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Preview */}
+                    {showStatusPreview && (
+                        <div className="space-y-3 animate-fadeIn h-full">
+                            <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
+                            <div className="p-4 bg-background border border-border-subtle rounded-xl">
+                                <div className="text-xs text-muted mb-2">
+                                    <span className="font-semibold">Subject: </span>
+                                    <span className="text-primary">{config.statusEmailSubjectFormat}</span>
+                                </div>
+                                <hr className="border-border-subtle mb-3" />
+                                <div className="bg-white text-gray-900 rounded-lg overflow-hidden border border-border-subtle p-6 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-violet-500 [&_a]:underline [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_p]:mb-2">
+                                    <div dangerouslySetInnerHTML={{ __html: statusPreviewBody }} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* ═══ Status Email Subject ═══ */}
+            <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-violet-500/10 rounded-lg">
+                            <Type size={16} className="text-violet-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-primary">Status Email Subject</h3>
+                            <p className="text-xs text-muted mt-0.5">Subject line for status clarification emails</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="p-5">
+                    <input
+                        type="text"
+                        value={config.statusEmailSubjectFormat}
+                        onChange={e => setLocalConfig({ ...config, statusEmailSubjectFormat: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 transition-all text-primary placeholder:text-muted/40"
+                        placeholder="e.g. Quick Status Update"
                     />
                 </div>
             </section>

@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './contexts/AuthContext'
 import App from './App.tsx'
 import ConfirmationPage from './components/ConfirmationPage'
+import StatusUpdatePage from './components/StatusUpdatePage'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     <Routes>
                         <Route path="/confirm" element={<ConfirmationPage />} />
                         <Route path="/c/:token" element={<ConfirmationPage />} />
+                        <Route path="/s/:token" element={<StatusUpdatePage />} />
                         <Route path="/*" element={
                             <AuthProvider>
                                 <App />

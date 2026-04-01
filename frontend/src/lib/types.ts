@@ -62,6 +62,25 @@ export interface TemplateVariable {
     created_at: string;
 }
 
+export interface EmploymentStatus {
+    id: string;
+    student_id: string;
+    email: string;
+    is_working: boolean;
+    started_month: string | null;
+    field_of_work: string | null;
+    employment_type: string | null; // 'full_time' | 'part_time'
+    last_updated_at: string;
+}
+
+export interface StatusToken {
+    token: string;
+    student_id: string;
+    created_at: string;
+    expires_at: string;
+    responded_at: string | null;
+}
+
 // ─── UI Utilities ────────────────────────────────────────────
 
 export const AVATAR_GRADIENTS = [

@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -12,6 +12,7 @@ const StudentList = lazy(() => import('./components/StudentList'));
 const CourseList = lazy(() => import('./components/CourseList'));
 const EnrollmentBoard = lazy(() => import('./components/EnrollmentBoard'));
 const DocumentGenerator = lazy(() => import('./components/DocumentGenerator'));
+const OutcomesList = lazy(() => import('./components/OutcomesList'));
 const Settings = lazy(() => import('./components/Settings'));
 
 const NAV_ITEMS = [
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
     { key: 'students', label: 'Students', icon: Users, desc: 'Manage students' },
     { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board' },
+    { key: 'outcomes', label: 'Outcomes', icon: Briefcase, desc: 'Graduate tracking' },
     { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration' },
 ];
@@ -28,6 +30,7 @@ const PAGE_TITLES: Record<string, string> = {
     students: 'Students',
     courses: 'Courses',
     enrollments: 'Enrollments',
+    outcomes: 'Outcomes',
     documents: 'Documents',
     settings: 'Settings',
 };
@@ -276,6 +279,7 @@ function App() {
                                 {activeTab === 'students' && 'Manage your student database'}
                                 {activeTab === 'courses' && 'View and manage course catalog'}
                                 {activeTab === 'enrollments' && 'Track and manage enrollments'}
+                                {activeTab === 'outcomes' && 'Track graduate employment status'}
                                 {activeTab === 'documents' && 'Generate personalized documents'}
                                 {activeTab === 'settings' && 'Configure email templates and preferences'}
                             </p>
@@ -301,6 +305,7 @@ function App() {
                             <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
                             <Route path="/courses" element={<CourseList />} />
                             <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />
+                            <Route path="/outcomes" element={<OutcomesList />} />
                             <Route path="/documents" element={<DocumentGenerator />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="*" element={<Navigate to="/dashboard" replace />} />
