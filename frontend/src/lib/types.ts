@@ -70,7 +70,7 @@ export interface EmploymentStatus {
     started_month: string | null;
     field_of_work: string | null;
     employment_type: string | null; // 'full_time' | 'part_time'
-    status: 'invited' | 'responded';
+    status: 'pending' | 'responded';
     last_invited_at: string | null;
     last_responded_at: string | null;
 }

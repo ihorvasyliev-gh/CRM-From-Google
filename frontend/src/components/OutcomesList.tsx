@@ -19,11 +19,11 @@ interface GraduateRow {
     employment_type: string | null;
     status_updated_at: string | null;
     // Tracking
-    tracking_status: 'not_contacted' | 'invited' | 'responded';
+    tracking_status: 'not_contacted' | 'pending' | 'responded';
     last_sent_at: string | null;
 }
 
-type OutcomeFilter = 'all' | 'not_contacted' | 'invited' | 'responded';
+type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
 
 export default function OutcomesList() {
     const [graduates, setGraduates] = useState<GraduateRow[]>([]);
@@ -71,7 +71,7 @@ export default function OutcomesList() {
 
                 let trackingStatus: GraduateRow['tracking_status'] = 'not_contacted';
                 if (empStatus) {
-                    trackingStatus = empStatus.status as 'invited' | 'responded';
+                    trackingStatus = empStatus.status as 'pending' | 'responded';
                 }
 
                 studentMap.set(student.id, {
@@ -138,7 +138,7 @@ export default function OutcomesList() {
 
     // Status counts
     const statusCounts = useMemo(() => {
-        const counts = { all: graduates.length, not_contacted: 0, invited: 0, responded: 0 };
+        const counts = { all: graduates.length, not_contacted: 0, pending: 0, responded: 0 };
         graduates.forEach(g => { counts[g.tracking_status]++; });
         return counts;
     }, [graduates]);
@@ -185,8 +185,8 @@ export default function OutcomesList() {
         const ids = selected.map(g => g.student_id);
 
         try {
-            // Update DB status to invited
-            await supabase.rpc('mark_students_outcomes_invited', {
+            // Update DB status to pending
+            await supabase.rpc('mark_students_outcomes_pending', {
                 p_student_ids: ids
             });
 
@@ -224,8 +224,8 @@ export default function OutcomesList() {
         switch (status) {
             case 'responded':
                 return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500"><CheckCircle size={10} /> Responded</span>;
-            case 'invited':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400"><Send size={10} /> Invited</span>;
+            case 'pending':
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400"><Send size={10} /> Pending</span>;
             default:
                 return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-500/20 text-zinc-400"><Mail size={10} /> Not Contacted</span>;
         }
@@ -280,7 +280,7 @@ export default function OutcomesList() {
                 </div>
                 <div className="bg-surface rounded-2xl border border-border-subtle p-4">
                     <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Pending Responses</p>
-                    <p className="text-2xl font-bold text-blue-500 mt-1">{statusCounts.invited}</p>
+                    <p className="text-2xl font-bold text-blue-500 mt-1">{statusCounts.pending}</p>
                 </div>
             </div>
 
@@ -328,7 +328,7 @@ export default function OutcomesList() {
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-muted">Status:</span>
                             <div className="flex gap-1">
-                                {(['all', 'not_contacted', 'invited', 'responded'] as const).map(s => (
+                                {(['all', 'not_contacted', 'pending', 'responded'] as const).map(s => (
                                     <button
                                         key={s}
                                         onClick={() => setFilterStatus(s)}
@@ -338,7 +338,7 @@ export default function OutcomesList() {
                                                 : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
                                         }`}
                                     >
-                                        {s === 'all' ? 'All' : s === 'not_contacted' ? 'Not Contacted' : s === 'invited' ? 'Invited' : 'Responded'}
+                                        {s === 'all' ? 'All' : s === 'not_contacted' ? 'Not Contacted' : s === 'pending' ? 'Pending' : 'Responded'}
                                         {' '}({statusCounts[s]})
                                     </button>
                                 ))}
@@ -449,7 +449,7 @@ export default function OutcomesList() {
                                             </td>
                                             <td className="py-3 px-4">
                                                 {getTrackingBadge(grad.tracking_status)}
-                                                {grad.tracking_status === 'invited' && grad.last_sent_at && (
+                                                {grad.tracking_status === 'pending' && grad.last_sent_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
@@ -498,7 +498,7 @@ export default function OutcomesList() {
                         {sending ? (
                             <><Loader2 size={12} className="animate-spin" /> Moving...</>
                         ) : (
-                            <><Mail size={12} /> Send Email & Move to Invited</>
+                            <><Mail size={12} /> Send Email & Move to Pending</>
                         )}
                     </button>
                     <button

@@ -3,6 +3,10 @@
 -- Shared link bulk invited flow
 -- ============================================================
 
+-- Drop old tables if re-running after refactor
+DROP TABLE IF EXISTS status_tokens CASCADE;
+DROP TABLE IF EXISTS employment_status CASCADE;
+
 -- Table: employment_status
 -- Stores the latest employment info for each student, as well as tracking status.
 CREATE TABLE IF NOT EXISTS employment_status (
@@ -13,7 +17,7 @@ CREATE TABLE IF NOT EXISTS employment_status (
     started_month TEXT,          -- 'YYYY-MM' format
     field_of_work TEXT,
     employment_type TEXT,        -- 'full_time' or 'part_time'
-    status TEXT DEFAULT 'invited', -- 'invited' or 'responded'
+    status TEXT DEFAULT 'pending', -- 'pending' or 'responded'
     last_invited_at TIMESTAMPTZ,
     last_responded_at TIMESTAMPTZ
 );
@@ -28,11 +32,11 @@ CREATE POLICY "Authenticated can manage employment_status"
     WITH CHECK (auth.role() = 'authenticated');
 
 -- ============================================================
--- RPC: mark_students_outcomes_invited(p_student_ids UUID[])
--- Bulk updates a list of students to 'invited' status. 
+-- RPC: mark_students_outcomes_pending(p_student_ids UUID[])
+-- Bulk updates a list of students to 'pending' status. 
 -- Does not overwrite existing form data if they previously responded.
 -- ============================================================
-CREATE OR REPLACE FUNCTION mark_students_outcomes_invited(p_student_ids UUID[])
+CREATE OR REPLACE FUNCTION mark_students_outcomes_pending(p_student_ids UUID[])
 RETURNS VOID AS $$
 DECLARE
     v_id UUID;
@@ -40,10 +44,10 @@ BEGIN
     FOREACH v_id IN ARRAY p_student_ids
     LOOP
         INSERT INTO employment_status (student_id, status, last_invited_at)
-        VALUES (v_id, 'invited', now())
+        VALUES (v_id, 'pending', now())
         ON CONFLICT (student_id)
         DO UPDATE SET
-            status = 'invited',
+            status = 'pending',
             last_invited_at = now();
     END LOOP;
 END;
@@ -97,5 +101,5 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================
 -- Grants
 -- ============================================================
-GRANT EXECUTE ON FUNCTION mark_students_outcomes_invited(UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION mark_students_outcomes_pending(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION submit_employment_status(TEXT, BOOLEAN, TEXT, TEXT, TEXT) TO anon;
