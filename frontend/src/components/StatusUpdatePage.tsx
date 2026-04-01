@@ -47,18 +47,7 @@ export default function StatusUpdatePage() {
         }
     }
 
-    // Generate month options for the picker
-    const monthOptions = (() => {
-        const options: { value: string; label: string }[] = [];
-        const now = new Date();
-        for (let i = 0; i < 24; i++) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            const label = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-            options.push({ value: val, label });
-        }
-        return options;
-    })();
+
 
     return (
         <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
@@ -168,17 +157,13 @@ export default function StatusUpdatePage() {
                                                 <Clock size={12} className="inline mr-1" />
                                                 Since when?
                                             </label>
-                                            <select
+                                            <input
+                                                type="month"
                                                 value={startedMonth}
                                                 onChange={(e) => setStartedMonth(e.target.value)}
                                                 disabled={isSubmitting}
-                                                className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 px-4 py-3 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all appearance-none cursor-pointer disabled:opacity-50"
-                                            >
-                                                <option value="">Select month...</option>
-                                                {monthOptions.map(opt => (
-                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                ))}
-                                            </select>
+                                                className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 px-4 py-3 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer disabled:opacity-50 [color-scheme:dark]"
+                                            />
                                         </div>
 
                                         {/* Field of work */}

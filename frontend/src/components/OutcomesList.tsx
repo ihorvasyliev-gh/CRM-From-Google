@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Search, Mail, Copy, CheckCircle, Send, Loader2, Filter, X } from 'lucide-react';
+import { Briefcase, Search, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil } from 'lucide-react';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
+import OutcomeEditModal from './OutcomeEditModal';
 
-interface GraduateRow {
+export interface GraduateRow {
     student_id: string;
     first_name: string;
     last_name: string;
@@ -35,6 +36,7 @@ export default function OutcomesList() {
     const [sending, setSending] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [toast, setToast] = useState<ToastData | null>(null);
+    const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
     const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
     const fetchGraduates = useCallback(async () => {
@@ -402,6 +404,7 @@ export default function OutcomesList() {
                                     <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider">Tracking</th>
                                     <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider">Employment</th>
                                     <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <th className="py-3 px-4 text-right text-[10px] font-bold text-muted uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -468,6 +471,15 @@ export default function OutcomesList() {
                                                     <span className="text-xs text-muted italic">—</span>
                                                 )}
                                             </td>
+                                            <td className="py-3 px-4 text-right">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setEditingGrad(grad); }}
+                                                    className="p-1.5 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-colors"
+                                                    title="Edit Status"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -509,6 +521,16 @@ export default function OutcomesList() {
                     </button>
                 </div>
             )}
+
+            <OutcomeEditModal
+                isOpen={!!editingGrad}
+                graduate={editingGrad}
+                onClose={() => setEditingGrad(null)}
+                onSaved={() => {
+                    fetchGraduates();
+                    showToast('Student status has been updated.', 'success');
+                }}
+            />
 
             <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
