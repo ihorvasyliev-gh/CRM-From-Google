@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -142,12 +142,16 @@ export default function EnrollmentCard({
                 <div className="flex-1 min-w-0">
                     {/* Name + Actions */}
                     <div className="flex justify-between items-start">
-                        <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight flex items-center gap-1.5">
-                            <span className="truncate">
+                        <div className="flex flex-col items-start min-w-0 flex-1 pr-2">
+                            <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight w-full">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
+                            </p>
+                            {/* Course pill */}
+                            <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-0.5 max-w-full truncate ${cfg.pillBg}`}>
+                                {getCoursePill(enrollment)}
                             </span>
-                        </p>
-                        <div className="flex flex-col items-center gap-0.5">
+                        </div>
+                        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                             {/* ✏ Edit Note */}
                             <CustomTooltip content="Edit Note" side="top">
                                 <button
@@ -199,14 +203,25 @@ export default function EnrollmentCard({
                         </div>
                     </div>
 
-                    {/* Course pill */}
-                    <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-1 ${cfg.pillBg}`}>
-                        {getCoursePill(enrollment)}
-                    </span>
+                    {/* Contact Info */}
+                    <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+                        {enrollment.students?.email && (
+                            <div className="flex items-center gap-1.5 truncate">
+                                <Mail size={12} className="flex-shrink-0 text-muted/60" />
+                                <span className="truncate">{enrollment.students.email}</span>
+                            </div>
+                        )}
+                        {enrollment.students?.phone && (
+                            <div className="flex items-center gap-1.5 truncate">
+                                <Phone size={12} className="flex-shrink-0 text-muted/60" />
+                                <span className="truncate">{enrollment.students.phone}</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Info row */}
-                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted">
-                        <span>{formatShortDate(enrollment.created_at)}</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[11px] text-muted">
+                        <span>{formatDateLong(enrollment.created_at)}</span>
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
