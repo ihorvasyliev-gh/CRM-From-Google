@@ -265,7 +265,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     const measuringConfig = useMemo(() => ({
         droppable: {
-            strategy: MeasuringStrategy.Always
+            strategy: MeasuringStrategy.BeforeDragging
         }
     }), []);
 

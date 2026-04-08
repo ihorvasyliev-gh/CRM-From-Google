@@ -131,6 +131,14 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.handleCopyEmails !== next.handleCopyEmails) return false;
     if (prev.onFlagClick !== next.onFlagClick) return false;
 
+    // Fast reference checks for data sources
+    if (prev.items === next.items && 
+        prev.selectedIds === next.selectedIds && 
+        prev.queuePositions === next.queuePositions && 
+        prev.flagsByStudentId === next.flagsByStudentId) {
+        return true;
+    }
+
     // Deep compare items array by ID + key fields
     if (prev.items.length !== next.items.length) return false;
     for (let i = 0; i < prev.items.length; i++) {
