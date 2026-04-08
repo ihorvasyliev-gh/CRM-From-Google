@@ -188,7 +188,7 @@ export function useBulkActions({
             return ids;
         },
         onMutate: async () => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             const ids = Array.from(selectedIds);
             setEnrollments(prev => prev.filter(e => !ids.includes(e.id)));

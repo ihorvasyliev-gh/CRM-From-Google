@@ -50,8 +50,8 @@ const StatusColumn = function StatusColumn({
     return (
         <div 
             ref={setNodeRef}
-            className={`flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-all duration-200 ${
-                isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 scale-[1.01]' : ''
+            className={`flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
+                isOver ? 'ring-2 ring-brand-500 bg-brand-50/50' : ''
             }`}
         >
             {/* Column Header */}
@@ -121,4 +121,44 @@ const StatusColumn = function StatusColumn({
     );
 };
 
-export default memo(StatusColumn);
+export default memo(StatusColumn, (prev, next) => {
+    // Fast reference checks for stable callbacks
+    if (prev.status !== next.status) return false;
+    if (prev.toggleSelect !== next.toggleSelect) return false;
+    if (prev.togglePriority !== next.togglePriority) return false;
+    if (prev.openEditNote !== next.openEditNote) return false;
+    if (prev.selectAllInList !== next.selectAllInList) return false;
+    if (prev.handleCopyEmails !== next.handleCopyEmails) return false;
+    if (prev.onFlagClick !== next.onFlagClick) return false;
+
+    // Deep compare items array by ID + key fields
+    if (prev.items.length !== next.items.length) return false;
+    for (let i = 0; i < prev.items.length; i++) {
+        const a = prev.items[i];
+        const b = next.items[i];
+        if (a.id !== b.id || a.status !== b.status || a.is_priority !== b.is_priority || a.notes !== b.notes || a.confirmed_date !== b.confirmed_date || a.invited_date !== b.invited_date || a.completed_date !== b.completed_date) return false;
+    }
+
+    // Compare selection state for items in this column only
+    for (const item of prev.items) {
+        if (prev.selectedIds.has(item.id) !== next.selectedIds.has(item.id)) return false;
+    }
+    // Also check if any new items are selected
+    for (const item of next.items) {
+        if (prev.selectedIds.has(item.id) !== next.selectedIds.has(item.id)) return false;
+    }
+
+    // Compare queue positions for items in this column
+    for (const item of prev.items) {
+        if (prev.queuePositions.get(item.id) !== next.queuePositions.get(item.id)) return false;
+    }
+
+    // Compare flags count for students in this column
+    for (const item of prev.items) {
+        const prevFlags = prev.flagsByStudentId.get(item.student_id);
+        const nextFlags = next.flagsByStudentId.get(item.student_id);
+        if ((prevFlags?.length || 0) !== (nextFlags?.length || 0)) return false;
+    }
+
+    return true;
+});

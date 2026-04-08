@@ -139,7 +139,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { id, updatePayload, type: 'single' as const };
         },
         onMutate: async ({ id, newStatus, confirmedDate, invitedDate }) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            // Cancel without awaiting to avoid blocking the UI thread
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             
             setEnrollments(prev => prev.map(e => {
@@ -210,7 +211,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { id, newPriority };
         },
         onMutate: async ({ id, currentPriority }) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.map(e => e.id === id ? { ...e, is_priority: !currentPriority } : e));
             return { previousEnrollments };
@@ -233,7 +234,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { id, noteText };
         },
         onMutate: async ({ id, noteText }) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.map(e => e.id === id ? { ...e, notes: noteText } : e));
             return { previousEnrollments };
@@ -258,7 +259,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return id;
         },
         onMutate: async (id) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.filter(e => e.id !== id));
             return { previousEnrollments };

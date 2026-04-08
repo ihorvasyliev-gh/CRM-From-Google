@@ -265,11 +265,11 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     const measuringConfig = useMemo(() => ({
         droppable: {
-            strategy: MeasuringStrategy.WhileDragging
+            strategy: MeasuringStrategy.Always
         }
     }), []);
 
-    const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
         setActiveId(null);
         const { active, over } = event;
         if (!over) return;
@@ -279,7 +279,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         const newStatus = over.id as string;
         
         if (oldStatus && newStatus && oldStatus !== newStatus) {
-            await enrollmentsHook.updateStatus(enrollmentId, newStatus);
+            // Fire and forget — don't block the mouseup handler
+            enrollmentsHook.updateStatus(enrollmentId, newStatus);
         }
     }, [enrollmentsHook.updateStatus]);
 
