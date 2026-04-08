@@ -320,7 +320,6 @@ function App() {
             </div>
         </TooltipProvider>
     );
-    );
 }
 
 export default App;
