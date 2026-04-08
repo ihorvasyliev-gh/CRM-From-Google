@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -40,6 +40,22 @@ const StatusColumn = function StatusColumn({
     const { isOver, setNodeRef } = useDroppable({
         id: status
     });
+
+    const [visibleCount, setVisibleCount] = useState(30);
+
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        // Load more when scrolled within 400px of the bottom
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+            setVisibleCount(prev => {
+                if (prev >= items.length) return prev;
+                return prev + 30;
+            });
+        }
+    }, [items.length]);
+
+    // Optional: if the total items list shrinks drastically (e.g. search filter), we can optionally reset. 
+    // But it naturally bounds to items.length, so we're safe without complex resets.
 
     if (!cfg) return null;
 
@@ -91,7 +107,10 @@ const StatusColumn = function StatusColumn({
             </div>
 
             {/* Cards */}
-            <div className="p-2 overflow-y-auto flex-1 space-y-1.5 bg-surface min-h-0 min-h-[500px]">
+            <div 
+                className="p-2 overflow-y-auto flex-1 space-y-1.5 bg-surface min-h-0 min-h-[500px] will-change-scroll relative"
+                onScroll={handleScroll}
+            >
                 {items.length === 0 && (
                     <div className="text-center py-8 text-muted/60">
                         <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-2 ${cfg.color} opacity-40`}>
@@ -100,7 +119,7 @@ const StatusColumn = function StatusColumn({
                         <p className="text-xs uppercase tracking-wider font-semibold">No enrollments</p>
                     </div>
                 )}
-                {items.map(enrollment => (
+                {items.slice(0, visibleCount).map(enrollment => (
                     <EnrollmentCard
                         key={enrollment.id}
                         enrollment={enrollment}
