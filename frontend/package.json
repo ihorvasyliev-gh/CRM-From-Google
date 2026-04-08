@@ -27,7 +27,7 @@
         "pizzip": "^3.1.7",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
-        "react-quill": "^2.0.0",
+        "react-quill-new": "^3.8.3",
         "react-router-dom": "^6.30.3"
     },
     "devDependencies": {

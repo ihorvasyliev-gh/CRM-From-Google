@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
 
 export default function Settings() {
