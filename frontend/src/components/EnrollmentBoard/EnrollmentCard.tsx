@@ -5,7 +5,7 @@ import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
-import { formatShortDate, formatDateLong } from '../../lib/dateUtils';
+import { formatDateLong } from '../../lib/dateUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface EnrollmentCardProps {
