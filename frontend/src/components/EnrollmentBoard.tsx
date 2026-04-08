@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
@@ -7,6 +7,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
+import { useStudentFlags } from '../hooks/useStudentFlags';
 import { formatDateLong } from '../lib/dateUtils';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
 
@@ -37,6 +38,11 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
+
+    // Student Flags
+    const [flagModalTarget, setFlagModalTarget] = useState<{ studentId: string; studentName: string } | null>(null);
+    const [flagCourseId, setFlagCourseId] = useState('');
+    const [flagComment, setFlagComment] = useState('');
 
     // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
@@ -72,6 +78,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         clearSelection: bulkActions.clearSelection,
         showToast
     });
+
+    const studentFlagsHook = useStudentFlags(showToast);
 
     const enrollments = enrollmentsHook.enrollments;
 
@@ -192,10 +200,17 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
 
     // Handlers
-    function openEditNote(enrollment: EnrollmentRow) {
+    const openEditNote = useCallback((enrollment: EnrollmentRow) => {
         setEditNoteTarget({ id: enrollment.id, note: enrollment.notes || '' });
         setEditNoteText(enrollment.notes || '');
-    }
+    }, []);
+
+    const openFlagModal = useCallback((enrollment: EnrollmentRow) => {
+        const name = [enrollment.students?.first_name, enrollment.students?.last_name].filter(Boolean).join(' ');
+        setFlagModalTarget({ studentId: enrollment.student_id, studentName: name });
+        setFlagCourseId('');
+        setFlagComment('');
+    }, []);
 
     async function handleConfirmWithDate() {
         if (!confirmDateTarget) return;
@@ -301,6 +316,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         togglePriority={enrollmentsHook.togglePriority}
                         openEditNote={openEditNote}
                         queuePositions={queuePositions}
+                        flagsByStudentId={studentFlagsHook.flagsByStudentId}
+                        onFlagClick={openFlagModal}
                     />
                 ))}
                 </div>
@@ -318,6 +335,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 togglePriority={enrollmentsHook.togglePriority}
                                 openEditNote={openEditNote}
                                 queuePosition={queuePositions.get(activeId)}
+                                studentFlags={studentFlagsHook.flagsByStudentId.get(activeEnrollment.student_id) || []}
+                                onFlagClick={openFlagModal}
                                 isOverlay
                             />
                         );
@@ -638,6 +657,101 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             )}
 
             <Toast toast={toast} onDismiss={() => setToast(null)} />
+
+            {/* Student Flag Modal */}
+            {flagModalTarget && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setFlagModalTarget(null)}>
+                    <div
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2.5 bg-orange-50 rounded-xl text-orange-500">
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-primary">Student Flags</h3>
+                                <p className="text-xs text-muted mt-0.5">
+                                    Manage flags for {flagModalTarget.studentName}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Existing flags */}
+                        {(() => {
+                            const existing = studentFlagsHook.flagsByStudentId.get(flagModalTarget.studentId) || [];
+                            if (existing.length === 0) return null;
+                            return (
+                                <div className="mb-5">
+                                    <label className="block text-xs font-medium text-muted mb-2">Existing flags</label>
+                                    <div className="space-y-1.5">
+                                        {existing.map(flag => (
+                                            <div key={flag.id} className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2">
+                                                <AlertTriangle size={13} className="text-orange-400 mt-0.5 flex-shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-semibold text-primary">{flag.courses?.name || 'Unknown course'}</p>
+                                                    {flag.comment && (
+                                                        <p className="text-[11px] text-muted mt-0.5">{flag.comment}</p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => studentFlagsHook.removeFlag(flag.id)}
+                                                    className="p-1 text-muted hover:text-red-500 hover:bg-red-50 rounded-md transition-all flex-shrink-0"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Add new flag */}
+                        <div className="border-t border-border-subtle pt-4">
+                            <label className="block text-xs font-medium text-muted mb-2">Add new flag</label>
+                            <select
+                                value={flagCourseId}
+                                onChange={e => setFlagCourseId(e.target.value)}
+                                className="w-full px-4 py-2.5 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 bg-surface mb-2"
+                            >
+                                <option value="">Select course...</option>
+                                {uniqueCourses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+
+                            <textarea
+                                value={flagComment}
+                                onChange={e => setFlagComment(e.target.value)}
+                                placeholder="Reason (optional)..."
+                                className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 bg-surface min-h-[80px] resize-none"
+                            />
+
+                            <div className="flex gap-3 mt-4">
+                                <button
+                                    onClick={() => setFlagModalTarget(null)}
+                                    className="flex-1 px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!flagCourseId) return;
+                                        studentFlagsHook.addFlag(flagModalTarget.studentId, flagCourseId, flagComment);
+                                        setFlagCourseId('');
+                                        setFlagComment('');
+                                    }}
+                                    disabled={!flagCourseId}
+                                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Add Flag
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

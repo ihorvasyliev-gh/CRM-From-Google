@@ -2,6 +2,7 @@ import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { CustomTooltip } from '../ui/Tooltip';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import type { StudentFlag } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
 
@@ -15,6 +16,8 @@ interface StatusColumnProps {
     togglePriority: (id: string, current: boolean) => void;
     openEditNote: (enrollment: EnrollmentRow) => void;
     queuePositions: Map<string, number>;
+    flagsByStudentId: Map<string, StudentFlag[]>;
+    onFlagClick: (enrollment: EnrollmentRow) => void;
 }
 
 export default function StatusColumn({
@@ -26,7 +29,9 @@ export default function StatusColumn({
     toggleSelect,
     togglePriority,
     openEditNote,
-    queuePositions
+    queuePositions,
+    flagsByStudentId,
+    onFlagClick
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -104,6 +109,8 @@ export default function StatusColumn({
                         togglePriority={togglePriority}
                         openEditNote={openEditNote}
                         queuePosition={queuePositions.get(enrollment.id)}
+                        studentFlags={flagsByStudentId.get(enrollment.student_id) || []}
+                        onFlagClick={onFlagClick}
                     />
                 ))}
             </div>

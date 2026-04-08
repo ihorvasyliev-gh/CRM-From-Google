@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle } from 'lucide-react';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatShortDate, formatDateLong } from '../../lib/dateUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
@@ -15,6 +16,8 @@ interface EnrollmentCardProps {
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
     openEditNote: (enrollment: EnrollmentRow) => void;
+    studentFlags?: StudentFlag[];
+    onFlagClick?: (enrollment: EnrollmentRow) => void;
     isOverlay?: boolean;
 }
 
@@ -26,6 +29,8 @@ export default function EnrollmentCard({
     togglePriority,
     queuePosition,
     openEditNote,
+    studentFlags = [],
+    onFlagClick,
     isOverlay
 }: EnrollmentCardProps) {
     const cfg = STATUS_CONFIG[status];
@@ -142,18 +147,47 @@ export default function EnrollmentCard({
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </span>
                         </p>
-                        {/* ✏ Edit Note */}
-                        <CustomTooltip content="Edit Note" side="top">
-                            <button
-                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                className={`p-1 rounded-md transition-all ${enrollment.notes
-                                    ? 'text-brand-500 hover:bg-brand-500/10'
-                                    : 'text-muted/40 hover:text-muted hover:bg-surface'
-                                    }`}
-                            >
-                                <Pencil size={14} />
-                            </button>
-                        </CustomTooltip>
+                        <div className="flex flex-col items-center gap-0.5">
+                            {/* ✏ Edit Note */}
+                            <CustomTooltip content="Edit Note" side="top">
+                                <button
+                                    onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                    className={`p-1 rounded-md transition-all ${enrollment.notes
+                                        ? 'text-brand-500 hover:bg-brand-500/10'
+                                        : 'text-muted/40 hover:text-muted hover:bg-surface'
+                                        }`}
+                                >
+                                    <Pencil size={14} />
+                                </button>
+                            </CustomTooltip>
+
+                            {/* ⚠ Student Flags */}
+                            {studentFlags.length > 0 && (
+                                <CustomTooltip
+                                    content={
+                                        <div className="max-w-[260px]">
+                                            <p className="font-semibold text-orange-400 mb-1">⚠ Didn't pass:</p>
+                                            {studentFlags.map(flag => (
+                                                <div key={flag.id} className="text-[11px] mb-0.5">
+                                                    <span className="font-medium text-primary">{flag.courses?.name || 'Unknown'}</span>
+                                                    {flag.comment && (
+                                                        <span className="text-muted"> — {flag.comment}</span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    }
+                                    side="top"
+                                >
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                        className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10 animate-pulse"
+                                    >
+                                        <AlertTriangle size={14} />
+                                    </button>
+                                </CustomTooltip>
+                            )}
+                        </div>
                     </div>
 
                     {/* Course pill */}

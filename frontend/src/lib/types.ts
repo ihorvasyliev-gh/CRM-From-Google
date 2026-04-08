@@ -75,6 +75,15 @@ export interface EmploymentStatus {
     last_responded_at: string | null;
 }
 
+export interface StudentFlag {
+    id: string;
+    student_id: string;
+    course_id: string;
+    comment: string | null;
+    created_at: string;
+    courses?: Course | null;
+}
+
 // ─── UI Utilities ────────────────────────────────────────────
 
 export const AVATAR_GRADIENTS = [
