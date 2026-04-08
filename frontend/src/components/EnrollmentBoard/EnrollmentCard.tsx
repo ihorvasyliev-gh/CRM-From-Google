@@ -45,6 +45,8 @@ const EnrollmentCard = function EnrollmentCard({
 
     const style = {
         opacity: isDragging && !isOverlay ? 0.3 : 1,
+        contentVisibility: isOverlay ? 'visible' as const : 'auto' as const,
+        containIntrinsicSize: '0 100px',
     };
 
     useEffect(() => {

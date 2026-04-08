@@ -326,7 +326,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onDragCancel={handleDragCancel}
                 measuring={measuringConfig}
             >
-                <div className={`flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 ${activeId ? 'pointer-events-none' : ''}`}>
+                <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {PIPELINE_STATUSES.map(status => (
                         <StatusColumn
                         key={status}
