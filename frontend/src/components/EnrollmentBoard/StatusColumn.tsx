@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import { CustomTooltip } from '../ui/Tooltip';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
@@ -66,14 +65,13 @@ const StatusColumn = function StatusColumn({
                     </div>
                     <div className="flex items-center gap-1">
                         {items.length > 0 && (
-                            <CustomTooltip content={`Copy all ${cfg.label} emails`}>
-                                <button
-                                    onClick={() => handleCopyEmails(items, cfg.label)}
-                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
-                                >
-                                    <Copy size={14} />
-                                </button>
-                            </CustomTooltip>
+                            <button
+                                onClick={() => handleCopyEmails(items, cfg.label)}
+                                title={`Copy all ${cfg.label} emails`}
+                                className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                            >
+                                <Copy size={14} />
+                            </button>
                         )}
                         {items.length > 0 && (
                             <button

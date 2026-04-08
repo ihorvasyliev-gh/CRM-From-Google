@@ -65,10 +65,13 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         inviteFlowRef.current?.openInviteModal(ids, bulk);
     }, []);
 
+    const openConfirmModalSingle = useCallback((id: string, defDate: string) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }, []);
+    const openConfirmModalBulk = useCallback((ids: string[], defDate: string) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }, []);
+
     const enrollmentsHook = useEnrollments({
         showToast,
         openInviteModal: openInviteModalProxy,
-        openConfirmModal: useCallback((id: string, defDate: string) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }, [])
+        openConfirmModal: openConfirmModalSingle
     });
 
     const bulkActions = useBulkActions({
@@ -76,7 +79,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setEnrollments: enrollmentsHook.setEnrollments,
         showToast,
         openInviteModal: openInviteModalProxy,
-        openConfirmModal: useCallback((ids: string[], defDate: string) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }, [])
+        openConfirmModal: openConfirmModalBulk
     });
 
     const inviteFlow = useInviteFlow({
@@ -295,6 +298,23 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setActiveId(null);
     }, []);
 
+    const bulkActionBar = useMemo(() => {
+        const selectedEnrollments = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
+        return (
+            <BulkActionBar
+                selectedCount={bulkActions.selectedIds.size}
+                selectedEnrollments={selectedEnrollments}
+                generatingDocs={bulkActions.generatingDocs}
+                handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
+                bulkUpdateStatus={bulkActions.bulkUpdateStatus}
+                handleGenerateDocuments={bulkActions.handleGenerateDocuments}
+                setBulkDeleteOpen={setBulkDeleteOpen}
+                clearSelection={bulkActions.clearSelection}
+                toggleSelect={bulkActions.toggleSelect}
+            />
+        );
+    }, [enrollments, bulkActions.selectedIds, bulkActions.generatingDocs, bulkActions.handleCopySelectedEmails, filteredEnrollments, bulkActions.bulkUpdateStatus, bulkActions.handleGenerateDocuments, bulkActions.clearSelection, bulkActions.toggleSelect]);
+
     return (
         <div className="h-full flex flex-col space-y-4 pb-8">
             <FilterBar
@@ -451,22 +471,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 </div>
             )}
 
-            {useMemo(() => {
-                const selectedEnrollments = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
-                return (
-                    <BulkActionBar
-                        selectedCount={bulkActions.selectedIds.size}
-                        selectedEnrollments={selectedEnrollments}
-                        generatingDocs={bulkActions.generatingDocs}
-                        handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
-                        bulkUpdateStatus={bulkActions.bulkUpdateStatus}
-                        handleGenerateDocuments={bulkActions.handleGenerateDocuments}
-                        setBulkDeleteOpen={setBulkDeleteOpen}
-                        clearSelection={bulkActions.clearSelection}
-                        toggleSelect={bulkActions.toggleSelect}
-                    />
-                );
-            }, [enrollments, bulkActions.selectedIds, bulkActions.generatingDocs, bulkActions.handleCopySelectedEmails, filteredEnrollments, bulkActions.bulkUpdateStatus, bulkActions.handleGenerateDocuments, bulkActions.clearSelection, bulkActions.toggleSelect])}
+            {bulkActionBar}
 
             {/* Modals go here */}
             {inviteFlow.inviteDateTarget && (
