@@ -1,6 +1,5 @@
 import { useState, useEffect, memo, useMemo } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
-import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
@@ -81,31 +80,28 @@ const EnrollmentCard = function EnrollmentCard({
                     </div>
 
                     {/* Star Priority */}
-                    <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"} side="right">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                togglePriority(enrollment.id, !!enrollment.is_priority);
-                            }}
-                            className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
-                                ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                                : 'text-muted/40 hover:text-warning/60'
-                                }`}
-                        >
-                            <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                        </button>
-                    </CustomTooltip>
+                    <button
+                        title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            togglePriority(enrollment.id, !!enrollment.is_priority);
+                        }}
+                        className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
+                            ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                            : 'text-muted/40 hover:text-warning/60'
+                            }`}
+                    >
+                        <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                    </button>
 
                     {/* Queue Number */}
                     {status === 'requested' && queuePosition !== undefined && (
-                        <div className="flex-shrink-0 mt-0.5">
-                            <CustomTooltip content="Position in queue for this course" side="right">
-                                <span
-                                    className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
-                                >
-                                    #{queuePosition}
-                                </span>
-                            </CustomTooltip>
+                        <div className="flex-shrink-0 mt-0.5" title="Position in queue for this course">
+                            <span
+                                className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
+                            >
+                                #{queuePosition}
+                            </span>
                         </div>
                     )}
 
@@ -120,11 +116,9 @@ const EnrollmentCard = function EnrollmentCard({
                         if (isExpired) {
                             const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
-                                <CustomTooltip content={`Expired • Invited on ${invitedDate}`} side="right">
-                                    <div className="flex-shrink-0 mt-0.5">
-                                        <Timer size={16} className="text-red-400 drop-shadow-sm" />
-                                    </div>
-                                </CustomTooltip>
+                                <div className="flex-shrink-0 mt-0.5" title={`Expired • Invited on ${invitedDate}`}>
+                                    <Timer size={16} className="text-red-400 drop-shadow-sm" />
+                                </div>
                             );
                         }
 
@@ -132,11 +126,9 @@ const EnrollmentCard = function EnrollmentCard({
                         const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
                         const timerText = days > 0 ? `${days}d ${hours}h remaining` : `${hours}h remaining`;
                         return (
-                            <CustomTooltip content={timerText} side="right">
-                                <div className="flex-shrink-0 mt-0.5">
-                                    <Timer size={16} className="text-muted-strong drop-shadow-sm" />
-                                </div>
-                            </CustomTooltip>
+                            <div className="flex-shrink-0 mt-0.5" title={timerText}>
+                                <Timer size={16} className="text-muted-strong drop-shadow-sm" />
+                            </div>
                         );
                     })()}
                 </div>
@@ -155,52 +147,34 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                             {/* ✏ Edit Note */}
-                            <CustomTooltip content="Edit Note" side="top">
-                                <button
-                                    onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                    className={`p-1 rounded-md transition-all ${enrollment.notes
-                                        ? 'text-brand-500 hover:bg-brand-500/10'
-                                        : 'text-muted/40 hover:text-muted hover:bg-surface'
-                                        }`}
-                                >
-                                    <Pencil size={14} />
-                                </button>
-                            </CustomTooltip>
+                            <button
+                                title="Edit Note"
+                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                className={`p-1 rounded-md transition-all ${enrollment.notes
+                                    ? 'text-brand-500 hover:bg-brand-500/10'
+                                    : 'text-muted/40 hover:text-muted hover:bg-surface'
+                                    }`}
+                            >
+                                <Pencil size={14} />
+                            </button>
 
                             {/* ⚠ Student Flags */}
                             {studentFlags.length > 0 ? (
-                                <CustomTooltip
-                                    content={
-                                        <div className="max-w-[260px]">
-                                            <p className="font-semibold text-orange-400 mb-1">⚠ Didn't pass:</p>
-                                            {studentFlags.map(flag => (
-                                                <div key={flag.id} className="text-[11px] mb-0.5">
-                                                    <span className="font-medium text-primary">{flag.courses?.name || 'Unknown'}</span>
-                                                    {flag.comment && (
-                                                        <span className="text-muted"> — {flag.comment}</span>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    }
-                                    side="top"
+                                <button
+                                    title={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}
+                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                    className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10"
                                 >
-                                    <button
-                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                        className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10"
-                                    >
-                                        <AlertTriangle size={14} />
-                                    </button>
-                                </CustomTooltip>
+                                    <AlertTriangle size={14} />
+                                </button>
                             ) : (
-                                <CustomTooltip content="Flag student (e.g. failed a course)" side="top">
-                                    <button
-                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                        className="p-1 rounded-md transition-all text-muted/40 hover:text-orange-400 hover:bg-orange-50"
-                                    >
-                                        <AlertTriangle size={14} />
-                                    </button>
-                                </CustomTooltip>
+                                <button
+                                    title="Flag student (e.g. failed a course)"
+                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                    className="p-1 rounded-md transition-all text-muted/40 hover:text-orange-400 hover:bg-orange-50"
+                                >
+                                    <AlertTriangle size={14} />
+                                </button>
                             )}
                         </div>
                     </div>
