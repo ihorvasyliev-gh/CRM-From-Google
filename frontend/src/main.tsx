@@ -10,8 +10,15 @@ import StatusUpdatePage from './components/StatusUpdatePage'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
-const queryClient = new QueryClient()
-
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            staleTime: Infinity, // Rely on real-time subscriptions for updates, no background polling
+            gcTime: 1000 * 60 * 2, // 2 minutes (lower from 5 mins to clear unused cache faster to save RAM)
+            refetchOnWindowFocus: false, // Prevent lag spikes/CPU drain when switching windows
+        },
+    },
+})
 
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

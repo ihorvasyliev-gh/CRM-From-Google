@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { CustomTooltip } from '../ui/Tooltip';
@@ -20,7 +21,7 @@ interface StatusColumnProps {
     onFlagClick: (enrollment: EnrollmentRow) => void;
 }
 
-export default function StatusColumn({
+const StatusColumn = function StatusColumn({
     status,
     items,
     selectedIds,
@@ -115,5 +116,8 @@ export default function StatusColumn({
                 ))}
             </div>
         </div>
+        </div>
     );
-}
+};
+
+export default memo(StatusColumn);

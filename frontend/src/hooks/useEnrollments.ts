@@ -181,7 +181,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    async function updateStatus(id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) {
+    const updateStatus = useCallback(async (id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) => {
         const current = enrollments.find(e => e.id === id);
         if (newStatus === 'invited' && !invitedDate) {
             openInviteModal([id], false);
@@ -193,7 +193,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return;
         }
         updateStatusMutation.mutate({ id, newStatus, confirmedDate, invitedDate });
-    }
+    }, [enrollments, openInviteModal, openConfirmModal, updateStatusMutation]);
 
     // ─── Toggle Priority Mutation ────────────────────────────────
     const togglePriorityMutation = useMutation({
@@ -215,9 +215,9 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    async function togglePriority(id: string, currentPriority: boolean) {
+    const togglePriority = useCallback(async (id: string, currentPriority: boolean) => {
         togglePriorityMutation.mutate({ id, currentPriority });
-    }
+    }, [togglePriorityMutation]);
 
     // ─── Update Note Mutation ────────────────────────────────────
     const updateNoteMutation = useMutation({
@@ -239,10 +239,10 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    async function updateNote(id: string, noteText: string) {
+    const updateNote = useCallback(async (id: string, noteText: string) => {
         updateNoteMutation.mutate({ id, noteText });
         return true;
-    }
+    }, [updateNoteMutation]);
 
     // ─── Delete Enrollment Mutation ──────────────────────────────
     const deleteEnrollmentMutation = useMutation({
@@ -264,10 +264,10 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    async function deleteEnrollment(id: string) {
+    const deleteEnrollment = useCallback(async (id: string) => {
         deleteEnrollmentMutation.mutate(id);
         return true;
-    }
+    }, [deleteEnrollmentMutation]);
 
     return {
         enrollments,

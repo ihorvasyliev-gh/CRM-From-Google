@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
@@ -21,7 +21,7 @@ interface EnrollmentCardProps {
     isOverlay?: boolean;
 }
 
-export default function EnrollmentCard({
+const EnrollmentCard = function EnrollmentCard({
     enrollment,
     status,
     isSelected,
@@ -260,5 +260,17 @@ export default function EnrollmentCard({
                 </div>
             </div>
         </div>
+        </div>
     );
-}
+};
+
+export default memo(EnrollmentCard, (prev, next) => {
+    return (
+        prev.enrollment === next.enrollment &&
+        prev.status === next.status &&
+        prev.isSelected === next.isSelected &&
+        prev.queuePosition === next.queuePosition &&
+        prev.isOverlay === next.isOverlay &&
+        (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0)
+    );
+});

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
@@ -40,18 +40,21 @@ export function useBulkActions({
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [generatingDocs, setGeneratingDocs] = useState(false);
 
-    function toggleSelect(id: string) {
+    const toggleSelect = useCallback((id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
             else next.add(id);
             return next;
         });
-    }
+    }, []);
 
-    function selectAllInList(items: EnrollmentRow[]) {
-        const allSelected = items.every(e => selectedIds.has(e.id));
+    const selectAllInList = useCallback((items: EnrollmentRow[]) => {
+        // We use function updater for set to avoid dependency on selectedIds for the state update,
+        // but we need the current selectedIds to know 'allSelected'. 
+        // Better: calculate it inside the setter or leave selectedIds in deps.
         setSelectedIds(prev => {
+            const allSelected = items.every(e => prev.has(e.id));
             const next = new Set(prev);
             items.forEach(e => {
                 if (allSelected) next.delete(e.id);
@@ -59,11 +62,11 @@ export function useBulkActions({
             });
             return next;
         });
-    }
+    }, []);
 
-    function clearSelection() {
+    const clearSelection = useCallback(() => {
         setSelectedIds(new Set());
-    }
+    }, []);
 
     const bulkUpdateMutation = useMutation({
         mutationFn: async ({ newStatus, confirmedDate }: { newStatus: string, confirmedDate?: string }) => {
