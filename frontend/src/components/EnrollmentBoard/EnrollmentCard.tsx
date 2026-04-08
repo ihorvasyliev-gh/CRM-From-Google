@@ -36,9 +36,11 @@ const EnrollmentCard = function EnrollmentCard({
     const cfg = STATUS_CONFIG[status];
     const [now, setNow] = useState(() => Date.now());
 
+    const draggableData = useMemo(() => ({ status }), [status]);
+
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: enrollment.id,
-        data: { status },
+        data: draggableData,
         disabled: isOverlay
     });
 

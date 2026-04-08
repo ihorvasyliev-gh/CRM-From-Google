@@ -158,7 +158,7 @@ export function useBulkActions({
         onError: () => showToast('Error updating status', 'error')
     });
 
-    async function bulkUpdateStatus(newStatus: string, confirmedDate?: string) {
+    const bulkUpdateStatus = useCallback(async (newStatus: string, confirmedDate?: string) => {
         if (selectedIds.size === 0) return;
 
         if (newStatus === 'invited') {
@@ -178,7 +178,7 @@ export function useBulkActions({
         }
 
         bulkUpdateMutation.mutate({ newStatus, confirmedDate });
-    }
+    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, bulkUpdateMutation]);
 
     const bulkDeleteMutation = useMutation({
         mutationFn: async () => {
@@ -204,24 +204,24 @@ export function useBulkActions({
         }
     });
 
-    async function handleBulkDelete() {
+    const handleBulkDelete = useCallback(async () => {
         if (selectedIds.size === 0) return;
         bulkDeleteMutation.mutate();
-    }
+    }, [selectedIds, bulkDeleteMutation]);
 
-    async function handleCopyEmails(items: EnrollmentRow[], label: string) {
+    const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
         const emailStr = collectEmails(items);
         if (!emailStr) { showToast('No emails to copy', 'error'); return; }
         await navigator.clipboard.writeText(emailStr);
         showToast(`${label} emails copied!`, 'success');
-    }
+    }, [showToast]);
 
-    async function handleCopySelectedEmails(filteredEnrollments: EnrollmentRow[]) {
+    const handleCopySelectedEmails = useCallback(async (filteredEnrollments: EnrollmentRow[]) => {
         const selected = filteredEnrollments.filter(e => selectedIds.has(e.id));
         await handleCopyEmails(selected, `${selected.length}`);
-    }
+    }, [selectedIds, handleCopyEmails]);
 
-    async function handleGenerateDocuments() {
+    const handleGenerateDocuments = useCallback(async () => {
         if (selectedIds.size === 0) return;
         setGeneratingDocs(true);
         try {
@@ -282,7 +282,7 @@ export function useBulkActions({
         } finally {
             setGeneratingDocs(false);
         }
-    }
+    }, [selectedIds, enrollments, showToast, clearSelection]);
 
     return {
         selectedIds,

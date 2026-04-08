@@ -27,7 +27,7 @@ function todayISO(): string {
 
 export default function EnrollmentBoard({ initialCourseFilter }: { initialCourseFilter?: string }) {
     const [toast, setToast] = useState<ToastData | null>(null);
-    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
+    const showToast = useCallback((message: string, type: 'success' | 'error') => setToast({ message, type }), []);
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
@@ -60,16 +60,16 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     const enrollmentsHook = useEnrollments({
         showToast,
-        openInviteModal: (ids, bulk) => inviteFlow.openInviteModal(ids, bulk),
-        openConfirmModal: (id, defDate) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }
+        openInviteModal: useCallback((ids: string[], bulk: boolean) => inviteFlow.openInviteModal(ids, bulk), [inviteFlow.openInviteModal]),
+        openConfirmModal: useCallback((id: string, defDate: string) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }, [])
     });
 
     const bulkActions = useBulkActions({
         enrollments: enrollmentsHook.enrollments,
         setEnrollments: enrollmentsHook.setEnrollments,
         showToast,
-        openInviteModal: (ids, bulk) => inviteFlow.openInviteModal(ids, bulk),
-        openConfirmModal: (ids, defDate) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }
+        openInviteModal: useCallback((ids: string[], bulk: boolean) => inviteFlow.openInviteModal(ids, bulk), [inviteFlow.openInviteModal]),
+        openConfirmModal: useCallback((ids: string[], defDate: string) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }, [])
     });
 
     const inviteFlow = useInviteFlow({
@@ -246,12 +246,15 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setDeleteTarget(null);
     }
 
-    const sensors = useSensors(
-        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-        useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
-    );
+    const mouseSensorOpts = useMemo(() => ({ activationConstraint: { distance: 5 } }), []);
+    const touchSensorOpts = useMemo(() => ({ activationConstraint: { delay: 250, tolerance: 5 } }), []);
+    
+    const mouseSensor = useSensor(MouseSensor, mouseSensorOpts);
+    const touchSensor = useSensor(TouchSensor, touchSensorOpts);
+    
+    const sensors = useSensors(mouseSensor, touchSensor);
 
-    async function handleDragEnd(event: DragEndEvent) {
+    const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         setActiveId(null);
         const { active, over } = event;
         if (!over) return;
@@ -263,15 +266,15 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (oldStatus && newStatus && oldStatus !== newStatus) {
             await enrollmentsHook.updateStatus(enrollmentId, newStatus);
         }
-    }
+    }, [enrollmentsHook.updateStatus]);
 
-    function handleDragStart(event: DragStartEvent) {
+    const handleDragStart = useCallback((event: DragStartEvent) => {
         setActiveId(event.active.id as string);
-    }
+    }, []);
 
-    function handleDragCancel() {
+    const handleDragCancel = useCallback(() => {
         setActiveId(null);
-    }
+    }, []);
 
     return (
         <div className="h-full flex flex-col space-y-4 pb-8">
@@ -486,6 +489,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         </label>
                         <input
                             type="date"
+                            id="invite-date"
+                            name="inviteDate"
                             value={inviteFlow.inviteDate}
                             min={todayISO()}
                             onChange={e => inviteFlow.setInviteDate(e.target.value)}
@@ -562,6 +567,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         </label>
                         <input
                             type="date"
+                            id="confirm-date"
+                            name="confirmDate"
                             value={confirmDate}
                             onChange={e => setConfirmDate(e.target.value)}
                             className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface"
@@ -631,6 +638,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         </div>
 
                         <textarea
+                            id="edit-note"
+                            name="editNote"
                             value={editNoteText}
                             onChange={e => setEditNoteText(e.target.value)}
                             placeholder="Enter note here..."
@@ -711,6 +720,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         <div className="border-t border-border-subtle pt-4">
                             <label className="block text-xs font-medium text-muted mb-2">Add new flag</label>
                             <select
+                                id="flag-course"
+                                name="flagCourse"
                                 value={flagCourseId}
                                 onChange={e => setFlagCourseId(e.target.value)}
                                 className="w-full px-4 py-2.5 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 bg-surface mb-2"
@@ -722,6 +733,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                             </select>
 
                             <textarea
+                                id="flag-comment"
+                                name="flagComment"
                                 value={flagComment}
                                 onChange={e => setFlagComment(e.target.value)}
                                 placeholder="Reason (optional)..."

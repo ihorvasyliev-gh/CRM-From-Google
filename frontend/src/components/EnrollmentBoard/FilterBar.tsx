@@ -66,6 +66,8 @@ export default function FilterBar({
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                         <input
                             type="text"
+                            id="search-query"
+                            name="searchQuery"
                             placeholder="Search by name, email or phone..."
                             className="w-full pl-9 pr-8 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                             value={searchQuery}
@@ -158,6 +160,8 @@ export default function FilterBar({
                     <Calendar size={13} className="text-muted" />
                     <input
                         type="datetime-local"
+                        id="date-from"
+                        name="dateFrom"
                         className="bg-transparent text-sm outline-none py-0.5 text-primary"
                         value={dateFrom}
                         onChange={e => setDateFrom(e.target.value)}
@@ -166,6 +170,8 @@ export default function FilterBar({
                     <span className="text-muted/50 text-xs">—</span>
                     <input
                         type="datetime-local"
+                        id="date-to"
+                        name="dateTo"
                         className="bg-transparent text-sm outline-none py-0.5 text-primary"
                         value={dateTo}
                         onChange={e => setDateTo(e.target.value)}
