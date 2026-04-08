@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
@@ -58,9 +58,14 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (initialCourseFilter) setSelectedCourse(initialCourseFilter);
     }, [initialCourseFilter]);
 
+    const inviteFlowRef = useRef<{ openInviteModal: (ids: string[], bulk: boolean) => void } | null>(null);
+    const openInviteModalProxy = useCallback((ids: string[], bulk: boolean) => {
+        inviteFlowRef.current?.openInviteModal(ids, bulk);
+    }, []);
+
     const enrollmentsHook = useEnrollments({
         showToast,
-        openInviteModal: useCallback((ids: string[], bulk: boolean) => inviteFlow.openInviteModal(ids, bulk), [inviteFlow.openInviteModal]),
+        openInviteModal: openInviteModalProxy,
         openConfirmModal: useCallback((id: string, defDate: string) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }, [])
     });
 
@@ -68,7 +73,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         enrollments: enrollmentsHook.enrollments,
         setEnrollments: enrollmentsHook.setEnrollments,
         showToast,
-        openInviteModal: useCallback((ids: string[], bulk: boolean) => inviteFlow.openInviteModal(ids, bulk), [inviteFlow.openInviteModal]),
+        openInviteModal: openInviteModalProxy,
         openConfirmModal: useCallback((ids: string[], defDate: string) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }, [])
     });
 
@@ -78,6 +83,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         clearSelection: bulkActions.clearSelection,
         showToast
     });
+    
+    inviteFlowRef.current = inviteFlow;
 
     const studentFlagsHook = useStudentFlags(showToast);
 

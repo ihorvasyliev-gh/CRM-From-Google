@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useMemo } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useDraggable } from '@dnd-kit/core';
