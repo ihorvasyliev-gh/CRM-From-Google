@@ -162,7 +162,7 @@ export default function EnrollmentCard({
                             </CustomTooltip>
 
                             {/* ⚠ Student Flags */}
-                            {studentFlags.length > 0 && (
+                            {studentFlags.length > 0 ? (
                                 <CustomTooltip
                                     content={
                                         <div className="max-w-[260px]">
@@ -182,6 +182,15 @@ export default function EnrollmentCard({
                                     <button
                                         onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
                                         className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10 animate-pulse"
+                                    >
+                                        <AlertTriangle size={14} />
+                                    </button>
+                                </CustomTooltip>
+                            ) : (
+                                <CustomTooltip content="Flag student (e.g. failed a course)" side="top">
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                        className="p-1 rounded-md transition-all text-muted/40 hover:text-orange-400 hover:bg-orange-50"
                                     >
                                         <AlertTriangle size={14} />
                                     </button>
