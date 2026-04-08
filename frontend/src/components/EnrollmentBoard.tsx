@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
@@ -270,18 +270,21 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     }), []);
 
     const handleDragEnd = useCallback((event: DragEndEvent) => {
-        setActiveId(null);
         const { active, over } = event;
-        if (!over) return;
         
-        const enrollmentId = active.id as string;
-        const oldStatus = active.data.current?.status;
-        const newStatus = over.id as string;
-        
-        if (oldStatus && newStatus && oldStatus !== newStatus) {
-            // Fire and forget — don't block the mouseup handler
-            enrollmentsHook.updateStatus(enrollmentId, newStatus);
-        }
+        startTransition(() => {
+            setActiveId(null);
+            if (!over) return;
+            
+            const enrollmentId = active.id as string;
+            const oldStatus = active.data.current?.status;
+            const newStatus = over.id as string;
+            
+            if (oldStatus && newStatus && oldStatus !== newStatus) {
+                // Fire and forget — don't block the mouseup handler
+                enrollmentsHook.updateStatus(enrollmentId, newStatus);
+            }
+        });
     }, [enrollmentsHook.updateStatus]);
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -323,7 +326,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onDragCancel={handleDragCancel}
                 measuring={measuringConfig}
             >
-                <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className={`flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 ${activeId ? 'pointer-events-none' : ''}`}>
                     {PIPELINE_STATUSES.map(status => (
                         <StatusColumn
                         key={status}
