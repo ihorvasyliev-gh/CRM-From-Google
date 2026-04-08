@@ -310,7 +310,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         status={status}
                         items={byStatus[status] || []}
                         selectedIds={bulkActions.selectedIds}
-                        selectAllInColumn={(s) => bulkActions.selectAllInList(byStatus[s] || [])}
+                        selectAllInList={bulkActions.selectAllInList}
                         handleCopyEmails={bulkActions.handleCopyEmails}
                         toggleSelect={bulkActions.toggleSelect}
                         togglePriority={enrollmentsHook.togglePriority}

@@ -11,7 +11,7 @@ interface StatusColumnProps {
     status: string;
     items: EnrollmentRow[];
     selectedIds: Set<string>;
-    selectAllInColumn: (status: string) => void;
+    selectAllInList: (items: EnrollmentRow[]) => void;
     handleCopyEmails: (items: EnrollmentRow[], label: string) => void;
     toggleSelect: (id: string) => void;
     togglePriority: (id: string, current: boolean) => void;
@@ -25,7 +25,7 @@ const StatusColumn = function StatusColumn({
     status,
     items,
     selectedIds,
-    selectAllInColumn,
+    selectAllInList,
     handleCopyEmails,
     toggleSelect,
     togglePriority,
@@ -75,7 +75,7 @@ const StatusColumn = function StatusColumn({
                         )}
                         {items.length > 0 && (
                             <button
-                                onClick={() => selectAllInColumn(status)}
+                                onClick={() => selectAllInList(items)}
                                 className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
                                     ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
                                     : someSelected
