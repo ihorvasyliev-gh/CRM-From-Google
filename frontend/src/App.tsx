@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -6,14 +7,14 @@ import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { isNotificationSupported, requestNotificationPermission, getNotificationPermission } from './lib/notifications';
 
-// Lazy load heavy route components
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const StudentList = lazy(() => import('./components/StudentList'));
-const CourseList = lazy(() => import('./components/CourseList'));
-const EnrollmentBoard = lazy(() => import('./components/EnrollmentBoard'));
-const DocumentGenerator = lazy(() => import('./components/DocumentGenerator'));
-const OutcomesList = lazy(() => import('./components/OutcomesList'));
-const Settings = lazy(() => import('./components/Settings'));
+// Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
+const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
+const StudentList = lazyWithRetry(() => import('./components/StudentList'));
+const CourseList = lazyWithRetry(() => import('./components/CourseList'));
+const EnrollmentBoard = lazyWithRetry(() => import('./components/EnrollmentBoard'));
+const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGenerator'));
+const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
+const Settings = lazyWithRetry(() => import('./components/Settings'));
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },

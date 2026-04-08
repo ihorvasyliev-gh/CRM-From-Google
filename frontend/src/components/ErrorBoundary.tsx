@@ -24,8 +24,11 @@ export default class ErrorBoundary extends Component<Props, State> {
         console.error('Uncaught error in ErrorBoundary:', error, errorInfo);
 
         // Handle Vite chunk loading errors automatically
-        const isChunkLoadError = error.message?.includes('Failed to fetch dynamically imported module') || 
-                                 error.message?.includes('Importing a module script failed');
+        // This usually happens when a new version is deployed and the browser tries to load old, deleted chunks
+        const errorMessage = error.message || error.toString();
+        const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') || 
+                                 errorMessage.includes('Importing a module script failed') ||
+                                 errorMessage.includes('error loading dynamically imported module');
                                  
         if (isChunkLoadError) {
             const lastReload = sessionStorage.getItem('chunk_load_error_time');
@@ -33,6 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             const isRecent = lastReload && (now - parseInt(lastReload, 10)) < 10000; // Prevent infinite reload loops (10s threshold)
 
             if (!isRecent) {
+                console.warn('Chunk load error detected. Attempting automatic page reload to fetch latest version...');
                 sessionStorage.setItem('chunk_load_error_time', now.toString());
                 window.location.reload();
             }
@@ -40,20 +44,29 @@ export default class ErrorBoundary extends Component<Props, State> {
     }
 
     private handleReload = () => {
+        // Clear the error time trigger when manually reloading to allow another attempt
+        sessionStorage.removeItem('chunk_load_error_time');
         window.location.reload();
     };
 
     public render() {
         if (this.state.hasError) {
+            const errorMessage = this.state.error?.message || this.state.error?.toString() || '';
+            const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') || 
+                                   errorMessage.includes('Importing a module script failed');
+
             return (
                 <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 space-y-4">
                     <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center text-danger mb-4">
                         <AlertTriangle size={32} />
                     </div>
-                    <h1 className="text-2xl font-bold text-primary">Something went wrong</h1>
+                    <h1 className="text-2xl font-bold text-primary">
+                        {isChunkLoadError ? 'App Update Required' : 'Something went wrong'}
+                    </h1>
                     <p className="text-muted text-center max-w-md">
-                        We apologize, but an unexpected error occurred. You can try reloading the page.
-                        If the problem persists, please contact support.
+                        {isChunkLoadError 
+                            ? 'A new version of the app is available. Please reload the page to continue using the most up-to-date features.'
+                            : 'We apologize, but an unexpected error occurred. You can try reloading the page. If the problem persists, please contact support.'}
                     </p>
 
                     {this.state.error && (
