@@ -260,7 +260,6 @@ const EnrollmentCard = function EnrollmentCard({
                 </div>
             </div>
         </div>
-        </div>
     );
 };
 

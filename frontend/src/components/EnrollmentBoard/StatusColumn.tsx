@@ -116,7 +116,6 @@ const StatusColumn = function StatusColumn({
                 ))}
             </div>
         </div>
-        </div>
     );
 };
 
