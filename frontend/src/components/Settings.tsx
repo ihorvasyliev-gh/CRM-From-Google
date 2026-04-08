@@ -4,6 +4,17 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
 
+const quillModules = {
+    toolbar: [
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link'],
+        ['clean'],
+        [{ 'font': [] }],
+        [{ 'color': [] }, { 'background': [] }],
+    ]
+};
+
 export default function Settings() {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
     const [saved, setSaved] = useState(false);
@@ -17,7 +28,7 @@ export default function Settings() {
         setConfig(config);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
-    }, [config, isValidTemplate]);
+    }, [config, isValidTemplate, isValidStatusTemplate]);
 
     const handleReset = useCallback(() => {
         const defaults = resetConfig();
@@ -126,17 +137,12 @@ export default function Settings() {
                             <ReactQuill 
                                 theme="snow"
                                 value={config.htmlEmailTemplate}
-                                onChange={(content) => setLocalConfig({ ...config, htmlEmailTemplate: content })}
-                                modules={{
-                                    toolbar: [
-                                        ['bold', 'italic', 'underline', 'strike'],
-                                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                        ['link'],
-                                        ['clean'],
-                                        [{ 'font': [] }],
-                                        [{ 'color': [] }, { 'background': [] }],
-                                    ]
+                                onChange={(content) => {
+                                    if (content !== config.htmlEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
+                                    }
                                 }}
+                                modules={quillModules}
                             />
                         </div>
 
@@ -235,17 +241,12 @@ export default function Settings() {
                             <ReactQuill
                                 theme="snow"
                                 value={config.statusEmailTemplate}
-                                onChange={(content) => setLocalConfig({ ...config, statusEmailTemplate: content })}
-                                modules={{
-                                    toolbar: [
-                                        ['bold', 'italic', 'underline', 'strike'],
-                                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                        ['link'],
-                                        ['clean'],
-                                        [{ 'font': [] }],
-                                        [{ 'color': [] }, { 'background': [] }],
-                                    ]
+                                onChange={(content) => {
+                                    if (content !== config.statusEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
+                                    }
                                 }}
+                                modules={quillModules}
                             />
                         </div>
 
