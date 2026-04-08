@@ -187,7 +187,7 @@ const EnrollmentCard = function EnrollmentCard({
                                 >
                                     <button
                                         onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                        className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10 animate-pulse"
+                                        className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10"
                                     >
                                         <AlertTriangle size={14} />
                                     </button>

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X } from 'lucide-react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -19,6 +19,8 @@ import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
+
+const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 
 
 function todayISO(): string {
@@ -261,6 +263,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     
     const sensors = useSensors(mouseSensor, touchSensor);
 
+    const measuringConfig = useMemo(() => ({
+        droppable: {
+            strategy: MeasuringStrategy.WhileDragging
+        }
+    }), []);
+
     const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         setActiveId(null);
         const { active, over } = event;
@@ -312,6 +320,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
+                measuring={measuringConfig}
             >
                 <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {PIPELINE_STATUSES.map(status => (
@@ -328,11 +337,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         queuePositions={queuePositions}
                         flagsByStudentId={studentFlagsHook.flagsByStudentId}
                         onFlagClick={openFlagModal}
+                        emptyFlags={EMPTY_FLAGS}
                     />
                 ))}
                 </div>
 
-                <DragOverlay>
+                <DragOverlay dropAnimation={null}>
                     {activeId ? (() => {
                         const activeEnrollment = enrollments.find(e => e.id === activeId);
                         if (!activeEnrollment) return null;
@@ -345,7 +355,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 togglePriority={enrollmentsHook.togglePriority}
                                 openEditNote={openEditNote}
                                 queuePosition={queuePositions.get(activeId)}
-                                studentFlags={studentFlagsHook.flagsByStudentId.get(activeEnrollment.student_id) || []}
+                                studentFlags={studentFlagsHook.flagsByStudentId.get(activeEnrollment.student_id) || EMPTY_FLAGS}
                                 onFlagClick={openFlagModal}
                                 isOverlay
                             />
@@ -437,17 +447,22 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 </div>
             )}
 
-            <BulkActionBar
-                selectedCount={bulkActions.selectedIds.size}
-                selectedEnrollments={enrollments.filter(e => bulkActions.selectedIds.has(e.id))}
-                generatingDocs={bulkActions.generatingDocs}
-                handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
-                bulkUpdateStatus={bulkActions.bulkUpdateStatus}
-                handleGenerateDocuments={bulkActions.handleGenerateDocuments}
-                setBulkDeleteOpen={setBulkDeleteOpen}
-                clearSelection={bulkActions.clearSelection}
-                toggleSelect={bulkActions.toggleSelect}
-            />
+            {useMemo(() => {
+                const selectedEnrollments = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
+                return (
+                    <BulkActionBar
+                        selectedCount={bulkActions.selectedIds.size}
+                        selectedEnrollments={selectedEnrollments}
+                        generatingDocs={bulkActions.generatingDocs}
+                        handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
+                        bulkUpdateStatus={bulkActions.bulkUpdateStatus}
+                        handleGenerateDocuments={bulkActions.handleGenerateDocuments}
+                        setBulkDeleteOpen={setBulkDeleteOpen}
+                        clearSelection={bulkActions.clearSelection}
+                        toggleSelect={bulkActions.toggleSelect}
+                    />
+                );
+            }, [enrollments, bulkActions.selectedIds, bulkActions.generatingDocs, bulkActions.handleCopySelectedEmails, filteredEnrollments, bulkActions.bulkUpdateStatus, bulkActions.handleGenerateDocuments, bulkActions.clearSelection, bulkActions.toggleSelect])}
 
             {/* Modals go here */}
             {inviteFlow.inviteDateTarget && (

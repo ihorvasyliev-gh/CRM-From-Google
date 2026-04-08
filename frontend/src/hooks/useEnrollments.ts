@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
@@ -18,6 +18,9 @@ interface UseEnrollmentsProps {
 export function useEnrollments({ showToast, openInviteModal, openConfirmModal }: UseEnrollmentsProps) {
     const queryClient = useQueryClient();
 
+    // Ref to access current enrollments without re-creating callbacks
+    const enrollmentsRef = useRef<EnrollmentRow[]>([]);
+
     // Fetch enrollments using React Query
     const fetchEnrollmentsFn = async () => {
         const { data, error } = await supabase
@@ -32,6 +35,9 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         queryKey: ['enrollments'],
         queryFn: fetchEnrollmentsFn,
     });
+
+    // Keep ref in sync
+    enrollmentsRef.current = enrollments;
 
     // Provide a backward-compatible setEnrollments for other hooks that might still depend on it
     const setEnrollments = useCallback(
@@ -182,7 +188,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     });
 
     const updateStatus = useCallback(async (id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) => {
-        const current = enrollments.find(e => e.id === id);
+        const current = enrollmentsRef.current.find(e => e.id === id);
         if (newStatus === 'invited' && !invitedDate) {
             openInviteModal([id], false);
             return;
@@ -193,7 +199,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return;
         }
         updateStatusMutation.mutate({ id, newStatus, confirmedDate, invitedDate });
-    }, [enrollments, openInviteModal, openConfirmModal, updateStatusMutation]);
+    }, [openInviteModal, openConfirmModal, updateStatusMutation]);
 
     // ─── Toggle Priority Mutation ────────────────────────────────
     const togglePriorityMutation = useMutation({

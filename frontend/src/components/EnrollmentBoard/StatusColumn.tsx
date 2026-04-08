@@ -19,6 +19,7 @@ interface StatusColumnProps {
     queuePositions: Map<string, number>;
     flagsByStudentId: Map<string, StudentFlag[]>;
     onFlagClick: (enrollment: EnrollmentRow) => void;
+    emptyFlags: StudentFlag[];
 }
 
 const StatusColumn = function StatusColumn({
@@ -32,7 +33,8 @@ const StatusColumn = function StatusColumn({
     openEditNote,
     queuePositions,
     flagsByStudentId,
-    onFlagClick
+    onFlagClick,
+    emptyFlags
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -110,7 +112,7 @@ const StatusColumn = function StatusColumn({
                         togglePriority={togglePriority}
                         openEditNote={openEditNote}
                         queuePosition={queuePositions.get(enrollment.id)}
-                        studentFlags={flagsByStudentId.get(enrollment.student_id) || []}
+                        studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
                         onFlagClick={onFlagClick}
                     />
                 ))}
