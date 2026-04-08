@@ -59,15 +59,15 @@ export default function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative p-3 rounded-xl border transition-all ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 scale-[1.02] bg-surface z-[100] rotate-2' : 'cursor-pointer'} ${isSelected
+            className={`group relative p-2 rounded-lg border transition-all ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 scale-[1.02] bg-surface z-[100] rotate-2' : 'cursor-pointer'} ${isSelected
                 ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
                 : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
                 }`}
             onClick={() => toggleSelect(enrollment.id)}
         >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
                 {/* Left Actions Column */}
-                <div className="flex flex-col items-center gap-2 mt-0.5">
+                <div className="flex flex-col items-center gap-1 mt-0.5">
                     {/* Checkbox */}
                     <div
                         className={`w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${isSelected
@@ -204,23 +204,23 @@ export default function EnrollmentCard({
                     </div>
 
                     {/* Contact Info */}
-                    <div className="mt-2 flex flex-col gap-1 text-[11px] text-muted">
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted truncate">
                         {enrollment.students?.email && (
-                            <div className="flex items-center gap-1.5 truncate">
-                                <Mail size={12} className="flex-shrink-0 text-muted/60" />
+                            <div className="flex items-center gap-1 truncate min-w-0">
+                                <Mail size={11} className="flex-shrink-0 text-muted/60" />
                                 <span className="truncate">{enrollment.students.email}</span>
                             </div>
                         )}
                         {enrollment.students?.phone && (
-                            <div className="flex items-center gap-1.5 truncate">
-                                <Phone size={12} className="flex-shrink-0 text-muted/60" />
-                                <span className="truncate">{enrollment.students.phone}</span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <Phone size={11} className="flex-shrink-0 text-muted/60" />
+                                <span>{enrollment.students.phone}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Info row */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-[11px] text-muted">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted">
                         <span>{formatDateLong(enrollment.created_at)}</span>
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
                             <>
@@ -253,7 +253,7 @@ export default function EnrollmentCard({
 
                     {/* Notes */}
                     {enrollment.notes && (
-                        <p className="text-[11px] text-muted italic mt-1 bg-surface px-2 py-1 rounded-md truncate">
+                        <p className="text-[11px] text-muted italic mt-0.5 bg-surface px-1.5 py-0.5 rounded truncate">
                             📝 {enrollment.notes}
                         </p>
                     )}
