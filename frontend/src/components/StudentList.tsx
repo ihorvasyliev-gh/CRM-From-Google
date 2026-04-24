@@ -63,8 +63,17 @@ export default function StudentList({ onNavigate }: StudentListProps) {
 
     const fetchStudents = useCallback(async () => {
         setLoading(true);
-        const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false });
-        if (data) setStudents(data);
+        let allData: Student[] = [];
+        let from = 0;
+        const limit = 1000;
+        while (true) {
+            const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false }).range(from, from + limit - 1);
+            if (!data || data.length === 0) break;
+            allData = [...allData, ...data];
+            if (data.length < limit) break;
+            from += limit;
+        }
+        setStudents(allData);
         setLoading(false);
     }, []);
 

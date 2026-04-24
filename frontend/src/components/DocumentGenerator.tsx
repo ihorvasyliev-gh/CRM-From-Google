@@ -96,17 +96,31 @@ export default function DocumentGenerator() {
 
     async function fetchData() {
         setLoading(true);
-        const [coursesRes, enrollmentsRes, templateRes, attTemplateRes, varsRes, lblTemplateRes] = await Promise.all([
+        const [coursesRes, templateRes, attTemplateRes, varsRes, lblTemplateRes] = await Promise.all([
             supabase.from('courses').select('*').order('name'),
-            supabase.from('enrollments').select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)').order('created_at', { ascending: false }),
             supabase.from('document_templates').select('*').order('created_at', { ascending: true }),
             supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
             supabase.from('template_variables').select('*').order('created_at', { ascending: true }),
             supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1),
         ]);
 
+        let allEnrollments: EnrollmentWithRelations[] = [];
+        let from = 0;
+        const limit = 1000;
+        while (true) {
+            const { data } = await supabase
+                .from('enrollments')
+                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+                .order('created_at', { ascending: false })
+                .range(from, from + limit - 1);
+            if (!data || data.length === 0) break;
+            allEnrollments = [...allEnrollments, ...(data as EnrollmentWithRelations[])];
+            if (data.length < limit) break;
+            from += limit;
+        }
+
         if (coursesRes.data) setCourses(coursesRes.data);
-        if (enrollmentsRes.data) setEnrollments(enrollmentsRes.data as EnrollmentWithRelations[]);
+        setEnrollments(allEnrollments);
         if (templateRes.data) setTemplates(templateRes.data);
         if (attTemplateRes.data && attTemplateRes.data.length > 0) setAttTemplate(attTemplateRes.data[0]);
         if (varsRes.data) setCustomVars(varsRes.data);

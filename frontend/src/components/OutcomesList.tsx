@@ -43,21 +43,40 @@ export default function OutcomesList() {
         setLoading(true);
 
         // Get all completed enrollments with student info
-        const { data: enrollments, error: enrollError } = await supabase
-            .from('enrollments')
-            .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
-            .eq('status', 'completed');
-
-        if (enrollError || !enrollments) {
-            console.error('Error fetching graduates:', enrollError);
-            setLoading(false);
-            return;
+        let enrollments: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        while (true) {
+            const { data, error } = await supabase
+                .from('enrollments')
+                .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
+                .eq('status', 'completed')
+                .range(from, from + limit - 1);
+            if (error) {
+                console.error('Error fetching graduates:', error);
+                setLoading(false);
+                return;
+            }
+            if (!data || data.length === 0) break;
+            enrollments = [...enrollments, ...data];
+            if (data.length < limit) break;
+            from += limit;
         }
 
         // Get all employment_status records
-        const { data: empStatuses } = await supabase
-            .from('employment_status')
-            .select('*');
+        let empStatuses: any[] = [];
+        from = 0;
+        while (true) {
+            const { data, error } = await supabase
+                .from('employment_status')
+                .select('*')
+                .range(from, from + limit - 1);
+            if (error) break;
+            if (!data || data.length === 0) break;
+            empStatuses = [...empStatuses, ...data];
+            if (data.length < limit) break;
+            from += limit;
+        }
 
         // Build a map of unique students
         const studentMap = new Map<string, GraduateRow>();

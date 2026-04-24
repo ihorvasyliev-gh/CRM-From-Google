@@ -21,14 +21,28 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     // Ref to access current enrollments without re-creating callbacks
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
 
-    // Fetch enrollments using React Query
     const fetchEnrollmentsFn = async () => {
-        const { data, error } = await supabase
-            .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as EnrollmentRow[];
+        let allData: EnrollmentRow[] = [];
+        let from = 0;
+        const limit = 1000;
+
+        while (true) {
+            const { data, error } = await supabase
+                .from('enrollments')
+                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+                .order('created_at', { ascending: false })
+                .range(from, from + limit - 1);
+                
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            
+            allData = [...allData, ...data as EnrollmentRow[]];
+            
+            if (data.length < limit) break;
+            from += limit;
+        }
+        
+        return allData;
     };
 
     const { data: enrollments = [], refetch: fetchEnrollments } = useQuery({

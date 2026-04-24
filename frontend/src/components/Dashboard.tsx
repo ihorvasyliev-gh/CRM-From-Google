@@ -108,8 +108,18 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             .limit(8);
         if (recentData) setRecent(recentData as unknown as RecentEnrollment[]);
 
-        const { data: allEnrollments } = await supabase.from('enrollments').select('status');
-        if (allEnrollments) {
+        let allEnrollments: any[] = [];
+        let from = 0;
+        const limit = 1000;
+        while (true) {
+            const { data } = await supabase.from('enrollments').select('status').range(from, from + limit - 1);
+            if (!data || data.length === 0) break;
+            allEnrollments = [...allEnrollments, ...data];
+            if (data.length < limit) break;
+            from += limit;
+        }
+
+        if (allEnrollments.length > 0) {
             const breakdown: Record<string, number> = {};
             for (const e of allEnrollments) {
                 breakdown[e.status] = (breakdown[e.status] || 0) + 1;
