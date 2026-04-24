@@ -8,6 +8,7 @@ import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
+import { cleanVariant } from '../lib/types';
 import { formatDateLong } from '../lib/dateUtils';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
 
@@ -100,7 +101,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         let result = enrollments;
         if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
         if (selectedVariant !== 'all') {
-            result = result.filter(e => (e.course_variant || '').trim().toLowerCase() === selectedVariant.toLowerCase());
+            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === selectedVariant.toLowerCase());
         }
         if (debouncedSearchQuery.trim()) {
             result = result.filter(e =>
@@ -201,9 +202,9 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         enrollments
             .filter(e => e.course_id === selectedCourse)
             .forEach(e => {
-                const v = (e.course_variant || '').trim();
-                if (v && !seen.has(v.toLowerCase())) {
-                    seen.set(v.toLowerCase(), v.charAt(0).toUpperCase() + v.slice(1).toLowerCase());
+                const cleaned = cleanVariant(e.courses?.name || '', e.course_variant);
+                if (cleaned && !seen.has(cleaned.toLowerCase())) {
+                    seen.set(cleaned.toLowerCase(), cleaned);
                 }
             });
         return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));

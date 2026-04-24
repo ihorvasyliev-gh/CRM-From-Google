@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink } from 'lucide-react';
-import { Student, getAvatarGradient } from '../lib/types';
+import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
 
 interface Enrollment {
     id: string;
@@ -323,7 +323,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     <ExternalLink size={11} className="opacity-0 group-hover/link:opacity-60 transition-opacity" />
                                                 </button>
                                                 {en.course_variant && (
-                                                    <span className="text-[10px] text-muted block">{en.course_variant}</span>
+                                                    <span className="text-[10px] text-muted block">{cleanVariant(en.courses?.name || '', en.course_variant)}</span>
                                                 )}
                                             </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'}`}>

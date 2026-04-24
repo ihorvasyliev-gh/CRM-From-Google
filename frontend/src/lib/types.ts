@@ -100,3 +100,26 @@ export function getAvatarGradient(id: string): string {
     for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
     return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
 }
+
+export function cleanVariant(courseName: string, variant: string | null | undefined): string {
+    if (!variant || !variant.trim()) return 'English';
+    let v = variant.trim();
+    // Extract text inside parentheses
+    const match = v.match(/\((.*?)\)/);
+    if (match && match[1].trim()) {
+        v = match[1].trim();
+    } else {
+        // Remove course name from beginning
+        const lowerV = v.toLowerCase();
+        const lowerName = courseName.toLowerCase();
+        if (lowerName && lowerV.startsWith(lowerName)) {
+            let stripped = v.substring(courseName.length).trim();
+            stripped = stripped.replace(/^[-()_:]+|[-()_:]+$/g, '').trim();
+            if (stripped) {
+                v = stripped;
+            }
+        }
+    }
+    // Capitalize first letter
+    return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+}

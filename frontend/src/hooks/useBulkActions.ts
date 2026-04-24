@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { generateDocumentsArchive } from '../lib/documentUtils';
+import { cleanVariant } from '../lib/types';
 
 function todayISO(): string {
     return new Date().toISOString().split('T')[0];
@@ -17,8 +18,9 @@ function collectEmails(enrollments: EnrollmentRow[]): string {
 
 export function getCoursePill(enrollment: EnrollmentRow): string {
     const name = enrollment.courses?.name || 'Unknown';
-    const variant = enrollment.course_variant?.trim();
-    return variant ? `${name} (${variant})` : name;
+    const variant = enrollment.course_variant;
+    const cleaned = cleanVariant(name, variant);
+    return `${name} (${cleaned})`;
 }
 
 interface UseBulkActionsProps {

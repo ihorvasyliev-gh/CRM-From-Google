@@ -1,7 +1,7 @@
 // Document generation libraries are imported dynamically in generateDocumentsArchive
 // to reduce the main bundle size and improve initial load time.
 import { supabase } from './supabase';
-import { Student, Course, Enrollment } from './types';
+import { Student, Course, Enrollment, cleanVariant } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
 import type { ExcelColumn } from './appConfig';
 
@@ -33,7 +33,7 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Recor
         dateOfBirth: formatDateLong(s?.dob),
         courseId: c?.id || '',
         courseTitle: c?.name || '',
-        courseVariant: enrollment.course_variant || '',
+        courseVariant: cleanVariant(c?.name || '', enrollment.course_variant),
         registeredAt: formatDateDMY(enrollment.created_at),
         courseRegistrationDate: formatDateLong(enrollment.created_at),
         isCompleted: enrollment.status === 'completed' ? 'Yes' : 'No',

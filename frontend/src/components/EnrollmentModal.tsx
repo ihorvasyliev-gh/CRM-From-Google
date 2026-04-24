@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { X, Loader2, Search, UserPlus } from 'lucide-react';
-import { getAvatarGradient } from '../lib/types';
+import { getAvatarGradient, cleanVariant } from '../lib/types';
 
 interface Student {
     id: string;
@@ -84,6 +84,9 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
         setSaving(true);
         try {
+            const selectedCourseName = courses.find(c => c.id === selectedCourseId)?.name || '';
+            const cleanedVariant = cleanVariant(selectedCourseName, variant);
+            
             const payload: {
                 student_id: string;
                 course_id: string;
@@ -94,7 +97,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 student_id: selectedStudentId,
                 course_id: selectedCourseId,
                 status,
-                course_variant: variant.trim() || null,
+                course_variant: cleanedVariant,
             };
             if (notes.trim()) payload.notes = notes.trim();
 
