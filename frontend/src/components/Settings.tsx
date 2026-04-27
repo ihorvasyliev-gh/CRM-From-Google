@@ -51,7 +51,12 @@ export default function Settings() {
 <!--[if !mso]><!-->
 <a href="${linkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#2563eb;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2), 0 2px 4px -1px rgba(37,99,235,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Confirm My Place</a>
 <!--<![endif]-->`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const originRegex = new RegExp(escapeRegExp(origin), 'g');
+
     const previewBody = config.htmlEmailTemplate
+        .replace(/\{origin\}/g, origin)
         .replace(/\{courseTitle\}/g, 'Introduction to Digital Skills')
         .replace(/\{date\}/g, '15 Mar 2026')
         .replace(/\{confirmationLink\}/g, linkStr)
@@ -73,6 +78,7 @@ export default function Settings() {
 <a href="${statusLinkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#7c3aed;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(124,58,237,0.2), 0 2px 4px -1px rgba(124,58,237,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Update My Status</a>
 <!--<![endif]-->`;
     const statusPreviewBody = config.statusEmailTemplate
+        .replace(/\{origin\}/g, origin)
         .replace(/\{statusLink\}/g, statusLinkStr)
         .replace(/\{statusButton\}/g, statusButtonHtml);
 
@@ -152,10 +158,11 @@ export default function Settings() {
                         <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                             <ReactQuill 
                                 theme="snow"
-                                value={config.htmlEmailTemplate}
+                                value={config.htmlEmailTemplate.replace(/\{origin\}/g, origin)}
                                 onChange={(content) => {
-                                    if (content !== config.htmlEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
+                                    const cleanContent = content.replace(originRegex, '{origin}');
+                                    if (cleanContent !== config.htmlEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: cleanContent }));
                                     }
                                 }}
                                 modules={quillModules}
@@ -256,10 +263,11 @@ export default function Settings() {
                         <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                             <ReactQuill
                                 theme="snow"
-                                value={config.statusEmailTemplate}
+                                value={config.statusEmailTemplate.replace(/\{origin\}/g, origin)}
                                 onChange={(content) => {
-                                    if (content !== config.statusEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
+                                    const cleanContent = content.replace(originRegex, '{origin}');
+                                    if (cleanContent !== config.statusEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: cleanContent }));
                                     }
                                 }}
                                 modules={quillModules}
