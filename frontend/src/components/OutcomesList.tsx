@@ -227,7 +227,7 @@ export default function OutcomesList() {
             });
 
             // Build bulk generic email
-            const statusLink = `${window.location.origin}/status`;
+            const statusLink = 'https://forms.gle/5ernSprvAbq4MTgf9';
             const htmlBody = buildStatusEmailBodyHtml(statusLink);
             const subject = encodeURIComponent(buildStatusEmailSubject());
 

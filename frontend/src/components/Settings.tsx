@@ -54,8 +54,8 @@ export default function Settings() {
         .replace(/\{date\}/g, '15 Mar 2026');
 
     // Status template preview
-    const statusLinkStr = 'https://example.com/status';
-    const statusButtonHtml = `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color: #7c3aed; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><a href="${statusLinkStr}" target="_blank" style="display: inline-block; font-size: 18px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 16px 36px; border: 1px solid #7c3aed; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">📝 Update My Status</a></td></tr></table>`;
+    const statusLinkStr = 'https://forms.gle/5ernSprvAbq4MTgf9';
+    const statusButtonHtml = `<table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color:#7c3aed;border-radius:8px;"><a href="${statusLinkStr}" target="_blank" style="display:inline-block;font-size:17px;font-weight:700;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">📝 Update My Status</a></td></tr></table>`;
     const statusPreviewBody = config.statusEmailTemplate
         .replace(/\{statusLink\}/g, statusLinkStr)
         .replace(/\{statusButton\}/g, statusButtonHtml);

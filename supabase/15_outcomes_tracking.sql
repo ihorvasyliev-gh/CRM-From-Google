@@ -64,7 +64,8 @@ CREATE OR REPLACE FUNCTION submit_employment_status(
     p_is_working BOOLEAN,
     p_started_month TEXT DEFAULT NULL,
     p_field TEXT DEFAULT NULL,
-    p_employment_type TEXT DEFAULT NULL
+    p_employment_type TEXT DEFAULT NULL,
+    p_responded_at TIMESTAMPTZ DEFAULT now()
 ) RETURNS JSONB AS $$
 DECLARE
     v_student_id UUID;
@@ -81,9 +82,9 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'This email address does not match any of our records. Please use the email you originally registered with.');
     END IF;
 
-    -- Upsert employment status
+    -- Upsert employment status (re-submission overwrites previous data)
     INSERT INTO employment_status (student_id, email, is_working, started_month, field_of_work, employment_type, status, last_responded_at)
-    VALUES (v_student_id, v_student_email, p_is_working, p_started_month, p_field, p_employment_type, 'responded', now())
+    VALUES (v_student_id, v_student_email, p_is_working, p_started_month, p_field, p_employment_type, 'responded', p_responded_at)
     ON CONFLICT (student_id)
     DO UPDATE SET
         email = EXCLUDED.email,
@@ -92,7 +93,7 @@ BEGIN
         field_of_work = EXCLUDED.field_of_work,
         employment_type = EXCLUDED.employment_type,
         status = 'responded',
-        last_responded_at = now();
+        last_responded_at = EXCLUDED.last_responded_at;
 
     RETURN jsonb_build_object('success', true, 'message', 'Thank you! Your employment status has been recorded successfully.');
 END;
@@ -102,4 +103,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grants
 -- ============================================================
 GRANT EXECUTE ON FUNCTION mark_students_outcomes_pending(UUID[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION submit_employment_status(TEXT, BOOLEAN, TEXT, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION submit_employment_status(TEXT, BOOLEAN, TEXT, TEXT, TEXT, TIMESTAMPTZ) TO anon;
