@@ -296,22 +296,42 @@ export default function Settings() {
                             <Calendar size={16} className="text-success" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-primary">Display Preferences</h3>
+                            <h3 className="text-sm font-bold text-primary">General Preferences</h3>
                             <p className="text-xs text-muted mt-0.5">Customize how dates and data are displayed</p>
                         </div>
                     </div>
                 </div>
-                <div className="p-5">
-                    <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Date Format</label>
-                    <select
-                        value={config.dateFormat}
-                        onChange={e => setLocalConfig({ ...config, dateFormat: e.target.value as AppConfig['dateFormat'] })}
-                        className="w-full sm:w-64 px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary appearance-none cursor-pointer"
-                    >
-                        <option value="en-IE">DD MMM YYYY (e.g. 02 Mar 2026)</option>
-                        <option value="en-US">MMM DD, YYYY (e.g. Mar 02, 2026)</option>
-                        <option value="ISO">YYYY-MM-DD (e.g. 2026-03-02)</option>
-                    </select>
+                <div className="p-5 space-y-6">
+                    <div>
+                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Date Format</label>
+                        <select
+                            value={config.dateFormat}
+                            onChange={e => setLocalConfig({ ...config, dateFormat: e.target.value as AppConfig['dateFormat'] })}
+                            className="w-full sm:w-64 px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary appearance-none cursor-pointer"
+                        >
+                            <option value="en-IE">DD MMM YYYY (e.g. 02 Mar 2026)</option>
+                            <option value="en-US">MMM DD, YYYY (e.g. Mar 02, 2026)</option>
+                            <option value="ISO">YYYY-MM-DD (e.g. 2026-03-02)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="flex items-center gap-3 cursor-pointer group w-max">
+                            <div className="relative flex items-center justify-center">
+                                <input
+                                    type="checkbox"
+                                    checked={config.includeLogosInEmails ?? true}
+                                    onChange={e => setLocalConfig({ ...config, includeLogosInEmails: e.target.checked })}
+                                    className="peer sr-only"
+                                />
+                                <div className="w-10 h-6 bg-surface-elevated border border-border-strong rounded-full peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors"></div>
+                                <div className="absolute left-1 top-1 w-4 h-4 bg-muted rounded-full peer-checked:bg-white peer-checked:translate-x-4 transition-transform shadow-sm"></div>
+                            </div>
+                            <div>
+                                <span className="text-sm font-semibold text-primary group-hover:text-brand-500 transition-colors">Include Logos in Emails</span>
+                                <p className="text-xs text-muted mt-0.5">Show the Cork City Partnership logo banner at the top of all emails.</p>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </section>
 

@@ -21,6 +21,8 @@ export interface AppConfig {
     statusEmailTemplate: string;
     /** Email subject for status clarification emails */
     statusEmailSubjectFormat: string;
+    /** Whether to include the Cork City Partnership logo banner in emails */
+    includeLogosInEmails: boolean;
 }
 
 const STORAGE_KEY = 'crm_app_config';
@@ -50,6 +52,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 {statusButton}
 <p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.6;text-align:center;">Your information is confidential and used only for internal statistics.</p>`,
     statusEmailSubjectFormat: 'Quick Status Update — How are things going?',
+    includeLogosInEmails: true,
 };
 
 /** Read the full config, merging saved values over defaults. */
@@ -86,7 +89,7 @@ export function resetConfig(): AppConfig {
     return { ...DEFAULT_CONFIG };
 }
 
-function getEmailWrapper(content: string, type: 'invite' | 'status') {
+function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogos: boolean) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const isInvite = type === 'invite';
@@ -98,6 +101,14 @@ function getEmailWrapper(content: string, type: 'invite' | 'status') {
     const heroPadding = '24px 32px 8px 32px';
     const titleSize = '24px';
     const cacheBuster = Date.now();
+
+    const logoHtml = includeLogos ? `
+            <!-- Logos -->
+            <tr>
+              <td style="padding:24px 32px;text-align:center;background-color:#ffffff;border-bottom:1px solid #f0f0f0;">
+                <img src="${origin}/logos-banner.png?v=${cacheBuster}" alt="Cork City Partnership — Government of Ireland, EU Co-Funded, SICAP" width="500" style="width:100%;max-width:500px;height:auto;border:none;text-decoration:none;color:#ffffff;">
+              </td>
+            </tr>` : '';
     
     return `<!DOCTYPE html>
 <html lang="en">
@@ -112,13 +123,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status') {
     <table role="presentation" style="width:100%;border:none;border-spacing:0;">
       <tr>
         <td align="center" style="padding:0;">
-          <table role="presentation" width="600" style="width:600px;max-width:100%;border:none;border-spacing:0;text-align:left;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:22px;color:#363636;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);">
-            <!-- Logos -->
-            <tr>
-              <td style="padding:24px 32px;text-align:center;background-color:#ffffff;border-bottom:1px solid #f0f0f0;">
-                <img src="${origin}/logos-banner.png?v=${cacheBuster}" alt="Cork City Partnership — Government of Ireland, EU Co-Funded, SICAP" width="500" style="width:100%;max-width:500px;height:auto;border:none;text-decoration:none;color:#ffffff;">
-              </td>
-            </tr>
+          <table role="presentation" width="600" style="width:600px;max-width:100%;border:none;border-spacing:0;text-align:left;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:22px;color:#363636;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);">${logoHtml}
             <!-- Hero -->
             <tr>
               <td bgcolor="${heroBg}" style="padding:${heroPadding};text-align:center;background-color:${heroBg};">
@@ -185,7 +190,7 @@ export function buildEmailBodyHtml(courseTitle: string, date: string, confirmati
         .replace(/\{courseDetails\}/g, courseDetailsHtml)
         .replace(/\{confirmationButton\}/g, buttonHtml);
 
-    return getEmailWrapper(body, 'invite');
+    return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? true);
 }
 
 /** Build the email subject by replacing placeholders. */
@@ -222,7 +227,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
     
     body = body.replace(/\{statusButton\}/g, buttonHtml);
 
-    return getEmailWrapper(body, 'status');
+    return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? true);
 }
 
 /** Build the status clarification email subject. */
