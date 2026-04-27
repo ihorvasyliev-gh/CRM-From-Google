@@ -90,9 +90,13 @@ function getEmailWrapper(content: string, type: 'invite' | 'status') {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const isInvite = type === 'invite';
-    const heroBg = isInvite ? '#2563eb' : '#6d28d9';
+    const heroBg = '#ffffff';
     const heroTitle = isInvite ? "You're Invited!" : "Quick Status Update";
     const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "How are things going?";
+    const titleColor = '#0f172a';
+    const subtitleColor = '#64748b';
+    const heroPadding = '24px 32px 8px 32px';
+    const titleSize = '24px';
     const cacheBuster = Date.now();
     
     return `<!DOCTYPE html>
@@ -117,22 +121,15 @@ function getEmailWrapper(content: string, type: 'invite' | 'status') {
             </tr>
             <!-- Hero -->
             <tr>
-              <td bgcolor="${heroBg}" style="padding:48px 32px;text-align:center;background-color:${heroBg};">
-                <h1 style="margin:0;font-size:32px;font-weight:800;color:#ffffff;letter-spacing:-1px;">${heroTitle}</h1>
-                <p style="margin:12px 0 0 0;font-size:18px;color:#e0e7ff;font-weight:500;">${heroSubtitle}</p>
+              <td bgcolor="${heroBg}" style="padding:${heroPadding};text-align:center;background-color:${heroBg};">
+                <h1 style="margin:0;font-size:${titleSize};font-weight:800;color:${titleColor};letter-spacing:-1px;">${heroTitle}</h1>
+                <p style="margin:12px 0 0 0;font-size:18px;color:${subtitleColor};font-weight:500;">${heroSubtitle}</p>
               </td>
             </tr>
             <!-- Content -->
             <tr>
-              <td style="padding:40px 32px;">
+              <td style="padding:32px 32px 40px 32px;">
                 ${content}
-              </td>
-            </tr>
-            <!-- Footer -->
-            <tr>
-              <td style="padding:32px;text-align:center;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-                <p style="margin:0;font-size:13px;color:#64748b;font-weight:600;letter-spacing:0.5px;">CORK CITY PARTNERSHIP CLG</p>
-                <p style="margin:8px 0 0 0;font-size:13px;color:#94a3b8;">Education | Employment | Empowerment</p>
               </td>
             </tr>
           </table>
