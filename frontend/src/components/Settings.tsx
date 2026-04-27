@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
-import { getConfig, setConfig, resetConfig, type AppConfig } from '../lib/appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
 
 const quillModules = {
     toolbar: [
@@ -42,45 +42,12 @@ export default function Settings() {
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
-    const buttonHtml = `<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${linkStr}" style="height:56px;v-text-anchor:middle;width:280px;" arcsize="15%" stroke="f" fillcolor="#2563eb">
-<w:anchorlock/>
-<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Confirm My Place</center>
-</v:roundrect>
-<![endif]-->
-<!--[if !mso]><!-->
-<a href="${linkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#2563eb;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2), 0 2px 4px -1px rgba(37,99,235,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Confirm My Place</a>
-<!--<![endif]-->`;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const originRegex = new RegExp(escapeRegExp(origin), 'g');
-
-    const previewBody = config.htmlEmailTemplate
-        .replace(/\{origin\}/g, origin)
-        .replace(/\{courseTitle\}/g, 'Introduction to Digital Skills')
-        .replace(/\{date\}/g, '15 Mar 2026')
-        .replace(/\{confirmationLink\}/g, linkStr)
-        .replace(/\{confirmationButton\}/g, buttonHtml);
-
-    const previewSubject = config.emailSubjectFormat
-        .replace(/\{courseName\}/g, 'Introduction to Digital Skills')
-        .replace(/\{date\}/g, '15 Mar 2026');
+    const previewBody = buildEmailBodyHtml('Introduction to Digital Skills', '15 Mar 2026', linkStr, config);
+    const previewSubject = buildEmailSubject('Introduction to Digital Skills', '15 Mar 2026', config);
 
     // Status template preview
     const statusLinkStr = 'https://forms.gle/5ernSprvAbq4MTgf9';
-    const statusButtonHtml = `<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${statusLinkStr}" style="height:56px;v-text-anchor:middle;width:280px;" arcsize="15%" stroke="f" fillcolor="#7c3aed">
-<w:anchorlock/>
-<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Update My Status</center>
-</v:roundrect>
-<![endif]-->
-<!--[if !mso]><!-->
-<a href="${statusLinkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#7c3aed;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(124,58,237,0.2), 0 2px 4px -1px rgba(124,58,237,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Update My Status</a>
-<!--<![endif]-->`;
-    const statusPreviewBody = config.statusEmailTemplate
-        .replace(/\{origin\}/g, origin)
-        .replace(/\{statusLink\}/g, statusLinkStr)
-        .replace(/\{statusButton\}/g, statusButtonHtml);
+    const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config);
 
     const [showStatusPreview, setShowStatusPreview] = useState(true);
 
@@ -148,9 +115,7 @@ export default function Settings() {
                         <div className="flex items-start gap-2 p-3 bg-info/5 border border-info/10 rounded-xl">
                             <Info size={14} className="text-info mt-0.5 flex-shrink-0" />
                             <p className="text-xs text-muted leading-relaxed">
-                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseTitle}'}</code> — course name,{' '}
-                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{date}'}</code> — invite date,{' '}
-                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationLink}'}</code> — raw URL,{' '}
+                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseDetails}'}</code> — styled HTML card with title & date,{' '}
                                 <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled HTML button
                             </p>
                         </div>
@@ -158,11 +123,10 @@ export default function Settings() {
                         <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                             <ReactQuill 
                                 theme="snow"
-                                value={config.htmlEmailTemplate.replace(/\{origin\}/g, origin)}
+                                value={config.htmlEmailTemplate}
                                 onChange={(content) => {
-                                    const cleanContent = content.replace(originRegex, '{origin}');
-                                    if (cleanContent !== config.htmlEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: cleanContent }));
+                                    if (content !== config.htmlEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
                                     }
                                 }}
                                 modules={quillModules}
@@ -172,7 +136,7 @@ export default function Settings() {
                         {!isValidTemplate && (
                             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fadeIn">
                                 <AlertTriangle size={16} className="flex-shrink-0" />
-                                <span><strong>Warning:</strong> Template must include at least one confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
+                                <span><strong>Warning:</strong> Template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
                             </div>
                         )}
                     </div>
@@ -263,11 +227,10 @@ export default function Settings() {
                         <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                             <ReactQuill
                                 theme="snow"
-                                value={config.statusEmailTemplate.replace(/\{origin\}/g, origin)}
+                                value={config.statusEmailTemplate}
                                 onChange={(content) => {
-                                    const cleanContent = content.replace(originRegex, '{origin}');
-                                    if (cleanContent !== config.statusEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: cleanContent }));
+                                    if (content !== config.statusEmailTemplate) {
+                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
                                     }
                                 }}
                                 modules={quillModules}
