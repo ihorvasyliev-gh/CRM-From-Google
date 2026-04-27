@@ -42,7 +42,15 @@ export default function Settings() {
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
-    const buttonHtml = `<table border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto; width: auto;"><tr><td align="center" bgcolor="#059669" style="background-color: #059669; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"><a href="${linkStr}" target="_blank" style="display: inline-block; font-size: 18px; font-weight: 700; color: #ffffff; text-decoration: none; padding: 16px 36px; border: 1px solid #059669; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">✓ Confirm My Participation</a></td></tr></table>`;
+    const buttonHtml = `<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${linkStr}" style="height:56px;v-text-anchor:middle;width:280px;" arcsize="15%" stroke="f" fillcolor="#2563eb">
+<w:anchorlock/>
+<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Confirm My Place</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a href="${linkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#2563eb;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2), 0 2px 4px -1px rgba(37,99,235,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Confirm My Place</a>
+<!--<![endif]-->`;
     const previewBody = config.htmlEmailTemplate
         .replace(/\{courseTitle\}/g, 'Introduction to Digital Skills')
         .replace(/\{date\}/g, '15 Mar 2026')
@@ -55,7 +63,15 @@ export default function Settings() {
 
     // Status template preview
     const statusLinkStr = 'https://forms.gle/5ernSprvAbq4MTgf9';
-    const statusButtonHtml = `<table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;"><tr><td align="center" bgcolor="#7c3aed" style="background-color:#7c3aed;border-radius:8px;"><a href="${statusLinkStr}" target="_blank" style="display:inline-block;font-size:17px;font-weight:700;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">📝 Update My Status</a></td></tr></table>`;
+    const statusButtonHtml = `<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${statusLinkStr}" style="height:56px;v-text-anchor:middle;width:280px;" arcsize="15%" stroke="f" fillcolor="#7c3aed">
+<w:anchorlock/>
+<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Update My Status</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a href="${statusLinkStr}" target="_blank" style="display:inline-block;padding:16px 36px;background-color:#7c3aed;color:#ffffff;font-size:18px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 4px 6px -1px rgba(124,58,237,0.2), 0 2px 4px -1px rgba(124,58,237,0.1);letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Update My Status</a>
+<!--<![endif]-->`;
     const statusPreviewBody = config.statusEmailTemplate
         .replace(/\{statusLink\}/g, statusLinkStr)
         .replace(/\{statusButton\}/g, statusButtonHtml);
