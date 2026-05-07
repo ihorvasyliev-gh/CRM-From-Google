@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
 import StudentModal from './StudentModal';
@@ -42,10 +43,28 @@ interface StudentListProps {
     onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
 }
 
+async function fetchAllStudents(): Promise<Student[]> {
+    let allData: Student[] = [];
+    let from = 0;
+    const limit = 1000;
+    while (true) {
+        const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false }).range(from, from + limit - 1);
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...data];
+        if (data.length < limit) break;
+        from += limit;
+    }
+    return allData;
+}
+
 export default function StudentList({ onNavigate }: StudentListProps) {
-    const [students, setStudents] = useState<Student[]>([]);
+    const queryClient = useQueryClient();
+    const { data: students = [], isLoading: loading } = useQuery({
+        queryKey: ['students'],
+        queryFn: fetchAllStudents,
+    });
+
     const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(true);
 
     const [studentModalOpen, setStudentModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<StudentFormData | null>(null);
@@ -61,25 +80,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     // Reset visible count when search changes
     useEffect(() => { setVisibleCount(PAGE_SIZE); }, [search]);
 
-    const fetchStudents = useCallback(async () => {
-        setLoading(true);
-        let allData: Student[] = [];
-        let from = 0;
-        const limit = 1000;
-        while (true) {
-            const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false }).range(from, from + limit - 1);
-            if (!data || data.length === 0) break;
-            allData = [...allData, ...data];
-            if (data.length < limit) break;
-            from += limit;
-        }
-        setStudents(allData);
-        setLoading(false);
-    }, []);
-
-    useEffect(() => { fetchStudents(); }, [fetchStudents]);
-
-    // Filter across ALL students (client-side, instant)
+    // Helper to update students cache optimistically
+    const setStudents = useCallback((updater: (prev: Student[]) => Student[]) => {
+        queryClient.setQueryData<Student[]>(['students'], (old = []) => updater(old));
+    }, [queryClient]);
     const filteredStudents = useMemo(() => {
         if (!search.trim()) return students;
         return students.filter(s =>

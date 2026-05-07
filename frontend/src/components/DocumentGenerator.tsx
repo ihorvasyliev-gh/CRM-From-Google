@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
 import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
@@ -53,16 +54,81 @@ const PLACEHOLDER_CATEGORIES = [
     },
 ];
 
+// ─── Shared fetch function for enrollments (same as useEnrollments) ───
+async function fetchAllEnrollments(): Promise<EnrollmentWithRelations[]> {
+    let allData: EnrollmentWithRelations[] = [];
+    let from = 0;
+    const limit = 1000;
+    while (true) {
+        const { data, error } = await supabase
+            .from('enrollments')
+            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...(data as EnrollmentWithRelations[])];
+        if (data.length < limit) break;
+        from += limit;
+    }
+    return allData;
+}
 
 // ─── Component ──────────────────────────────────────────────
 export default function DocumentGenerator() {
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [enrollments, setEnrollments] = useState<EnrollmentWithRelations[]>([]);
-    const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
-    const [attTemplate, setAttTemplate] = useState<DocumentTemplate | null>(null);
-    const [labelTemplate, setLabelTemplate] = useState<DocumentTemplate | null>(null);
+    const queryClient = useQueryClient();
+
+    // ─── Cached data via React Query ────────────────────────
+    const { data: courses = [], isLoading: coursesLoading } = useQuery({
+        queryKey: ['doc_courses'],
+        queryFn: async () => {
+            const { data } = await supabase.from('courses').select('*').order('name');
+            return (data || []) as Course[];
+        },
+    });
+
+    // Reuse global enrollments cache (same key as useEnrollments / Dashboard)
+    const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
+        queryKey: ['enrollments'],
+        queryFn: fetchAllEnrollments,
+    });
+
+    const { data: templates = [], isLoading: templatesLoading } = useQuery({
+        queryKey: ['doc_templates'],
+        queryFn: async () => {
+            const { data } = await supabase.from('document_templates').select('*').order('created_at', { ascending: true });
+            return (data || []) as DocumentTemplate[];
+        },
+    });
+
+    const { data: attTemplate = null } = useQuery({
+        queryKey: ['doc_att_template'],
+        queryFn: async () => {
+            const { data } = await supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1);
+            return (data && data.length > 0) ? data[0] as DocumentTemplate : null;
+        },
+    });
+
+    const { data: labelTemplate = null } = useQuery({
+        queryKey: ['doc_label_template'],
+        queryFn: async () => {
+            const { data } = await supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1);
+            return (data && data.length > 0) ? data[0] as DocumentTemplate : null;
+        },
+    });
+
+    const { data: customVars = [] } = useQuery({
+        queryKey: ['doc_custom_vars'],
+        queryFn: async () => {
+            const { data } = await supabase.from('template_variables').select('*').order('created_at', { ascending: true });
+            return (data || []) as TemplateVariable[];
+        },
+    });
+
+    const loading = coursesLoading || enrollmentsLoading || templatesLoading;
+
+    // ─── Non-cached UI state ────────────────────────────────
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-    const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [attUploading, setAttUploading] = useState(false);
     const [labelUploading, setLabelUploading] = useState(false);
@@ -72,7 +138,6 @@ export default function DocumentGenerator() {
     const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
 
     // ─── Custom Variables State ─────────────────────────────
-    const [customVars, setCustomVars] = useState<TemplateVariable[]>([]);
     const [newVarKey, setNewVarKey] = useState('');
     const [newVarValue, setNewVarValue] = useState('');
     const [addingVar, setAddingVar] = useState(false);
@@ -89,44 +154,24 @@ export default function DocumentGenerator() {
         setTimeout(() => setToast(null), 4000);
     }, []);
 
-    // ─── Data Fetching ──────────────────────────────────────
-    useEffect(() => {
-        fetchData();
-    }, []);
+    // ─── Helpers to update cached data after mutations ──────
+    const setTemplates = useCallback((updater: (prev: DocumentTemplate[]) => DocumentTemplate[]) => {
+        queryClient.setQueryData<DocumentTemplate[]>(['doc_templates'], (old = []) => updater(old));
+    }, [queryClient]);
 
-    async function fetchData() {
-        setLoading(true);
-        const [coursesRes, templateRes, attTemplateRes, varsRes, lblTemplateRes] = await Promise.all([
-            supabase.from('courses').select('*').order('name'),
-            supabase.from('document_templates').select('*').order('created_at', { ascending: true }),
-            supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
-            supabase.from('template_variables').select('*').order('created_at', { ascending: true }),
-            supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1),
-        ]);
+    const setAttTemplate = useCallback((value: DocumentTemplate | null) => {
+        queryClient.setQueryData<DocumentTemplate | null>(['doc_att_template'], value);
+    }, [queryClient]);
 
-        let allEnrollments: EnrollmentWithRelations[] = [];
-        let from = 0;
-        const limit = 1000;
-        while (true) {
-            const { data } = await supabase
-                .from('enrollments')
-                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-                .order('created_at', { ascending: false })
-                .range(from, from + limit - 1);
-            if (!data || data.length === 0) break;
-            allEnrollments = [...allEnrollments, ...(data as EnrollmentWithRelations[])];
-            if (data.length < limit) break;
-            from += limit;
-        }
+    const setLabelTemplate = useCallback((value: DocumentTemplate | null) => {
+        queryClient.setQueryData<DocumentTemplate | null>(['doc_label_template'], value);
+    }, [queryClient]);
 
-        if (coursesRes.data) setCourses(coursesRes.data);
-        setEnrollments(allEnrollments);
-        if (templateRes.data) setTemplates(templateRes.data);
-        if (attTemplateRes.data && attTemplateRes.data.length > 0) setAttTemplate(attTemplateRes.data[0]);
-        if (varsRes.data) setCustomVars(varsRes.data);
-        if (lblTemplateRes.data && lblTemplateRes.data.length > 0) setLabelTemplate(lblTemplateRes.data[0]);
-        setLoading(false);
-    }
+    const setCustomVars = useCallback((updater: ((prev: TemplateVariable[]) => TemplateVariable[]) | TemplateVariable[]) => {
+        queryClient.setQueryData<TemplateVariable[]>(['doc_custom_vars'], (old = []) =>
+            typeof updater === 'function' ? updater(old) : updater
+        );
+    }, [queryClient]);
 
     // ─── Active templates ───────────────────────────────────
     const activeTemplates = useMemo(() => templates.filter(t => t.is_active), [templates]);

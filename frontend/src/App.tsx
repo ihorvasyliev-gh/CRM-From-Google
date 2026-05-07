@@ -1,11 +1,13 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { isNotificationSupported, requestNotificationPermission, getNotificationPermission } from './lib/notifications';
+import { supabase } from './lib/supabase';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 
@@ -95,6 +97,63 @@ function App() {
         return <LoginPage />;
     }
 
+    const queryClient = useQueryClient();
+
+    // Prefetch data for a tab on hover so it's ready when the user clicks
+    const prefetchForTab = useCallback((tab: string) => {
+        switch (tab) {
+            case 'dashboard':
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard_stats'],
+                    queryFn: async () => {
+                        const [s, c, e] = await Promise.all([
+                            supabase.from('students').select('*', { count: 'exact', head: true }),
+                            supabase.from('courses').select('*', { count: 'exact', head: true }),
+                            supabase.from('enrollments').select('*', { count: 'exact', head: true }),
+                        ]);
+                        return { students: s.count || 0, courses: c.count || 0, enrollments: e.count || 0 };
+                    },
+                    staleTime: 30_000,
+                });
+                break;
+            case 'students':
+                queryClient.prefetchQuery({
+                    queryKey: ['students'],
+                    queryFn: async () => {
+                        let all: any[] = []; let from = 0;
+                        while (true) {
+                            const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false }).range(from, from + 999);
+                            if (!data || data.length === 0) break;
+                            all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
+                        }
+                        return all;
+                    },
+                });
+                break;
+            case 'enrollments':
+            case 'documents':
+                // Both share the ['enrollments'] cache
+                queryClient.prefetchQuery({
+                    queryKey: ['enrollments'],
+                    queryFn: async () => {
+                        let all: any[] = []; let from = 0;
+                        while (true) {
+                            const { data, error } = await supabase
+                                .from('enrollments')
+                                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+                                .order('created_at', { ascending: false })
+                                .range(from, from + 999);
+                            if (error) throw error;
+                            if (!data || data.length === 0) break;
+                            all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
+                        }
+                        return all;
+                    },
+                });
+                break;
+        }
+    }, [queryClient]);
+
     function navigate(tab: string) {
         setSidebarOpen(false);
         navigateFn(`/${tab}`);
@@ -166,6 +225,7 @@ function App() {
                                 <button
                                     key={item.key}
                                     onClick={() => navigate(item.key)}
+                                    onMouseEnter={() => prefetchForTab(item.key)}
                                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative
                                         ${isActive
                                             ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400'

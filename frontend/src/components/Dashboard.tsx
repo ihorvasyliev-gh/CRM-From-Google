@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles } from 'lucide-react';
+import type { EnrollmentWithRelations } from '../lib/documentUtils';
 
 interface DashboardProps {
     onNavigate?: (tab: string) => void;
@@ -82,56 +84,75 @@ function SkeletonStatusBreakdown() {
     );
 }
 
-export default function Dashboard({ onNavigate }: DashboardProps) {
-    const [stats, setStats] = useState({ students: 0, courses: 0, enrollments: 0 });
-    const [recent, setRecent] = useState<RecentEnrollment[]>([]);
-    const [statusBreakdown, setStatusBreakdown] = useState<Record<string, number>>({});
-    const [loading, setLoading] = useState(true);
-
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        const [studRes, courseRes, enrollRes] = await Promise.all([
-            supabase.from('students').select('*', { count: 'exact', head: true }),
-            supabase.from('courses').select('*', { count: 'exact', head: true }),
-            supabase.from('enrollments').select('*', { count: 'exact', head: true }),
-        ]);
-        setStats({
-            students: studRes.count || 0,
-            courses: courseRes.count || 0,
-            enrollments: enrollRes.count || 0,
-        });
-
-        const { data: recentData } = await supabase
+// ─── Shared fetch function for enrollments (same as useEnrollments) ───
+async function fetchAllEnrollments() {
+    let allData: EnrollmentWithRelations[] = [];
+    let from = 0;
+    const limit = 1000;
+    while (true) {
+        const { data, error } = await supabase
             .from('enrollments')
-            .select('id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
-            .order('updated_at', { ascending: false })
-            .limit(8);
-        if (recentData) setRecent(recentData as unknown as RecentEnrollment[]);
+            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...data as EnrollmentWithRelations[]];
+        if (data.length < limit) break;
+        from += limit;
+    }
+    return allData;
+}
 
-        let allEnrollments: any[] = [];
-        let from = 0;
-        const limit = 1000;
-        while (true) {
-            const { data } = await supabase.from('enrollments').select('status').range(from, from + limit - 1);
-            if (!data || data.length === 0) break;
-            allEnrollments = [...allEnrollments, ...data];
-            if (data.length < limit) break;
-            from += limit;
+export default function Dashboard({ onNavigate }: DashboardProps) {
+    // Stats counts — 30s staleTime so they refresh in background on revisit after 30s
+    const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
+        queryKey: ['dashboard_stats'],
+        queryFn: async () => {
+            const [studRes, courseRes, enrollRes] = await Promise.all([
+                supabase.from('students').select('*', { count: 'exact', head: true }),
+                supabase.from('courses').select('*', { count: 'exact', head: true }),
+                supabase.from('enrollments').select('*', { count: 'exact', head: true }),
+            ]);
+            return {
+                students: studRes.count || 0,
+                courses: courseRes.count || 0,
+                enrollments: enrollRes.count || 0,
+            };
+        },
+        staleTime: 30_000, // 30 seconds — shows cached instantly, refetches in background if stale
+    });
+
+    // Recent activity — 30s staleTime
+    const { data: recent = [], isLoading: recentLoading } = useQuery({
+        queryKey: ['dashboard_recent'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('enrollments')
+                .select('id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
+                .order('updated_at', { ascending: false })
+                .limit(8);
+            return (data || []) as unknown as RecentEnrollment[];
+        },
+        staleTime: 30_000,
+    });
+
+    // Reuse the global ['enrollments'] cache for status breakdown (same key as useEnrollments)
+    const { data: allEnrollments = [], isLoading: enrollmentsLoading } = useQuery({
+        queryKey: ['enrollments'],
+        queryFn: fetchAllEnrollments,
+    });
+
+    // Derive status breakdown from cached enrollments
+    const statusBreakdown = useMemo(() => {
+        const breakdown: Record<string, number> = {};
+        for (const e of allEnrollments) {
+            breakdown[e.status] = (breakdown[e.status] || 0) + 1;
         }
+        return breakdown;
+    }, [allEnrollments]);
 
-        if (allEnrollments.length > 0) {
-            const breakdown: Record<string, number> = {};
-            for (const e of allEnrollments) {
-                breakdown[e.status] = (breakdown[e.status] || 0) + 1;
-            }
-            setStatusBreakdown(breakdown);
-        }
-        setLoading(false);
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const loading = statsLoading || recentLoading || enrollmentsLoading;
 
     const statCards = [
         {
