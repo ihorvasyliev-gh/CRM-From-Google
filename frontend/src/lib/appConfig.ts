@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     htmlEmailTemplate: `<p style="margin:0 0 24px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
 <p style="margin:0 0 32px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
 {courseDetails}
-<p style="margin:0 0 32px 0;font-size:16px;color:#64748b;text-align:center;">Spaces are limited, please let us know within <strong>7 days</strong>.</p>
+<p style="margin:0 0 32px 0;font-size:16px;color:#64748b;text-align:center;">Spaces are limited, please let us know within <strong>{responseDays} days</strong>.</p>
 {confirmationButton}
 <p style="margin:0;font-size:15px;color:#94a3b8;line-height:1.6;text-align:center;">If you have any questions, simply reply to this email.</p>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
@@ -147,7 +147,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 }
 
 /** Build the email body HTML by replacing placeholders. */
-export function buildEmailBodyHtml(courseTitle: string, date: string, confirmationLink?: string, customConfig?: AppConfig): string {
+export function buildEmailBodyHtml(courseTitle: string, date: string, confirmationLink?: string, customConfig?: AppConfig, responseDays?: number): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
     
@@ -188,7 +188,8 @@ export function buildEmailBodyHtml(courseTitle: string, date: string, confirmati
     
     body = body
         .replace(/\{courseDetails\}/g, courseDetailsHtml)
-        .replace(/\{confirmationButton\}/g, buttonHtml);
+        .replace(/\{confirmationButton\}/g, buttonHtml)
+        .replace(/\{responseDays\}/g, String(responseDays ?? 7));
 
     return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? true);
 }

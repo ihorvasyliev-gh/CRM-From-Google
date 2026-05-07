@@ -26,6 +26,7 @@ export function useInviteFlow({
     const queryClient = useQueryClient();
     const [inviteDateTarget, setInviteDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
     const [inviteDate, setInviteDate] = useState(todayISO());
+    const [responseDays, setResponseDays] = useState(7);
     const [savedInviteDates, setSavedInviteDates] = useState<string[]>([]);
 
     async function fetchCourseDates(courseId: string) {
@@ -42,6 +43,7 @@ export function useInviteFlow({
     function openInviteModal(ids: string[], bulk: boolean) {
         setInviteDateTarget({ ids, bulk });
         setInviteDate(todayISO());
+        setResponseDays(7);
         const first = enrollments.find(e => ids.includes(e.id));
         if (first && first.course_id) {
             fetchCourseDates(first.course_id);
@@ -127,7 +129,7 @@ export function useInviteFlow({
             console.error('Token generation failed, using long URL:', err);
         }
 
-        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink);
+        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays);
 
         try {
             const blobHtml = new Blob([htmlBody], { type: "text/html" });
@@ -154,6 +156,8 @@ export function useInviteFlow({
         setInviteDateTarget,
         inviteDate,
         setInviteDate,
+        responseDays,
+        setResponseDays,
         savedInviteDates,
         openInviteModal,
         handleInviteWithDate,

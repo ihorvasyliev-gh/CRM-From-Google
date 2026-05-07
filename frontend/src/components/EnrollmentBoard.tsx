@@ -529,6 +529,28 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                             className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
                         />
 
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-primary mb-1.5">
+                                Response Deadline
+                            </label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    id="response-days"
+                                    name="responseDays"
+                                    value={inviteFlow.responseDays}
+                                    min={1}
+                                    max={90}
+                                    onChange={e => inviteFlow.setResponseDays(Math.max(1, parseInt(e.target.value) || 7))}
+                                    className="w-24 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface text-center"
+                                />
+                                <span className="text-sm text-muted">days to confirm</span>
+                            </div>
+                            <p className="text-xs text-muted mt-1.5 opacity-70">
+                                The participant will see this deadline in the invitation email
+                            </p>
+                        </div>
+
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => inviteFlow.setInviteDateTarget(null)}
