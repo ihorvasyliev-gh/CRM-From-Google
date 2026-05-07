@@ -80,23 +80,6 @@ function App() {
         }
     }, [darkMode]);
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-background text-primary flex items-center justify-center transition-colors duration-300 ease-in-out">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
-                        <Sparkles size={24} className="text-white" />
-                    </div>
-                    <Loader2 size={20} className="animate-spin text-brand-500" />
-                </div>
-            </div>
-        );
-    }
-
-    if (!user) {
-        return <LoginPage />;
-    }
-
     const queryClient = useQueryClient();
 
     // Prefetch data for a tab on hover so it's ready when the user clicks
@@ -153,6 +136,23 @@ function App() {
                 break;
         }
     }, [queryClient]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background text-primary flex items-center justify-center transition-colors duration-300 ease-in-out">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
+                        <Sparkles size={24} className="text-white" />
+                    </div>
+                    <Loader2 size={20} className="animate-spin text-brand-500" />
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return <LoginPage />;
+    }
 
     function navigate(tab: string) {
         setSidebarOpen(false);
