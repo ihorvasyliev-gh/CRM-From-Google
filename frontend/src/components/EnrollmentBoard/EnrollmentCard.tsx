@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react';
+import { useMemo, memo, useState, useEffect } from 'react';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -32,6 +32,15 @@ const EnrollmentCard = function EnrollmentCard({
     onFlagClick,
     isOverlay
 }: EnrollmentCardProps) {
+    const [now, setNow] = useState(() => Date.now());
+    
+    useEffect(() => {
+        if (status === 'invited') {
+            const interval = setInterval(() => setNow(Date.now()), 60000);
+            return () => clearInterval(interval);
+        }
+    }, [status]);
+
     const cfg = STATUS_CONFIG[status];
     const draggableData = useMemo(() => ({ status }), [status]);
 
@@ -106,7 +115,7 @@ const EnrollmentCard = function EnrollmentCard({
                         if (!invitedAt) return null;
                         const days = enrollment.response_days ?? 7;
                         const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                        const remaining = deadline - Date.now();
+                        const remaining = deadline - now;
                         const isExpired = remaining <= 0;
 
                         if (isExpired) {

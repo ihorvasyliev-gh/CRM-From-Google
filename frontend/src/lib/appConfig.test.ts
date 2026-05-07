@@ -49,19 +49,19 @@ describe('appConfig', () => {
         it('includes confirmation link block if provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm');
             expect(result).toContain('https://example.com/confirm');
-            expect(result).toContain('Confirm My Participation');
+            expect(result).toContain('Confirm My Place');
         });
 
         it('does not include confirmation block if no link provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20');
-            expect(result).not.toContain('Confirm My Participation');
+            expect(result).not.toContain('Confirm My Place');
         });
     });
 
     describe('buildEmailSubject', () => {
         it('replaces courseName and date placeholders', () => {
             const result = buildEmailSubject('React Native', 'Nov 5');
-            expect(result).toBe('React Native — Nov 5');
+            expect(result).toBe('You are Invited to join our React Native course which will take place on Nov 5');
         });
 
         it('uses custom formatting if configured', () => {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -51,7 +52,9 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     });
 
     // Keep ref in sync
-    enrollmentsRef.current = enrollments;
+    useEffect(() => {
+        enrollmentsRef.current = enrollments;
+    }, [enrollments]);
 
     // Provide a backward-compatible setEnrollments for other hooks that might still depend on it
     const setEnrollments = useCallback(

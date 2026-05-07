@@ -90,7 +90,9 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         showToast
     });
     
-    inviteFlowRef.current = inviteFlow;
+    useEffect(() => {
+        inviteFlowRef.current = inviteFlow;
+    }, [inviteFlow]);
 
     const studentFlagsHook = useStudentFlags(showToast);
 
@@ -289,7 +291,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 enrollmentsHook.updateStatus(enrollmentId, newStatus);
             }
         });
-    }, [enrollmentsHook.updateStatus]);
+    }, [enrollmentsHook]);
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
         setActiveId(event.active.id as string);
@@ -314,7 +316,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 toggleSelect={bulkActions.toggleSelect}
             />
         );
-    }, [enrollments, bulkActions.selectedIds, bulkActions.generatingDocs, bulkActions.handleCopySelectedEmails, filteredEnrollments, bulkActions.bulkUpdateStatus, bulkActions.handleGenerateDocuments, bulkActions.clearSelection, bulkActions.toggleSelect]);
+    }, [enrollments, filteredEnrollments, bulkActions]);
 
     return (
         <div className="h-full flex flex-col space-y-4 pb-8">
