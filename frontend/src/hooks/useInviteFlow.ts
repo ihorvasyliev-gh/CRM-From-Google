@@ -51,7 +51,7 @@ export function useInviteFlow({
     }
 
     const inviteMutation = useMutation({
-        mutationFn: async ({ ids, date }: { ids: string[], date: string }) => {
+        mutationFn: async ({ ids, date, days }: { ids: string[], date: string, days: number }) => {
             const first = enrollments.find(e => ids.includes(e.id));
             if (first && first.course_id) {
                 await supabase.from('invite_dates').upsert(
@@ -61,7 +61,7 @@ export function useInviteFlow({
             }
 
             const now = new Date().toISOString();
-            const updatePayload = { status: 'invited', invited_date: date, confirmed_date: null, invited_at: now };
+            const updatePayload = { status: 'invited', invited_date: date, confirmed_date: null, invited_at: now, response_days: days };
 
             const { error } = await supabase
                 .from('enrollments')
@@ -71,12 +71,12 @@ export function useInviteFlow({
 
             return { ids, updatePayload };
         },
-        onMutate: async ({ ids, date }) => {
+        onMutate: async ({ ids, date, days }) => {
             await queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
 
             const now = new Date().toISOString();
-            const updatePayload = { status: 'invited', invited_date: date, confirmed_date: null, invited_at: now };
+            const updatePayload = { status: 'invited', invited_date: date, confirmed_date: null, invited_at: now, response_days: days };
 
             setEnrollments(prev => prev.map(e =>
                 ids.includes(e.id) ? { ...e, ...updatePayload } as EnrollmentRow : e
@@ -95,7 +95,7 @@ export function useInviteFlow({
 
     async function handleInviteWithDate() {
         if (!inviteDateTarget) return;
-        inviteMutation.mutate({ ids: inviteDateTarget.ids, date: inviteDate });
+        inviteMutation.mutate({ ids: inviteDateTarget.ids, date: inviteDate, days: responseDays });
         setInviteDateTarget(null);
     }
 
@@ -105,7 +105,7 @@ export function useInviteFlow({
         const selectedEnrollments = enrollments.filter(e => ids.includes(e.id));
 
         // Fire and forget optimistic mutation
-        inviteMutation.mutate({ ids, date: inviteDate });
+        inviteMutation.mutate({ ids, date: inviteDate, days: responseDays });
 
         const emails = selectedEnrollments
             .map(e => e.students?.email)

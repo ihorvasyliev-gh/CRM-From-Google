@@ -104,22 +104,23 @@ const EnrollmentCard = function EnrollmentCard({
                     {status === 'invited' && (() => {
                         const invitedAt = enrollment.invited_at;
                         if (!invitedAt) return null;
-                        const deadline = new Date(invitedAt).getTime() + 7 * 24 * 60 * 60 * 1000;
+                        const days = enrollment.response_days ?? 7;
+                        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
                         const remaining = deadline - Date.now();
                         const isExpired = remaining <= 0;
 
                         if (isExpired) {
                             const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
-                                <div className="flex-shrink-0 mt-0.5" title={`Expired • Invited on ${invitedDate}`}>
+                                <div className="flex-shrink-0 mt-0.5" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
                                     <Timer size={16} className="text-red-400 drop-shadow-sm" />
                                 </div>
                             );
                         }
 
-                        const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
                         const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                        const timerText = days > 0 ? `${days}d ${hours}h remaining` : `${hours}h remaining`;
+                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h remaining (${days}-day deadline)` : `${hours}h remaining (${days}-day deadline)`;
                         return (
                             <div className="flex-shrink-0 mt-0.5" title={timerText}>
                                 <Timer size={16} className="text-muted-strong drop-shadow-sm" />

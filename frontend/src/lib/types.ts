@@ -31,6 +31,7 @@ export interface Enrollment {
     invited_at: string | null;
     completed_date: string | null;
     is_priority: boolean;
+    response_days: number | null;
     created_at: string;
 }
 
