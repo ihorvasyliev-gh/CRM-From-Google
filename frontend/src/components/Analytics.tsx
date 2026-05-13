@@ -15,7 +15,8 @@ import {
     Pie, 
     Cell,
     LineChart,
-    Line
+    Line,
+    LabelList
 } from 'recharts';
 import { PieChart as PieChartIcon, TrendingUp, Users, BookOpen, Clock, Activity } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
@@ -80,11 +81,11 @@ export default function Analytics() {
         });
         
         return [
-            { name: 'Requested', value: counts.requested, color: '#f59e0b' }, // warning
-            { name: 'Invited', value: counts.invited, color: '#3b82f6' },   // info
-            { name: 'Confirmed', value: counts.confirmed, color: '#10b981' }, // success
-            { name: 'Completed', value: counts.completed, color: '#6366f1' }, // brand
-            { name: 'Withdrawn/Rejected', value: counts.withdrawn + counts.rejected, color: '#71717a' }, // muted
+            { name: 'Requested', value: counts.requested, color: '#F59E0B' }, // Amber
+            { name: 'Invited', value: counts.invited, color: '#8B5CF6' },   // Violet
+            { name: 'Confirmed', value: counts.confirmed, color: '#0EA5E9' }, // Sky
+            { name: 'Completed', value: counts.completed, color: '#10B981' }, // Emerald
+            { name: 'Withdrawn/Rejected', value: counts.withdrawn + counts.rejected, color: '#64748B' }, // Slate
         ].filter(d => d.value > 0);
     }, [enrollments]);
 
@@ -103,26 +104,49 @@ export default function Analytics() {
 
     // 3. Enrollments Over Time (By Month)
     const enrollmentsOverTime = useMemo(() => {
-        const months: Record<string, { total: number, confirmed: number }> = {};
+        const timelineData: Record<string, { total: number, confirmed: number, timestamp: number }> = {};
         
-        enrollments.forEach(e => {
-            const date = new Date(e.created_at);
-            const monthYear = date.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
-            
-            if (!months[monthYear]) {
-                months[monthYear] = { total: 0, confirmed: 0 };
+        const getMonthYear = (dateString: string | null) => {
+            if (!dateString) return null;
+            const d = new Date(dateString);
+            if (isNaN(d.getTime())) return null;
+            return d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
+        };
+
+        const addMetric = (dateString: string, type: 'total' | 'confirmed') => {
+            const my = getMonthYear(dateString);
+            if (!my) return;
+            if (!timelineData[my]) {
+                const d = new Date(dateString);
+                timelineData[my] = { total: 0, confirmed: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime() };
             }
-            months[monthYear].total++;
-            if (e.status === 'confirmed' || e.status === 'completed') {
-                months[monthYear].confirmed++;
+            timelineData[my][type]++;
+        };
+
+        enrollments.forEach(e => {
+            if (e.created_at) {
+                addMetric(e.created_at, 'total');
+            }
+            
+            if (e.status === 'confirmed' && e.confirmed_date) {
+                addMetric(e.confirmed_date, 'confirmed');
+            } else if (e.status === 'completed' && e.completed_date) {
+                addMetric(e.completed_date, 'confirmed');
+            } else if ((e.status === 'confirmed' || e.status === 'completed')) {
+                const fallbackDate = e.confirmed_date || e.completed_date || e.created_at;
+                if (fallbackDate) {
+                    addMetric(fallbackDate, 'confirmed');
+                }
             }
         });
 
-        return Object.entries(months).map(([name, data]) => ({
-            name,
-            total: data.total,
-            confirmed: data.confirmed
-        }));
+        return Object.entries(timelineData)
+            .sort((a, b) => a[1].timestamp - b[1].timestamp)
+            .map(([name, data]) => ({
+                name,
+                total: data.total,
+                confirmed: data.confirmed
+            }));
     }, [enrollments]);
 
     // 4. Quick Metrics
@@ -267,6 +291,7 @@ export default function Analytics() {
                                     {coursePopularity.map((_, index) => (
                                         <Cell key={`cell-${index}`} fill={`url(#colorGradient${index % 2})`} />
                                     ))}
+                                    <LabelList dataKey="count" position="insideRight" fill="#ffffff" fontSize={11} fontWeight="bold" />
                                 </Bar>
                                 <defs>
                                     <linearGradient id="colorGradient0" x1="0" y1="0" x2="1" y2="0">
