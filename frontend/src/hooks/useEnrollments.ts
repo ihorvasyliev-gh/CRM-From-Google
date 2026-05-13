@@ -66,44 +66,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         [queryClient]
     );
 
-    // Setup realtime subscription
-    useEffect(() => {
-        const channel = supabase
-            .channel('enrollments_changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'enrollments' },
-                async (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        // Fetch the full joined record for the new insertion
-                        const { data } = await supabase
-                            .from('enrollments')
-                            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-                            .eq('id', payload.new.id)
-                            .single();
-
-                        if (data) {
-                            setEnrollments(prev => {
-                                // Prevent duplicates if already added optimistically
-                                if (prev.some(e => e.id === data.id)) return prev;
-                                return [data as EnrollmentRow, ...prev];
-                            });
-                        }
-                    } else if (payload.eventType === 'UPDATE') {
-                        setEnrollments(prev => prev.map(e =>
-                            e.id === payload.new.id ? { ...e, ...payload.new } : e
-                        ));
-                    } else if (payload.eventType === 'DELETE') {
-                        setEnrollments(prev => prev.filter(e => e.id !== payload.old.id));
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [setEnrollments]);
+    // Realtime subscription is handled globally by useGlobalRealtimeSync in App.tsx
 
     // ─── Status Update Mutation ──────────────────────────────────
     const updateStatusMutation = useMutation({

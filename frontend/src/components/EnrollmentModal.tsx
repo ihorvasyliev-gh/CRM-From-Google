@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, Loader2, Search, UserPlus } from 'lucide-react';
 import { getAvatarGradient, cleanVariant } from '../lib/types';
 
@@ -24,6 +25,7 @@ interface EnrollmentModalProps {
 }
 
 export default function EnrollmentModal({ open, preselectedStudentId, preselectedCourseId, onSave, onClose }: EnrollmentModalProps) {
+    const queryClient = useQueryClient();
     const [students, setStudents] = useState<Student[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [studentSearch, setStudentSearch] = useState('');
@@ -109,6 +111,11 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 throw new Error(dbError.message);
             }
             onSave();
+            // Invalidate caches so all pages reflect the new enrollment immediately
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {

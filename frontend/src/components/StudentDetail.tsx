@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
@@ -141,6 +142,7 @@ function InfoField({ icon, label, value }: { icon: JSX.Element; label: string; v
 }
 
 export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
+    const queryClient = useQueryClient();
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -182,6 +184,9 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
             if (!error) {
                 setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             }
         } else {
             const { error } = await supabase
@@ -191,6 +196,9 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
             if (!error) {
                 setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             }
         }
     }
@@ -204,6 +212,10 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         if (!error) {
             setEnrollments(prev => prev.filter(e => e.id !== id));
             setConfirmDeleteId(null);
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
         }
     }
 

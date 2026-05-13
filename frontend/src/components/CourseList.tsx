@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
 import { Course, getAvatarGradient } from '../lib/types';
@@ -13,6 +14,28 @@ interface EnrollmentCount {
     invited: number;
     confirmed: number;
     rejected: number;
+}
+
+async function fetchCourses(): Promise<Course[]> {
+    const { data } = await supabase.from('courses').select('*').order('name');
+    return (data || []) as Course[];
+}
+
+async function fetchEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
+    const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
+    if (!enrollments) return {};
+    const counts: Record<string, EnrollmentCount> = {};
+    for (const e of enrollments) {
+        if (!counts[e.course_id]) {
+            counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, rejected: 0 };
+        }
+        counts[e.course_id].total++;
+        const stat = e.status as keyof EnrollmentCount;
+        if (stat in counts[e.course_id]) {
+            (counts[e.course_id][stat] as number)++;
+        }
+    }
+    return counts;
 }
 
 
@@ -52,39 +75,28 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
 }
 
 export default function CourseList() {
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [enrollmentCounts, setEnrollmentCounts] = useState<Record<string, EnrollmentCount>>({});
+    const queryClient = useQueryClient();
+
+    const { data: courses = [], isLoading: loading } = useQuery({
+        queryKey: ['courses'],
+        queryFn: fetchCourses,
+    });
+
+    const { data: enrollmentCounts = {} } = useQuery({
+        queryKey: ['course_enrollment_counts'],
+        queryFn: fetchEnrollmentCounts,
+    });
+
     const [search, setSearch] = useState('');
-    const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
 
-    const fetchAll = useCallback(async () => {
-        setLoading(true);
-        const { data: coursesData } = await supabase.from('courses').select('*').order('name');
-        if (coursesData) setCourses(coursesData);
-
-        const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
-        if (enrollments) {
-            const counts: Record<string, EnrollmentCount> = {};
-            for (const e of enrollments) {
-                if (!counts[e.course_id]) {
-                    counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, rejected: 0 };
-                }
-                counts[e.course_id].total++;
-                const stat = e.status as keyof EnrollmentCount;
-                if (stat in counts[e.course_id]) {
-                    (counts[e.course_id][stat] as number)++;
-                }
-            }
-            setEnrollmentCounts(counts);
-        }
-        setLoading(false);
-    }, []);
-
-    useEffect(() => { fetchAll(); }, [fetchAll]);
+    // Helper to update courses cache optimistically
+    const setCourses = useCallback((updater: (prev: Course[]) => Course[]) => {
+        queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
+    }, [queryClient]);
 
     async function handleSave(data: { id?: string; name: string }) {
         if (data.id) {
@@ -107,6 +119,9 @@ export default function CourseList() {
             setToast({ message: 'Failed to delete course', type: 'error' });
         } else {
             setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course deleted', type: 'success' });
         }
         setDeleteTarget(null);

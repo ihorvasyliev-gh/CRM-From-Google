@@ -7,6 +7,7 @@ import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Load
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
+import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
 import { isNotificationSupported, requestNotificationPermission, getNotificationPermission } from './lib/notifications';
 import { supabase } from './lib/supabase';
 
@@ -48,6 +49,7 @@ function App() {
 
     // Fire browser notifications for enrollment confirmations
     useConfirmationNotifier();
+    useGlobalRealtimeSync();
 
     // Show notification permission banner once if not yet decided
     useEffect(() => {

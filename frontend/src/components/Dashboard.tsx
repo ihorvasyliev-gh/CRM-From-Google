@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 
 interface DashboardProps {
@@ -104,7 +104,18 @@ async function fetchAllEnrollments() {
     return allData;
 }
 
+type ActivityFilter = 'all' | 'requested' | 'invited' | 'confirmed' | 'completed';
+
+const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'requested', label: 'Requested' },
+    { key: 'invited', label: 'Invited' },
+    { key: 'confirmed', label: 'Confirmed' },
+    { key: 'completed', label: 'Completed' },
+];
+
 export default function Dashboard({ onNavigate }: DashboardProps) {
+    const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
     // Stats counts — 30s staleTime so they refresh in background on revisit after 30s
     const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
         queryKey: ['dashboard_stats'],
@@ -131,7 +142,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 .from('enrollments')
                 .select('id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
                 .order('updated_at', { ascending: false })
-                .limit(8);
+                .limit(50);
             return (data || []) as unknown as RecentEnrollment[];
         },
         staleTime: 30_000,
@@ -153,6 +164,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     }, [allEnrollments]);
 
     const loading = statsLoading || recentLoading || enrollmentsLoading;
+
+    // Filter recent activity by selected status
+    const filteredRecent = useMemo(() => {
+        const filtered = activityFilter === 'all'
+            ? recent
+            : recent.filter(en => en.status === activityFilter);
+        return filtered.slice(0, 10);
+    }, [recent, activityFilter]);
+
+    // Counts per filter for pill badges
+    const filterCounts = useMemo(() => {
+        const counts: Record<ActivityFilter, number> = { all: recent.length, requested: 0, invited: 0, confirmed: 0, completed: 0 };
+        for (const en of recent) {
+            if (en.status in counts) counts[en.status as ActivityFilter]++;
+        }
+        return counts;
+    }, [recent]);
 
     const statCards = [
         {
@@ -324,21 +352,42 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
                 {/* Recent Activity */}
                 <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
-                        <Clock size={14} className="text-brand-500" /> Recent Activity
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
+                            <Clock size={14} className="text-brand-500" /> Recent Activity
+                        </h3>
+                        <Filter size={12} className="text-muted" />
+                    </div>
+                    {/* Filter pills */}
+                    {!loading && recent.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                            {ACTIVITY_FILTERS.map(f => (
+                                <button
+                                    key={f.key}
+                                    onClick={() => setActivityFilter(f.key)}
+                                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                        activityFilter === f.key
+                                            ? 'bg-brand-500 text-white shadow-sm'
+                                            : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle hover:border-border-strong'
+                                    }`}
+                                >
+                                    {f.label} ({filterCounts[f.key]})
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     {loading ? (
                         <div className="space-y-1">
                             {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
                         </div>
-                    ) : recent.length === 0 ? (
+                    ) : filteredRecent.length === 0 ? (
                         <div className="text-center py-8">
                             <Clock size={40} className="mx-auto mb-2 text-muted/50" />
-                            <p className="text-sm text-muted">No recent activity</p>
+                            <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            {recent.map((en, i) => (
+                            {filteredRecent.map((en, i) => (
                                 <div
                                     key={en.id}
                                     className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-elevated transition-all group cursor-default"
