@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Check, X } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
@@ -88,11 +88,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
 
-    // Inline Editing State
-    const [editingRowId, setEditingRowId] = useState<string | null>(null);
-    const [inlineEditForm, setInlineEditForm] = useState<StudentFormData | null>(null);
-    const [inlineSaving, setInlineSaving] = useState(false);
-
     const sentinelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -163,23 +158,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         }
     }
 
-    async function handleInlineSave() {
-        if (!inlineEditForm || !inlineEditForm.id) return;
-        setInlineSaving(true);
-        try {
-            const { id, ...rest } = inlineEditForm;
-            const { error } = await supabase.from('students').update(rest).eq('id', id);
-            if (error) throw error;
-            updateStudentInCache(inlineEditForm as Student);
-            setToast({ message: 'Saved inline edit', type: 'success' });
-            setEditingRowId(null);
-        } catch (e: any) {
-            setToast({ message: e.message || 'Failed to save', type: 'error' });
-        } finally {
-            setInlineSaving(false);
-        }
-    }
-
     async function handleDeleteStudent() {
         if (!deleteTarget) return;
         const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
@@ -213,22 +191,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             setEnrollModalOpen(true);
         }
     }
-
-    const handleRowDoubleClick = (e: React.MouseEvent, student: Student) => {
-        e.stopPropagation();
-        setDetailStudent(null);
-        setEditingRowId(student.id);
-        setInlineEditForm({
-            id: student.id,
-            first_name: student.first_name || '',
-            last_name: student.last_name || '',
-            email: student.email || '',
-            phone: student.phone || '',
-            address: student.address || '',
-            eircode: student.eircode || '',
-            dob: student.dob || '',
-        });
-    };
 
     return (
         <div className="space-y-4">
@@ -315,90 +277,11 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-subtle">
-                                {displayedStudents.map(student => {
-                                    const isEditing = editingRowId === student.id;
-                                    if (isEditing && inlineEditForm) {
-                                        return (
-                                            <tr key={`edit-${student.id}`} className="bg-brand-50/30">
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex gap-2">
-                                                        <input 
-                                                            autoFocus
-                                                            className="w-1/2 px-2 py-1.5 bg-surface border border-brand-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary" 
-                                                            value={inlineEditForm.first_name} 
-                                                            placeholder="First name"
-                                                            onChange={e => setInlineEditForm({...inlineEditForm, first_name: e.target.value})}
-                                                            onKeyDown={e => e.key === 'Enter' && handleInlineSave()}
-                                                        />
-                                                        <input 
-                                                            className="w-1/2 px-2 py-1.5 bg-surface border border-brand-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary" 
-                                                            value={inlineEditForm.last_name} 
-                                                            placeholder="Last name"
-                                                            onChange={e => setInlineEditForm({...inlineEditForm, last_name: e.target.value})}
-                                                            onKeyDown={e => e.key === 'Enter' && handleInlineSave()}
-                                                        />
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <input 
-                                                        className="w-full px-2 py-1.5 bg-surface border border-brand-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary" 
-                                                        value={inlineEditForm.email} 
-                                                        placeholder="Email"
-                                                        onChange={e => setInlineEditForm({...inlineEditForm, email: e.target.value})}
-                                                        onKeyDown={e => e.key === 'Enter' && handleInlineSave()}
-                                                    />
-                                                </td>
-                                                <td className="px-5 py-3.5 hidden md:table-cell">
-                                                    <input 
-                                                        className="w-full px-2 py-1.5 bg-surface border border-brand-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary" 
-                                                        value={inlineEditForm.phone} 
-                                                        placeholder="Phone"
-                                                        onChange={e => setInlineEditForm({...inlineEditForm, phone: e.target.value})}
-                                                        onKeyDown={e => e.key === 'Enter' && handleInlineSave()}
-                                                    />
-                                                </td>
-                                                <td className="px-5 py-3.5 hidden lg:table-cell">
-                                                    <input 
-                                                        className="w-full px-2 py-1.5 bg-surface border border-brand-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary" 
-                                                        value={inlineEditForm.eircode} 
-                                                        placeholder="Eircode"
-                                                        onChange={e => setInlineEditForm({...inlineEditForm, eircode: e.target.value})}
-                                                        onKeyDown={e => e.key === 'Enter' && handleInlineSave()}
-                                                    />
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={handleInlineSave}
-                                                            disabled={inlineSaving}
-                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                                            title="Save"
-                                                        >
-                                                            {inlineSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setEditingRowId(null)}
-                                                            disabled={inlineSaving}
-                                                            className="p-1.5 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
-                                                            title="Cancel"
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
-
-                                    return (
+                                {displayedStudents.map(student => (
                                         <tr
                                             key={student.id}
                                             className="hover:bg-brand-50/30 cursor-pointer transition-all group"
-                                            onClick={() => {
-                                                if (!editingRowId) setDetailStudent(student);
-                                            }}
-                                            onDoubleClick={(e) => handleRowDoubleClick(e, student)}
-                                            title="Double-click to edit inline"
+                                            onClick={() => setDetailStudent(student)}
                                         >
                                             <td className="px-5 py-3.5">
                                                 <div className="flex items-center gap-3">
@@ -431,8 +314,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 </div>
                                             </td>
                                         </tr>
-                                    );
-                                })}
+                                ))}
                             </tbody>
                         </table>
                     </div>
