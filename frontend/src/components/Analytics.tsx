@@ -251,7 +251,7 @@ export default function Analytics() {
                                     type="category" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                                    tick={{ fill: '#a1a1aa', fontSize: 11 }}
                                     width={110}
                                 />
                                 <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--border-subtle)', opacity: 0.4 }} />
@@ -296,13 +296,13 @@ export default function Analytics() {
                                     dataKey="name" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }} 
+                                    tick={{ fill: '#a1a1aa', fontSize: 12 }} 
                                     dy={10}
                                 />
                                 <YAxis 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }} 
+                                    tick={{ fill: '#a1a1aa', fontSize: 12 }} 
                                 />
                                 <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border-subtle)', strokeWidth: 1, strokeDasharray: '3 3' }} />
                                 <Legend 

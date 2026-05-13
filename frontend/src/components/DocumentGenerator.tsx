@@ -717,7 +717,7 @@ export default function DocumentGenerator() {
                                                     value={editingVarValue}
                                                     onChange={e => setEditingVarValue(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter') handleSaveVariableValue(v); if (e.key === 'Escape') setEditingVarId(null); }}
-                                                    className="flex-1 min-w-0 px-2 py-1 text-sm rounded-lg border border-emerald-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                                    className="flex-1 min-w-0 px-2 py-1 text-sm rounded-lg border border-emerald-300 bg-surface-elevated text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                                                     autoFocus
                                                 />
                                                 <button
