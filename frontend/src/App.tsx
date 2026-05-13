@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -21,6 +21,7 @@ const EnrollmentBoard = lazyWithRetry(() => import('./components/EnrollmentBoard
 const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGenerator'));
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
+const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board' },
     { key: 'outcomes', label: 'Outcomes', icon: Briefcase, desc: 'Graduate tracking' },
     { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms' },
+    { key: 'analytics', label: 'Analytics', icon: PieChart, desc: 'Insights & Stats' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration' },
 ];
 
@@ -39,6 +41,7 @@ const PAGE_TITLES: Record<string, string> = {
     enrollments: 'Enrollments',
     outcomes: 'Outcomes',
     documents: 'Documents',
+    analytics: 'Analytics & Insights',
     settings: 'Settings',
 };
 
@@ -116,6 +119,26 @@ function App() {
                     },
                 });
                 break;
+    case 'analytics':
+        // Reuse enrollments cache for analytics
+        queryClient.prefetchQuery({
+            queryKey: ['analytics_enrollments'],
+            queryFn: async () => {
+                let all: any[] = []; let from = 0;
+                while (true) {
+                    const { data, error } = await supabase
+                        .from('enrollments')
+                        .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+                        .order('created_at', { ascending: true })
+                        .range(from, from + 999);
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+                    all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
+                }
+                return all;
+            },
+        });
+        break;
             case 'enrollments':
             case 'documents':
                 // Both share the ['enrollments'] cache
@@ -348,6 +371,7 @@ function App() {
                                     {activeTab === 'enrollments' && 'Track and manage enrollments'}
                                     {activeTab === 'outcomes' && 'Track graduate employment status'}
                                     {activeTab === 'documents' && 'Generate personalized documents'}
+                                    {activeTab === 'analytics' && 'Course and enrollment statistics'}
                                     {activeTab === 'settings' && 'Configure email templates and preferences'}
                                 </p>
                             </div>
@@ -374,6 +398,7 @@ function App() {
                                 <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />
                                 <Route path="/outcomes" element={<OutcomesList />} />
                                 <Route path="/documents" element={<DocumentGenerator />} />
+                                <Route path="/analytics" element={<Analytics />} />
                                 <Route path="/settings" element={<Settings />} />
                                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
                             </Routes>
