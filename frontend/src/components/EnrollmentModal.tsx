@@ -172,6 +172,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                                 <input
                                     type="text"
+                                    autoFocus={!preselectedStudentId}
                                     placeholder="Search by name or email..."
                                     className="w-full pl-9 pr-4 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated transition-all placeholder:text-muted"
                                     value={selectedStudent ? `${selectedStudent.first_name} ${selectedStudent.last_name}` : studentSearch}
@@ -220,6 +221,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         <select
                             value={selectedCourseId}
                             onChange={e => setSelectedCourseId(e.target.value)}
+                            autoFocus={!!preselectedStudentId}
                             className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated transition-all"
                         >
                             <option value="">Select a course...</option>

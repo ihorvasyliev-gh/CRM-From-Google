@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
@@ -115,7 +115,13 @@ const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
 ];
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
-    const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
+    const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
+        return (localStorage.getItem('dashboardActivityFilter') as ActivityFilter) || 'all';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('dashboardActivityFilter', activityFilter);
+    }, [activityFilter]);
     // Stats counts — 30s staleTime so they refresh in background on revisit after 30s
     const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
         queryKey: ['dashboard_stats'],
@@ -190,6 +196,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             gradient: 'from-brand-500 to-brand-600',
             iconBg: 'bg-brand-500/10 text-brand-600',
             accentColor: 'brand',
+            tab: 'students'
         },
         {
             label: 'Active Courses',
@@ -198,6 +205,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             gradient: 'from-violet-500 to-purple-600',
             iconBg: 'bg-violet-500/10 text-violet-600',
             accentColor: 'violet',
+            tab: 'courses'
         },
         {
             label: 'Enrollments',
@@ -206,6 +214,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             gradient: 'from-emerald-500 to-teal-600',
             iconBg: 'bg-emerald-500/10 text-emerald-600',
             accentColor: 'emerald',
+            tab: 'enrollments'
         },
     ];
 
@@ -229,7 +238,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     statCards.map((card, i) => (
                         <div
                             key={card.label}
-                            className="relative bg-surface rounded-2xl shadow-card card-hover border border-border-subtle p-5 overflow-hidden group hover:border-border-strong transition-all duration-300"
+                            onClick={() => onNavigate?.(card.tab)}
+                            className="relative bg-surface rounded-2xl shadow-card card-hover border border-border-subtle p-5 overflow-hidden group hover:border-border-strong transition-all duration-300 cursor-pointer"
                             style={{ animationDelay: `${i * 100}ms` }}
                         >
                             {/* Gradient accent top */}

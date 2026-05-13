@@ -1,4 +1,5 @@
-import { GraduationCap, Search, X, Plus, Globe, Filter, Calendar, ArrowUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { GraduationCap, Search, X, Plus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface FilterBarProps {
@@ -43,6 +44,7 @@ export default function FilterBar({
     statusCounts
 }: FilterBarProps) {
     const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo;
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     return (
         <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 space-y-3">
@@ -150,34 +152,19 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Row 3: Date filter + Clear */}
+            {/* Row 3: Actions + Advanced Toggle */}
             <div className="flex flex-wrap gap-2.5 items-center">
-                <div className="flex items-center gap-1.5 text-muted">
-                    <Filter size={14} />
-                    <span className="text-xs font-medium uppercase tracking-wider">Date:</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-strong rounded-xl px-2.5 py-1">
-                    <Calendar size={13} className="text-muted" />
-                    <input
-                        type="datetime-local"
-                        id="date-from"
-                        name="dateFrom"
-                        className="bg-transparent text-sm outline-none py-0.5 text-primary"
-                        value={dateFrom}
-                        onChange={e => setDateFrom(e.target.value)}
-                        title="From date and time"
-                    />
-                    <span className="text-muted/50 text-xs">—</span>
-                    <input
-                        type="datetime-local"
-                        id="date-to"
-                        name="dateTo"
-                        className="bg-transparent text-sm outline-none py-0.5 text-primary"
-                        value={dateTo}
-                        onChange={e => setDateTo(e.target.value)}
-                        title="To date and time"
-                    />
-                </div>
+                <button
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className={`flex items-center gap-1.5 text-xs font-medium transition-colors px-2.5 py-1.5 rounded-xl border active:scale-95 ${
+                        showAdvanced 
+                            ? 'bg-brand-500/10 text-brand-600 border-brand-500/30' 
+                            : 'bg-surface-elevated text-muted hover:text-primary border-border-strong'
+                    }`}
+                >
+                    <SlidersHorizontal size={14} />
+                    Advanced Filters
+                </button>
                 {hasFilters && (
                     <button
                         onClick={() => {
@@ -207,6 +194,38 @@ export default function FilterBar({
                     {filteredCount} <span className="opacity-50">/</span> {enrollmentCount} enrollments
                 </span>
             </div>
+
+            {/* Advanced Filters Panel */}
+            {showAdvanced && (
+                <div className="p-3 bg-surface-elevated border border-border-strong rounded-xl animate-slideDown flex flex-wrap gap-3 items-center">
+                    <div className="flex items-center gap-1.5 text-muted">
+                        <Filter size={14} />
+                        <span className="text-xs font-medium uppercase tracking-wider">Date:</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1">
+                        <Calendar size={13} className="text-muted" />
+                        <input
+                            type="datetime-local"
+                            id="date-from"
+                            name="dateFrom"
+                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
+                            value={dateFrom}
+                            onChange={e => setDateFrom(e.target.value)}
+                            title="From date and time"
+                        />
+                        <span className="text-muted/50 text-xs">—</span>
+                        <input
+                            type="datetime-local"
+                            id="date-to"
+                            name="dateTo"
+                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
+                            value={dateTo}
+                            onChange={e => setDateTo(e.target.value)}
+                            title="To date and time"
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Row 4: Status Summary Bar */}
             <div className="flex flex-wrap gap-2">

@@ -122,6 +122,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                             <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">First Name *</label>
                             <input
                                 type="text"
+                                autoFocus
                                 className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
                                 value={form.first_name}
                                 onChange={e => setForm({ ...form, first_name: e.target.value })}
