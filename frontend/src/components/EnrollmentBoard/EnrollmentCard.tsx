@@ -35,6 +35,7 @@ const EnrollmentCard = function EnrollmentCard({
     isOverlay
 }: EnrollmentCardProps) {
     const [now, setNow] = useState(() => Date.now());
+    const [showCompleted, setShowCompleted] = useState(false);
     
     useEffect(() => {
         if (status === 'invited') {
@@ -55,9 +56,9 @@ const EnrollmentCard = function EnrollmentCard({
 
     const style = useMemo(() => ({
         opacity: isDragging && !isOverlay ? 0.3 : 1,
-        contentVisibility: isOverlay ? 'visible' as const : 'auto' as const,
+        contentVisibility: (isOverlay || showCompleted) ? 'visible' as const : 'auto' as const,
         containIntrinsicSize: '0 100px',
-    }), [isDragging, isOverlay]);
+    }), [isDragging, isOverlay, showCompleted]);
 
 
     return (
@@ -138,13 +139,60 @@ const EnrollmentCard = function EnrollmentCard({
 
                             {/* 🥇 Completed Courses Badge */}
                             {completedCourses.length > 0 && (
-                                <div
-                                    title={`Completed courses:\n${completedCourses.map(c => `• ${c.name}`).join('\n')}`}
-                                    className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-help transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
-                                >
-                                    <Award size={12} strokeWidth={2.5} />
-                                    <span className="text-[11px] font-bold">{completedCourses.length}</span>
-                                </div>
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
+                                        title="Click to view completed courses"
+                                        className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                                    >
+                                        <Award size={12} strokeWidth={2.5} />
+                                        <span className="text-[11px] font-bold">{completedCourses.length}</span>
+                                    </button>
+                                    
+                                    {showCompleted && (
+                                        <div 
+                                            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
+                                            onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                        >
+                                            <div 
+                                                onClick={e => e.stopPropagation()}
+                                                onPointerDown={(e) => e.stopPropagation()}
+                                                className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-5 w-full max-w-sm animate-scaleIn cursor-default"
+                                            >
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-500">
+                                                        <Award size={22} strokeWidth={2.5} />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-bold text-primary">Completed Courses</h3>
+                                                        <p className="text-xs text-muted mt-0.5">
+                                                            {enrollment.students?.first_name} {enrollment.students?.last_name} has completed {completedCourses.length} course{completedCourses.length > 1 ? 's' : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                                                    {completedCourses.map(c => (
+                                                        <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-sm">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                                                            <span className="text-[13px] font-bold text-primary">{c.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                
+                                                <div className="mt-5 text-right">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
+                                                        className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-sm active:scale-[0.98]"
+                                                    >
+                                                        Close
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {/* Invitation Timer */}
