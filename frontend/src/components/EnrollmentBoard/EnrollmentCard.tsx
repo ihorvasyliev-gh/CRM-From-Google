@@ -66,160 +66,164 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative p-2 rounded-lg border ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]' : 'cursor-pointer'} ${isSelected
-                ? 'border-brand-400 bg-brand-500/5 shadow-sm ring-1 ring-brand-500/20'
-                : 'border-border-strong bg-surface-elevated hover:shadow-card hover:border-brand-500/30'
-                } transition-shadow transition-colors duration-150`}
+            className={`group relative p-3 rounded-xl border ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]' : 'cursor-pointer'} ${isSelected
+                ? 'border-brand-400 bg-brand-50/50 shadow-sm ring-1 ring-brand-500/20'
+                : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
+                } transition-all duration-200`}
             onClick={() => toggleSelect(enrollment.id)}
         >
-            <div className="flex items-start gap-2">
-                {/* Left Actions Column */}
-                <div className="flex flex-col items-center gap-1 mt-0.5">
-                    {/* Checkbox */}
+            <div className="flex items-start gap-3">
+                {/* Left Actions Column: Checkbox Only */}
+                <div className="mt-0.5 flex-shrink-0">
                     <div
-                        className={`w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${isSelected
+                        className={`w-[16px] h-[16px] rounded flex items-center justify-center border transition-all ${isSelected
                             ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
                             : 'border-border-strong group-hover:border-brand-500/50 bg-background'
                             }`}
                     >
-                        {isSelected && <Check size={10} strokeWidth={3} />}
+                        {isSelected && <Check size={11} strokeWidth={3} />}
                     </div>
-
-                    {/* Star Priority */}
-                    <button
-                        title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            togglePriority(enrollment.id, !!enrollment.is_priority);
-                        }}
-                        className={`p-0.5 rounded transition-all flex-shrink-0 ${enrollment.is_priority
-                            ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                            : 'text-muted/40 hover:text-warning/60'
-                            }`}
-                    >
-                        <Star size={16} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                    </button>
-
-                    {/* Queue Number */}
-                    {status === 'requested' && queuePosition !== undefined && (
-                        <div className="flex-shrink-0 mt-0.5" title="Position in queue for this course">
-                            <span
-                                className="inline-flex items-center justify-center bg-violet-500 text-white font-mono text-[11px] font-bold rounded-md px-1.5 h-[20px] shadow-sm ring-1 ring-violet-600/20 group-hover:ring-violet-500/50 transition-colors"
-                            >
-                                #{queuePosition}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Invitation Timer */}
-                    {status === 'invited' && (() => {
-                        const invitedAt = enrollment.invited_at;
-                        if (!invitedAt) return null;
-                        const days = enrollment.response_days ?? 7;
-                        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                        const remaining = deadline - now;
-                        const isExpired = remaining <= 0;
-
-                        if (isExpired) {
-                            const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-                            return (
-                                <div className="flex-shrink-0 mt-0.5" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                    <Timer size={16} className="text-red-400 drop-shadow-sm" />
-                                </div>
-                            );
-                        }
-
-                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h remaining (${days}-day deadline)` : `${hours}h remaining (${days}-day deadline)`;
-                        return (
-                            <div className="flex-shrink-0 mt-0.5" title={timerText}>
-                                <Timer size={16} className="text-muted-strong drop-shadow-sm" />
-                            </div>
-                        );
-                    })()}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                    {/* Name + Actions */}
-                    <div className="flex justify-between items-start">
-                        <div className="flex flex-col items-start min-w-0 flex-1 pr-2">
-                            <p className="font-semibold text-primary text-[13px] truncate leading-5 tracking-tight w-full">
+                <div className="flex-1 min-w-0 flex flex-col">
+                    {/* Header: Name, Priority, Badges & Actions */}
+                    <div className="flex justify-between items-start gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                            <p className="font-bold text-primary text-[14px] truncate leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
-                            {/* Course pill */}
-                            <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-0.5 max-w-full truncate ${cfg.pillBg}`}>
-                                {getCoursePill(enrollment)}
-                            </span>
+                            
+                            {/* Star Priority */}
+                            <button
+                                title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    togglePriority(enrollment.id, !!enrollment.is_priority);
+                                }}
+                                className={`p-0.5 rounded transition-all flex-shrink-0 -ml-0.5 ${enrollment.is_priority
+                                    ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                                    : 'text-muted/30 hover:text-warning/60 opacity-0 group-hover:opacity-100'
+                                    }`}
+                            >
+                                <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                            </button>
+
+                            {/* Queue Number */}
+                            {status === 'requested' && queuePosition !== undefined && (
+                                <div title="Position in queue for this course">
+                                    <span className="inline-flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 font-mono text-[10px] font-bold rounded px-1.5 py-0.5 border border-violet-200 dark:border-violet-500/30">
+                                        #{queuePosition}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Invitation Timer */}
+                            {status === 'invited' && (() => {
+                                const invitedAt = enrollment.invited_at;
+                                if (!invitedAt) return null;
+                                const days = enrollment.response_days ?? 7;
+                                const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
+                                const remaining = deadline - now;
+                                const isExpired = remaining <= 0;
+
+                                if (isExpired) {
+                                    const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                                    return (
+                                        <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[10px] font-bold" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                            <Timer size={11} strokeWidth={2.5} />
+                                            <span>Expired</span>
+                                        </div>
+                                    );
+                                }
+
+                                const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                                const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                                const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                                return (
+                                    <div className="flex items-center gap-1 bg-surface-elevated border border-border-subtle text-muted-strong px-1.5 py-0.5 rounded text-[10px] font-medium shadow-sm" title={`${daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`} remaining (${days}-day deadline)`}>
+                                        <Timer size={11} />
+                                        <span>{timerText}</span>
+                                    </div>
+                                );
+                            })()}
                         </div>
-                        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+
+                        {/* Right Quick Actions */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
                             {/* 🥇 Completed Courses Badge */}
                             {completedCourses.length > 0 && (
                                 <div
                                     title={`Completed courses:\n${completedCourses.map(c => `• ${c.name}`).join('\n')}`}
-                                    className="flex items-center justify-center gap-0.5 p-1 rounded-md text-amber-500 bg-amber-500/10 cursor-help transition-colors hover:bg-amber-500/20"
+                                    className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-help transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
                                 >
-                                    <Award size={14} />
-                                    <span className="text-[11px] font-bold leading-none">{completedCourses.length}</span>
+                                    <Award size={13} strokeWidth={2.5} />
+                                    <span className="text-[11px] font-bold">{completedCourses.length}</span>
                                 </div>
                             )}
-
-                            {/* ✏ Edit Note */}
-                            <button
-                                title="Edit Note"
-                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                className={`p-1 rounded-md transition-all ${enrollment.notes
-                                    ? 'text-brand-500 hover:bg-brand-500/10'
-                                    : 'text-muted/40 hover:text-muted hover:bg-surface'
-                                    }`}
-                            >
-                                <Pencil size={14} />
-                            </button>
 
                             {/* ⚠ Student Flags */}
                             {studentFlags.length > 0 ? (
                                 <button
                                     title={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}
                                     onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                    className="p-1 rounded-md transition-all text-orange-400 hover:bg-orange-500/10"
+                                    className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors border border-transparent hover:border-orange-200 dark:hover:border-orange-500/30"
                                 >
-                                    <AlertTriangle size={14} />
+                                    <AlertTriangle size={14} strokeWidth={2.5} />
                                 </button>
                             ) : (
                                 <button
                                     title="Flag student (e.g. failed a course)"
                                     onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                    className="p-1 rounded-md transition-all text-muted/40 hover:text-orange-400 hover:bg-orange-50"
+                                    className="p-1 rounded text-muted/30 hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors opacity-0 group-hover:opacity-100"
                                 >
                                     <AlertTriangle size={14} />
                                 </button>
                             )}
+
+                            {/* ✏ Edit Note */}
+                            <button
+                                title="Edit Note"
+                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                className={`p-1 rounded transition-colors border ${enrollment.notes
+                                    ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
+                                    : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
+                                    }`}
+                            >
+                                <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
+                            </button>
                         </div>
                     </div>
 
+                    {/* Course Pill */}
+                    <div className="mt-1">
+                        <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-md max-w-full truncate ${cfg.pillBg}`}>
+                            {getCoursePill(enrollment)}
+                        </span>
+                    </div>
+
                     {/* Contact Info */}
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted truncate">
+                    <div className="mt-2.5 flex items-center gap-3 text-[12px] text-muted truncate">
                         {enrollment.students?.email && (
-                            <div className="flex items-center gap-1 truncate min-w-0">
-                                <Mail size={11} className="flex-shrink-0 text-muted/60" />
+                            <div className="flex items-center gap-1.5 truncate min-w-0">
+                                <Mail size={12} className="flex-shrink-0 text-muted/70" />
                                 <span className="truncate">{enrollment.students.email}</span>
                             </div>
                         )}
                         {enrollment.students?.phone && (
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                                <Phone size={11} className="flex-shrink-0 text-muted/60" />
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <Phone size={12} className="flex-shrink-0 text-muted/70" />
                                 <span>{enrollment.students.phone}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Info row */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
                         <span>{formatDateLong(enrollment.created_at)}</span>
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-blue-600 font-medium flex items-center gap-0.5">
+                                <span className="text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">
                                     <Send size={10} />
                                     {formatDateLong(enrollment.invited_date)}
                                 </span>
@@ -228,7 +232,7 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.confirmed_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-emerald-600 font-medium flex items-center gap-0.5">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">
                                     <CheckCircle size={10} />
                                     {formatDateLong(enrollment.confirmed_date)}
                                 </span>
@@ -237,7 +241,7 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.completed_date && enrollment.status === 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-brand-500 font-medium flex items-center gap-0.5">
+                                <span className="text-brand-600 dark:text-brand-400 font-medium flex items-center gap-1 bg-brand-50 dark:bg-brand-500/10 px-1.5 py-0.5 rounded">
                                     <GraduationCap size={10} />
                                     {formatDateLong(enrollment.completed_date)}
                                 </span>
@@ -247,9 +251,10 @@ const EnrollmentCard = function EnrollmentCard({
 
                     {/* Notes */}
                     {enrollment.notes && (
-                        <p className="text-[11px] text-muted italic mt-0.5 bg-surface px-1.5 py-0.5 rounded truncate">
-                            📝 {enrollment.notes}
-                        </p>
+                        <div className="mt-2.5 flex items-start gap-2 text-[12px] text-muted-strong bg-surface-elevated border border-border-subtle p-2 rounded-lg shadow-sm">
+                            <Pencil size={12} className="mt-0.5 flex-shrink-0 text-brand-500" />
+                            <p className="italic leading-relaxed line-clamp-2" title={enrollment.notes}>{enrollment.notes}</p>
+                        </div>
                     )}
                 </div>
             </div>
