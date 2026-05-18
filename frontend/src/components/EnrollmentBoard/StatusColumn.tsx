@@ -17,8 +17,10 @@ interface StatusColumnProps {
     openEditNote: (enrollment: EnrollmentRow) => void;
     queuePositions: Map<string, number>;
     flagsByStudentId: Map<string, StudentFlag[]>;
+    completedCoursesByStudentId: Map<string, Array<{id: string, name: string}>>;
     onFlagClick: (enrollment: EnrollmentRow) => void;
     emptyFlags: StudentFlag[];
+    emptyCompletedCourses: Array<{id: string, name: string}>;
 }
 
 const StatusColumn = function StatusColumn({
@@ -32,8 +34,10 @@ const StatusColumn = function StatusColumn({
     openEditNote,
     queuePositions,
     flagsByStudentId,
+    completedCoursesByStudentId,
     onFlagClick,
-    emptyFlags
+    emptyFlags,
+    emptyCompletedCourses
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -130,6 +134,7 @@ const StatusColumn = function StatusColumn({
                         openEditNote={openEditNote}
                         queuePosition={queuePositions.get(enrollment.id)}
                         studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
+                        completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
                         onFlagClick={onFlagClick}
                     />
                 ))}
@@ -152,7 +157,8 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 
         prev.queuePositions === next.queuePositions && 
-        prev.flagsByStudentId === next.flagsByStudentId) {
+        prev.flagsByStudentId === next.flagsByStudentId &&
+        prev.completedCoursesByStudentId === next.completedCoursesByStudentId) {
         return true;
     }
 
@@ -178,11 +184,15 @@ export default memo(StatusColumn, (prev, next) => {
         if (prev.queuePositions.get(item.id) !== next.queuePositions.get(item.id)) return false;
     }
 
-    // Compare flags count for students in this column
+    // Compare flags and completed courses count for students in this column
     for (const item of prev.items) {
         const prevFlags = prev.flagsByStudentId.get(item.student_id);
         const nextFlags = next.flagsByStudentId.get(item.student_id);
         if ((prevFlags?.length || 0) !== (nextFlags?.length || 0)) return false;
+
+        const prevCourses = prev.completedCoursesByStudentId.get(item.student_id);
+        const nextCourses = next.completedCoursesByStudentId.get(item.student_id);
+        if ((prevCourses?.length || 0) !== (nextCourses?.length || 0)) return false;
     }
 
     return true;

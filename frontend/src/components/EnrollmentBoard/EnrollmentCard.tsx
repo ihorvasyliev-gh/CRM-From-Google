@@ -1,5 +1,5 @@
 import { useMemo, memo, useState, useEffect } from 'react';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
@@ -16,6 +16,7 @@ interface EnrollmentCardProps {
     queuePosition?: number;
     openEditNote: (enrollment: EnrollmentRow) => void;
     studentFlags?: StudentFlag[];
+    completedCourses?: Array<{id: string, name: string}>;
     onFlagClick?: (enrollment: EnrollmentRow) => void;
     isOverlay?: boolean;
 }
@@ -29,6 +30,7 @@ const EnrollmentCard = function EnrollmentCard({
     queuePosition,
     openEditNote,
     studentFlags = [],
+    completedCourses = [],
     onFlagClick,
     isOverlay
 }: EnrollmentCardProps) {
@@ -151,6 +153,17 @@ const EnrollmentCard = function EnrollmentCard({
                             </span>
                         </div>
                         <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                            {/* 🥇 Completed Courses Badge */}
+                            {completedCourses.length > 0 && (
+                                <div
+                                    title={`Completed courses:\n${completedCourses.map(c => `• ${c.name}`).join('\n')}`}
+                                    className="flex items-center justify-center gap-0.5 p-1 rounded-md text-amber-500 bg-amber-500/10 cursor-help transition-colors hover:bg-amber-500/20"
+                                >
+                                    <Award size={14} />
+                                    <span className="text-[11px] font-bold leading-none">{completedCourses.length}</span>
+                                </div>
+                            )}
+
                             {/* ✏ Edit Note */}
                             <button
                                 title="Edit Note"
@@ -251,6 +264,7 @@ export default memo(EnrollmentCard, (prev, next) => {
         prev.isSelected === next.isSelected &&
         prev.queuePosition === next.queuePosition &&
         prev.isOverlay === next.isOverlay &&
-        (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0)
+        (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
+        (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0)
     );
 });

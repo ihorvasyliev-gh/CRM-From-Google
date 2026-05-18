@@ -22,6 +22,7 @@ import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
+const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
 
 function todayISO(): string {
@@ -212,6 +213,21 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
     }, [enrollments, selectedCourse]);
 
+    const completedCoursesByStudentId = useMemo(() => {
+        const map = new Map<string, Array<{id: string, name: string}>>();
+        enrollments.forEach(e => {
+            if (e.status === 'completed' && e.courses?.name) {
+                const studentId = e.student_id;
+                const courses = map.get(studentId) || [];
+                if (!courses.some(c => c.id === e.course_id)) {
+                    courses.push({ id: e.course_id, name: e.courses.name });
+                }
+                map.set(studentId, courses);
+            }
+        });
+        return map;
+    }, [enrollments]);
+
     const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
 
     // Handlers
@@ -363,8 +379,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         openEditNote={openEditNote}
                         queuePositions={queuePositions}
                         flagsByStudentId={studentFlagsHook.flagsByStudentId}
+                        completedCoursesByStudentId={completedCoursesByStudentId}
                         onFlagClick={openFlagModal}
                         emptyFlags={EMPTY_FLAGS}
+                        emptyCompletedCourses={EMPTY_COMPLETED_COURSES}
                     />
                 ))}
                 </div>
@@ -383,6 +401,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 openEditNote={openEditNote}
                                 queuePosition={queuePositions.get(activeId)}
                                 studentFlags={studentFlagsHook.flagsByStudentId.get(activeEnrollment.student_id) || EMPTY_FLAGS}
+                                completedCourses={completedCoursesByStudentId.get(activeEnrollment.student_id) || EMPTY_COMPLETED_COURSES}
                                 onFlagClick={openFlagModal}
                                 isOverlay
                             />
