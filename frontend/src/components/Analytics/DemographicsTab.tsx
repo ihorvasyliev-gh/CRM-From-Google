@@ -85,7 +85,16 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
 
         const currentYear = new Date().getFullYear();
 
-        enrollments.forEach(e => {
+        // Deduplicate by student_id — count each person only once
+        const seenStudents = new Set<string>();
+        const uniqueEnrollments = enrollments.filter(e => {
+            const sid = e.student_id ?? e.students?.id;
+            if (!sid || seenStudents.has(sid)) return false;
+            seenStudents.add(sid);
+            return true;
+        });
+
+        uniqueEnrollments.forEach(e => {
             const dob = e.students?.dob;
             if (!dob) {
                 groups['Unknown'].count++;
