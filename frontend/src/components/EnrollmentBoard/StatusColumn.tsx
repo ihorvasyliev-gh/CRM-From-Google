@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -47,17 +47,50 @@ const StatusColumn = function StatusColumn({
         id: status
     });
 
-    const [visibleCount, setVisibleCount] = useState(30);
+    const [visibleCount, setVisibleCount] = useState(50);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+    // Intersection Observer for reliable infinite scroll
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount(prev => {
+                        if (prev >= items.length) return prev;
+                        return prev + 50;
+                    });
+                }
+            },
+            {
+                root: scrollContainerRef.current,
+                rootMargin: '200px',
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [items.length, visibleCount]);
+
+    // Reset visibleCount when items change significantly (filter change)
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [items]);
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
-        if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
             setVisibleCount(prev => {
                 if (prev >= items.length) return prev;
-                return prev + 30;
+                return prev + 50;
             });
         }
     }, [items.length]);
+
 
     if (!cfg) return null;
 
@@ -79,7 +112,7 @@ const StatusColumn = function StatusColumn({
     return (
         <div 
             ref={setNodeRef}
-            className={`h-full flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
+            className={`flex-1 min-h-0 flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
                 isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5' : ''
             }`}
         >
@@ -142,9 +175,11 @@ const StatusColumn = function StatusColumn({
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 relative">
+            <div className="flex-1 min-h-0 relative" style={{ minHeight: 0 }}>
                 <div 
-                    className="p-2 overflow-y-auto h-full space-y-1.5 bg-surface will-change-scroll"
+                    ref={scrollContainerRef}
+                    className="p-2 overflow-y-auto space-y-1.5 bg-surface will-change-scroll"
+                    style={{ height: '100%' }}
                     onScroll={handleScroll}
                 >
                     {items.length === 0 && (
@@ -176,6 +211,16 @@ const StatusColumn = function StatusColumn({
                             onFlagClick={onFlagClick}
                         />
                     ))}
+                    {/* Sentinel for IntersectionObserver lazy load */}
+                    {visibleCount < items.length && (
+                        <div ref={sentinelRef} className="py-3 flex items-center justify-center">
+                            <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-400/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-400/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <div className="w-1.5 h-1.5 rounded-full bg-brand-400/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                        </div>
+                    )}
                 </div>
                 {items.length > 0 && (
                     <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent rounded-b-2xl" />
