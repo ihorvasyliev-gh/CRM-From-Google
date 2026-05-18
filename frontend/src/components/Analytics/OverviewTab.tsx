@@ -66,7 +66,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
 
     // 2. Trends Over Time (Area Chart)
     const trendsData = useMemo(() => {
-        const timeline: Record<string, { total: number, confirmed: number, timestamp: number, items: any[] }> = {};
+        const timeline: Record<string, { registrations: number, completions: number, timestamp: number, items: any[] }> = {};
         
         const getMonthYear = (dateString: string | null) => {
             if (!dateString) return null;
@@ -75,20 +75,34 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
             return d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
         };
 
-        enrollments.forEach(e => {
-            const my = getMonthYear(e.created_at);
-            if (!my) return;
-            
+        const addOrCreateMonth = (dateString: string | null) => {
+            const my = getMonthYear(dateString);
+            if (!my) return null;
             if (!timeline[my]) {
-                const d = new Date(e.created_at);
-                timeline[my] = { total: 0, confirmed: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime(), items: [] };
+                const d = new Date(dateString!);
+                timeline[my] = { registrations: 0, completions: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime(), items: [] };
             }
-            
-            timeline[my].total++;
-            timeline[my].items.push(e);
+            return my;
+        };
 
-            if (e.status === 'confirmed' || e.status === 'completed') {
-                timeline[my].confirmed++;
+        enrollments.forEach(e => {
+            const regMonth = addOrCreateMonth(e.created_at);
+            if (regMonth) {
+                timeline[regMonth].registrations++;
+                if (!timeline[regMonth].items.some(item => item.id === e.id)) {
+                    timeline[regMonth].items.push(e);
+                }
+            }
+
+            if (e.status === 'completed') {
+                const dateToUse = e.completed_date || e.confirmed_date || e.created_at;
+                const compMonth = addOrCreateMonth(dateToUse);
+                if (compMonth) {
+                    timeline[compMonth].completions++;
+                    if (!timeline[compMonth].items.some(item => item.id === e.id)) {
+                        timeline[compMonth].items.push(e);
+                    }
+                }
             }
         });
 
@@ -96,8 +110,8 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
             .sort((a, b) => a[1].timestamp - b[1].timestamp)
             .map(([name, data]) => ({
                 name,
-                Total: data.total,
-                Confirmed: data.confirmed,
+                Registrations: data.registrations,
+                Completions: data.completions,
                 items: data.items
             }));
     }, [enrollments]);
@@ -268,7 +282,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                 <RechartsTooltip content={<CustomTooltip />} />
                                 <Area 
                                     type="monotone" 
-                                    dataKey="Total" 
+                                    dataKey="Registrations" 
                                     stroke="#818cf8" 
                                     strokeWidth={3}
                                     fillOpacity={1} 
@@ -277,7 +291,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                 />
                                 <Area 
                                     type="monotone" 
-                                    dataKey="Confirmed" 
+                                    dataKey="Completions" 
                                     stroke="#10b981" 
                                     strokeWidth={3}
                                     fillOpacity={1} 
