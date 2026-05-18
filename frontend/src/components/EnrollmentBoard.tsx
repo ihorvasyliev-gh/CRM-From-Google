@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X } from 'lucide-react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy } from '@dnd-kit/core';
+import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw } from 'lucide-react';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -42,6 +42,9 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
+    const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [undoData, setUndoData] = useState<{ id: string; oldStatus: string; newStatus: string; name: string } | null>(null);
+    const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Student Flags
     const [flagModalTarget, setFlagModalTarget] = useState<{ studentId: string; studentName: string } | null>(null);
@@ -291,6 +294,13 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         }
     }), []);
 
+    // п.8: drop animation config
+    const dropAnimation = useMemo(() => ({
+        sideEffects: defaultDropAnimationSideEffects({
+            styles: { active: { opacity: '0.4' } }
+        })
+    }), []);
+
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event;
         
@@ -303,8 +313,16 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             const newStatus = over.id as string;
             
             if (oldStatus && newStatus && oldStatus !== newStatus) {
-                // Fire and forget — don't block the mouseup handler
                 enrollmentsHook.updateStatus(enrollmentId, newStatus);
+
+                // п.11: undo-toast for dangerous status transitions
+                if (newStatus === 'rejected' || newStatus === 'withdrawn') {
+                    const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
+                    const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
+                    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                    setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
+                    undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
+                }
             }
         });
     }, [enrollmentsHook]);
@@ -334,6 +352,17 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         );
     }, [enrollments, filteredEnrollments, bulkActions]);
 
+    // п.9: scroll-to-column handler
+    const handleStatusBadgeClick = useCallback((status: string) => {
+        const el = columnRefs.current[status];
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, []);
+
+    // Total pipeline count for progress bars — п.1
+    const totalPipelineCount = useMemo(() => {
+        return PIPELINE_STATUSES.reduce((sum, s) => sum + (byStatus[s]?.length || 0), 0);
+    }, [byStatus]);
+
     return (
         <div className="h-full flex flex-col space-y-4 pb-8">
             <FilterBar
@@ -355,6 +384,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 statusCounts={statusCounts}
+                onStatusBadgeClick={handleStatusBadgeClick}
             />
 
             <DndContext 
@@ -367,27 +397,33 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             >
                 <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {PIPELINE_STATUSES.map(status => (
-                        <StatusColumn
-                        key={status}
-                        status={status}
-                        items={byStatus[status] || []}
-                        selectedIds={bulkActions.selectedIds}
-                        selectAllInList={bulkActions.selectAllInList}
-                        handleCopyEmails={bulkActions.handleCopyEmails}
-                        toggleSelect={bulkActions.toggleSelect}
-                        togglePriority={enrollmentsHook.togglePriority}
-                        openEditNote={openEditNote}
-                        queuePositions={queuePositions}
-                        flagsByStudentId={studentFlagsHook.flagsByStudentId}
-                        completedCoursesByStudentId={completedCoursesByStudentId}
-                        onFlagClick={openFlagModal}
-                        emptyFlags={EMPTY_FLAGS}
-                        emptyCompletedCourses={EMPTY_COMPLETED_COURSES}
-                    />
-                ))}
+                        <div
+                            key={status}
+                            ref={el => { columnRefs.current[status] = el; }}
+                        >
+                            <StatusColumn
+                                status={status}
+                                items={byStatus[status] || []}
+                                selectedIds={bulkActions.selectedIds}
+                                selectAllInList={bulkActions.selectAllInList}
+                                handleCopyEmails={bulkActions.handleCopyEmails}
+                                toggleSelect={bulkActions.toggleSelect}
+                                togglePriority={enrollmentsHook.togglePriority}
+                                openEditNote={openEditNote}
+                                queuePositions={queuePositions}
+                                flagsByStudentId={studentFlagsHook.flagsByStudentId}
+                                completedCoursesByStudentId={completedCoursesByStudentId}
+                                onFlagClick={openFlagModal}
+                                emptyFlags={EMPTY_FLAGS}
+                                emptyCompletedCourses={EMPTY_COMPLETED_COURSES}
+                                totalCount={totalPipelineCount}
+                            />
+                        </div>
+                    ))}
                 </div>
 
-                <DragOverlay dropAnimation={null}>
+                {/* п.8: drop animation enabled */}
+                <DragOverlay dropAnimation={dropAnimation}>
                     {activeId ? (() => {
                         const activeEnrollment = enrollments.find(e => e.id === activeId);
                         if (!activeEnrollment) return null;
@@ -409,6 +445,35 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                     })() : null}
                 </DragOverlay>
             </DndContext>
+
+            {/* п.11: Undo-toast for dangerous drag-and-drop */}
+            {undoData && (
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] animate-slideUp">
+                    <div className="glass-dark rounded-2xl shadow-float px-4 py-3 flex items-center gap-3 min-w-[280px]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
+                        <p className="text-sm text-white/90 flex-1">
+                            <span className="font-semibold">{undoData.name}</span>
+                            {' '}moved to <span className="font-medium text-orange-300 capitalize">{undoData.newStatus}</span>
+                        </p>
+                        <button
+                            onClick={() => {
+                                enrollmentsHook.updateStatus(undoData.id, undoData.oldStatus);
+                                if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                                setUndoData(null);
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
+                        >
+                            <RotateCcw size={12} /> Undo
+                        </button>
+                        <button
+                            onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUndoData(null); }}
+                            className="text-white/40 hover:text-white/80 transition-colors p-1"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Secondary Statuses */}
             {secondaryCount > 0 && (

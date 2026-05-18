@@ -21,6 +21,8 @@ interface FilterBarProps {
     sortOrder: 'date-asc' | 'date-desc' | 'name';
     setSortOrder: React.Dispatch<React.SetStateAction<'date-asc' | 'date-desc' | 'name'>>;
     statusCounts: Record<string, number>;
+    /** Called when user clicks a status badge — used to scroll to that column */
+    onStatusBadgeClick?: (status: string) => void;
 }
 
 export default function FilterBar({
@@ -41,10 +43,14 @@ export default function FilterBar({
     setDateTo,
     sortOrder,
     setSortOrder,
-    statusCounts
+    statusCounts,
+    onStatusBadgeClick,
 }: FilterBarProps) {
     const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo;
     const [showAdvanced, setShowAdvanced] = useState(false);
+
+    // п.15: search is "active" when it filters results
+    const searchIsFiltering = !!searchQuery && filteredCount < enrollmentCount;
 
     return (
         <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 space-y-3">
@@ -64,17 +70,31 @@ export default function FilterBar({
                     </div>
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {/* п.15: Search with active-filter highlight */}
                     <div className="relative flex-1 sm:w-72">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                        <Search
+                            className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchIsFiltering ? 'text-brand-500' : 'text-muted'}`}
+                            size={16}
+                        />
                         <input
                             type="text"
                             id="search-query"
                             name="searchQuery"
                             placeholder="Search by name, email or phone..."
-                            className="w-full pl-9 pr-8 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
+                            className={`w-full pl-9 py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
+                                searchIsFiltering
+                                    ? 'border-brand-400 pr-24'
+                                    : 'border-border-strong pr-8'
+                            }`}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                         />
+                        {/* п.15: "Showing X of Y" badge inside search field */}
+                        {searchIsFiltering && (
+                            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full whitespace-nowrap pointer-events-none">
+                                {filteredCount} of {enrollmentCount}
+                            </span>
+                        )}
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
@@ -122,7 +142,7 @@ export default function FilterBar({
                 ))}
             </div>
 
-            {/* Row 2b: Language chips — only when a specific course is selected */}
+            {/* Row 2b: Language chips */}
             {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                 <div className="flex flex-wrap gap-2 items-center">
                     <Globe size={14} className="text-muted mr-0.5" />
@@ -190,9 +210,12 @@ export default function FilterBar({
                     <ArrowUpDown size={14} />
                     {sortOrder === 'date-asc' ? 'Oldest first' : sortOrder === 'date-desc' ? 'Newest first' : 'By Name'}
                 </button>
-                <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
-                    {filteredCount} <span className="opacity-50">/</span> {enrollmentCount} enrollments
-                </span>
+                {/* п.15: counter — only shown when no active search filtering (to avoid duplication) */}
+                {!searchIsFiltering && (
+                    <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
+                        {filteredCount} <span className="opacity-50">/</span> {enrollmentCount} enrollments
+                    </span>
+                )}
             </div>
 
             {/* Advanced Filters Panel */}
@@ -227,21 +250,23 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Row 4: Status Summary Bar */}
+            {/* Row 4: Status Summary Bar — п.9: clickable badges */}
             <div className="flex flex-wrap gap-2">
                 {ALL_STATUSES.map(status => {
                     const cfg = STATUS_CONFIG[status];
                     const count = statusCounts[status] || 0;
                     if (count === 0 && SECONDARY_STATUSES.includes(status as typeof SECONDARY_STATUSES[number])) return null;
                     return (
-                        <div
+                        <button
                             key={status}
-                            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase px-2.5 py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border`}
+                            onClick={() => onStatusBadgeClick?.(status)}
+                            title={`Scroll to ${cfg.label} column`}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase px-2.5 py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-all hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer`}
                         >
                             {cfg.icon}
                             <span>{cfg.label}</span>
                             <span className="font-mono bg-background/50 px-1.5 py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
-                        </div>
+                        </button>
                     );
                 })}
             </div>

@@ -21,6 +21,32 @@ interface EnrollmentCardProps {
     isOverlay?: boolean;
 }
 
+// --- п.7: Relative time helper ---
+function getRelativeTime(isoDate: string): string {
+    const diff = Date.now() - new Date(isoDate).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 2) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return 'yesterday';
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    return `${Math.floor(months / 12)}y ago`;
+}
+
+// Left accent border color per status — п.13
+const STATUS_LEFT_BORDER: Record<string, string> = {
+    requested: 'border-l-warning',
+    invited:   'border-l-info',
+    confirmed: 'border-l-success',
+    completed: 'border-l-brand-500',
+    withdrawn: 'border-l-muted',
+    rejected:  'border-l-danger',
+};
+
 const EnrollmentCard = function EnrollmentCard({
     enrollment,
     status,
@@ -36,6 +62,7 @@ const EnrollmentCard = function EnrollmentCard({
 }: EnrollmentCardProps) {
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
+    const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
     
     useEffect(() => {
         if (status === 'invited') {
@@ -46,7 +73,6 @@ const EnrollmentCard = function EnrollmentCard({
 
     const cfg = STATUS_CONFIG[status];
     const draggableData = useMemo(() => ({ status }), [status]);
-
 
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: enrollment.id,
@@ -60,6 +86,21 @@ const EnrollmentCard = function EnrollmentCard({
         containIntrinsicSize: '0 100px',
     }), [isDragging, isOverlay, showCompleted]);
 
+    // п.3: Timer level — grey / orange / red
+    const timerLevel = useMemo(() => {
+        if (status !== 'invited') return null;
+        const invitedAt = enrollment.invited_at;
+        if (!invitedAt) return null;
+        const days = enrollment.response_days ?? 7;
+        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
+        const remaining = deadline - now;
+        if (remaining <= 0) return 'expired';
+        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+        if (daysLeft <= 2) return 'urgent';
+        return 'ok';
+    }, [status, enrollment.invited_at, enrollment.response_days, now]);
+
+    const leftBorder = STATUS_LEFT_BORDER[status] || 'border-l-border-subtle';
 
     return (
         <div
@@ -67,10 +108,14 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative p-3 rounded-xl border ${isOverlay ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]' : 'cursor-pointer'} ${isSelected
+            className={`group relative p-3 rounded-xl border border-l-4 ${leftBorder} ${
+                isOverlay
+                    ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]'
+                    : 'cursor-grab'
+            } ${isSelected
                 ? 'border-brand-500 bg-brand-50/80 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500'
                 : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
-                } transition-all duration-200`}
+            } transition-all duration-200 animate-card-drop-in`}
             onClick={() => toggleSelect(enrollment.id)}
         >
             <div className="flex items-start gap-3">
@@ -204,17 +249,35 @@ const EnrollmentCard = function EnrollmentCard({
 
                         {/* Right Quick Actions */}
                         <div className="flex items-center gap-1 flex-shrink-0">
-                            {/* ✏ Edit Note */}
-                            <button
-                                title="Edit Note"
-                                onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                className={`p-1 rounded transition-colors border ${enrollment.notes
-                                    ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
-                                    : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
-                                    }`}
+                            {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
+                            <div
+                                className="relative"
+                                onMouseEnter={() => enrollment.notes && setNoteTooltipVisible(true)}
+                                onMouseLeave={() => setNoteTooltipVisible(false)}
                             >
-                                <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
-                            </button>
+                                <button
+                                    title={enrollment.notes ? '' : 'Add Note'}
+                                    onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                                    className={`p-1 rounded transition-colors border ${enrollment.notes
+                                        ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
+                                        : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
+                                        }`}
+                                >
+                                    <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
+                                </button>
+                                {/* Note preview tooltip — п.6 */}
+                                {noteTooltipVisible && enrollment.notes && (
+                                    <div
+                                        className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-3 animate-fadeIn pointer-events-none"
+                                        onClick={e => e.stopPropagation()}
+                                    >
+                                        <p className="text-[11px] text-muted-strong leading-relaxed italic line-clamp-4">
+                                            {enrollment.notes}
+                                        </p>
+                                        <p className="text-[10px] text-muted/50 mt-1.5 font-medium">Click to edit</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -236,7 +299,13 @@ const EnrollmentCard = function EnrollmentCard({
 
                     {/* Info row */}
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
-                        <span>{formatDateLong(enrollment.created_at)}</span>
+                        {/* п.7: Registration date with relative time */}
+                        <span className="flex items-center gap-1">
+                            {formatDateLong(enrollment.created_at)}
+                            <span className="text-muted/40 font-normal">·</span>
+                            <span className="text-muted/60">{getRelativeTime(enrollment.created_at)}</span>
+                        </span>
+
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
@@ -265,19 +334,18 @@ const EnrollmentCard = function EnrollmentCard({
                             </>
                         )}
 
-                        {/* Invitation Timer — shown in info row */}
+                        {/* Invitation Timer — п.3: three-level colour */}
                         {status === 'invited' && (() => {
                             const invitedAt = enrollment.invited_at;
                             if (!invitedAt) return null;
                             const days = enrollment.response_days ?? 7;
                             const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
                             const remaining = deadline - now;
-                            const isExpired = remaining <= 0;
 
-                            if (isExpired) {
+                            if (remaining <= 0) {
                                 const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                                 return (
-                                    <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                    <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold animate-pulse-timer" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
                                         <Timer size={12} strokeWidth={2.5} />
                                         <span>Expired</span>
                                     </div>
@@ -287,8 +355,18 @@ const EnrollmentCard = function EnrollmentCard({
                             const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
                             const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
                             const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+
+                            // п.3: urgent = ≤2 days left → orange with pulse
+                            const isUrgent = timerLevel === 'urgent';
                             return (
-                                <div className="flex items-center gap-1 bg-surface-elevated border border-border-subtle text-muted-strong px-1.5 py-0.5 rounded text-[11px] font-medium shadow-sm" title={`${daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`} remaining (${days}-day deadline)`}>
+                                <div
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium shadow-sm transition-colors ${
+                                        isUrgent
+                                            ? 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-pulse-timer'
+                                            : 'bg-surface-elevated border border-border-subtle text-muted-strong'
+                                    }`}
+                                    title={`${timerText} remaining (${days}-day deadline)`}
+                                >
                                     <Timer size={12} />
                                     <span>{timerText}</span>
                                 </div>

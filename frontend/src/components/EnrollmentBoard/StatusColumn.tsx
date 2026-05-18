@@ -21,6 +21,7 @@ interface StatusColumnProps {
     onFlagClick: (enrollment: EnrollmentRow) => void;
     emptyFlags: StudentFlag[];
     emptyCompletedCourses: Array<{id: string, name: string}>;
+    totalCount?: number;
 }
 
 const StatusColumn = function StatusColumn({
@@ -37,7 +38,8 @@ const StatusColumn = function StatusColumn({
     completedCoursesByStudentId,
     onFlagClick,
     emptyFlags,
-    emptyCompletedCourses
+    emptyCompletedCourses,
+    totalCount = 0,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -49,7 +51,6 @@ const StatusColumn = function StatusColumn({
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
-        // Load more when scrolled within 400px of the bottom
         if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
             setVisibleCount(prev => {
                 if (prev >= items.length) return prev;
@@ -58,93 +59,133 @@ const StatusColumn = function StatusColumn({
         }
     }, [items.length]);
 
-    // Optional: if the total items list shrinks drastically (e.g. search filter), we can optionally reset. 
-    // But it naturally bounds to items.length, so we're safe without complex resets.
-
     if (!cfg) return null;
 
     const allSelected = items.length > 0 && items.every(e => selectedIds.has(e.id));
     const someSelected = items.some(e => selectedIds.has(e.id));
+    const priorityCount = items.filter(e => e.is_priority).length;
+
+    const progressPercent = totalCount > 0 ? Math.round((items.length / totalCount) * 100) : 0;
+
+    const progressBarClass: Record<string, string> = {
+        requested: 'from-amber-400 to-amber-500',
+        invited: 'from-blue-400 to-blue-500',
+        confirmed: 'from-emerald-400 to-emerald-500',
+        completed: 'from-indigo-400 to-brand-500',
+        withdrawn: 'from-zinc-400 to-zinc-500',
+        rejected: 'from-red-400 to-red-500',
+    };
 
     return (
         <div 
             ref={setNodeRef}
             className={`flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
-                isOver ? 'ring-2 ring-brand-500 bg-brand-50/50' : ''
+                isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5' : ''
             }`}
         >
-            {/* Column Header */}
-            <div className={`p-3.5 border-b-2 ${cfg.border} bg-surface-elevated/50`}>
-                <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
-                        <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
-                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
-                            {items.length}
-                        </span>
+            <div className={`sticky top-0 z-10 border-b-2 ${cfg.border} bg-surface-elevated/95 backdrop-blur-sm`}>
+                <div className="p-3.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
+                            <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
+                            <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
+                                {items.length}
+                            </span>
+                            {priorityCount > 0 && (
+                                <span
+                                    className="flex items-center gap-0.5 text-[11px] font-bold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full"
+                                    title={`${priorityCount} priority enrollment${priorityCount > 1 ? 's' : ''}`}
+                                >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                    </svg>
+                                    {priorityCount}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                            {items.length > 0 && (
+                                <button
+                                    onClick={() => handleCopyEmails(items, cfg.label)}
+                                    title={`Copy all ${cfg.label} emails`}
+                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                >
+                                    <Copy size={14} />
+                                </button>
+                            )}
+                            {items.length > 0 && (
+                                <button
+                                    onClick={() => selectAllInList(items)}
+                                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
+                                        ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                        : someSelected
+                                            ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
+                                            : 'border-border-strong hover:border-brand-500/50'
+                                        }`}
+                                >
+                                    {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        {items.length > 0 && (
-                            <button
-                                onClick={() => handleCopyEmails(items, cfg.label)}
-                                title={`Copy all ${cfg.label} emails`}
-                                className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
-                            >
-                                <Copy size={14} />
-                            </button>
-                        )}
-                        {items.length > 0 && (
-                            <button
-                                onClick={() => selectAllInList(items)}
-                                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
-                                    ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                                    : someSelected
-                                        ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
-                                        : 'border-border-strong hover:border-brand-500/50'
-                                    }`}
-                            >
-                                {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
-                            </button>
-                        )}
+
+                    <div className="h-1 w-full bg-border-subtle rounded-full overflow-hidden" title={`${progressPercent}% of all enrollments`}>
+                        <div
+                            className={`h-full rounded-full bg-gradient-to-r ${progressBarClass[status] || 'from-zinc-400 to-zinc-500'} transition-all duration-700 ease-out`}
+                            style={{ width: `${progressPercent}%` }}
+                        />
                     </div>
+                    {items.length > 0 && (
+                        <p className="text-[10px] text-muted/50 mt-0.5 text-right tabular-nums">{progressPercent}%</p>
+                    )}
                 </div>
             </div>
 
-            {/* Cards */}
-            <div 
-                className="p-2 overflow-y-auto flex-1 space-y-1.5 bg-surface min-h-0 min-h-[500px] will-change-scroll relative"
-                onScroll={handleScroll}
-            >
-                {items.length === 0 && (
-                    <div className="text-center py-8 text-muted/60">
-                        <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mx-auto mb-2 ${cfg.color} opacity-40`}>
-                            {cfg.icon}
+            <div className="flex-1 min-h-0 relative">
+                <div 
+                    className="p-2 overflow-y-auto h-full space-y-1.5 bg-surface min-h-[500px] will-change-scroll"
+                    onScroll={handleScroll}
+                >
+                    {items.length === 0 && (
+                        <div className={`flex flex-col items-center justify-center py-10 mx-1 mt-2 rounded-xl border-2 border-dashed transition-all duration-200 ${
+                            isOver
+                                ? `${cfg.border} ${cfg.bg}`
+                                : 'border-border-strong/40'
+                        }`}>
+                            <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mb-2.5 ${cfg.color} ${isOver ? 'scale-110' : 'opacity-40'} transition-transform`}>
+                                {cfg.icon}
+                            </div>
+                            <p className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isOver ? cfg.color : 'text-muted/50'}`}>
+                                {isOver ? 'Drop here' : 'No enrollments'}
+                            </p>
                         </div>
-                        <p className="text-xs uppercase tracking-wider font-semibold">No enrollments</p>
-                    </div>
+                    )}
+                    {items.slice(0, visibleCount).map(enrollment => (
+                        <EnrollmentCard
+                            key={enrollment.id}
+                            enrollment={enrollment}
+                            status={status}
+                            isSelected={selectedIds.has(enrollment.id)}
+                            toggleSelect={toggleSelect}
+                            togglePriority={togglePriority}
+                            openEditNote={openEditNote}
+                            queuePosition={queuePositions.get(enrollment.id)}
+                            studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
+                            completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
+                            onFlagClick={onFlagClick}
+                        />
+                    ))}
+                </div>
+                {items.length > 0 && (
+                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent rounded-b-2xl" />
                 )}
-                {items.slice(0, visibleCount).map(enrollment => (
-                    <EnrollmentCard
-                        key={enrollment.id}
-                        enrollment={enrollment}
-                        status={status}
-                        isSelected={selectedIds.has(enrollment.id)}
-                        toggleSelect={toggleSelect}
-                        togglePriority={togglePriority}
-                        openEditNote={openEditNote}
-                        queuePosition={queuePositions.get(enrollment.id)}
-                        studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
-                        completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
-                        onFlagClick={onFlagClick}
-                    />
-                ))}
             </div>
         </div>
     );
 };
 
 export default memo(StatusColumn, (prev, next) => {
-    // Fast reference checks for stable callbacks
     if (prev.status !== next.status) return false;
     if (prev.toggleSelect !== next.toggleSelect) return false;
     if (prev.togglePriority !== next.togglePriority) return false;
@@ -152,8 +193,8 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.selectAllInList !== next.selectAllInList) return false;
     if (prev.handleCopyEmails !== next.handleCopyEmails) return false;
     if (prev.onFlagClick !== next.onFlagClick) return false;
+    if (prev.totalCount !== next.totalCount) return false;
 
-    // Fast reference checks for data sources
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 
         prev.queuePositions === next.queuePositions && 
@@ -162,7 +203,6 @@ export default memo(StatusColumn, (prev, next) => {
         return true;
     }
 
-    // Deep compare items array by ID + key fields
     if (prev.items.length !== next.items.length) return false;
     for (let i = 0; i < prev.items.length; i++) {
         const a = prev.items[i];
@@ -170,16 +210,13 @@ export default memo(StatusColumn, (prev, next) => {
         if (a.id !== b.id || a.status !== b.status || a.is_priority !== b.is_priority || a.notes !== b.notes || a.confirmed_date !== b.confirmed_date || a.invited_date !== b.invited_date || a.completed_date !== b.completed_date || a.response_days !== b.response_days) return false;
     }
 
-    // Compare selection state for items in this column only
     for (const item of prev.items) {
         if (prev.selectedIds.has(item.id) !== next.selectedIds.has(item.id)) return false;
     }
-    // Also check if any new items are selected
     for (const item of next.items) {
         if (prev.selectedIds.has(item.id) !== next.selectedIds.has(item.id)) return false;
     }
 
-    // Compare queue positions for items in this column
     for (const item of prev.items) {
         if (prev.queuePositions.get(item.id) !== next.queuePositions.get(item.id)) return false;
     }

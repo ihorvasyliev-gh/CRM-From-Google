@@ -66,11 +66,16 @@ export default function BulkActionBar({
             <div className="glass-dark rounded-2xl shadow-float px-4 py-2.5 flex items-center gap-1.5">
                 <button 
                     onClick={() => setShowList(!showList)}
-                    className={`flex items-center justify-center px-3 py-1.5 text-[13px] font-bold text-white max-w-[40px] leading-none rounded-lg transition-colors ${showList ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white leading-none rounded-lg transition-colors whitespace-nowrap ${showList ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}
                     title="View selected list"
                 >
-                    {selectedCount}
+                    <span className="font-mono">{selectedCount}</span>
+                    <span className="font-medium text-white/70">selected</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform ${showList ? 'rotate-180' : ''} opacity-60`}>
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
                 </button>
+
 
                 <div className="w-px h-5 bg-white/10 ml-0.5" />
 

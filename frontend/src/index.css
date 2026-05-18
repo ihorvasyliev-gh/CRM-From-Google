@@ -239,6 +239,26 @@ option {
     }
 }
 
+@keyframes pulse-timer {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.45;
+    }
+}
+
+@keyframes card-drop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
 @keyframes orb-float-1 {
 
     0%,
@@ -355,6 +375,27 @@ option {
 
     .progress-bar {
         animation: progress 3s linear forwards;
+    }
+
+    .animate-pulse-timer {
+        animation: pulse-timer 1.2s ease-in-out infinite;
+    }
+
+    .animate-card-drop-in {
+        animation: card-drop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .cursor-grab {
+        cursor: grab;
+    }
+
+    .cursor-grab:active {
+        cursor: grabbing;
+    }
+
+    .column-fade-bottom {
+        -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
     }
 }
 
