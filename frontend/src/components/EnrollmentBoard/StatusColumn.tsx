@@ -79,7 +79,7 @@ const StatusColumn = function StatusColumn({
     return (
         <div 
             ref={setNodeRef}
-            className={`flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
+            className={`h-full flex flex-col bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden transition-colors duration-200 ${
                 isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5' : ''
             }`}
         >
@@ -144,7 +144,7 @@ const StatusColumn = function StatusColumn({
 
             <div className="flex-1 min-h-0 relative">
                 <div 
-                    className="p-2 overflow-y-auto h-full space-y-1.5 bg-surface min-h-[500px] will-change-scroll"
+                    className="p-2 overflow-y-auto h-full space-y-1.5 bg-surface will-change-scroll"
                     onScroll={handleScroll}
                 >
                     {items.length === 0 && (
