@@ -200,35 +200,6 @@ const EnrollmentCard = function EnrollmentCard({
                                 </>
                             )}
 
-                            {/* Invitation Timer */}
-                            {status === 'invited' && (() => {
-                                const invitedAt = enrollment.invited_at;
-                                if (!invitedAt) return null;
-                                const days = enrollment.response_days ?? 7;
-                                const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                                const remaining = deadline - now;
-                                const isExpired = remaining <= 0;
-
-                                if (isExpired) {
-                                    const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-                                    return (
-                                        <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                            <Timer size={12} strokeWidth={2.5} />
-                                            <span>Expired</span>
-                                        </div>
-                                    );
-                                }
-
-                                const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                                const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                                const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
-                                return (
-                                    <div className="flex items-center gap-1 bg-surface-elevated border border-border-subtle text-muted-strong px-1.5 py-0.5 rounded text-[11px] font-medium shadow-sm" title={`${daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`} remaining (${days}-day deadline)`}>
-                                        <Timer size={12} />
-                                        <span>{timerText}</span>
-                                    </div>
-                                );
-                            })()}
                         </div>
 
                         {/* Right Quick Actions */}
@@ -293,6 +264,36 @@ const EnrollmentCard = function EnrollmentCard({
                                 </span>
                             </>
                         )}
+
+                        {/* Invitation Timer — shown in info row */}
+                        {status === 'invited' && (() => {
+                            const invitedAt = enrollment.invited_at;
+                            if (!invitedAt) return null;
+                            const days = enrollment.response_days ?? 7;
+                            const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
+                            const remaining = deadline - now;
+                            const isExpired = remaining <= 0;
+
+                            if (isExpired) {
+                                const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                                return (
+                                    <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                        <Timer size={12} strokeWidth={2.5} />
+                                        <span>Expired</span>
+                                    </div>
+                                );
+                            }
+
+                            const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                            const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                            const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                            return (
+                                <div className="flex items-center gap-1 bg-surface-elevated border border-border-subtle text-muted-strong px-1.5 py-0.5 rounded text-[11px] font-medium shadow-sm" title={`${daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`} remaining (${days}-day deadline)`}>
+                                    <Timer size={12} />
+                                    <span>{timerText}</span>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Notes */}
