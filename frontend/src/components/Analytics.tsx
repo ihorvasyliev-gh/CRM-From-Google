@@ -1,25 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { 
-    ResponsiveContainer, 
-    BarChart, 
-    Bar, 
-    XAxis, 
-    YAxis, 
-    CartesianGrid, 
-    Tooltip as RechartsTooltip, 
-    Legend, 
-    PieChart, 
-    Pie, 
-    Cell,
-    LineChart,
-    Line,
-    LabelList
-} from 'recharts';
-import { PieChart as PieChartIcon, TrendingUp, Users, BookOpen, Clock, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Download } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+
+import OverviewTab from './Analytics/OverviewTab';
+import DemographicsTab from './Analytics/DemographicsTab';
+import DrillDownModal from './Analytics/DrillDownModal';
 
 // Helper to fetch all enrollments with related data
 async function fetchAllEnrollments() {
@@ -29,7 +16,8 @@ async function fetchAllEnrollments() {
     while (true) {
         const { data, error } = await supabase
             .from('enrollments')
-            .select('*, students(id, first_name, last_name), courses(id, name)')
+            // Added dob to students query
+            .select('*, students(id, first_name, last_name, email, dob), courses(id, name)')
             .order('created_at', { ascending: true })
             .range(from, from + limit - 1);
         if (error) throw error;
@@ -41,131 +29,75 @@ async function fetchAllEnrollments() {
     return allData;
 }
 
-// Custom tooltip styling for Recharts
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-surface border border-border-subtle p-3 rounded-xl shadow-lg backdrop-blur-md">
-                <p className="text-sm font-semibold text-primary mb-1">{label}</p>
-                {payload.map((entry: any, index: number) => (
-                    <p key={`item-${index}`} className="text-xs font-medium flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="text-muted">{entry.name}:</span> 
-                        <span className="text-primary font-bold">{entry.value}</span>
-                    </p>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
-
 export default function Analytics() {
+    const [activeTab, setActiveTab] = useState<'overview' | 'demographics'>('overview');
+    const [dateFilter, setDateFilter] = useState<'all' | '30' | '90' | '365'>('all');
+    
+    // DrillDown Modal State
+    const [modalData, setModalData] = useState<{isOpen: boolean, title: string, data: EnrollmentWithRelations[]}>({
+        isOpen: false,
+        title: '',
+        data: []
+    });
+
     const { data: enrollments = [], isLoading } = useQuery({
-        queryKey: ['analytics_enrollments'],
+        queryKey: ['analytics_enrollments_v2'],
         queryFn: fetchAllEnrollments,
         staleTime: 60_000,
     });
 
-    // ─── Data Processing ──────────────────────────────────────────
-
-    // 1. Status Pipeline Data
-    const statusData = useMemo(() => {
-        const counts: Record<string, number> = { requested: 0, invited: 0, confirmed: 0, completed: 0, withdrawn: 0, rejected: 0 };
-        enrollments.forEach(e => {
-            if (counts[e.status] !== undefined) {
-                counts[e.status]++;
-            } else {
-                counts[e.status] = 1;
-            }
-        });
+    const filteredEnrollments = useMemo(() => {
+        if (dateFilter === 'all') return enrollments;
         
-        return [
-            { name: 'Requested', value: counts.requested, color: '#F59E0B' }, // Amber
-            { name: 'Invited', value: counts.invited, color: '#8B5CF6' },   // Violet
-            { name: 'Confirmed', value: counts.confirmed, color: '#0EA5E9' }, // Sky
-            { name: 'Completed', value: counts.completed, color: '#10B981' }, // Emerald
-            { name: 'Withdrawn/Rejected', value: counts.withdrawn + counts.rejected, color: '#64748B' }, // Slate
-        ].filter(d => d.value > 0);
-    }, [enrollments]);
+        const now = new Date().getTime();
+        const days = parseInt(dateFilter);
+        const cutoff = now - (days * 24 * 60 * 60 * 1000);
 
-    // 2. Course Popularity
-    const coursePopularity = useMemo(() => {
-        const counts: Record<string, number> = {};
-        enrollments.forEach(e => {
-            const name = e.courses?.name || 'Unknown Course';
-            counts[name] = (counts[name] || 0) + 1;
+        return enrollments.filter(e => {
+            const created = new Date(e.created_at).getTime();
+            return created >= cutoff;
         });
-        return Object.entries(counts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 7); // Top 7 courses
-    }, [enrollments]);
+    }, [enrollments, dateFilter]);
 
-    // 3. Enrollments Over Time (By Month)
-    const enrollmentsOverTime = useMemo(() => {
-        const timelineData: Record<string, { total: number, confirmed: number, timestamp: number }> = {};
+    const handleDrillDown = (title: string, data: EnrollmentWithRelations[]) => {
+        setModalData({ isOpen: true, title, data });
+    };
+
+    const handleExport = () => {
+        if (filteredEnrollments.length === 0) return;
         
-        const getMonthYear = (dateString: string | null) => {
-            if (!dateString) return null;
-            const d = new Date(dateString);
-            if (isNaN(d.getTime())) return null;
-            return d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
-        };
-
-        const addMetric = (dateString: string, type: 'total' | 'confirmed') => {
-            const my = getMonthYear(dateString);
-            if (!my) return;
-            if (!timelineData[my]) {
-                const d = new Date(dateString);
-                timelineData[my] = { total: 0, confirmed: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime() };
-            }
-            timelineData[my][type]++;
-        };
-
-        enrollments.forEach(e => {
-            if (e.created_at) {
-                addMetric(e.created_at, 'total');
-            }
+        const headers = ['Student Name', 'Email', 'Course', 'Status', 'Date Registered'];
+        const csvRows = [headers.join(',')];
+        
+        filteredEnrollments.forEach(e => {
+            const name = `${e.students?.first_name || ''} ${e.students?.last_name || ''}`.replace(/,/g, ' ');
+            const email = e.students?.email || '';
+            const course = (e.courses?.name || '').replace(/,/g, ' ');
+            const status = e.status;
+            const date = new Date(e.created_at).toLocaleDateString();
             
-            if (e.status === 'confirmed' && e.confirmed_date) {
-                addMetric(e.confirmed_date, 'confirmed');
-            } else if (e.status === 'completed' && e.completed_date) {
-                addMetric(e.completed_date, 'confirmed');
-            } else if ((e.status === 'confirmed' || e.status === 'completed')) {
-                const fallbackDate = e.confirmed_date || e.completed_date || e.created_at;
-                if (fallbackDate) {
-                    addMetric(fallbackDate, 'confirmed');
-                }
-            }
+            csvRows.push(`${name},${email},${course},${status},${date}`);
         });
-
-        return Object.entries(timelineData)
-            .sort((a, b) => a[1].timestamp - b[1].timestamp)
-            .map(([name, data]) => ({
-                name,
-                total: data.total,
-                confirmed: data.confirmed
-            }));
-    }, [enrollments]);
-
-    // 4. Quick Metrics
-    const metrics = useMemo(() => {
-        const total = enrollments.length;
-        const queue = enrollments.filter(e => e.status === 'requested' || e.status === 'invited').length;
-        const successRate = total > 0 
-            ? Math.round((enrollments.filter(e => e.status === 'completed' || e.status === 'confirmed').length / total) * 100) 
-            : 0;
-
-        return { total, queue, successRate };
-    }, [enrollments]);
+        
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `analytics_export_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
 
     if (isLoading) {
         return (
-            <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-                <div className="flex flex-col items-center gap-3 animate-pulse">
-                    <Activity size={32} className="text-brand-500" />
-                    <p className="text-sm font-medium text-muted">Crunching numbers...</p>
+            <div className="flex-1 flex flex-col gap-6 p-1 animate-fadeIn">
+                <div className="h-14 w-full sm:w-2/3 lg:w-1/2 skeleton rounded-2xl"></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => <div key={i} className="h-[120px] skeleton rounded-2xl"></div>)}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="h-[350px] skeleton rounded-2xl"></div>
+                    <div className="h-[350px] skeleton rounded-2xl lg:col-span-2"></div>
                 </div>
             </div>
         );
@@ -173,197 +105,76 @@ export default function Analytics() {
 
     return (
         <div className="space-y-6 pb-8 animate-fadeIn">
-            {/* Header Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Total Enrollments</p>
-                            <p className="text-4xl font-mono font-bold text-primary">{metrics.total}</p>
-                        </div>
-                        <div className="p-3 rounded-xl bg-brand-500/10 text-brand-600">
-                            <Users size={22} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Active Queue</p>
-                            <p className="text-4xl font-mono font-bold text-primary">{metrics.queue}</p>
-                            <p className="text-[10px] text-muted mt-1">Requested + Invited</p>
-                        </div>
-                        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600">
-                            <Clock size={22} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Success Rate</p>
-                            <p className="text-4xl font-mono font-bold text-primary">{metrics.successRate}%</p>
-                            <p className="text-[10px] text-muted mt-1">Confirmed + Completed</p>
-                        </div>
-                        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600">
-                            <TrendingUp size={22} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Charts Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border-subtle p-2 rounded-2xl shadow-sm">
                 
-                {/* Status Pipeline Chart */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <PieChartIcon size={16} className="text-brand-500" /> Status Breakdown
-                    </h3>
-                    <div className="flex-1 w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={statusData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={70}
-                                    outerRadius={100}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    animationBegin={200}
-                                    animationDuration={1000}
-                                >
-                                    {statusData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.1)" />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    height={36} 
-                                    iconType="circle"
-                                    formatter={(value: string) => <span className="text-xs text-primary font-medium mr-2">{value}</span>}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        {/* Center text for Donut */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none -mt-8">
-                            <span className="text-2xl font-bold text-primary">{metrics.total}</span>
-                            <span className="text-[10px] text-muted uppercase tracking-wider">Total</span>
-                        </div>
-                    </div>
+                {/* Tabs */}
+                <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl overflow-x-auto hide-scrollbar">
+                    <button
+                        onClick={() => setActiveTab('overview')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                            activeTab === 'overview' 
+                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                        }`}
+                    >
+                        <LayoutDashboard size={16} /> Overview
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('demographics')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                            activeTab === 'demographics' 
+                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                        }`}
+                    >
+                        <Users size={16} /> Demographics
+                    </button>
                 </div>
 
-                {/* Course Popularity Chart */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <BookOpen size={16} className="text-brand-500" /> Top Courses
-                    </h3>
-                    <div className="flex-1 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={coursePopularity} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border-subtle)" />
-                                <XAxis type="number" hide />
-                                <YAxis 
-                                    dataKey="name" 
-                                    type="category" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#a1a1aa', fontSize: 11 }}
-                                    width={110}
-                                />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--border-subtle)', opacity: 0.4 }} />
-                                <Bar 
-                                    dataKey="count" 
-                                    name="Enrollments" 
-                                    fill="var(--accent-primary)" 
-                                    radius={[0, 4, 4, 0]} 
-                                    barSize={24}
-                                    animationBegin={400}
-                                    animationDuration={1000}
-                                >
-                                    {coursePopularity.map((_, index) => (
-                                        <Cell key={`cell-${index}`} fill={`url(#colorGradient${index % 2})`} />
-                                    ))}
-                                    <LabelList dataKey="count" position="insideRight" fill="#ffffff" fontSize={11} fontWeight="bold" />
-                                </Bar>
-                                <defs>
-                                    <linearGradient id="colorGradient0" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor="#818cf8" />
-                                        <stop offset="100%" stopColor="#4f46e5" />
-                                    </linearGradient>
-                                    <linearGradient id="colorGradient1" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor="#34d399" />
-                                        <stop offset="100%" stopColor="#059669" />
-                                    </linearGradient>
-                                </defs>
-                            </BarChart>
-                        </ResponsiveContainer>
+                {/* Filters & Actions */}
+                <div className="flex items-center gap-3 px-2 sm:px-3">
+                    <div className="flex items-center gap-2 text-sm">
+                        <Calendar size={16} className="text-muted" />
+                        <select 
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value as any)}
+                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none"
+                        >
+                            <option value="all">All Time</option>
+                            <option value="365">Last 12 Months</option>
+                            <option value="90">Last 90 Days</option>
+                            <option value="30">Last 30 Days</option>
+                        </select>
                     </div>
-                </div>
 
-                {/* Enrollments Over Time Chart */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <Activity size={16} className="text-brand-500" /> Enrollment Trends
-                    </h3>
-                    <div className="flex-1 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={enrollmentsOverTime} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-subtle)" />
-                                <XAxis 
-                                    dataKey="name" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#a1a1aa', fontSize: 12 }} 
-                                    dy={10}
-                                />
-                                <YAxis 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: '#a1a1aa', fontSize: 12 }} 
-                                />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border-subtle)', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                                <Legend 
-                                    verticalAlign="top" 
-                                    height={36} 
-                                    iconType="circle"
-                                    wrapperStyle={{ top: -10, left: 0 }}
-                                />
-                                <Line 
-                                    type="monotone" 
-                                    dataKey="total" 
-                                    name="Total Processing" 
-                                    stroke="#818cf8" 
-                                    strokeWidth={3} 
-                                    dot={{ r: 4, fill: '#818cf8', strokeWidth: 0 }} 
-                                    activeDot={{ r: 6, strokeWidth: 0 }}
-                                    animationBegin={600}
-                                    animationDuration={1200}
-                                />
-                                <Line 
-                                    type="monotone" 
-                                    dataKey="confirmed" 
-                                    name="Confirmed/Completed" 
-                                    stroke="#10b981" 
-                                    strokeWidth={3} 
-                                    dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} 
-                                    activeDot={{ r: 6, strokeWidth: 0 }}
-                                    animationBegin={800}
-                                    animationDuration={1200}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+                    <div className="w-px h-6 bg-border-subtle mx-1" />
 
+                    <button 
+                        onClick={handleExport}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 transition-colors"
+                    >
+                        <Download size={16} /> Export
+                    </button>
+                </div>
             </div>
+
+            {/* Active Tab Content */}
+            <div className="mt-4 transition-all duration-300">
+                {activeTab === 'overview' ? (
+                    <OverviewTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
+                ) : (
+                    <DemographicsTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
+                )}
+            </div>
+
+            {/* Drill Down Modal */}
+            <DrillDownModal 
+                isOpen={modalData.isOpen}
+                onClose={() => setModalData({ ...modalData, isOpen: false })}
+                title={modalData.title}
+                data={modalData.data}
+            />
         </div>
     );
 }
