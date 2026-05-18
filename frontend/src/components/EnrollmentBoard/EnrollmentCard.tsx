@@ -1,4 +1,5 @@
 import { useMemo, memo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -199,9 +200,9 @@ const EnrollmentCard = function EnrollmentCard({
                                         <span className="text-[11px] font-bold">{completedCourses.length}</span>
                                     </button>
                                     
-                                    {showCompleted && (
+                                    {showCompleted && createPortal(
                                         <div 
-                                            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
+                                            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
                                             onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
                                             onPointerDown={(e) => e.stopPropagation()}
                                         >
@@ -240,7 +241,8 @@ const EnrollmentCard = function EnrollmentCard({
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </div>,
+                                        document.body
                                     )}
                                 </>
                             )}
