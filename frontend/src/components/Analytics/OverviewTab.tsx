@@ -199,17 +199,17 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                     }
                                 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border-subtle)" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgb(var(--border-subtle))" />
                                 <XAxis type="number" hide />
                                 <YAxis 
                                     dataKey="name" 
                                     type="category" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 500 }}
+                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11, fontWeight: 500 }}
                                     width={75}
                                 />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--border-subtle)', opacity: 0.2 }} />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.2 }} />
                                 <Bar 
                                     dataKey="value" 
                                     radius={[0, 6, 6, 0]} 
@@ -252,18 +252,18 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-subtle)" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--border-subtle))" />
                                 <XAxis 
                                     dataKey="name" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }} 
+                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
                                     dy={10}
                                 />
                                 <YAxis 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }} 
+                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
                                 />
                                 <RechartsTooltip content={<CustomTooltip />} />
                                 <Area 
