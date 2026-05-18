@@ -124,9 +124,14 @@ const EnrollmentCard = function EnrollmentCard({
                     {/* Header: Name, Badges & Actions */}
                     <div className="flex justify-between items-start gap-2">
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
-                            <p className="font-bold text-primary text-[15px] truncate leading-tight mr-1">
+                            <p className="font-bold text-primary text-[15px] leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
+
+                            {/* Course Pill — inline with name */}
+                            <span className={`inline-block text-[12px] font-medium px-2 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
+                                {getCoursePill(enrollment)}
+                            </span>
                             
                             {/* Queue Number */}
                             {status === 'requested' && queuePosition !== undefined && (
@@ -242,13 +247,6 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
                     </div>
 
-                    {/* Course Pill */}
-                    <div className="mt-1">
-                        <span className={`inline-block text-[12px] font-medium px-2 py-0.5 rounded-md max-w-full truncate ${cfg.pillBg}`}>
-                            {getCoursePill(enrollment)}
-                        </span>
-                    </div>
-
                     {/* Contact Info */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-muted truncate">
                         {enrollment.students?.email && (
@@ -301,7 +299,7 @@ const EnrollmentCard = function EnrollmentCard({
                     {enrollment.notes && (
                         <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-muted-strong bg-surface-elevated border border-border-subtle p-2 rounded-md shadow-sm">
                             <Pencil size={12} className="mt-0.5 flex-shrink-0 text-brand-500" />
-                            <p className="italic leading-relaxed line-clamp-2" title={enrollment.notes}>{enrollment.notes}</p>
+                            <p className="italic leading-relaxed">{enrollment.notes}</p>
                         </div>
                     )}
                 </div>
