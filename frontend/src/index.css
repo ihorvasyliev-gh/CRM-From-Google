@@ -101,6 +101,11 @@ body {
     background: #f8fafc;
 }
 
+option {
+    background-color: rgb(var(--bg-surface));
+    color: rgb(var(--text-primary));
+}
+
 /* ===== Premium Scrollbar ===== */
 
 ::-webkit-scrollbar {
