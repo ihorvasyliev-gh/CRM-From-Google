@@ -13,6 +13,7 @@ interface EnrollmentCount {
     requested: number;
     invited: number;
     confirmed: number;
+    completed: number;
     rejected: number;
 }
 
@@ -27,7 +28,7 @@ async function fetchEnrollmentCounts(): Promise<Record<string, EnrollmentCount>>
     const counts: Record<string, EnrollmentCount> = {};
     for (const e of enrollments) {
         if (!counts[e.course_id]) {
-            counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, rejected: 0 };
+            counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, completed: 0, rejected: 0 };
         }
         counts[e.course_id].total++;
         const stat = e.status as keyof EnrollmentCount;
@@ -41,21 +42,24 @@ async function fetchEnrollmentCounts(): Promise<Record<string, EnrollmentCount>>
 
 // ─── Status Bar (extracted to module-level) ────────────────
 function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
-    if (!counts || counts.total === 0) return <span className="text-xs text-muted">No enrollments</span>;
-
+    // Always define all segments so the legend is always rendered (consistent card height)
     const segments = [
-        { key: 'confirmed', color: '#10b981', count: counts.confirmed, label: 'Confirmed' },
-        { key: 'invited', color: '#3b82f6', count: counts.invited, label: 'Invited' },
-        { key: 'requested', color: '#f59e0b', count: counts.requested, label: 'Requested' },
-        { key: 'rejected', color: '#f87171', count: counts.rejected, label: 'Rejected' },
+        { key: 'completed', color: '#10b981', count: counts?.completed ?? 0, label: 'Completed' },
+        { key: 'confirmed', color: '#06b6d4', count: counts?.confirmed ?? 0, label: 'Confirmed' },
+        { key: 'invited', color: '#3b82f6', count: counts?.invited ?? 0, label: 'Invited' },
+        { key: 'requested', color: '#f59e0b', count: counts?.requested ?? 0, label: 'Requested' },
+        { key: 'rejected', color: '#f87171', count: counts?.rejected ?? 0, label: 'Rejected' },
     ];
 
+    // Legend always shows Requested + Completed; other statuses shown only when non-zero
+    const alwaysShow = new Set(['requested', 'completed']);
+
     const visible = segments.filter(s => s.count > 0);
-    // Use the sum of visible segments as the base so the bar always fills 100%
-    const visibleTotal = visible.reduce((sum, s) => sum + s.count, 0);
+    const barTotal = visible.reduce((sum, s) => sum + s.count, 0);
 
     return (
-        <div className="space-y-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Progress bar */}
             <div
                 style={{
                     display: 'flex',
@@ -66,29 +70,37 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                     width: '100%',
                 }}
             >
-                {visible.map((s, i) => {
-                    const isLast = i === visible.length - 1;
+                {barTotal === 0 ? (
+                    // Empty bar placeholder so bar height is always consistent
+                    <div style={{ flex: 1, backgroundColor: 'var(--color-surface-elevated, #2a2a3a)' }} />
+                ) : (
+                    visible.map((s, i) => {
+                        const isLast = i === visible.length - 1;
+                        return (
+                            <div
+                                key={s.key}
+                                title={`${s.label}: ${s.count}`}
+                                style={{
+                                    ...(isLast ? { flex: 1 } : { width: `${(s.count / barTotal) * 100}%`, flexShrink: 0 }),
+                                    backgroundColor: s.color,
+                                    transition: 'width 0.7s ease-out',
+                                }}
+                            />
+                        );
+                    })
+                )}
+            </div>
+            {/* Legend — always shows Requested & Completed, plus any other non-zero statuses */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', minHeight: 16 }}>
+                {segments.map(s => {
+                    if (!alwaysShow.has(s.key) && s.count === 0) return null;
                     return (
-                        <div
-                            key={s.key}
-                            title={`${s.label}: ${s.count}`}
-                            style={{
-                                // Last segment uses flex:1 to absorb any sub-pixel rounding gaps
-                                ...(isLast ? { flex: 1 } : { width: `${(s.count / visibleTotal) * 100}%`, flexShrink: 0 }),
-                                backgroundColor: s.color,
-                                transition: 'width 0.7s ease-out',
-                            }}
-                        />
+                        <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--color-text-muted, #9ca3af)', fontWeight: 500 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color, flexShrink: 0, display: 'inline-block' }} />
+                            {s.count} {s.label}
+                        </span>
                     );
                 })}
-            </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {segments.map(s => s.count > 0 ? (
-                    <span key={s.key} className="flex items-center gap-1.5 text-[10px] text-muted font-medium">
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color, flexShrink: 0, display: 'inline-block' }} />
-                        {s.count} {s.label}
-                    </span>
-                ) : null)}
             </div>
         </div>
     );
@@ -239,7 +251,7 @@ export default function CourseList() {
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
-                                <div className="p-5">
+                                <div className="p-5" style={{ minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
