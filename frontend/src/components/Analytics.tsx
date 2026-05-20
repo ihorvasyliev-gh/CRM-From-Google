@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Users, Calendar, Download } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Download, Briefcase } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 
 import OverviewTab from './Analytics/OverviewTab';
 import DemographicsTab from './Analytics/DemographicsTab';
+import OutcomesTab from './Analytics/OutcomesTab';
 import DrillDownModal from './Analytics/DrillDownModal';
 
 // Helper to fetch all enrollments with related data
@@ -16,8 +17,7 @@ async function fetchAllEnrollments() {
     while (true) {
         const { data, error } = await supabase
             .from('enrollments')
-            // Added dob to students query
-            .select('*, students(id, first_name, last_name, email, dob), courses(id, name)')
+            .select('*, students(id, first_name, last_name, email, dob, address, eircode), courses(id, name)')
             .order('created_at', { ascending: true })
             .range(from, from + limit - 1);
         if (error) throw error;
@@ -29,8 +29,27 @@ async function fetchAllEnrollments() {
     return allData;
 }
 
+// Helper to fetch employment statuses
+async function fetchEmploymentStatuses() {
+    let allData: any[] = [];
+    let from = 0;
+    const limit = 1000;
+    while (true) {
+        const { data, error } = await supabase
+            .from('employment_status')
+            .select('*')
+            .range(from, from + limit - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...data];
+        if (data.length < limit) break;
+        from += limit;
+    }
+    return allData;
+}
+
 export default function Analytics() {
-    const [activeTab, setActiveTab] = useState<'overview' | 'demographics'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'demographics' | 'outcomes'>('overview');
     const [dateFilter, setDateFilter] = useState<'all' | '30' | '90' | '365'>('all');
     
     // DrillDown Modal State
@@ -40,11 +59,19 @@ export default function Analytics() {
         data: []
     });
 
-    const { data: enrollments = [], isLoading } = useQuery({
+    const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
         queryKey: ['analytics_enrollments_v2'],
         queryFn: fetchAllEnrollments,
         staleTime: 60_000,
     });
+
+    const { data: employmentStatuses = [], isLoading: outcomesLoading } = useQuery({
+        queryKey: ['analytics_employment_statuses_v1'],
+        queryFn: fetchEmploymentStatuses,
+        staleTime: 60_000,
+    });
+
+    const isLoading = enrollmentsLoading || outcomesLoading;
 
     const filteredEnrollments = useMemo(() => {
         if (dateFilter === 'all') return enrollments;
@@ -130,6 +157,16 @@ export default function Analytics() {
                     >
                         <Users size={16} /> Demographics
                     </button>
+                    <button
+                        onClick={() => setActiveTab('outcomes')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                            activeTab === 'outcomes' 
+                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                        }`}
+                    >
+                        <Briefcase size={16} /> Outcomes
+                    </button>
                 </div>
 
                 {/* Filters & Actions */}
@@ -161,10 +198,14 @@ export default function Analytics() {
 
             {/* Active Tab Content */}
             <div className="mt-4 transition-all duration-300">
-                {activeTab === 'overview' ? (
+                {activeTab === 'overview' && (
                     <OverviewTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
-                ) : (
+                )}
+                {activeTab === 'demographics' && (
                     <DemographicsTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
+                )}
+                {activeTab === 'outcomes' && (
+                    <OutcomesTab enrollments={filteredEnrollments} employmentStatuses={employmentStatuses} onDrillDown={handleDrillDown} />
                 )}
             </div>
 

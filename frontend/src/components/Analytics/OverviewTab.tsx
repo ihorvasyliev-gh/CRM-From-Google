@@ -11,7 +11,7 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { Users, Clock, TrendingUp, Zap, Filter } from 'lucide-react';
+import { Users, Clock, TrendingUp, Zap, Filter, ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 
 interface OverviewTabProps {
@@ -40,7 +40,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabProps) {
     // ─── Data Processing ──────────────────────────────────────────
 
-    // 1. Funnel / Pipeline Data
+    // 1. Snapshot Pipeline Data (for vertical bar chart)
     const pipelineData = useMemo(() => {
         const counts = { requested: 0, invited: 0, confirmed: 0, completed: 0 };
         const items = { requested: [] as any[], invited: [] as any[], confirmed: [] as any[], completed: [] as any[] };
@@ -51,10 +51,6 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                 items[e.status as keyof typeof items].push(e);
             }
         });
-
-        // Calculate drop-off
-        // A true funnel means everyone starts at Requested. 
-        // For simplicity, we just show the current count in each status, but sorted logically.
         
         return [
             { name: 'Requested', value: counts.requested, color: '#F59E0B', items: items.requested },
@@ -64,7 +60,76 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
         ];
     }, [enrollments]);
 
-    // 2. Trends Over Time (Area Chart)
+    // 2. Conversion Cohort Analysis (Historical)
+    const funnelAnalysis = useMemo(() => {
+        const total = enrollments.length;
+        
+        // Count how many have ever reached each stage:
+        // Ever Requested: all enrollments
+        const everRequested = total;
+        // Ever Invited: had invited_date OR is in invited/confirmed/completed status
+        const everInvited = enrollments.filter(e => e.invited_date || ['invited', 'confirmed', 'completed'].includes(e.status)).length;
+        // Ever Confirmed: had confirmed_date OR is in confirmed/completed status
+        const everConfirmed = enrollments.filter(e => e.confirmed_date || ['confirmed', 'completed'].includes(e.status)).length;
+        // Ever Completed: had completed_date OR is in completed status
+        const everCompleted = enrollments.filter(e => e.completed_date || e.status === 'completed').length;
+
+        // Calculate conversion ratios
+        const requestedToInvited = everRequested > 0 ? Math.round((everInvited / everRequested) * 100) : 0;
+        const invitedToConfirmed = everInvited > 0 ? Math.round((everConfirmed / everInvited) * 100) : 0;
+        const confirmedToCompleted = everConfirmed > 0 ? Math.round((everCompleted / everConfirmed) * 100) : 0;
+
+        return {
+            everRequested,
+            everInvited,
+            everConfirmed,
+            everCompleted,
+            requestedToInvited,
+            invitedToConfirmed,
+            confirmedToCompleted
+        };
+    }, [enrollments]);
+
+    // 3. Efficiency and Speed Metrics (Average processing times in days)
+    const speedMetrics = useMemo(() => {
+        // Time from request (created_at) to invitation (invited_date)
+        const toInviteList = enrollments.filter(e => e.invited_date && e.created_at);
+        const avgDaysToInvite = toInviteList.length > 0
+            ? Math.round(toInviteList.reduce((acc, e) => {
+                const created = new Date(e.created_at).getTime();
+                const invited = new Date(e.invited_date!).getTime();
+                return acc + Math.max(0, (invited - created) / (1000 * 60 * 60 * 24));
+            }, 0) / toInviteList.length)
+            : 0;
+
+        // Time from invitation (invited_date) to confirmation (confirmed_date)
+        const toConfirmList = enrollments.filter(e => e.confirmed_date && e.invited_date);
+        const avgDaysToConfirm = toConfirmList.length > 0
+            ? Math.round(toConfirmList.reduce((acc, e) => {
+                const invited = new Date(e.invited_date!).getTime();
+                const confirmed = new Date(e.confirmed_date!).getTime();
+                return acc + Math.max(0, (confirmed - invited) / (1000 * 60 * 60 * 24));
+            }, 0) / toConfirmList.length)
+            : 0;
+
+        // Time from confirmation (confirmed_date) to completion (completed_date)
+        const toCompleteList = enrollments.filter(e => e.completed_date && e.confirmed_date);
+        const avgDaysToComplete = toCompleteList.length > 0
+            ? Math.round(toCompleteList.reduce((acc, e) => {
+                const confirmed = new Date(e.confirmed_date!).getTime();
+                const completed = new Date(e.completed_date!).getTime();
+                return acc + Math.max(0, (completed - confirmed) / (1000 * 60 * 60 * 24));
+            }, 0) / toCompleteList.length)
+            : 0;
+
+        return {
+            avgDaysToInvite,
+            avgDaysToConfirm,
+            avgDaysToComplete
+        };
+    }, [enrollments]);
+
+    // 4. Trends Over Time (Area Chart)
     const trendsData = useMemo(() => {
         const timeline: Record<string, { registrations: number, completions: number, timestamp: number, items: any[] }> = {};
         
@@ -116,7 +181,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
             }));
     }, [enrollments]);
 
-    // 3. Top Metrics
+    // 5. Top Metrics
     const metrics = useMemo(() => {
         const total = enrollments.length;
         const queue = enrollments.filter(e => e.status === 'requested' || e.status === 'invited').length;
@@ -142,7 +207,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="flex items-start justify-between relative z-10">
                         <div>
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Total Pipeline</p>
-                            <p className="text-3xl font-mono font-bold text-primary animate-countUp">{metrics.total}</p>
+                            <p className="text-3xl font-mono font-bold text-primary">{metrics.total}</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600">
                             <Users size={20} />
@@ -156,7 +221,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="flex items-start justify-between relative z-10">
                         <div>
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Active Queue</p>
-                            <p className="text-3xl font-mono font-bold text-primary animate-countUp" style={{animationDelay: '100ms'}}>{metrics.queue}</p>
+                            <p className="text-3xl font-mono font-bold text-primary">{metrics.queue}</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600">
                             <Clock size={20} />
@@ -170,7 +235,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="flex items-start justify-between relative z-10">
                         <div>
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Success Rate</p>
-                            <p className="text-3xl font-mono font-bold text-primary animate-countUp" style={{animationDelay: '200ms'}}>{metrics.successRate}%</p>
+                            <p className="text-3xl font-mono font-bold text-primary">{metrics.successRate}%</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600">
                             <TrendingUp size={20} />
@@ -182,8 +247,8 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-500" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Avg Response</p>
-                            <p className="text-3xl font-mono font-bold text-primary animate-countUp" style={{animationDelay: '300ms'}}>{metrics.avgResponse} <span className="text-sm font-normal text-muted">days</span></p>
+                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Avg Response Deadline</p>
+                            <p className="text-3xl font-mono font-bold text-primary">{metrics.avgResponse} <span className="text-sm font-normal text-muted">days</span></p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600">
                             <Zap size={20} />
@@ -194,11 +259,10 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Conversion Funnel */}
+                {/* Snapshot Pipeline Status */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-1">
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <Filter size={16} className="text-brand-500" /> Pipeline Status
+                        <Filter size={16} className="text-brand-500" /> Current Status Distribution
                     </h3>
                     <div className="flex-1 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -242,7 +306,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                 {/* Enrollment Trends */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <TrendingUp size={16} className="text-brand-500" /> Registration Trends
+                        <TrendingUp size={16} className="text-brand-500" /> Registration & Completion Trends
                     </h3>
                     <div className="flex-1 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -302,7 +366,82 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                         </ResponsiveContainer>
                     </div>
                 </div>
+            </div>
 
+            {/* Stepper Pipeline Flow & Speed Metrics */}
+            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5">
+                <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-6 flex items-center gap-2">
+                    <Clock size={16} className="text-brand-500" /> Pipeline Conversions & Processing Speeds
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
+                    {/* Step 1: Requested */}
+                    <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
+                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 1</span>
+                        <p className="text-base font-bold text-primary mt-1">Requested</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-amber-500">{funnelAnalysis.everRequested}</p>
+                        <span className="text-[10px] text-muted font-medium">applications</span>
+                    </div>
+
+                    {/* Transition 1 */}
+                    <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                            <TrendingUp size={12} /> {funnelAnalysis.requestedToInvited}%
+                        </div>
+                        <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
+                        <div className="text-[10px] text-muted font-medium mt-1">
+                            Avg: <span className="font-bold text-primary">{speedMetrics.avgDaysToInvite} days</span> to invite
+                        </div>
+                    </div>
+
+                    {/* Step 2: Invited */}
+                    <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
+                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 2</span>
+                        <p className="text-base font-bold text-primary mt-1">Invited</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-purple-500">{funnelAnalysis.everInvited}</p>
+                        <span className="text-[10px] text-muted font-medium">students</span>
+                    </div>
+
+                    {/* Transition 2 */}
+                    <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                            <TrendingUp size={12} /> {funnelAnalysis.invitedToConfirmed}%
+                        </div>
+                        <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
+                        <div className="text-[10px] text-muted font-medium mt-1">
+                            Avg: <span className="font-bold text-primary">{speedMetrics.avgDaysToConfirm} days</span> to confirm
+                        </div>
+                    </div>
+
+                    {/* Step 3: Confirmed */}
+                    <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
+                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 3</span>
+                        <p className="text-base font-bold text-primary mt-1">Confirmed</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-sky-500">{funnelAnalysis.everConfirmed}</p>
+                        <span className="text-[10px] text-muted font-medium">confirmed</span>
+                    </div>
+
+                    {/* Transition 3 */}
+                    <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                            <TrendingUp size={12} /> {funnelAnalysis.confirmedToCompleted}%
+                        </div>
+                        <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
+                        <div className="text-[10px] text-muted font-medium mt-1">
+                            Avg: <span className="font-bold text-primary">{speedMetrics.avgDaysToComplete} days</span> duration
+                        </div>
+                    </div>
+
+                    {/* Step 4: Completed */}
+                    <div className="md:col-span-1 bg-surface-elevated border border-brand-500/20 p-4 rounded-xl text-center shadow-sm">
+                        <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                            <CheckCircle2 size={10} /> Finished
+                        </div>
+                        <p className="text-base font-bold text-primary mt-1">Completed</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-emerald-500">{funnelAnalysis.everCompleted}</p>
+                        <span className="text-[10px] text-muted font-medium">graduates</span>
+                    </div>
+                </div>
             </div>
         </div>
     );
