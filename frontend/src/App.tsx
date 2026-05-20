@@ -106,39 +106,100 @@ function App() {
                 });
                 break;
             case 'students':
+                queryClient.prefetchInfiniteQuery({
+                    queryKey: ['students', ''],
+                    queryFn: async ({ pageParam = 0 }: any) => {
+                        const limit = 30; // Matches PAGE_SIZE in StudentList.tsx
+                        const from = pageParam * limit;
+                        const to = from + limit - 1;
+                        const { data, count, error } = await supabase
+                            .from('students')
+                            .select('*', { count: 'exact' })
+                            .order('created_at', { ascending: false })
+                            .range(from, to);
+                        if (error) throw error;
+                        return {
+                            data: (data || []) as any[],
+                            count: count || 0,
+                            nextPage: (data && data.length === limit) ? pageParam + 1 : undefined
+                        };
+                    },
+                    initialPageParam: 0,
+                });
+                break;
+            case 'courses':
                 queryClient.prefetchQuery({
-                    queryKey: ['students'],
+                    queryKey: ['courses'],
                     queryFn: async () => {
-                        let all: any[] = []; let from = 0;
-                        while (true) {
-                            const { data } = await supabase.from('students').select('*').order('created_at', { ascending: false }).range(from, from + 999);
-                            if (!data || data.length === 0) break;
-                            all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
+                        const { data } = await supabase.from('courses').select('*').order('name');
+                        return data || [];
+                    },
+                });
+                queryClient.prefetchQuery({
+                    queryKey: ['course_enrollment_counts'],
+                    queryFn: async () => {
+                        const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
+                        if (!enrollments) return {};
+                        const counts: Record<string, any> = {};
+                        for (const e of enrollments) {
+                            if (!counts[e.course_id]) {
+                                counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, rejected: 0 };
+                            }
+                            counts[e.course_id].total++;
+                            const stat = e.status;
+                            if (stat in counts[e.course_id]) {
+                                counts[e.course_id][stat]++;
+                            }
                         }
-                        return all;
+                        return counts;
                     },
                 });
                 break;
-    case 'analytics':
-        // Reuse enrollments cache for analytics
-        queryClient.prefetchQuery({
-            queryKey: ['analytics_enrollments'],
-            queryFn: async () => {
-                let all: any[] = []; let from = 0;
-                while (true) {
-                    const { data, error } = await supabase
-                        .from('enrollments')
-                        .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-                        .order('created_at', { ascending: true })
-                        .range(from, from + 999);
-                    if (error) throw error;
-                    if (!data || data.length === 0) break;
-                    all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
-                }
-                return all;
-            },
-        });
-        break;
+            case 'analytics':
+                queryClient.prefetchQuery({
+                    queryKey: ['analytics_enrollments_v2'],
+                    queryFn: async () => {
+                        let allData: any[] = [];
+                        let from = 0;
+                        const limit = 1000;
+                        while (true) {
+                            const { data, error } = await supabase
+                                .from('enrollments')
+                                .select('*, students(id, first_name, last_name, email, dob, address, eircode), courses(id, name)')
+                                .order('created_at', { ascending: true })
+                                .range(from, from + limit - 1);
+                            if (error) throw error;
+                            if (!data || data.length === 0) break;
+                            allData = [...allData, ...data];
+                            if (data.length < limit) break;
+                            from += limit;
+                        }
+                        return allData;
+                    },
+                    staleTime: 60_000,
+                });
+                queryClient.prefetchQuery({
+                    queryKey: ['analytics_employment_statuses_v1'],
+                    queryFn: async () => {
+                        let allData: any[] = [];
+                        let from = 0;
+                        const limit = 1000;
+                        while (true) {
+                            const { data, error } = await supabase
+                                .from('employment_status')
+                                .select('*')
+                                .range(from, from + limit - 1);
+                            if (error) throw error;
+                            if (!data || data.length === 0) break;
+                            allData = [...allData, ...data];
+                            if (data.length < limit) break;
+                            from += limit;
+                        }
+                        return allData;
+                    },
+                    staleTime: 60_000,
+                });
+                break;
             case 'enrollments':
             case 'documents':
                 // Both share the ['enrollments'] cache
@@ -157,6 +218,82 @@ function App() {
                             all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
                         }
                         return all;
+                    },
+                });
+                break;
+            case 'outcomes':
+                queryClient.prefetchQuery({
+                    queryKey: ['outcomes_graduates'],
+                    queryFn: async () => {
+                        let enrollments: any[] = [];
+                        let from = 0;
+                        const limit = 1000;
+                        while (true) {
+                            const { data, error } = await supabase
+                                .from('enrollments')
+                                .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
+                                .eq('status', 'completed')
+                                .range(from, from + limit - 1);
+                            if (error) throw error;
+                            if (!data || data.length === 0) break;
+                            enrollments = [...enrollments, ...data];
+                            if (data.length < limit) break;
+                            from += limit;
+                        }
+
+                        let empStatuses: any[] = [];
+                        from = 0;
+                        while (true) {
+                            const { data, error } = await supabase
+                                .from('employment_status')
+                                .select('*')
+                                .range(from, from + limit - 1);
+                            if (error) break;
+                            if (!data || data.length === 0) break;
+                            empStatuses = [...empStatuses, ...data];
+                            if (data.length < limit) break;
+                            from += limit;
+                        }
+
+                        const studentMap = new Map<string, any>();
+                        for (const e of enrollments) {
+                            const student = e.students;
+                            const course = e.courses;
+                            if (!student || !student.id) continue;
+
+                            if (!studentMap.has(student.id)) {
+                                const empStatus = empStatuses?.find(es => es.student_id === student.id);
+                                let trackingStatus = 'not_contacted';
+                                if (empStatus) {
+                                    trackingStatus = empStatus.status;
+                                }
+
+                                studentMap.set(student.id, {
+                                    student_id: student.id,
+                                    first_name: student.first_name || '',
+                                    last_name: student.last_name || '',
+                                    email: student.email || '',
+                                    courses: [course?.name || 'Unknown'],
+                                    is_working: empStatus?.is_working ?? null,
+                                    started_month: empStatus?.started_month ?? null,
+                                    field_of_work: empStatus?.field_of_work ?? null,
+                                    employment_type: empStatus?.employment_type ?? null,
+                                    status_updated_at: empStatus?.last_responded_at ?? null,
+                                    tracking_status: trackingStatus,
+                                    last_sent_at: empStatus?.last_invited_at ?? null,
+                                });
+                            } else {
+                                const existing = studentMap.get(student.id)!;
+                                const courseName = course?.name || 'Unknown';
+                                if (!existing.courses.includes(courseName)) {
+                                    existing.courses.push(courseName);
+                                }
+                            }
+                        }
+
+                        return Array.from(studentMap.values()).sort(
+                            (a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+                        );
                     },
                 });
                 break;

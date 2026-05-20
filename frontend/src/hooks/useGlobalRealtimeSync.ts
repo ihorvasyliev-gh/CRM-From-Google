@@ -23,6 +23,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'enrollments' },
                 () => {
                     queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                    queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'] });
                     queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
                     queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
                     queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
@@ -46,6 +47,15 @@ export function useGlobalRealtimeSync() {
                     queryClient.invalidateQueries({ queryKey: ['courses'] });
                     queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
                     queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                }
+            )
+            // ─── Employment Status ───────────────────────────
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'employment_status' },
+                () => {
+                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
+                    queryClient.invalidateQueries({ queryKey: ['analytics_employment_statuses_v1'] });
                 }
             )
             .subscribe();

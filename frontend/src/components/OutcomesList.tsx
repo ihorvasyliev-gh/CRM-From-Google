@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Briefcase, Search, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil } from 'lucide-react';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
@@ -111,7 +111,7 @@ async function fetchGraduatesFn(): Promise<GraduateRow[]> {
 }
 
 export default function OutcomesList() {
-    const queryClient = useQueryClient();
+
 
     const { data: graduates = [], isLoading: loading, refetch: fetchGraduates } = useQuery({
         queryKey: ['outcomes_graduates'],
@@ -128,23 +128,7 @@ export default function OutcomesList() {
     const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
     const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
-    // Realtime subscription — invalidate cache on employment_status changes
-    useEffect(() => {
-        const channel = supabase
-            .channel('outcomes_changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'employment_status' },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
-                }
-            )
-            .subscribe();
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [queryClient]);
 
     // Unique courses for filter
     const uniqueCourses = useMemo(() => {
