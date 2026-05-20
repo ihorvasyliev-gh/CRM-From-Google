@@ -39,7 +39,7 @@ const StatusColumn = function StatusColumn({
     onFlagClick,
     emptyFlags,
     emptyCompletedCourses,
-    totalCount = 0,
+    totalCount: _totalCount = 0,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -98,17 +98,6 @@ const StatusColumn = function StatusColumn({
     const someSelected = items.some(e => selectedIds.has(e.id));
     const priorityCount = items.filter(e => e.is_priority).length;
 
-    const progressPercent = totalCount > 0 ? Math.round((items.length / totalCount) * 100) : 0;
-
-    const progressBarClass: Record<string, string> = {
-        requested: 'from-amber-400 to-amber-500',
-        invited: 'from-blue-400 to-blue-500',
-        confirmed: 'from-emerald-400 to-emerald-500',
-        completed: 'from-indigo-400 to-brand-500',
-        withdrawn: 'from-zinc-400 to-zinc-500',
-        rejected: 'from-red-400 to-red-500',
-    };
-
     return (
         <div 
             ref={setNodeRef}
@@ -117,15 +106,15 @@ const StatusColumn = function StatusColumn({
             }`}
         >
             <div className={`sticky top-0 z-10 border-b-2 ${cfg.border} bg-surface-elevated/95 backdrop-blur-sm`}>
-                <div className="p-3.5">
-                    <div className="flex items-center justify-between mb-1.5">
+                <div className="px-3 py-2">
+                    <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
                             <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
                             <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                 {items.length}
                             </span>
-                            {priorityCount > 0 && (
+                            {status === 'requested' && priorityCount > 0 && (
                                 <span
                                     className="flex items-center gap-0.5 text-[11px] font-bold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full"
                                     title={`${priorityCount} priority enrollment${priorityCount > 1 ? 's' : ''}`}
@@ -163,15 +152,6 @@ const StatusColumn = function StatusColumn({
                         </div>
                     </div>
 
-                    <div className="h-1 w-full bg-border-subtle rounded-full overflow-hidden" title={`${progressPercent}% of all enrollments`}>
-                        <div
-                            className={`h-full rounded-full bg-gradient-to-r ${progressBarClass[status] || 'from-zinc-400 to-zinc-500'} transition-all duration-700 ease-out`}
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-                    {items.length > 0 && (
-                        <p className="text-[10px] text-muted/50 mt-0.5 text-right tabular-nums">{progressPercent}%</p>
-                    )}
                 </div>
             </div>
 
