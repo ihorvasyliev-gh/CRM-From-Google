@@ -10,6 +10,8 @@ interface Enrollment {
     course_variant: string | null;
     created_at: string;
     confirmed_date: string | null;
+    confirmed_at?: string | null;
+    completed_at?: string | null;
     course_id: string;
     courses: { name: string } | null;
 }
@@ -149,7 +151,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     const fetchEnrollments = useCallback(async () => {
         const { data } = await supabase
             .from('enrollments')
-            .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, courses(name)')
+            .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_at, courses(name)')
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as unknown as Enrollment[]);
@@ -162,10 +164,22 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     async function handleUpdateStatus(id: string, newStatus: string) {
         const updatePayload: Record<string, string | null | boolean> = { status: newStatus };
         const currentEnrollment = enrollments.find(e => e.id === id);
+        if (newStatus === 'confirmed') {
+            updatePayload.confirmed_at = new Date().toISOString();
+        }
         if (newStatus === 'completed') {
             updatePayload.completed_date = currentEnrollment?.confirmed_date || new Date().toISOString().split('T')[0];
+            updatePayload.completed_at = new Date().toISOString();
+            if (currentEnrollment && !currentEnrollment.confirmed_at) {
+                updatePayload.confirmed_at = new Date().toISOString();
+            }
         } else {
             updatePayload.completed_date = null;
+            updatePayload.completed_at = null;
+        }
+
+        if (newStatus !== 'confirmed' && newStatus !== 'completed') {
+            updatePayload.confirmed_at = null;
         }
 
         if (newStatus === 'completed' || newStatus === 'withdrawn') {

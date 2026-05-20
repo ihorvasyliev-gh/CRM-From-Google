@@ -75,8 +75,17 @@ export function useBulkActions({
             let idsToUpdate = Array.from(selectedIds);
             const updatePayload: Record<string, string | null> = { status: newStatus };
 
-            if (newStatus === 'confirmed' && confirmedDate) updatePayload.confirmed_date = confirmedDate;
-            if (newStatus !== 'completed') updatePayload.completed_date = null;
+            if (newStatus === 'confirmed') {
+                if (confirmedDate) updatePayload.confirmed_date = confirmedDate;
+                updatePayload.confirmed_at = new Date().toISOString();
+            }
+            if (newStatus !== 'completed') {
+                updatePayload.completed_date = null;
+                updatePayload.completed_at = null;
+            }
+            if (newStatus !== 'confirmed' && newStatus !== 'completed') {
+                updatePayload.confirmed_at = null;
+            }
             if (newStatus === 'requested' || newStatus === 'rejected') {
                 updatePayload.confirmed_date = null;
                 updatePayload.invited_date = null;
@@ -96,12 +105,16 @@ export function useBulkActions({
                     ).forEach(r => siblingRequestedIds.push(r.id));
                 });
 
-                const updatePromises = selectedEnrollments.map(curr =>
-                    supabase.from('enrollments').update({
+                const updatePromises = selectedEnrollments.map(curr => {
+                    const completedAt = new Date().toISOString();
+                    const confirmedAt = curr.confirmed_at || completedAt;
+                    return supabase.from('enrollments').update({
                         status: 'completed',
-                        completed_date: curr.confirmed_date || todayISO()
-                    }).eq('id', curr.id)
-                );
+                        completed_date: curr.confirmed_date || todayISO(),
+                        completed_at: completedAt,
+                        confirmed_at: confirmedAt
+                    }).eq('id', curr.id);
+                });
                 const results = await Promise.all(updatePromises);
                 const error = results.find(r => r.error)?.error;
 
@@ -138,7 +151,15 @@ export function useBulkActions({
                     .map(e => {
                         if (result.idsToUpdate.includes(e.id)) {
                             const match = result.selectedEnrollments.find(se => se.id === e.id);
-                            return { ...e, status: 'completed', completed_date: match?.confirmed_date || todayISO() } as EnrollmentRow;
+                            const completedAt = new Date().toISOString();
+                            const confirmedAt = match?.confirmed_at || completedAt;
+                            return {
+                                ...e,
+                                status: 'completed',
+                                completed_date: match?.confirmed_date || todayISO(),
+                                completed_at: completedAt,
+                                confirmed_at: confirmedAt
+                            } as EnrollmentRow;
                         }
                         return e;
                     })

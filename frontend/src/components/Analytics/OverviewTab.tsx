@@ -92,32 +92,32 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
 
     // 3. Efficiency and Speed Metrics (Average processing times in days)
     const speedMetrics = useMemo(() => {
-        // Time from request (created_at) to invitation (invited_date)
-        const toInviteList = enrollments.filter(e => e.invited_date && e.created_at);
+        // Time from request (created_at) to invitation (invited_at)
+        const toInviteList = enrollments.filter(e => e.invited_at && e.created_at);
         const avgDaysToInvite = toInviteList.length > 0
             ? Math.round(toInviteList.reduce((acc, e) => {
                 const created = new Date(e.created_at).getTime();
-                const invited = new Date(e.invited_date!).getTime();
+                const invited = new Date(e.invited_at!).getTime();
                 return acc + Math.max(0, (invited - created) / (1000 * 60 * 60 * 24));
             }, 0) / toInviteList.length)
             : 0;
 
-        // Time from invitation (invited_date) to confirmation (confirmed_date)
-        const toConfirmList = enrollments.filter(e => e.confirmed_date && e.invited_date);
+        // Time from invitation (invited_at) to confirmation (confirmed_at)
+        const toConfirmList = enrollments.filter(e => e.confirmed_at && e.invited_at);
         const avgDaysToConfirm = toConfirmList.length > 0
             ? Math.round(toConfirmList.reduce((acc, e) => {
-                const invited = new Date(e.invited_date!).getTime();
-                const confirmed = new Date(e.confirmed_date!).getTime();
+                const invited = new Date(e.invited_at!).getTime();
+                const confirmed = new Date(e.confirmed_at!).getTime();
                 return acc + Math.max(0, (confirmed - invited) / (1000 * 60 * 60 * 24));
             }, 0) / toConfirmList.length)
             : 0;
 
-        // Time from confirmation (confirmed_date) to completion (completed_date)
-        const toCompleteList = enrollments.filter(e => e.completed_date && e.confirmed_date);
+        // Time from confirmation (confirmed_at) to completion (completed_at)
+        const toCompleteList = enrollments.filter(e => e.completed_at && e.confirmed_at);
         const avgDaysToComplete = toCompleteList.length > 0
             ? Math.round(toCompleteList.reduce((acc, e) => {
-                const confirmed = new Date(e.confirmed_date!).getTime();
-                const completed = new Date(e.completed_date!).getTime();
+                const confirmed = new Date(e.confirmed_at!).getTime();
+                const completed = new Date(e.completed_at!).getTime();
                 return acc + Math.max(0, (completed - confirmed) / (1000 * 60 * 60 * 24));
             }, 0) / toCompleteList.length)
             : 0;

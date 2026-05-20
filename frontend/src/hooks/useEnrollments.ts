@@ -74,10 +74,26 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             const current = enrollments.find(e => e.id === id);
 
             const updatePayload: Record<string, string | null> = { status: newStatus };
-            if (newStatus === 'confirmed' && confirmedDate) updatePayload.confirmed_date = confirmedDate;
+            if (newStatus === 'confirmed') {
+                if (confirmedDate) updatePayload.confirmed_date = confirmedDate;
+                updatePayload.confirmed_at = new Date().toISOString();
+            }
             if (newStatus === 'invited' && invitedDate) updatePayload.invited_date = invitedDate;
-            if (newStatus === 'completed') updatePayload.completed_date = current?.confirmed_date || todayISO();
-            else updatePayload.completed_date = null;
+            
+            if (newStatus === 'completed') {
+                updatePayload.completed_date = current?.confirmed_date || todayISO();
+                updatePayload.completed_at = new Date().toISOString();
+                if (current && !current.confirmed_at) {
+                    updatePayload.confirmed_at = new Date().toISOString();
+                }
+            } else {
+                updatePayload.completed_date = null;
+                updatePayload.completed_at = null;
+            }
+
+            if (newStatus !== 'confirmed' && newStatus !== 'completed') {
+                updatePayload.confirmed_at = null;
+            }
 
             if (newStatus === 'requested' || newStatus === 'rejected') {
                 updatePayload.confirmed_date = null;

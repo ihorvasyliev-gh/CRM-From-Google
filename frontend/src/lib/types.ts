@@ -27,9 +27,11 @@ export interface Enrollment {
     course_variant: string | null;
     notes: string | null;
     confirmed_date: string | null;
+    confirmed_at: string | null;
     invited_date: string | null;
     invited_at: string | null;
     completed_date: string | null;
+    completed_at: string | null;
     is_priority: boolean;
     response_days: number | null;
     created_at: string;
