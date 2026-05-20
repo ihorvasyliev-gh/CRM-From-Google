@@ -51,6 +51,8 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     ];
 
     const visible = segments.filter(s => s.count > 0);
+    // Use the sum of visible segments as the base so the bar always fills 100%
+    const visibleTotal = visible.reduce((sum, s) => sum + s.count, 0);
 
     return (
         <div className="space-y-2">
@@ -64,25 +66,21 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                     width: '100%',
                 }}
             >
-                {visible.map((s, i) => (
-                    <div
-                        key={s.key}
-                        title={`${s.label}: ${s.count}`}
-                        style={{
-                            width: `${(s.count / counts.total) * 100}%`,
-                            backgroundColor: s.color,
-                            flexShrink: 0,
-                            transition: 'width 0.7s ease-out',
-                            borderRadius: visible.length === 1
-                                ? '9999px'
-                                : i === 0
-                                    ? '9999px 0 0 9999px'
-                                    : i === visible.length - 1
-                                        ? '0 9999px 9999px 0'
-                                        : '0',
-                        }}
-                    />
-                ))}
+                {visible.map((s, i) => {
+                    const isLast = i === visible.length - 1;
+                    return (
+                        <div
+                            key={s.key}
+                            title={`${s.label}: ${s.count}`}
+                            style={{
+                                // Last segment uses flex:1 to absorb any sub-pixel rounding gaps
+                                ...(isLast ? { flex: 1 } : { width: `${(s.count / visibleTotal) * 100}%`, flexShrink: 0 }),
+                                backgroundColor: s.color,
+                                transition: 'width 0.7s ease-out',
+                            }}
+                        />
+                    );
+                })}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {segments.map(s => s.count > 0 ? (
