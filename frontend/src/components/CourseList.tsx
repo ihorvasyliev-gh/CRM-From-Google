@@ -44,28 +44,50 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     if (!counts || counts.total === 0) return <span className="text-xs text-muted">No enrollments</span>;
 
     const segments = [
-        { key: 'confirmed', color: 'bg-emerald-500', count: counts.confirmed, label: 'Confirmed' },
-        { key: 'invited', color: 'bg-blue-500', count: counts.invited, label: 'Invited' },
-        { key: 'requested', color: 'bg-amber-500', count: counts.requested, label: 'Requested' },
-        { key: 'rejected', color: 'bg-red-400', count: counts.rejected, label: 'Rejected' },
+        { key: 'confirmed', color: '#10b981', count: counts.confirmed, label: 'Confirmed' },
+        { key: 'invited', color: '#3b82f6', count: counts.invited, label: 'Invited' },
+        { key: 'requested', color: '#f59e0b', count: counts.requested, label: 'Requested' },
+        { key: 'rejected', color: '#f87171', count: counts.rejected, label: 'Rejected' },
     ];
+
+    const visible = segments.filter(s => s.count > 0);
 
     return (
         <div className="space-y-2">
-            <div className="flex h-2 rounded-full overflow-hidden bg-surface-elevated border border-border-subtle">
-                {segments.map(s => s.count > 0 ? (
+            <div
+                style={{
+                    display: 'flex',
+                    height: '8px',
+                    borderRadius: '9999px',
+                    overflow: 'hidden',
+                    backgroundColor: 'var(--color-surface-elevated, #2a2a3a)',
+                    width: '100%',
+                }}
+            >
+                {visible.map((s, i) => (
                     <div
                         key={s.key}
-                        className={`${s.color} transition-all duration-700 ease-out`}
-                        style={{ width: `${(s.count / counts.total) * 100}%` }}
                         title={`${s.label}: ${s.count}`}
+                        style={{
+                            width: `${(s.count / counts.total) * 100}%`,
+                            backgroundColor: s.color,
+                            flexShrink: 0,
+                            transition: 'width 0.7s ease-out',
+                            borderRadius: visible.length === 1
+                                ? '9999px'
+                                : i === 0
+                                    ? '9999px 0 0 9999px'
+                                    : i === visible.length - 1
+                                        ? '0 9999px 9999px 0'
+                                        : '0',
+                        }}
                     />
-                ) : null)}
+                ))}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {segments.map(s => s.count > 0 ? (
                     <span key={s.key} className="flex items-center gap-1.5 text-[10px] text-muted font-medium">
-                        <span className={`w-2 h-2 rounded-full ${s.color}`} />
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color, flexShrink: 0, display: 'inline-block' }} />
                         {s.count} {s.label}
                     </span>
                 ) : null)}
