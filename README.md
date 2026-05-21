@@ -17,6 +17,8 @@ The system is built on a serverless client-first architecture utilizing three pr
   - [Supabase Database Schema & Security](#supabase-database-schema--security)
   - [Google Apps Script (GAS) Sync Engine](#google-apps-script-gas-sync-engine)
   - [Step-by-Step Deployment & Local Setup](#step-by-step-deployment--local-setup)
+- [🔍 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
 
 ---
 
@@ -38,9 +40,12 @@ Welcome to your course administration control center! This CRM is designed to si
     Send beautiful email invitations in one click. The text is automatically generated from custom templates with support for shortcodes (such as student's name, course title, invited date, and a unique `{confirmationLink}`). Templates are fully optimized for Microsoft Outlook.
 *   **One-Click Student Confirmation:**
     Students receive a short, secure token link in their email (e.g., `/c/7abc123`). Clicking it opens a clean public page where they can instantly confirm their attendance. Their status on your admin board updates in real time.
+*   **Configurable Invitation Deadlines:**
+    Prevent late confirmations with dynamic, per-invite expiration windows (defaults to 7 days). If a student attempts to confirm after the deadline, the system automatically rejects it and displays an expiration notice.
 *   **Client-Side Document Generator:**
     Generate templates instantly without sending data to third-party servers.
     *   **Attendance Sheets:** Auto-populates attendance lists for up to 34 students per sheet.
+    *   **Address Labels:** Generates layout sheets for address label stickers to quickly prepare physical mailings and shipping packages.
     *   **Excel Export (`.xlsx`):** Generates cleanly formatted spreadsheets where columns automatically resize to fit student details perfectly.
     *   **ZIP Archives:** Batch downloads generated documents in a dynamically named ZIP archive, e.g., `[Course Name] [Current Date].zip`.
 *   **Graduate Outcomes Tracking:**
@@ -89,7 +94,7 @@ Follow up with course graduates:
 
 #### 6. Document Generator (Documents)
 Quick template filling:
-*   **Word Templates:** Upload standard `.docx` templates (e.g., certificate forms) to Supabase Storage.
+*   **Word & Label Templates:** Upload standard `.docx` templates (e.g., certificate forms) or label templates to Supabase Storage.
 *   **Bulk Document Filling:** Choose a course and a template, and the CRM will populate files for all enrolled students in seconds.
 *   **Excel Export:** Download formatted registration sheets or class schedules.
 
@@ -103,6 +108,7 @@ Visual representation of system metrics:
 Configure application parameters:
 *   **Email Templates:** Write HTML email bodies with a rich text editor. Use placeholders: `{first_name}`, `{last_name}`, `{course_name}`, `{invited_date}`, `{confirmationLink}`.
     *   *Error Prevention:* The settings panel blocks saving templates if critical shortcodes like `{confirmationLink}` are missing.
+*   **Custom Placeholders:** Manage custom template placeholders (e.g., `{Tutor}`) saved directly in the database to expand your template personalization options.
 *   **Default Configuration:** Set system-wide default templates.
 
 ---
@@ -191,9 +197,11 @@ The SQL script mapping the schema is located at [supabase/schema.sql](file:///c:
 #### 1. Table Definitions:
 *   `students`: Stores personal details (`first_name`, `last_name`, `email` (unique), `phone`, `address`, `eircode`, `dob`).
 *   `courses`: Lists educational programs (`name` (unique)).
-*   `enrollments`: Handles student-to-course relations. Tracks `status` (defaults to `requested`), `course_variant` (e.g., language stream), `invited_date`, `confirmed_date`, `completed_date`, `notes` (admin notes), and priority status `is_priority`. Enforces unique combinations via `unique(student_id, course_id, course_variant)`.
+*   `enrollments`: Handles student-to-course relations. Tracks `status` (defaults to `requested`), `course_variant` (e.g., language stream), `invited_date`, `confirmed_date`, `completed_date`, `notes` (admin notes), priority status `is_priority`, and `response_days` (invitation expiration window). Enforces unique combinations via `unique(student_id, course_id, course_variant)`.
 *   `invite_dates`: Stores reusable invite date strings sorted per course.
 *   `document_templates`: Metadata index for docx templates.
+*   `label_templates`: Metadata index for address label sticker templates.
+*   `template_variables`: Custom template key-value variables (e.g., `{Tutor}`) used for document filling.
 *   `employment_status`: Graduate outcomes details (`is_working`, `field_of_work`, `employment_type`, `status` ('pending'/'responded'), `last_invited_at`, `last_responded_at`). Links 1-to-1 with `students(id)`.
 *   `student_flags`: Internal warning tags and comments attached to specific students.
 
@@ -210,6 +218,7 @@ To avoid search path hijacking vulnerability (CWE-426), all functions running as
 Key functions (SQL files located in [supabase/](file:///c:/Users/ivasyliev/OneDrive%20-%20Cork%20City%20Partnership/Documents/Personal/CRM%20System/supabase)):
 *   `submit_employment_status` ([supabase/15_outcomes_tracking.sql](file:///c:/Users/ivasyliev/OneDrive%20-%20Cork%20City%20Partnership/Documents/Personal/CRM%20System/supabase/15_outcomes_tracking.sql)): Anonymous access allowed. Looks up matching student, registers job details in `employment_status`, flags status as `responded` and saves timestamps.
 *   `resolve_confirmation_token` ([supabase/04_public_confirmation_rpcs.sql](file:///c:/Users/ivasyliev/OneDrive%20-%20Cork%20City%20Partnership/Documents/Personal/CRM%20System/supabase/04_public_confirmation_rpcs.sql)): Accepts 7-character confirmation tokens. Toggles enrollment state to `confirmed` and writes confirmation timestamp.
+*   `public_confirm_enrollment` ([supabase/19_response_days.sql](file:///c:/Users/ivasyliev/OneDrive%20-%20Cork%20City%20Partnership/Documents/Personal/CRM%20System/supabase/19_response_days.sql)): Accepts student email and course ID. Validates whether the invitation is still within the `response_days` timeframe before marking it `confirmed`.
 *   `mark_students_outcomes_pending` ([supabase/15_outcomes_tracking.sql](file:///c:/Users/ivasyliev/OneDrive%20-%20Cork%20City%20Partnership/Documents/Personal/CRM%20System/supabase/15_outcomes_tracking.sql)): Batch transitions student outcome statuses to pending.
 
 ---
@@ -279,3 +288,20 @@ Script resources are in the [google-apps-script/](file:///c:/Users/ivasyliev/One
     npm run build
     ```
     The output files in `frontend/dist` are ready for deployment on **Cloudflare Pages**, Vercel, or Netlify.
+
+---
+
+## 🔍 Troubleshooting
+
+*   **Google Apps Script fails to sync form submissions:**
+    Open the Google Apps Script editor, go to **Executions** in the left sidebar, and examine the error log. Common issues include incorrect `SUPABASE_URL` format (make sure it does not end with a trailing slash) or an expired `SUPABASE_KEY`.
+*   **"Permission Denied" or RLS errors in frontend:**
+    Verify that your database schema table policies are correct. Authenticated users must have session tokens generated via Supabase Auth.
+*   **Mermaid diagram fails to render:**
+    Ensure your markdown viewer or hosting provider (such as GitHub) supports Mermaid. In case of syntax issues, check that all subgraph labels are correctly enclosed in double quotes: `subgraph ID ["Label"]`.
+
+---
+
+## 📄 License
+
+Private Repository. All rights reserved. Cork City Partnership.
