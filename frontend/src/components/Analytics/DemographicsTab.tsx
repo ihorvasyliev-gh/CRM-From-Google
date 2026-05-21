@@ -184,7 +184,7 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
             else { groups['51+'].count++; groups['51+'].items.push(e); }
         });
 
-        const colors = ['#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f97316', '#64748b'];
+        const colors = ['#818cf8', '#a78bfa', '#f472b6', '#fb7185', '#fb923c', '#94a3b8'];
         
         return Object.entries(groups)
             .filter(([_, data]) => data.count > 0)
@@ -222,7 +222,7 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
             counts[region].items.push(e);
         });
 
-        const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#64748b'];
+        const colors = ['#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f472b6', '#2dd4bf', '#94a3b8'];
 
         return Object.entries(counts)
             .filter(([_, data]) => data.count > 0)
@@ -258,21 +258,21 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
                         >
                             <defs>
                                 <linearGradient id="colorCourse" x1="0" y1="0" x2="1" y2="0">
-                                    <stop offset="0%" stopColor="#6366f1" />
-                                    <stop offset="100%" stopColor="#8b5cf6" />
+                                    <stop offset="0%" stopColor="var(--color-course-start)" />
+                                    <stop offset="100%" stopColor="var(--color-course-end)" />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgb(var(--border-subtle))" />
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border)" />
                             <XAxis type="number" hide />
                             <YAxis 
                                 dataKey="name" 
                                 type="category" 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11, fontWeight: 500 }}
+                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11, fontWeight: 500 }}
                                 width={110}
                             />
-                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.2 }} />
+                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
                             <Bar 
                                 dataKey="count" 
                                 name="Enrollments"
@@ -391,24 +391,24 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
                         >
                             <defs>
                                 <linearGradient id="colorVariant" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#10b981" />
-                                    <stop offset="100%" stopColor="#059669" />
+                                    <stop offset="0%" stopColor="var(--color-variant-start)" />
+                                    <stop offset="100%" stopColor="var(--color-variant-end)" />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--border-subtle))" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
                             <XAxis 
                                 dataKey="name" 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }}
+                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
                                 dy={10}
                             />
                             <YAxis 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }}
+                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
                             />
-                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.2 }} />
+                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
                             <Bar 
                                 dataKey="count" 
                                 name="Enrollments"

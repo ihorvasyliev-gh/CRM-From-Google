@@ -124,9 +124,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Employment Type breakdown
         const employmentTypeData = [
-            { name: 'Full-time', value: fullTimeCount, color: '#10B981' },
-            { name: 'Part-time', value: partTimeCount, color: '#3B82F6' },
-            { name: 'Unspecified/Other', value: workingCount - (fullTimeCount + partTimeCount), color: '#8B5CF6' }
+            { name: 'Full-time', value: fullTimeCount, color: 'var(--color-fulltime)' },
+            { name: 'Part-time', value: partTimeCount, color: 'var(--color-parttime)' },
+            { name: 'Unspecified/Other', value: workingCount - (fullTimeCount + partTimeCount), color: 'var(--color-unspecified)' }
         ].filter(d => d.value > 0);
 
         // Top Fields of Work
@@ -146,9 +146,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Tracking funnel summary
         const funnelData = [
-            { name: 'Total Graduates', value: totalGraduatesCount, color: '#6366F1', items: gradsList.map(g => g.enrollment) },
-            { name: 'Contacted', value: responded.length + pending.length, color: '#8B5CF6', items: [...responded, ...pending] },
-            { name: 'Responded', value: responded.length, color: '#10B981', items: responded }
+            { name: 'Total Graduates', value: totalGraduatesCount, color: 'var(--color-totalgrads)', items: gradsList.map(g => g.enrollment) },
+            { name: 'Contacted', value: responded.length + pending.length, color: 'var(--color-contacted)', items: [...responded, ...pending] },
+            { name: 'Responded', value: responded.length, color: 'var(--color-responded)', items: responded }
         ];
 
         return {
@@ -187,7 +187,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Total Graduates</p>
                             <p className="text-3xl font-mono font-bold text-primary">{graduateData.totalGraduates}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600">
+                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                             <Users size={20} />
                         </div>
                     </div>
@@ -207,7 +207,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 <span className="text-xs text-muted font-sans font-normal ml-1">({graduateData.respondedCount} responses)</span>
                             </p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600">
+                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
                             <Mail size={20} />
                         </div>
                     </div>
@@ -227,7 +227,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 <span className="text-xs text-muted font-sans font-normal ml-1">({graduateData.workingCount} working)</span>
                             </p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600">
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                             <Briefcase size={20} />
                         </div>
                     </div>
@@ -244,7 +244,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Pending Responses</p>
                             <p className="text-3xl font-mono font-bold text-primary">{graduateData.pendingList.length}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600">
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                             <Clock size={20} />
                         </div>
                     </div>
@@ -316,17 +316,17 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     }
                                 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgb(var(--border-subtle))" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border)" />
                                 <XAxis type="number" hide />
                                 <YAxis 
                                     dataKey="name" 
                                     type="category" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11, fontWeight: 500 }}
+                                    tick={{ fill: 'var(--color-chart-text)', fontSize: 11, fontWeight: 500 }}
                                     width={100}
                                 />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.2 }} />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
                                 <Bar 
                                     dataKey="value" 
                                     radius={[0, 6, 6, 0]} 
@@ -370,24 +370,24 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 >
                                     <defs>
                                         <linearGradient id="colorField" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#3b82f6" />
-                                            <stop offset="100%" stopColor="#1d4ed8" />
+                                            <stop offset="0%" stopColor="var(--color-field-start)" />
+                                            <stop offset="100%" stopColor="var(--color-field-end)" />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--border-subtle))" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
                                     <XAxis 
                                         dataKey="name" 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }}
+                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
                                         dy={10}
                                     />
                                     <YAxis 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }}
+                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
                                     />
-                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.1 }} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.1 }} />
                                     <Bar 
                                         dataKey="count" 
                                         name="Graduates"
@@ -427,28 +427,28 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 >
                                     <defs>
                                         <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor="var(--color-jobs-start)" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="var(--color-jobs-start)" stopOpacity={0}/>
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--border-subtle))" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
                                     <XAxis 
                                         dataKey="name" 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
+                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
                                         dy={10}
                                     />
                                     <YAxis 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
+                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
                                     />
                                     <RechartsTooltip content={<CustomTooltip />} />
                                     <Area 
                                         type="monotone" 
                                         dataKey="Started Work" 
-                                        stroke="#10b981" 
+                                        stroke="var(--color-jobs-start)" 
                                         strokeWidth={3}
                                         fillOpacity={1} 
                                         fill="url(#colorJobs)" 

@@ -53,10 +53,10 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
         });
         
         return [
-            { name: 'Requested', value: counts.requested, color: '#F59E0B', items: items.requested },
-            { name: 'Invited', value: counts.invited, color: '#8B5CF6', items: items.invited },
-            { name: 'Confirmed', value: counts.confirmed, color: '#0EA5E9', items: items.confirmed },
-            { name: 'Completed', value: counts.completed, color: '#10B981', items: items.completed },
+            { name: 'Requested', value: counts.requested, color: 'var(--color-requested)', items: items.requested },
+            { name: 'Invited', value: counts.invited, color: 'var(--color-invited)', items: items.invited },
+            { name: 'Confirmed', value: counts.confirmed, color: 'var(--color-confirmed)', items: items.confirmed },
+            { name: 'Completed', value: counts.completed, color: 'var(--color-completed)', items: items.completed },
         ];
     }, [enrollments]);
 
@@ -209,7 +209,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Total Pipeline</p>
                             <p className="text-3xl font-mono font-bold text-primary">{metrics.total}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600">
+                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                             <Users size={20} />
                         </div>
                     </div>
@@ -223,7 +223,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Active Queue</p>
                             <p className="text-3xl font-mono font-bold text-primary">{metrics.queue}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600">
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                             <Clock size={20} />
                         </div>
                     </div>
@@ -237,7 +237,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Success Rate</p>
                             <p className="text-3xl font-mono font-bold text-primary">{metrics.successRate}%</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600">
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                             <TrendingUp size={20} />
                         </div>
                     </div>
@@ -250,7 +250,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Avg Response Deadline</p>
                             <p className="text-3xl font-mono font-bold text-primary">{metrics.avgResponse} <span className="text-sm font-normal text-muted">days</span></p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600">
+                        <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
                             <Zap size={20} />
                         </div>
                     </div>
@@ -277,17 +277,17 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                     }
                                 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgb(var(--border-subtle))" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border)" />
                                 <XAxis type="number" hide />
                                 <YAxis 
                                     dataKey="name" 
                                     type="category" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11, fontWeight: 500 }}
+                                    tick={{ fill: 'var(--color-chart-text)', fontSize: 11, fontWeight: 500 }}
                                     width={75}
                                 />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--border-subtle))', opacity: 0.2 }} />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
                                 <Bar 
                                     dataKey="value" 
                                     radius={[0, 6, 6, 0]} 
@@ -322,32 +322,32 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             >
                                 <defs>
                                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#818cf8" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                                        <stop offset="5%" stopColor="var(--color-trend-reg)" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="var(--color-trend-reg)" stopOpacity={0}/>
                                     </linearGradient>
                                     <linearGradient id="colorConfirmed" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                        <stop offset="5%" stopColor="var(--color-trend-comp)" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="var(--color-trend-comp)" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--border-subtle))" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
                                 <XAxis 
                                     dataKey="name" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
+                                    tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
                                     dy={10}
                                 />
                                 <YAxis 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'rgb(var(--text-muted))', fontSize: 11 }} 
+                                    tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
                                 />
                                 <RechartsTooltip content={<CustomTooltip />} />
                                 <Area 
                                     type="monotone" 
                                     dataKey="Registrations" 
-                                    stroke="#818cf8" 
+                                    stroke="var(--color-trend-reg)" 
                                     strokeWidth={3}
                                     fillOpacity={1} 
                                     fill="url(#colorTotal)" 
@@ -356,7 +356,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                                 <Area 
                                     type="monotone" 
                                     dataKey="Completions" 
-                                    stroke="#10b981" 
+                                    stroke="var(--color-trend-comp)" 
                                     strokeWidth={3}
                                     fillOpacity={1} 
                                     fill="url(#colorConfirmed)" 
@@ -379,13 +379,13 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
                         <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 1</span>
                         <p className="text-base font-bold text-primary mt-1">Requested</p>
-                        <p className="text-2xl font-mono font-bold mt-2 text-amber-500">{funnelAnalysis.everRequested}</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-amber-500 dark:text-amber-400">{funnelAnalysis.everRequested}</p>
                         <span className="text-[10px] text-muted font-medium">applications</span>
                     </div>
 
                     {/* Transition 1 */}
                     <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
-                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 dark:bg-brand-500/20 px-2 py-1 rounded-full">
                             <TrendingUp size={12} /> {funnelAnalysis.requestedToInvited}%
                         </div>
                         <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
@@ -398,13 +398,13 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
                         <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 2</span>
                         <p className="text-base font-bold text-primary mt-1">Invited</p>
-                        <p className="text-2xl font-mono font-bold mt-2 text-purple-500">{funnelAnalysis.everInvited}</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-purple-500 dark:text-purple-400">{funnelAnalysis.everInvited}</p>
                         <span className="text-[10px] text-muted font-medium">students</span>
                     </div>
 
                     {/* Transition 2 */}
                     <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
-                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 dark:bg-brand-500/20 px-2 py-1 rounded-full">
                             <TrendingUp size={12} /> {funnelAnalysis.invitedToConfirmed}%
                         </div>
                         <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
@@ -417,13 +417,13 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                     <div className="md:col-span-1 bg-surface-elevated border border-border-subtle p-4 rounded-xl text-center">
                         <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Stage 3</span>
                         <p className="text-base font-bold text-primary mt-1">Confirmed</p>
-                        <p className="text-2xl font-mono font-bold mt-2 text-sky-500">{funnelAnalysis.everConfirmed}</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-sky-500 dark:text-sky-400">{funnelAnalysis.everConfirmed}</p>
                         <span className="text-[10px] text-muted font-medium">confirmed</span>
                     </div>
 
                     {/* Transition 3 */}
                     <div className="md:col-span-1 flex flex-col items-center justify-center p-2 text-center">
-                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 bg-brand-500/10 px-2 py-1 rounded-full">
+                        <div className="flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 dark:bg-brand-500/20 px-2 py-1 rounded-full">
                             <TrendingUp size={12} /> {funnelAnalysis.confirmedToCompleted}%
                         </div>
                         <ArrowRight size={16} className="text-muted my-1 hidden md:block" />
@@ -438,7 +438,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                             <CheckCircle2 size={10} /> Finished
                         </div>
                         <p className="text-base font-bold text-primary mt-1">Completed</p>
-                        <p className="text-2xl font-mono font-bold mt-2 text-emerald-500">{funnelAnalysis.everCompleted}</p>
+                        <p className="text-2xl font-mono font-bold mt-2 text-emerald-500 dark:text-emerald-400">{funnelAnalysis.everCompleted}</p>
                         <span className="text-[10px] text-muted font-medium">graduates</span>
                     </div>
                 </div>

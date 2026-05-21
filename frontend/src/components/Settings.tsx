@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Type, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
@@ -52,7 +52,7 @@ export default function Settings() {
     const [showStatusPreview, setShowStatusPreview] = useState(true);
 
     return (
-        <div className="space-y-6 pb-8 max-w-5xl">
+        <div className="space-y-6 pb-8 w-full animate-fadeIn">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -88,16 +88,16 @@ export default function Settings() {
                 </div>
             </div>
 
-            {/* ═══ Email Template ═══ */}
+            {/* ═══ Course Invitation Email Settings ═══ */}
             <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-info/10 rounded-lg">
-                            <Mail size={16} className="text-info" />
+                        <div className="p-1.5 bg-brand-500/10 rounded-lg">
+                            <Mail size={16} className="text-brand-500 dark:text-brand-400" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-primary">Email Template</h3>
-                            <p className="text-xs text-muted mt-0.5">Customize the invitation email body</p>
+                            <h3 className="text-sm font-bold text-primary">Course Invitation Email</h3>
+                            <p className="text-xs text-muted mt-0.5">Configure email subject and body template sent to invited students</p>
                         </div>
                     </div>
                     <button
@@ -111,26 +111,45 @@ export default function Settings() {
 
                 <div className={`p-5 grid grid-cols-1 ${showPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
                     <div className="space-y-4">
-                        {/* Placeholder hints */}
-                        <div className="flex items-start gap-2 p-3 bg-info/5 border border-info/10 rounded-xl">
-                            <Info size={14} className="text-info mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-muted leading-relaxed">
-                                Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseDetails}'}</code> — styled HTML card with title & date,{' '}
-                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled HTML button
-                            </p>
+                        {/* Subject Editing */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Subject</label>
+                            <input
+                                type="text"
+                                value={config.emailSubjectFormat}
+                                onChange={e => setLocalConfig({ ...config, emailSubjectFormat: e.target.value })}
+                                className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
+                                placeholder="e.g. You are Invited to join our {courseName} course"
+                            />
+                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl">
+                                <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
+                                <p className="text-[11px] text-muted leading-relaxed">
+                                    Subject placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{courseName}'}</code> — course name, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{date}'}</code> — invite date
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
-                            <ReactQuill 
-                                theme="snow"
-                                value={config.htmlEmailTemplate}
-                                onChange={(content) => {
-                                    if (content !== config.htmlEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
-                                    }
-                                }}
-                                modules={quillModules}
-                            />
+                        {/* Body Editing */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
+                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl mb-2">
+                                <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
+                                <p className="text-[11px] text-muted leading-relaxed">
+                                    Body placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{courseDetails}'}</code> — styled course details card, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled confirm button
+                                </p>
+                            </div>
+                            <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
+                                <ReactQuill 
+                                    theme="snow"
+                                    value={config.htmlEmailTemplate}
+                                    onChange={(content) => {
+                                        if (content !== config.htmlEmailTemplate) {
+                                            setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
+                                        }
+                                    }}
+                                    modules={quillModules}
+                                />
+                            </div>
                         </div>
 
                         {!isValidTemplate && (
@@ -143,55 +162,26 @@ export default function Settings() {
 
                     {/* Preview */}
                     {showPreview && (
-                        <div className="space-y-3 animate-fadeIn h-full">
+                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
                             <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
-                            <div className="p-4 bg-background border border-border-subtle rounded-xl">
+                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>
                                     <span className="text-primary">{previewSubject}</span>
                                 </div>
                                 <hr className="border-border-subtle mb-3" />
-                                <div className="bg-white text-gray-900 rounded-lg overflow-hidden border border-border-subtle p-6 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-brand-500 [&_a]:underline [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_p]:mb-2">
-                                    <div dangerouslySetInnerHTML={{ __html: previewBody }} />
-                                </div>
+                                <iframe
+                                    srcDoc={previewBody}
+                                    title="Email Invitation Preview"
+                                    className="w-full flex-1 min-h-[500px] max-h-[600px] border border-border-subtle rounded-xl bg-[#f4f7f6]"
+                                />
                             </div>
                         </div>
                     )}
                 </div>
             </section>
 
-            {/* ═══ Email Subject ═══ */}
-            <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-warning/10 rounded-lg">
-                            <Type size={16} className="text-warning" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-primary">Email Subject</h3>
-                            <p className="text-xs text-muted mt-0.5">Format for the email subject line</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-5 space-y-3">
-                    <div className="flex items-start gap-2 p-3 bg-warning/5 border border-warning/10 rounded-xl">
-                        <Info size={14} className="text-warning mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-muted leading-relaxed">
-                            Available placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseName}'}</code> — course name,{' '}
-                            <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{date}'}</code> — invite date
-                        </p>
-                    </div>
-                    <input
-                        type="text"
-                        value={config.emailSubjectFormat}
-                        onChange={e => setLocalConfig({ ...config, emailSubjectFormat: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
-                        placeholder="e.g. {courseName} — {date}"
-                    />
-                </div>
-            </section>
-
-            {/* ═══ Status Clarification Template ═══ */}
+            {/* ═══ Graduate Outcomes Survey Email ═══ */}
             <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -199,8 +189,8 @@ export default function Settings() {
                             <Briefcase size={16} className="text-violet-500" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-primary">Status Clarification Template</h3>
-                            <p className="text-xs text-muted mt-0.5">Email sent to graduates to check employment status</p>
+                            <h3 className="text-sm font-bold text-primary">Graduate Outcomes Survey Email</h3>
+                            <p className="text-xs text-muted mt-0.5">Configure email subject and body template sent to graduates for employment tracking</p>
                         </div>
                     </div>
                     <button
@@ -214,27 +204,39 @@ export default function Settings() {
 
                 <div className={`p-5 grid grid-cols-1 ${showStatusPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
                     <div className="space-y-4">
-                        {/* Placeholder hints */}
-                        <div className="flex items-start gap-2 p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl">
-                            <Info size={14} className="text-violet-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-muted leading-relaxed">
-                                Available placeholders:{' '}
-                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusLink}'}</code> — raw URL,{' '}
-                                <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{statusButton}'}</code> — styled HTML button
-                            </p>
+                        {/* Subject Editing */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Subject</label>
+                            <input
+                                type="text"
+                                value={config.statusEmailSubjectFormat}
+                                onChange={e => setLocalConfig({ ...config, statusEmailSubjectFormat: e.target.value })}
+                                className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 transition-all text-primary placeholder:text-muted/40"
+                                placeholder="e.g. Quick Status Update — How are things going?"
+                            />
                         </div>
 
-                        <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
-                            <ReactQuill
-                                theme="snow"
-                                value={config.statusEmailTemplate}
-                                onChange={(content) => {
-                                    if (content !== config.statusEmailTemplate) {
-                                        setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
-                                    }
-                                }}
-                                modules={quillModules}
-                            />
+                        {/* Body Editing */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
+                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl mb-2">
+                                <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
+                                <p className="text-[11px] text-muted leading-relaxed">
+                                    Body placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{statusButton}'}</code> — styled action button, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{statusLink}'}</code> — raw update URL
+                                </p>
+                            </div>
+                            <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
+                                <ReactQuill
+                                    theme="snow"
+                                    value={config.statusEmailTemplate}
+                                    onChange={(content) => {
+                                        if (content !== config.statusEmailTemplate) {
+                                            setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
+                                        }
+                                    }}
+                                    modules={quillModules}
+                                />
+                            </div>
                         </div>
 
                         {!isValidStatusTemplate && (
@@ -247,44 +249,22 @@ export default function Settings() {
 
                     {/* Preview */}
                     {showStatusPreview && (
-                        <div className="space-y-3 animate-fadeIn h-full">
+                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
                             <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
-                            <div className="p-4 bg-background border border-border-subtle rounded-xl">
+                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>
                                     <span className="text-primary">{config.statusEmailSubjectFormat}</span>
                                 </div>
                                 <hr className="border-border-subtle mb-3" />
-                                <div className="bg-white text-gray-900 rounded-lg overflow-hidden border border-border-subtle p-6 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-violet-500 [&_a]:underline [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_p]:mb-2">
-                                    <div dangerouslySetInnerHTML={{ __html: statusPreviewBody }} />
-                                </div>
+                                <iframe
+                                    srcDoc={statusPreviewBody}
+                                    title="Status Survey Preview"
+                                    className="w-full flex-1 min-h-[500px] max-h-[500px] border border-border-subtle rounded-xl bg-[#f4f7f6]"
+                                />
                             </div>
                         </div>
                     )}
-                </div>
-            </section>
-
-            {/* ═══ Status Email Subject ═══ */}
-            <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50">
-                    <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-violet-500/10 rounded-lg">
-                            <Type size={16} className="text-violet-500" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-primary">Status Email Subject</h3>
-                            <p className="text-xs text-muted mt-0.5">Subject line for status clarification emails</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-5">
-                    <input
-                        type="text"
-                        value={config.statusEmailSubjectFormat}
-                        onChange={e => setLocalConfig({ ...config, statusEmailSubjectFormat: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 transition-all text-primary placeholder:text-muted/40"
-                        placeholder="e.g. Quick Status Update"
-                    />
                 </div>
             </section>
 

@@ -31,6 +31,30 @@
         
         /* Spring Physics easing curve */
         --ease-spring-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+        /* Chart Colors - Light Mode Defaults */
+        --color-chart-border: #e2e8f0;
+        --color-chart-text: #64748b;
+        --color-requested: #f59e0b;
+        --color-invited: #8b5cf6;
+        --color-confirmed: #0ea5e9;
+        --color-completed: #10b981;
+        --color-trend-reg: #818cf8;
+        --color-trend-comp: #10b981;
+        --color-course-start: #818cf8;
+        --color-course-end: #a78bfa;
+        --color-variant-start: #10b981;
+        --color-variant-end: #059669;
+        --color-fulltime: #10b981;
+        --color-parttime: #3b82f6;
+        --color-unspecified: #8b5cf6;
+        --color-totalgrads: #818cf8;
+        --color-contacted: #a78bfa;
+        --color-responded: #10b981;
+        --color-field-start: #60a5fa;
+        --color-field-end: #3b82f6;
+        --color-jobs-start: #10b981;
+        --color-jobs-end: #10b981;
     }
 
     .dark {
@@ -40,9 +64,9 @@
         --bg-surface-elevated: 0.22 0.02 240;
 
         --text-primary: 0.97 0.005 240;
-        --text-muted: 0.69 0.015 240;
+        --text-muted: 0.72 0.008 240; /* Polish contrast: lighter, neutral grey */
 
-        --border-subtle: 0.22 0.02 240;
+        --border-subtle: 0.26 0.01 240; /* Polish contrast: slightly lighter gridlines */
         --border-strong: 0.33 0.02 240;
 
         --accent-primary: 0.67 0.19 260; /* Electric Indigo */
@@ -56,6 +80,30 @@
 
         --glass-bg: rgba(24, 24, 27, 0.7);
         --glass-border: rgba(63, 63, 70, 0.5);
+
+        /* Chart Colors - Dark Mode Cyber-Minimalism Contrast Polish */
+        --color-chart-border: #27272a;
+        --color-chart-text: #a1a1aa;
+        --color-requested: #fbbf24;    /* Vibrant Amber-400 */
+        --color-invited: #c084fc;      /* Bright Lilac/Purple-400 */
+        --color-confirmed: #38bdf8;    /* Bright Sky Blue-400 */
+        --color-completed: #34d399;    /* Bright Emerald-400 */
+        --color-trend-reg: #a5b4fc;    /* Light Indigo-300 */
+        --color-trend-comp: #34d399;   /* Light Emerald-400 */
+        --color-course-start: #a5b4fc; /* Light Indigo-300 */
+        --color-course-end: #c084fc;   /* Light Lilac/Purple-400 */
+        --color-variant-start: #34d399; /* Light Emerald-400 */
+        --color-variant-end: #10b981;   /* Emerald-500 */
+        --color-fulltime: #34d399;     /* Light Emerald-400 */
+        --color-parttime: #38bdf8;     /* Bright Sky Blue-400 */
+        --color-unspecified: #c084fc;   /* Bright Lilac/Purple-400 */
+        --color-totalgrads: #a5b4fc;   /* Light Indigo-300 */
+        --color-contacted: #c084fc;     /* Bright Lilac-400 */
+        --color-responded: #34d399;     /* Bright Emerald-400 */
+        --color-field-start: #93c5fd;   /* Soft Blue-300 */
+        --color-field-end: #3b82f6;     /* Vibrant Blue-500 */
+        --color-jobs-start: #34d399;    /* Bright Emerald-400 */
+        --color-jobs-end: #34d399;      /* Bright Emerald-400 */
     }
 }
 
@@ -421,4 +469,49 @@ textarea {
     transition-property: color, background-color, border-color, box-shadow, transform, opacity;
     transition-duration: 200ms;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===== Email Preview Styles Override ===== */
+.email-preview-content ul {
+    list-style-type: disc !important;
+    padding-left: 1.25rem !important;
+}
+.email-preview-content ol {
+    list-style-type: decimal !important;
+    padding-left: 1.25rem !important;
+}
+.email-preview-content a {
+    text-decoration: underline !important;
+}
+.email-preview-content b,
+.email-preview-content strong {
+    font-weight: bold !important;
+}
+.email-preview-content i,
+.email-preview-content em {
+    font-style: italic !important;
+}
+.email-preview-content h1 {
+    font-size: 1.5rem !important;
+    font-weight: bold !important;
+}
+.email-preview-content h2 {
+    font-size: 1.25rem !important;
+    font-weight: bold !important;
+}
+.email-preview-content p {
+    margin-bottom: 0.5rem !important;
+}
+.email-preview-content img {
+    max-width: 100% !important;
+    height: auto !important;
+}
+.email-preview-content table {
+    max-width: 100% !important;
+}
+.email-preview-content table[width="600"] {
+    width: 100% !important;
+    max-width: 600px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }

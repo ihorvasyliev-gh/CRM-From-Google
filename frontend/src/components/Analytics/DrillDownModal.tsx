@@ -15,11 +15,11 @@ export default function DrillDownModal({ isOpen, onClose, title, data }: DrillDo
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'completed': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
-            case 'confirmed': return 'bg-sky-500/10 text-sky-600 border-sky-500/20';
-            case 'invited': return 'bg-violet-500/10 text-violet-600 border-violet-500/20';
-            case 'requested': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
-            default: return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
+            case 'completed': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30';
+            case 'confirmed': return 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20 dark:border-sky-500/30';
+            case 'invited': return 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 dark:border-violet-500/30';
+            case 'requested': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30';
+            default: return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20 dark:border-slate-500/30';
         }
     };
 

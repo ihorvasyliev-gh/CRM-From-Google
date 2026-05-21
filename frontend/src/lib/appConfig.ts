@@ -117,6 +117,16 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="x-apple-disable-message-reformatting">
   <title></title>
+  <style>
+    a { color: ${isInvite ? '#6366f1' : '#7c3aed'}; text-decoration: underline; }
+    img { max-width: 100% !important; height: auto !important; }
+    @media only screen and (max-width: 620px) {
+      table[width="600"] {
+        width: 100% !important;
+        border-radius: 0 !important;
+      }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;word-spacing:normal;background-color:#f4f7f6;">
   <div role="article" aria-roledescription="email" lang="en" style="text-size-adjust:100%;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;background-color:#f4f7f6;padding:40px 0;">
