@@ -1,10 +1,12 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import type { StudentFlag } from '../lib/types';
 
 export function useStudentFlags(showToast: (msg: string, type: 'success' | 'error') => void) {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
 
     // Fetch all student flags with joined course name
     const fetchFlagsFn = async () => {
@@ -34,22 +36,33 @@ export function useStudentFlags(showToast: (msg: string, type: 'success' | 'erro
 
     // Realtime subscription
     useEffect(() => {
+        if (!user) return;
+
         const channel = supabase
             .channel('student_flags_changes')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'student_flags' },
-                () => {
+                (payload) => {
+                    console.log('Realtime update: student_flags changed', payload);
                     // Simply refetch on any change — flags are lightweight
                     queryClient.invalidateQueries({ queryKey: ['student_flags'] });
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('student_flags_changes channel subscribed successfully');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('student_flags_changes channel error:', err);
+                } else if ((status as string) === 'REJECTED') {
+                    console.warn('student_flags_changes channel subscription rejected:', err);
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [queryClient]);
+    }, [queryClient, user]);
 
     // Add flag mutation
     const addFlagMutation = useMutation({

@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { showNotification, isNotificationSupported } from '../lib/notifications';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Listens for enrollment confirmations via Supabase Realtime
@@ -11,10 +12,12 @@ import { showNotification, isNotificationSupported } from '../lib/notifications'
  * so it stays active across all pages.
  */
 export function useConfirmationNotifier() {
+    const { user } = useAuth();
     // Track IDs we've already notified to avoid duplicates from optimistic updates
     const notifiedIds = useRef<Set<string>>(new Set());
 
     useEffect(() => {
+        if (!user) return;
         if (!isNotificationSupported()) return;
 
         const channel = supabase
@@ -64,10 +67,18 @@ export function useConfirmationNotifier() {
                     }
                 }
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('confirmation_notifier channel subscribed successfully');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('confirmation_notifier channel error:', err);
+                } else if ((status as string) === 'REJECTED') {
+                    console.warn('confirmation_notifier channel subscription rejected:', err);
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [user]);
 }
