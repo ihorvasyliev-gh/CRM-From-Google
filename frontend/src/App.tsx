@@ -86,6 +86,16 @@ function App() {
         }
     }, [darkMode]);
 
+    const toggleDarkMode = () => {
+        if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+            (document as any).startViewTransition(() => {
+                setDarkMode(prev => !prev);
+            });
+        } else {
+            setDarkMode(prev => !prev);
+        }
+    };
+
     const queryClient = useQueryClient();
 
     // Prefetch data for a tab on hover so it's ready when the user clicks
@@ -417,7 +427,7 @@ function App() {
                     <div className="p-3 border-t border-border-subtle flex-shrink-0 space-y-2">
                         {/* Theme Toggle */}
                         <button
-                            onClick={() => setDarkMode(!darkMode)}
+                            onClick={toggleDarkMode}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
                         >
                             <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105">

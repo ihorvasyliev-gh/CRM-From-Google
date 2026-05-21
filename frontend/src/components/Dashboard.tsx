@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
@@ -79,6 +79,61 @@ function SkeletonStatusBreakdown() {
                         </div>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── Bento Card Component with Spotlight Effect ───────────────────
+interface BentoCardProps extends React.HTMLAttributes<HTMLDivElement> {
+    children: React.ReactNode;
+    className?: string;
+    glowColor?: string;
+    accentGradient?: string;
+}
+
+function BentoCard({
+    children,
+    className = '',
+    glowColor = 'rgba(99, 102, 241, 0.12)',
+    accentGradient,
+    ...props
+}: BentoCardProps) {
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        setMouseCoords({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+    };
+
+    return (
+        <div
+            ref={cardRef}
+            onMouseMove={handleMouseMove}
+            className={`relative overflow-hidden rounded-2xl bg-surface border border-border-subtle hover:border-border-strong/50 transition-colors duration-300 group ${className}`}
+            {...props}
+        >
+            {/* Spotlight Glow Overlay */}
+            <div
+                className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{
+                    background: `radial-gradient(350px circle at ${mouseCoords.x}px ${mouseCoords.y}px, ${glowColor}, transparent 80%)`,
+                }}
+            />
+
+            {/* Top Accent Gradient */}
+            {accentGradient && (
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${accentGradient}`} />
+            )}
+
+            {/* Content Container */}
+            <div className="relative z-10 h-full">
+                {children}
             </div>
         </div>
     );
@@ -229,212 +284,219 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     ];
 
     return (
-        <div className="space-y-6">
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Row 1, Col 1-2: Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 md:col-span-2">
                 {loading ? (
                     <>{Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}</>
                 ) : (
                     statCards.map((card, i) => (
-                        <div
+                        <BentoCard
                             key={card.label}
                             onClick={() => onNavigate?.(card.tab)}
-                            className="relative bg-surface rounded-2xl shadow-card card-hover border border-border-subtle p-5 overflow-hidden group hover:border-border-strong transition-all duration-300 cursor-pointer"
+                            accentGradient={card.gradient}
+                            glowColor={card.accentColor === 'brand' ? 'oklch(var(--accent-primary) / 0.12)' : card.accentColor === 'violet' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)'}
+                            className="p-5 cursor-pointer h-full"
                             style={{ animationDelay: `${i * 100}ms` }}
                         >
-                            {/* Gradient accent top */}
-                            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${card.gradient}`} />
-
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-muted mb-1 uppercase tracking-wider">{card.label}</p>
-                                    <p className="text-4xl font-mono font-bold text-primary animate-countUp tracking-tight">{card.value}</p>
+                            <div className="flex flex-col justify-between h-full min-h-[110px]">
+                                <div className="flex items-start justify-between">
+                                    <p className="text-[11px] font-bold text-muted uppercase tracking-wider">{card.label}</p>
+                                    <div className={`p-2.5 rounded-xl ${card.iconBg} transition-transform duration-500 ease-spring group-hover:scale-110 shadow-sm`}>
+                                        {card.icon}
+                                    </div>
                                 </div>
-                                <div className={`p-3 rounded-xl ${card.iconBg} transition-transform group-hover:scale-110 shadow-sm`}>
-                                    {card.icon}
+                                <div className="mt-4">
+                                    <p className="text-4xl font-mono font-bold text-primary tracking-tight animate-countUp">{card.value}</p>
                                 </div>
                             </div>
-
-                            {/* Decorative pattern */}
-                            <div className={`absolute -bottom-4 -right-4 w-20 h-20 bg-gradient-to-br ${card.gradient} rounded-full opacity-[0.04] group-hover:opacity-[0.08] transition-opacity`} />
-                        </div>
+                        </BentoCard>
                     ))
                 )}
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5">
-                <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Sparkles size={14} className="text-brand-500" /> Quick Actions
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button
-                        onClick={() => onNavigate?.('students')}
-                        className="flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-primary bg-surface-elevated hover:bg-background rounded-xl transition-all group border border-border-subtle hover:border-border-strong transform active:scale-[0.98]"
-                    >
-                        <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                            <Plus size={16} />
-                        </div>
-                        <div className="text-left">
-                            <span className="block font-semibold">Add Student</span>
-                            <span className="text-xs text-muted">Create new record</span>
-                        </div>
-                        <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                    <button
-                        onClick={() => onNavigate?.('courses')}
-                        className="flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-primary bg-surface-elevated hover:bg-background rounded-xl transition-all group border border-border-subtle hover:border-border-strong transform active:scale-[0.98]"
-                    >
-                        <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                            <BookOpen size={16} />
-                        </div>
-                        <div className="text-left">
-                            <span className="block font-semibold">Manage Courses</span>
-                            <span className="text-xs text-muted">View catalog</span>
-                        </div>
-                        <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                    <button
-                        onClick={() => onNavigate?.('enrollments')}
-                        className="flex items-center gap-3 px-4 py-3.5 text-sm font-medium text-primary bg-surface-elevated hover:bg-background rounded-xl transition-all group border border-border-subtle hover:border-border-strong transform active:scale-[0.98]"
-                    >
-                        <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                            <UserPlus size={16} />
-                        </div>
-                        <div className="text-left">
-                            <span className="block font-semibold">New Enrollment</span>
-                            <span className="text-xs text-muted">Enroll student</span>
-                        </div>
-                        <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Status Breakdown */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
-                        <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
+            {/* Row 1, Col 3: Quick Actions */}
+            <BentoCard
+                glowColor="oklch(var(--accent-primary) / 0.12)"
+                className="p-5 md:col-span-1"
+            >
+                <div className="flex flex-col justify-between h-full">
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Sparkles size={14} className="text-brand-500" /> Quick Actions
                     </h3>
-                    {loading ? (
-                        <SkeletonStatusBreakdown />
-                    ) : totalStatus === 0 ? (
-                        <div className="text-center py-8">
-                            <GraduationCap size={40} className="mx-auto mb-2 text-muted/50" />
-                            <p className="text-sm text-muted">No enrollments yet</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Visual bar */}
-                            <div className="flex h-3 rounded-full overflow-hidden bg-surface-elevated border border-border-subtle/50">
-                                {statusItems.map(s => {
-                                    const count = statusBreakdown[s.key] || 0;
-                                    if (count === 0) return null;
-                                    return (
-                                        <div
-                                            key={s.key}
-                                            className={`${s.color} transition-all duration-700 ease-out first:rounded-l-full last:rounded-r-full`}
-                                            style={{ width: `${(count / totalStatus) * 100}%` }}
-                                            title={`${s.label}: ${count}`}
-                                        />
-                                    );
-                                })}
+                    <div className="flex flex-col gap-3">
+                        <button
+                            onClick={() => onNavigate?.('students')}
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                        >
+                            <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:bg-brand-500 group-hover:text-white transition-all duration-500 ease-spring">
+                                <Plus size={16} />
                             </div>
-                            {/* Legend */}
-                            <div className="grid grid-cols-2 gap-3">
-                                {statusItems.map(s => {
-                                    const count = statusBreakdown[s.key] || 0;
-                                    const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
-                                    return (
-                                        <div key={s.key} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated/50 hover:bg-surface-elevated transition-colors">
-                                            <span className={`w-3 h-3 rounded-full ${s.color} flex-shrink-0 shadow-sm`} />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-muted font-medium">{s.label}</p>
-                                                <p className="text-sm font-mono font-bold text-primary">{count} <span className="text-xs font-sans font-normal text-muted">({pct}%)</span></p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            <div className="text-left">
+                                <span className="block font-semibold group-hover:text-brand-500 transition-colors duration-500 ease-spring">Add Student</span>
+                                <span className="text-xs text-muted">Create new record</span>
                             </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Recent Activity */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
-                            <Clock size={14} className="text-brand-500" /> Recent Activity
-                        </h3>
-                        <Filter size={12} className="text-muted" />
+                            <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-500 ease-spring" />
+                        </button>
+                        <button
+                            onClick={() => onNavigate?.('courses')}
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                        >
+                            <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:bg-brand-500 group-hover:text-white transition-all duration-500 ease-spring">
+                                <BookOpen size={16} />
+                            </div>
+                            <div className="text-left">
+                                <span className="block font-semibold group-hover:text-brand-500 transition-colors duration-500 ease-spring">Manage Courses</span>
+                                <span className="text-xs text-muted">View catalog</span>
+                            </div>
+                            <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-500 ease-spring" />
+                        </button>
+                        <button
+                            onClick={() => onNavigate?.('enrollments')}
+                            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                        >
+                            <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover:bg-brand-500 group-hover:text-white transition-all duration-500 ease-spring">
+                                <UserPlus size={16} />
+                            </div>
+                            <div className="text-left">
+                                <span className="block font-semibold group-hover:text-brand-500 transition-colors duration-500 ease-spring">New Enrollment</span>
+                                <span className="text-xs text-muted">Enroll student</span>
+                            </div>
+                            <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-500 ease-spring" />
+                        </button>
                     </div>
-                    {/* Filter pills */}
-                    {!loading && recent.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-4">
-                            {ACTIVITY_FILTERS.map(f => (
-                                <button
-                                    key={f.key}
-                                    onClick={() => setActivityFilter(f.key)}
-                                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all ${
-                                        activityFilter === f.key
-                                            ? 'bg-brand-500 text-white shadow-sm'
-                                            : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle hover:border-border-strong'
-                                    }`}
-                                >
-                                    {f.label} ({filterCounts[f.key]})
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    {loading ? (
-                        <div className="space-y-1">
-                            {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
-                        </div>
-                    ) : filteredRecent.length === 0 ? (
-                        <div className="text-center py-8">
-                            <Clock size={40} className="mx-auto mb-2 text-muted/50" />
-                            <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-1">
-                            {filteredRecent.map((en, i) => (
-                                <div
-                                    key={en.id}
-                                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-elevated transition-all group cursor-default"
-                                    style={{ animationDelay: `${i * 50}ms` }}
-                                >
-                                    {/* Timeline dot */}
-                                    <div className="flex flex-col items-center flex-shrink-0">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} ring-[3px] ring-background`} />
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm text-primary truncate">
-                                            <span className="font-semibold tracking-tight">
-                                                {en.students?.first_name} {en.students?.last_name}
-                                            </span>
-                                            <span className="text-muted mx-1.5 opacity-50">→</span>
-                                            <span className="text-primary/80 font-medium">{en.courses?.name}</span>
-                                        </p>
-                                        {en.course_variant && (
-                                            <span className="text-[10px] text-muted tracking-wide">{en.course_variant}</span>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}>
-                                            {en.status}
-                                        </span>
-                                        <span className="text-[10px] text-muted font-mono whitespace-nowrap opacity-70">
-                                            {new Date(en.updated_at || en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
-            </div>
+            </BentoCard>
+
+            {/* Row 2, Col 1-2: Status Breakdown */}
+            <BentoCard
+                glowColor="oklch(var(--accent-primary) / 0.1)"
+                className="p-5 md:col-span-2 h-full"
+            >
+                <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
+                    <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
+                </h3>
+                {loading ? (
+                    <SkeletonStatusBreakdown />
+                ) : totalStatus === 0 ? (
+                    <div className="text-center py-8">
+                        <GraduationCap size={40} className="mx-auto mb-2 text-muted/50" />
+                        <p className="text-sm text-muted">No enrollments yet</p>
+                    </div>
+                ) : (
+                    <div className="space-y-5">
+                        {/* Visual bar */}
+                        <div className="flex h-3.5 items-center bg-surface-elevated/50 rounded-full p-[2px] border border-border-subtle/30 backdrop-blur-sm">
+                            {statusItems.map(s => {
+                                const count = statusBreakdown[s.key] || 0;
+                                if (count === 0) return null;
+                                return (
+                                    <div
+                                        key={s.key}
+                                        className={`${s.color} h-full rounded-full mx-[1px] transition-all duration-700 ease-spring hover:scale-y-125 hover:shadow-md cursor-pointer`}
+                                        style={{ width: `${(count / totalStatus) * 100}%` }}
+                                        title={`${s.label}: ${count} (${Math.round(count / totalStatus * 100)}%)`}
+                                    />
+                                );
+                            })}
+                        </div>
+                        {/* Legend */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {statusItems.map(s => {
+                                const count = statusBreakdown[s.key] || 0;
+                                const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
+                                return (
+                                    <div key={s.key} className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated/30 hover:bg-surface-elevated hover:scale-[1.01] hover:border hover:border-border-subtle border border-transparent transition-all duration-300 ease-spring">
+                                        <span className={`w-2.5 h-2.5 rounded-full ${s.color} flex-shrink-0 shadow-sm`} />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-muted font-bold uppercase tracking-wider">{s.label}</p>
+                                            <p className="text-sm font-mono font-bold text-primary">{count} <span className="text-[11px] font-sans font-normal text-muted">({pct}%)</span></p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </BentoCard>
+
+            {/* Row 2, Col 3: Recent Activity */}
+            <BentoCard
+                glowColor="oklch(var(--accent-primary) / 0.1)"
+                className="p-5 md:col-span-1 h-full"
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
+                        <Clock size={14} className="text-brand-500" /> Recent Activity
+                    </h3>
+                    <Filter size={12} className="text-muted" />
+                </div>
+                {/* Filter pills */}
+                {!loading && recent.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        {ACTIVITY_FILTERS.map(f => (
+                            <button
+                                key={f.key}
+                                onClick={() => setActivityFilter(f.key)}
+                                className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all duration-300 ease-spring ${
+                                    activityFilter === f.key
+                                        ? 'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105'
+                                        : 'bg-surface-elevated/50 text-muted hover:text-primary border-border-subtle hover:border-border-strong hover:scale-105'
+                                }`}
+                            >
+                                {f.label} ({filterCounts[f.key]})
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {loading ? (
+                    <div className="space-y-1">
+                        {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
+                    </div>
+                ) : filteredRecent.length === 0 ? (
+                    <div className="text-center py-8">
+                        <Clock size={40} className="mx-auto mb-2 text-muted/50" />
+                        <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        {filteredRecent.map((en, i) => (
+                            <div
+                                key={en.id}
+                                className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:scale-[1.01] hover:shadow-sm transition-all duration-500 ease-spring group cursor-default"
+                                style={{ animationDelay: `${i * 50}ms` }}
+                            >
+                                {/* Timeline dot */}
+                                <div className="flex flex-col items-center flex-shrink-0">
+                                    <span className={`w-2 h-2 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} ring-[3px] ring-background`} />
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-primary truncate">
+                                        <span className="font-semibold tracking-tight">
+                                            {en.students?.first_name} {en.students?.last_name}
+                                        </span>
+                                        <span className="text-muted mx-1.5 opacity-50">→</span>
+                                        <span className="text-primary/80 font-medium">{en.courses?.name}</span>
+                                    </p>
+                                    {en.course_variant && (
+                                        <span className="text-[10px] text-muted tracking-wide">{en.course_variant}</span>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}>
+                                        {en.status}
+                                    </span>
+                                    <span className="text-[10px] text-muted font-mono whitespace-nowrap opacity-70">
+                                        {new Date(en.updated_at || en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </BentoCard>
         </div>
     );
 }
