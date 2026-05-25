@@ -8,17 +8,6 @@ interface DashboardProps {
     onNavigate?: (tab: string) => void;
 }
 
-interface RecentEnrollment {
-    id: string;
-    student_id: string;
-    status: string;
-    created_at: string;
-    updated_at: string;
-    course_variant: string | null;
-    students: { first_name: string; last_name: string } | null;
-    courses: { name: string } | null;
-}
-
 interface GroupedActivity {
     key: string;                // studentName + date for unique key
     studentName: string;
@@ -225,21 +214,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         staleTime: 30_000, // 30 seconds — shows cached instantly, refetches in background if stale
     });
 
-    // Recent activity — 30s staleTime
-    const { data: recent = [], isLoading: recentLoading } = useQuery({
-        queryKey: ['dashboard_recent'],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('enrollments')
-                .select('id, student_id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
-                .order('created_at', { ascending: false })
-                .limit(50);
-            return (data || []) as unknown as RecentEnrollment[];
-        },
-        staleTime: 30_000,
-    });
-
-    // Reuse the global ['enrollments'] cache for status breakdown (same key as useEnrollments)
+    // Reuse the global ['enrollments'] cache for status breakdown and activity lists (same key as useEnrollments)
     const { data: allEnrollments = [], isLoading: enrollmentsLoading } = useQuery({
         queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments,
@@ -254,32 +229,30 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         return breakdown;
     }, [allEnrollments]);
 
-    const loading = statsLoading || recentLoading || enrollmentsLoading;
+    const loading = statsLoading || enrollmentsLoading;
 
     // Build flat list of enrollments based on filter
     const filteredRecent = useMemo(() => {
-        if (activityFilter === 'invited' || activityFilter === 'confirmed') {
-            return allEnrollments
-                .filter(en => en.status === activityFilter)
-                .map(en => ({
-                    id: en.id,
-                    student_id: en.student_id,
-                    status: en.status,
-                    created_at: en.created_at,
-                    updated_at: en.updated_at,
-                    course_variant: en.course_variant,
-                    students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
-                    courses: en.courses ? { name: en.courses.name } : null,
-                }))
+        const mappedEnrollments = allEnrollments.map(en => ({
+            id: en.id,
+            student_id: en.student_id,
+            status: en.status,
+            created_at: en.created_at,
+            updated_at: en.updated_at,
+            course_variant: en.course_variant,
+            students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
+            courses: en.courses ? { name: en.courses.name } : null,
+        }));
+
+        if (activityFilter === 'all') {
+            return mappedEnrollments
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
 
-        if (activityFilter === 'all') return recent;
-
-        // For 'requested' and 'completed': show groups that have at least one matching status
-        // We return all recent, but grouping logic will handle filtering
-        return recent;
-    }, [recent, allEnrollments, activityFilter]);
+        return mappedEnrollments
+            .filter(en => en.status === activityFilter)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }, [allEnrollments, activityFilter]);
 
     // Group enrollments by student + day
     const groupedActivity = useMemo((): GroupedActivity[] => {
@@ -361,31 +334,39 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             sorted = sorted.filter(g => g.enrollments.some(en => en.status === activityFilter));
         }
 
+        // Limit the groups to 50 for 'all' and 'requested'
+        if (activityFilter === 'all' || activityFilter === 'requested') {
+            sorted = sorted.slice(0, 50);
+        }
+
         return sorted;
     }, [filteredRecent, activityFilter, allEnrollments]);
 
     // Counts per filter for pill badges
     const filterCounts = useMemo(() => {
         const counts: Record<ActivityFilter, number> = {
-            all: recent.length,
+            all: 0,
             requested: 0,
             invited: 0,
             confirmed: 0,
             completed: 0
         };
 
-        for (const en of recent) {
+        for (const en of allEnrollments) {
             if (en.status === 'requested') counts.requested++;
-            if (en.status === 'completed') counts.completed++;
+            else if (en.status === 'invited') counts.invited++;
+            else if (en.status === 'confirmed') counts.confirmed++;
+            else if (en.status === 'completed') counts.completed++;
         }
 
-        for (const en of allEnrollments) {
-            if (en.status === 'invited') counts.invited++;
-            if (en.status === 'confirmed') counts.confirmed++;
-        }
+        counts.all = allEnrollments.length;
+
+        // Limit the badge count to 50 for 'all' and 'requested'
+        counts.all = Math.min(counts.all, 50);
+        counts.requested = Math.min(counts.requested, 50);
 
         return counts;
-    }, [recent, allEnrollments]);
+    }, [allEnrollments]);
 
     const statCards = [
         {
@@ -472,7 +453,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                         <Filter size={12} className="text-muted" />
                     </div>
                     {/* Filter pills */}
-                    {!loading && recent.length > 0 && (
+                    {!loading && allEnrollments.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mb-4">
                             {ACTIVITY_FILTERS.map(f => (
                                 <button

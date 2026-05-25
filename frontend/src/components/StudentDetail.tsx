@@ -200,7 +200,6 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
                 queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-                queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             }
         } else {
             const { error } = await supabase
@@ -212,7 +211,6 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
                 queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-                queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             }
         }
     }
@@ -228,7 +226,6 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             setConfirmDeleteId(null);
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
         }
     }

@@ -114,7 +114,6 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
             // Invalidate caches so all pages reflect the new enrollment immediately
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard_recent'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             onClose();
         } catch (err: unknown) {
