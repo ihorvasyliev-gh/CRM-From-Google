@@ -591,11 +591,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     return (
                                         <div
                                             key={group.key}
-                                            className="p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex gap-4"
+                                            className="p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex flex-col lg:flex-row gap-3 lg:gap-4"
                                             style={{ animationDelay: `${i * 50}ms` }}
                                         >
                                             {/* Left Column: Student Info */}
-                                            <div className="flex flex-col items-start gap-1.5 w-1/4 min-w-[160px] max-w-[240px] flex-shrink-0 pt-0.5">
+                                            <div className="flex flex-row items-center gap-2 w-full lg:flex-col lg:items-start lg:gap-1.5 lg:w-1/4 lg:min-w-[160px] lg:max-w-[240px] flex-shrink-0 pt-0.5">
                                                 <span className="text-[13px] font-semibold text-primary truncate tracking-tight leading-tight">
                                                     {group.studentName}
                                                 </span>
