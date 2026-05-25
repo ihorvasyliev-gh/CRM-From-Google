@@ -553,30 +553,33 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                         </div>
 
                                         {/* History hint for previous registrations */}
-                                        {group.previousEnrollments.length > 0 && (
-                                            <div className="flex items-start gap-1.5 mt-2.5 text-[12px] text-muted leading-relaxed">
-                                                <History size={12} className="flex-shrink-0 mt-0.5 opacity-70" />
-                                                <span>
-                                                    Also registered for:{' '}
-                                                    {(() => {
-                                                        // Group previous enrollments by date
-                                                        const byDate = new Map<string, string[]>();
-                                                        for (const pe of group.previousEnrollments) {
-                                                            const existing = byDate.get(pe.dateLabel) || [];
-                                                            existing.push(pe.courseName);
-                                                            byDate.set(pe.dateLabel, existing);
-                                                        }
-                                                        return Array.from(byDate.entries()).map(([date, courses], idx) => (
-                                                            <span key={date}>
-                                                                {idx > 0 && '; '}
-                                                                <span className="text-primary/80 font-medium">{courses.join(', ')}</span>
-                                                                <span className="opacity-70"> ({date})</span>
-                                                            </span>
-                                                        ));
-                                                    })()}
-                                                </span>
-                                            </div>
-                                        )}
+                                        {group.previousEnrollments.length > 0 && (() => {
+                                            const byDate = new Map<string, string[]>();
+                                            for (const pe of group.previousEnrollments) {
+                                                const existing = byDate.get(pe.dateLabel) || [];
+                                                existing.push(pe.courseName);
+                                                byDate.set(pe.dateLabel, existing);
+                                            }
+                                            const entries = Array.from(byDate.entries());
+                                            return (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    <span className="flex items-center gap-1 text-[10px] text-muted/70 font-semibold uppercase tracking-wider flex-shrink-0">
+                                                        <History size={10} className="opacity-60" />
+                                                        Also
+                                                    </span>
+                                                    {entries.map(([date, courses]) => (
+                                                        <span
+                                                            key={date}
+                                                            className="inline-flex items-center gap-1 bg-surface-elevated/70 border border-border-subtle/60 rounded-md px-1.5 py-0.5 text-[10px] leading-none"
+                                                        >
+                                                            <span className="text-primary/75 font-medium">{courses.join(', ')}</span>
+                                                            <span className="text-muted/50">·</span>
+                                                            <span className="text-muted/60 font-mono">{date}</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -673,26 +676,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                         );
                                     })}
                                 </div>
-                                {/* Legend */}
-                                <div className="grid grid-cols-2 gap-3 overflow-y-auto flex-1 min-h-0 pr-1 mt-2">
+                                {/* Compact legend rows */}
+                                <div className="flex flex-col gap-0.5 mt-2">
                                     {statusItems.map(s => {
                                         const count = statusBreakdown[s.key] || 0;
                                         const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
                                         return (
-                                            <div key={s.key} className="flex flex-col gap-1.5 p-3 rounded-xl bg-surface-elevated/30 hover:bg-surface-elevated hover:scale-[1.02] hover:border-border-subtle/50 border border-border-subtle/10 transition-all duration-300 ease-spring shadow-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`w-2 h-2 rounded-full ${s.color} flex-shrink-0 shadow-sm`} />
-                                                    <p className="text-[10px] text-muted font-bold uppercase tracking-wider truncate">{s.label}</p>
+                                            <div key={s.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200 group/row">
+                                                <span className={`w-2 h-2 rounded-full ${s.color} flex-shrink-0`} />
+                                                <p className="text-[11px] text-muted font-medium w-16 flex-shrink-0">{s.label}</p>
+                                                <div className="flex-1 h-1.5 bg-border-subtle/30 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full ${s.color} rounded-full transition-all duration-700 ease-spring`}
+                                                        style={{ width: `${pct}%` }}
+                                                    />
                                                 </div>
-                                                <div className="mt-0.5">
-                                                    <p className="text-sm font-mono font-bold text-primary">
-                                                        {count} <span className="text-[10px] font-sans font-normal text-muted">({pct}%)</span>
-                                                    </p>
-                                                </div>
-                                                {/* Micro progress bar for each status */}
-                                                <div className="h-1 w-full bg-border-subtle/30 rounded-full overflow-hidden mt-1">
-                                                    <div className={`h-full ${s.color} rounded-full`} style={{ width: `${pct}%` }} />
-                                                </div>
+                                                <span className="text-[11px] font-mono font-semibold text-primary w-8 text-right flex-shrink-0">{count}</span>
+                                                <span className="text-[10px] text-muted/60 w-8 text-right flex-shrink-0">{pct}%</span>
                                             </div>
                                         );
                                     })}
