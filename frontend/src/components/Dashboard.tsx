@@ -514,16 +514,17 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-1 overflow-y-auto pr-1 flex-1 min-h-0">
+                            <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 min-h-0">
                                 {groupedActivity.map((group, i) => (
                                     <div
                                         key={group.key}
-                                        className="px-3 py-3 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:shadow-sm transition-all duration-300 ease-spring cursor-default"
+                                        className="px-3 py-1.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:shadow-sm transition-all duration-300 ease-spring cursor-default"
                                         style={{ animationDelay: `${i * 50}ms` }}
                                     >
-                                        {/* Header: Student name + date */}
-                                        <div className="flex items-center justify-between gap-3 mb-2">
-                                            <p className="text-[15px] font-semibold text-primary truncate tracking-tight flex items-center gap-2">
+                                        {/* Single main line: name · course tags · date */}
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {/* Name + NEW badge */}
+                                            <p className="text-[14px] font-semibold text-primary whitespace-nowrap tracking-tight flex items-center gap-1.5 flex-shrink-0">
                                                 {group.studentName}
                                                 {group.isNew && (
                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider">
@@ -531,28 +532,30 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                                     </span>
                                                 )}
                                             </p>
-                                            <span className="text-[13px] text-primary/60 font-mono whitespace-nowrap flex-shrink-0">
+
+                                            {/* Course pill-tags — fill remaining space, centred */}
+                                            <div className="flex flex-wrap gap-1 flex-1 justify-center min-w-0">
+                                                {group.enrollments.map(en => (
+                                                    <span
+                                                        key={en.id}
+                                                        className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
+                                                    >
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
+                                                        {en.courseName}
+                                                        {en.courseVariant && (
+                                                            <span className="opacity-70"> ({en.courseVariant})</span>
+                                                        )}
+                                                    </span>
+                                                ))}
+                                            </div>
+
+                                            {/* Date — always right-aligned */}
+                                            <span className="text-[12px] text-primary/60 font-mono whitespace-nowrap flex-shrink-0 ml-auto">
                                                 {group.dateLabel}
                                             </span>
                                         </div>
 
-                                        {/* Course tags with individual statuses */}
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {group.enrollments.map(en => (
-                                                <span
-                                                    key={en.id}
-                                                    className={`inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
-                                                >
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
-                                                    {en.courseName}
-                                                    {en.courseVariant && (
-                                                        <span className="opacity-70"> ({en.courseVariant})</span>
-                                                    )}
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        {/* History hint for previous registrations */}
+                                        {/* Also subline — slim second line when previous enrollments exist */}
                                         {group.previousEnrollments.length > 0 && (() => {
                                             const byDate = new Map<string, string[]>();
                                             for (const pe of group.previousEnrollments) {
@@ -562,15 +565,15 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                             }
                                             const entries = Array.from(byDate.entries());
                                             return (
-                                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                                    <span className="flex items-center gap-1 text-[11px] text-muted/60 font-semibold uppercase tracking-wider flex-shrink-0">
-                                                        <History size={11} className="opacity-60" />
+                                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                                    <span className="flex items-center gap-1 text-[10px] text-muted/60 font-semibold uppercase tracking-wider flex-shrink-0">
+                                                        <History size={10} className="opacity-60" />
                                                         Also
                                                     </span>
                                                     {entries.map(([date, courses]) => (
                                                         <span
                                                             key={date}
-                                                            className="inline-flex items-center gap-1.5 bg-surface-elevated/70 border border-border-subtle/60 rounded-md px-2 py-0.5 text-[11px]"
+                                                            className="inline-flex items-center gap-1 bg-surface-elevated/70 border border-border-subtle/60 rounded px-1.5 py-px text-[10px]"
                                                         >
                                                             <span className="text-primary/70 font-medium">{courses.join(', ')}</span>
                                                             <span className="text-muted/40">·</span>
