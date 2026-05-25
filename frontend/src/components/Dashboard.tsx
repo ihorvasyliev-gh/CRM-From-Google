@@ -67,7 +67,7 @@ function SkeletonStatCard() {
 
 function SkeletonActivityItem() {
     return (
-        <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl animate-pulse">
+        <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm animate-pulse">
             <div className="flex items-center gap-3.5 min-w-0 flex-1">
                 <div className="w-2.5 h-2.5 rounded-full bg-surface-elevated flex-shrink-0" />
                 <div className="flex-1 min-w-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:items-center">
@@ -553,7 +553,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             </div>
                         )}
                         {loading ? (
-                            <div className="space-y-1 flex-1 overflow-y-auto pr-1">
+                            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                                 {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
                             </div>
                         ) : groupedActivity.length === 0 ? (
@@ -562,7 +562,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-1.5 overflow-y-auto pr-1 flex-1 min-h-0">
+                            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
                                 {groupedActivity.map((group, i) => {
                                     // Group history by date
                                     const historyByDate = new Map<string, typeof group.previousEnrollments>();
@@ -591,7 +591,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     return (
                                         <div
                                             key={group.key}
-                                            className="p-3.5 rounded-xl hover:bg-surface-elevated/60 border border-transparent hover:border-border-subtle/50 hover:shadow-sm transition-all duration-300 ease-spring cursor-default flex gap-4"
+                                            className="p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex gap-4"
                                             style={{ animationDelay: `${i * 50}ms` }}
                                         >
                                             {/* Left Column: Student Info */}
