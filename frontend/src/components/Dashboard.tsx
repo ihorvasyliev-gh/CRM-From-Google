@@ -515,12 +515,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Left Column: Recent Activity (Col-span 2) */}
-            <div className="lg:col-span-2 min-h-0 flex flex-col">
+            <div className="lg:col-span-2 flex flex-col lg:min-h-0">
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 flex-1 min-h-0"
+                    className="p-5 lg:flex-1 lg:min-h-0"
                 >
-                    <div className="flex flex-col h-full">
+                    <div className="flex flex-col h-auto lg:h-full">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
                                 <Clock size={14} className="text-brand-500" /> Recent Activity
@@ -553,16 +553,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             </div>
                         )}
                         {loading ? (
-                            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                            <div className="space-y-3 lg:flex-1 lg:overflow-y-auto pr-1">
                                 {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
                             </div>
                         ) : groupedActivity.length === 0 ? (
-                            <div className="text-center py-8 flex-1 flex flex-col justify-center items-center">
+                            <div className="text-center py-8 lg:flex-1 flex flex-col justify-center items-center">
                                 <Clock size={40} className="mb-2 text-muted/50" />
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
+                            <div className="space-y-3 lg:overflow-y-auto pr-1 lg:flex-1 lg:min-h-0">
                                 {groupedActivity.map((group, i) => {
                                     // Group history by date
                                     const historyByDate = new Map<string, typeof group.previousEnrollments>();
