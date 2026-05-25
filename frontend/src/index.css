@@ -561,55 +561,78 @@ textarea {
 
 /* ===== Status Pill Utility Classes for Contrast ===== */
 .status-pill-requested {
-    background-color: oklch(var(--status-warning) / 0.15);
-    color: oklch(0.42 0.15 75);
+    background-color: oklch(var(--status-warning) / 0.12);
+    color: oklch(0.38 0.15 75);
+    border: 1px solid oklch(var(--status-warning) / 0.25);
 }
 .dark .status-pill-requested {
-    background-color: oklch(var(--status-warning) / 0.18);
-    color: oklch(0.86 0.11 75);
+    background-color: oklch(var(--status-warning) / 0.15);
+    color: oklch(0.95 0.08 75);
+    border: 1px solid oklch(var(--status-warning) / 0.35);
 }
 
 .status-pill-invited {
-    background-color: oklch(var(--status-info) / 0.15);
-    color: oklch(0.45 0.16 245);
+    background-color: oklch(var(--status-info) / 0.12);
+    color: oklch(0.40 0.16 245);
+    border: 1px solid oklch(var(--status-info) / 0.25);
 }
 .dark .status-pill-invited {
-    background-color: oklch(var(--status-info) / 0.18);
-    color: oklch(0.82 0.12 245);
+    background-color: oklch(var(--status-info) / 0.15);
+    color: oklch(0.92 0.08 245);
+    border: 1px solid oklch(var(--status-info) / 0.35);
 }
 
 .status-pill-confirmed {
-    background-color: oklch(var(--status-success) / 0.15);
-    color: oklch(0.42 0.15 150);
+    background-color: oklch(var(--status-success) / 0.12);
+    color: oklch(0.38 0.15 150);
+    border: 1px solid oklch(var(--status-success) / 0.25);
 }
 .dark .status-pill-confirmed {
-    background-color: oklch(var(--status-success) / 0.18);
-    color: oklch(0.82 0.12 150);
+    background-color: oklch(var(--status-success) / 0.15);
+    color: oklch(0.92 0.08 150);
+    border: 1px solid oklch(var(--status-success) / 0.35);
 }
 
 .status-pill-completed {
-    background-color: oklch(var(--accent-primary) / 0.15);
-    color: oklch(0.45 0.20 260);
+    background-color: oklch(var(--accent-primary) / 0.12);
+    color: oklch(0.40 0.20 260);
+    border: 1px solid oklch(var(--accent-primary) / 0.25);
 }
 .dark .status-pill-completed {
-    background-color: oklch(var(--accent-primary) / 0.18);
-    color: oklch(0.85 0.12 260);
+    background-color: oklch(var(--accent-primary) / 0.15);
+    color: oklch(0.92 0.08 260);
+    border: 1px solid oklch(var(--accent-primary) / 0.35);
 }
 
 .status-pill-withdrawn {
-    background-color: oklch(var(--text-muted) / 0.15);
-    color: oklch(0.4 0 0);
+    background-color: oklch(var(--text-muted) / 0.12);
+    color: oklch(0.35 0 0);
+    border: 1px solid oklch(var(--text-muted) / 0.25);
 }
 .dark .status-pill-withdrawn {
-    background-color: oklch(var(--text-muted) / 0.18);
-    color: oklch(0.8 0 0);
+    background-color: oklch(var(--text-muted) / 0.15);
+    color: oklch(0.90 0 0);
+    border: 1px solid oklch(var(--text-muted) / 0.35);
 }
 
 .status-pill-rejected {
-    background-color: oklch(var(--status-danger) / 0.15);
-    color: oklch(0.42 0.18 25);
+    background-color: oklch(var(--status-danger) / 0.12);
+    color: oklch(0.38 0.18 25);
+    border: 1px solid oklch(var(--status-danger) / 0.25);
 }
 .dark .status-pill-rejected {
-    background-color: oklch(var(--status-danger) / 0.18);
-    color: oklch(0.85 0.12 25);
+    background-color: oklch(var(--status-danger) / 0.15);
+    color: oklch(0.92 0.08 25);
+    border: 1px solid oklch(var(--status-danger) / 0.35);
+}
+
+.priority-badge {
+    background-color: oklch(var(--status-warning) / 0.12);
+    color: oklch(0.38 0.15 75);
+    border: 1px solid oklch(var(--status-warning) / 0.25);
+}
+.dark .priority-badge {
+    background-color: oklch(var(--status-warning) / 0.15);
+    color: oklch(0.95 0.08 75);
+    border: 1px solid oklch(var(--status-warning) / 0.35);
 }

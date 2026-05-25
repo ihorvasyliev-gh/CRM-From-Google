@@ -114,12 +114,12 @@ const StatusColumn = function StatusColumn({
                                 {cfg.icon}
                             </span>
                             <h3 className={`text-sm font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</h3>
-                            <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                 {items.length}
                             </span>
                             {status === 'requested' && priorityCount > 0 && (
                                 <span
-                                    className="flex items-center gap-0.5 text-[11px] font-bold text-warning bg-warning/10 px-1.5 py-0.5 rounded-full"
+                                    className="flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full priority-badge shadow-sm"
                                     title={`${priorityCount} priority enrollment${priorityCount > 1 ? 's' : ''}`}
                                 >
                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
