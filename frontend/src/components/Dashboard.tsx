@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, History } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import { cleanVariant } from '../lib/types';
 
 interface DashboardProps {
     onNavigate?: (tab: string) => void;
@@ -14,6 +15,7 @@ interface GroupedActivity {
     studentId: string;
     date: string;               // ISO date string (YYYY-MM-DD)
     dateLabel: string;          // formatted "24 May"
+    isNew?: boolean;            // true if this is the student's first ever registration day
     enrollments: {
         id: string;
         courseName: string;
@@ -295,6 +297,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         const allGroupsList = Array.from(groupMap.values());
         for (const group of allGroupsList) {
             const studentAllEn = allEnrollments.filter(e => e.student_id === group.studentId);
+            
+            // Check if this is the student's first ever registration day in the system
+            const hasPriorEnrollments = studentAllEn.some(en => {
+                const dateKey = new Date(en.created_at).toISOString().slice(0, 10);
+                return dateKey < group.date;
+            });
+            group.isNew = !hasPriorEnrollments;
+
             const otherDaysMap = new Map<string, { dateLabel: string; courses: string[] }>();
             for (const en of studentAllEn) {
                 const dateObj = new Date(en.created_at);
@@ -324,6 +334,29 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     });
                 }
             }
+
+            // Combine enrollments of the same course name on this day
+            const courseGroups = new Map<string, typeof group.enrollments>();
+            for (const en of group.enrollments) {
+                const existing = courseGroups.get(en.courseName) || [];
+                existing.push(en);
+                courseGroups.set(en.courseName, existing);
+            }
+
+            group.enrollments = Array.from(courseGroups.entries()).map(([courseName, ens]) => {
+                // Clean and extract all unique variants
+                const variants = ens
+                    .map(en => cleanVariant(courseName, en.courseVariant))
+                    .filter((v, idx, self) => v && self.indexOf(v) === idx);
+
+                const first = ens[0];
+                return {
+                    id: first.id,
+                    courseName,
+                    courseVariant: variants.length > 0 ? variants.join(', ') : null,
+                    status: first.status,
+                };
+            });
         }
 
         // Sort by date descending
@@ -489,8 +522,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 >
                                     {/* Header: Student name + date */}
                                     <div className="flex items-center justify-between gap-3 mb-2">
-                                        <p className="text-base font-semibold text-primary truncate tracking-tight">
+                                        <p className="text-base font-semibold text-primary truncate tracking-tight flex items-center">
                                             {group.studentName}
+                                            {group.isNew && (
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 ml-2 tracking-wider">
+                                                    NEW
+                                                </span>
+                                            )}
                                         </p>
                                         <span className="text-[12px] text-primary/65 font-mono whitespace-nowrap flex-shrink-0">
                                             {group.dateLabel}
@@ -507,7 +545,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                                 <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
                                                 {en.courseName}
                                                 {en.courseVariant && (
-                                                    <span className="opacity-75">({en.courseVariant})</span>
+                                                    <span className="opacity-75"> ({en.courseVariant})</span>
                                                 )}
                                             </span>
                                         ))}
