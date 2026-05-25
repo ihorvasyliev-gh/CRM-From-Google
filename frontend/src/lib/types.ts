@@ -35,6 +35,7 @@ export interface Enrollment {
     is_priority: boolean;
     response_days: number | null;
     created_at: string;
+    updated_at: string;
 }
 
 /** Form data for creating/editing a student. */

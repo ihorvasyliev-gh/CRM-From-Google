@@ -239,20 +239,49 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     // Filter recent activity by selected status
     const filteredRecent = useMemo(() => {
+        if (activityFilter === 'invited' || activityFilter === 'confirmed') {
+            return allEnrollments
+                .filter(en => en.status === activityFilter)
+                .map(en => ({
+                    id: en.id,
+                    status: en.status,
+                    created_at: en.created_at,
+                    updated_at: en.updated_at,
+                    course_variant: en.course_variant,
+                    students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
+                    courses: en.courses ? { name: en.courses.name } : null,
+                }))
+                .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+        }
+
         const filtered = activityFilter === 'all'
             ? recent
             : recent.filter(en => en.status === activityFilter);
         return filtered.slice(0, 10);
-    }, [recent, activityFilter]);
+    }, [recent, allEnrollments, activityFilter]);
 
     // Counts per filter for pill badges
     const filterCounts = useMemo(() => {
-        const counts: Record<ActivityFilter, number> = { all: recent.length, requested: 0, invited: 0, confirmed: 0, completed: 0 };
+        const counts: Record<ActivityFilter, number> = {
+            all: recent.length,
+            requested: 0,
+            invited: 0,
+            confirmed: 0,
+            completed: 0
+        };
+
         for (const en of recent) {
-            if (en.status in counts) counts[en.status as ActivityFilter]++;
+            if (en.status === 'requested') counts.requested++;
+            if (en.status === 'completed') counts.completed++;
         }
+
+        for (const en of allEnrollments) {
+            if (en.status === 'invited') counts.invited++;
+            if (en.status === 'confirmed') counts.confirmed++;
+        }
+
         return counts;
-    }, [recent]);
+    }, [recent, allEnrollments]);
 
     const statCards = [
         {
@@ -366,7 +395,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                         </div>
                     ) : (
-                        <div className="space-y-1">
+                        <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
                             {filteredRecent.map((en, i) => (
                                 <div
                                     key={en.id}
