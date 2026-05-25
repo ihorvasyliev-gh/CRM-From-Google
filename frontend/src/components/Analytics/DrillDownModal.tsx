@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { cleanVariant } from '../../lib/types';
+import { STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface DrillDownModalProps {
     isOpen: boolean;
@@ -12,16 +13,6 @@ interface DrillDownModalProps {
 
 export default function DrillDownModal({ isOpen, onClose, title, data }: DrillDownModalProps) {
     if (!isOpen) return null;
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'completed': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30';
-            case 'confirmed': return 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20 dark:border-sky-500/30';
-            case 'invited': return 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20 dark:border-violet-500/30';
-            case 'requested': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:border-amber-500/30';
-            default: return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20 dark:border-slate-500/30';
-        }
-    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
@@ -84,8 +75,9 @@ export default function DrillDownModal({ isOpen, onClose, title, data }: DrillDo
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${getStatusColor(enrollment.status)}`}>
-                                                    {enrollment.status.charAt(0).toUpperCase() + enrollment.status.slice(1)}
+                                                <span className={`status-pill-${enrollment.status} inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium`}>
+                                                    {STATUS_CONFIG[enrollment.status]?.icon}
+                                                    {STATUS_CONFIG[enrollment.status]?.label ?? enrollment.status}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-sm text-muted">
