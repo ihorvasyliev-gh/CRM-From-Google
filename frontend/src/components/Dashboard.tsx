@@ -493,7 +493,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     <button
                                         key={f.key}
                                         onClick={() => setActivityFilter(f.key)}
-                                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all duration-300 ease-spring ${
+                                        className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all duration-300 ease-spring ${
                                             activityFilter === f.key
                                                 ? 'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105'
                                                 : 'bg-surface-elevated/50 text-muted hover:text-primary border-border-subtle hover:border-border-strong hover:scale-105'
@@ -514,24 +514,24 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-1.5 overflow-y-auto pr-1 flex-1 min-h-0">
+                            <div className="space-y-1 overflow-y-auto pr-1 flex-1 min-h-0">
                                 {groupedActivity.map((group, i) => (
                                     <div
                                         key={group.key}
-                                        className="p-3.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:scale-[1.003] hover:shadow-sm transition-all duration-500 ease-spring group cursor-default"
+                                        className="px-3 py-3 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:shadow-sm transition-all duration-300 ease-spring cursor-default"
                                         style={{ animationDelay: `${i * 50}ms` }}
                                     >
                                         {/* Header: Student name + date */}
                                         <div className="flex items-center justify-between gap-3 mb-2">
-                                            <p className="text-base font-semibold text-primary truncate tracking-tight flex items-center">
+                                            <p className="text-[15px] font-semibold text-primary truncate tracking-tight flex items-center gap-2">
                                                 {group.studentName}
                                                 {group.isNew && (
-                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 ml-2 tracking-wider">
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider">
                                                         NEW
                                                     </span>
                                                 )}
                                             </p>
-                                            <span className="text-[12px] text-primary/65 font-mono whitespace-nowrap flex-shrink-0">
+                                            <span className="text-[13px] text-primary/60 font-mono whitespace-nowrap flex-shrink-0">
                                                 {group.dateLabel}
                                             </span>
                                         </div>
@@ -541,12 +541,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                             {group.enrollments.map(en => (
                                                 <span
                                                     key={en.id}
-                                                    className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold tracking-wide ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
+                                                    className={`inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-semibold ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
                                                 >
                                                     <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
                                                     {en.courseName}
                                                     {en.courseVariant && (
-                                                        <span className="opacity-75"> ({en.courseVariant})</span>
+                                                        <span className="opacity-70"> ({en.courseVariant})</span>
                                                     )}
                                                 </span>
                                             ))}
@@ -562,19 +562,19 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                             }
                                             const entries = Array.from(byDate.entries());
                                             return (
-                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                                    <span className="flex items-center gap-1 text-[10px] text-muted/70 font-semibold uppercase tracking-wider flex-shrink-0">
-                                                        <History size={10} className="opacity-60" />
+                                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                                    <span className="flex items-center gap-1 text-[11px] text-muted/60 font-semibold uppercase tracking-wider flex-shrink-0">
+                                                        <History size={11} className="opacity-60" />
                                                         Also
                                                     </span>
                                                     {entries.map(([date, courses]) => (
                                                         <span
                                                             key={date}
-                                                            className="inline-flex items-center gap-1 bg-surface-elevated/70 border border-border-subtle/60 rounded-md px-1.5 py-0.5 text-[10px] leading-none"
+                                                            className="inline-flex items-center gap-1.5 bg-surface-elevated/70 border border-border-subtle/60 rounded-md px-2 py-0.5 text-[11px]"
                                                         >
-                                                            <span className="text-primary/75 font-medium">{courses.join(', ')}</span>
-                                                            <span className="text-muted/50">·</span>
-                                                            <span className="text-muted/60 font-mono">{date}</span>
+                                                            <span className="text-primary/70 font-medium">{courses.join(', ')}</span>
+                                                            <span className="text-muted/40">·</span>
+                                                            <span className="text-muted/55 font-mono">{date}</span>
                                                         </span>
                                                     ))}
                                                 </div>
@@ -646,60 +646,58 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 {/* Enrollment Status */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 flex-1 min-h-0"
+                    className="p-5 flex-shrink-0"
                 >
-                    <div className="flex flex-col h-full">
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2 flex-shrink-0">
-                            <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
-                        </h3>
-                        {loading ? (
-                            <SkeletonStatusBreakdown />
-                        ) : totalStatus === 0 ? (
-                            <div className="text-center py-8 flex-1 flex flex-col justify-center items-center">
-                                <GraduationCap size={40} className="mx-auto mb-2 text-muted/50 flex-shrink-0" />
-                                <p className="text-sm text-muted">No enrollments yet</p>
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
+                    </h3>
+                    {loading ? (
+                        <SkeletonStatusBreakdown />
+                    ) : totalStatus === 0 ? (
+                        <div className="text-center py-6 flex flex-col justify-center items-center">
+                            <GraduationCap size={36} className="mx-auto mb-2 text-muted/50" />
+                            <p className="text-sm text-muted">No enrollments yet</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {/* Stacked bar — no padding/wrapper, just overflow:hidden on the container */}
+                            <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
+                                {statusItems.map(s => {
+                                    const count = statusBreakdown[s.key] || 0;
+                                    if (count === 0) return null;
+                                    return (
+                                        <div
+                                            key={s.key}
+                                            className={`${s.color} h-full transition-all duration-700 ease-spring cursor-default`}
+                                            style={{ width: `${(count / totalStatus) * 100}%` }}
+                                            title={`${s.label}: ${count} (${Math.round(count / totalStatus * 100)}%)`}
+                                        />
+                                    );
+                                })}
                             </div>
-                        ) : (
-                            <div className="space-y-4 flex-1 min-h-0 flex flex-col justify-between">
-                                {/* Visual bar */}
-                                <div className="flex h-3.5 items-center bg-surface-elevated/50 rounded-full p-[2px] border border-border-subtle/30 backdrop-blur-sm flex-shrink-0">
-                                    {statusItems.map(s => {
-                                        const count = statusBreakdown[s.key] || 0;
-                                        if (count === 0) return null;
-                                        return (
-                                            <div
-                                                key={s.key}
-                                                className={`${s.color} h-full rounded-full mx-[1px] transition-all duration-700 ease-spring hover:scale-y-125 hover:shadow-md cursor-pointer`}
-                                                style={{ width: `${(count / totalStatus) * 100}%` }}
-                                                title={`${s.label}: ${count} (${Math.round(count / totalStatus * 100)}%)`}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                                {/* Compact legend rows */}
-                                <div className="flex flex-col gap-0.5 mt-2">
-                                    {statusItems.map(s => {
-                                        const count = statusBreakdown[s.key] || 0;
-                                        const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
-                                        return (
-                                            <div key={s.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200 group/row">
-                                                <span className={`w-2 h-2 rounded-full ${s.color} flex-shrink-0`} />
-                                                <p className="text-[11px] text-muted font-medium w-16 flex-shrink-0">{s.label}</p>
-                                                <div className="flex-1 h-1.5 bg-border-subtle/30 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full ${s.color} rounded-full transition-all duration-700 ease-spring`}
-                                                        style={{ width: `${pct}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-[11px] font-mono font-semibold text-primary w-8 text-right flex-shrink-0">{count}</span>
-                                                <span className="text-[10px] text-muted/60 w-8 text-right flex-shrink-0">{pct}%</span>
+                            {/* Rows */}
+                            <div className="flex flex-col">
+                                {statusItems.map(s => {
+                                    const count = statusBreakdown[s.key] || 0;
+                                    const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
+                                    return (
+                                        <div key={s.key} className="flex items-center gap-2.5 px-2 py-[7px] rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200">
+                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.color}`} />
+                                            <span className="text-[12px] text-muted font-medium w-[68px] flex-shrink-0">{s.label}</span>
+                                            <div className="flex-1 h-[5px] bg-border-subtle/25 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full ${s.color} rounded-full transition-all duration-700 ease-spring`}
+                                                    style={{ width: `${pct}%` }}
+                                                />
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                            <span className="text-[12px] font-mono font-bold text-primary w-10 text-right flex-shrink-0">{count}</span>
+                                            <span className="text-[11px] text-muted/55 w-8 text-right flex-shrink-0">{pct}%</span>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </BentoCard>
             </div>
         </div>
