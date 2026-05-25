@@ -232,7 +232,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             const { data } = await supabase
                 .from('enrollments')
                 .select('id, student_id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
-                .order('updated_at', { ascending: false })
+                .order('created_at', { ascending: false })
                 .limit(50);
             return (data || []) as unknown as RecentEnrollment[];
         },
@@ -271,7 +271,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
                     courses: en.courses ? { name: en.courses.name } : null,
                 }))
-                .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
 
         if (activityFilter === 'all') return recent;
@@ -292,7 +292,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         for (const en of source) {
             const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
             const studentId = en.student_id || en.id;
-            const dateObj = new Date(en.updated_at || en.created_at);
+            const dateObj = new Date(en.created_at);
             const dateKey = dateObj.toISOString().slice(0, 10); // YYYY-MM-DD
             const dateLabel = dateObj.toLocaleDateString('en-IE', dateOpts);
             const groupKey = `${studentId}__${dateKey}`;
@@ -324,7 +324,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             const studentAllEn = allEnrollments.filter(e => e.student_id === group.studentId);
             const otherDaysMap = new Map<string, { dateLabel: string; courses: string[] }>();
             for (const en of studentAllEn) {
-                const dateObj = new Date(en.updated_at || en.created_at);
+                const dateObj = new Date(en.created_at);
                 const dateKey = dateObj.toISOString().slice(0, 10);
                 if (dateKey === group.date) {
                     continue;
