@@ -516,6 +516,49 @@ textarea {
     margin-right: auto !important;
 }
 
+/* ===== Status Text Utility Classes for High Contrast & Readability ===== */
+.text-status-requested {
+    color: oklch(0.42 0.15 75);
+}
+.dark .text-status-requested {
+    color: oklch(0.86 0.11 75);
+}
+
+.text-status-invited {
+    color: oklch(0.45 0.16 245);
+}
+.dark .text-status-invited {
+    color: oklch(0.82 0.12 245);
+}
+
+.text-status-confirmed {
+    color: oklch(0.42 0.15 150);
+}
+.dark .text-status-confirmed {
+    color: oklch(0.82 0.12 150);
+}
+
+.text-status-completed {
+    color: oklch(0.45 0.20 260);
+}
+.dark .text-status-completed {
+    color: oklch(0.85 0.12 260);
+}
+
+.text-status-withdrawn {
+    color: oklch(0.4 0 0);
+}
+.dark .text-status-withdrawn {
+    color: oklch(0.8 0 0);
+}
+
+.text-status-rejected {
+    color: oklch(0.42 0.18 25);
+}
+.dark .text-status-rejected {
+    color: oklch(0.85 0.12 25);
+}
+
 /* ===== Status Pill Utility Classes for Contrast ===== */
 .status-pill-requested {
     background-color: oklch(var(--status-warning) / 0.15);

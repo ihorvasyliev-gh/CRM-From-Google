@@ -105,12 +105,15 @@ const StatusColumn = function StatusColumn({
                 isOver ? 'ring-2 ring-brand-500 bg-brand-50/50 dark:bg-brand-500/5' : ''
             }`}
         >
-            <div className={`sticky top-0 z-10 border-b-2 ${cfg.border} bg-surface-elevated/95 backdrop-blur-sm`}>
-                <div className="px-3 py-2">
+            <div className={`sticky top-0 z-10 border-b ${cfg.border} bg-surface-elevated/95 backdrop-blur-sm`}>
+                <div className={`h-[3px] w-full bg-gradient-to-r ${cfg.gradient}`} />
+                <div className="px-3.5 py-2.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${cfg.gradient} shadow-sm`} />
-                            <h3 className="text-[13px] font-bold text-primary uppercase tracking-wider">{cfg.label}</h3>
+                            <span className={`${cfg.color} flex items-center flex-shrink-0`}>
+                                {cfg.icon}
+                            </span>
+                            <h3 className={`text-sm font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</h3>
                             <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                 {items.length}
                             </span>
