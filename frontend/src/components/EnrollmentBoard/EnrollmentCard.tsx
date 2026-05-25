@@ -170,7 +170,7 @@ const EnrollmentCard = function EnrollmentCard({
                     {/* Header: Name, Badges & Actions */}
                     <div className="flex justify-between items-start gap-2">
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
-                            <p className="font-bold text-primary text-[15px] leading-tight">
+                            <p className="font-bold text-primary text-[16px] leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
 
@@ -273,10 +273,10 @@ const EnrollmentCard = function EnrollmentCard({
                                         className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-3 animate-fadeIn pointer-events-none"
                                         onClick={e => e.stopPropagation()}
                                     >
-                                        <p className="text-[11px] text-muted-strong leading-relaxed italic line-clamp-4">
+                                        <p className="text-[12px] text-primary/80 leading-relaxed italic line-clamp-4">
                                             {enrollment.notes}
                                         </p>
-                                        <p className="text-[10px] text-muted/50 mt-1.5 font-medium">Click to edit</p>
+                                        <p className="text-[11px] text-primary/50 mt-1.5 font-medium">Click to edit</p>
                                     </div>
                                 )}
                             </div>
@@ -284,28 +284,28 @@ const EnrollmentCard = function EnrollmentCard({
                     </div>
 
                     {/* Contact Info */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] text-muted truncate">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[13px] text-primary/80 truncate">
                         {enrollment.students?.email && (
                             <div className="flex items-center gap-1.5 truncate min-w-0">
-                                <Mail size={12} className="flex-shrink-0 text-muted/70" />
+                                <Mail size={12} className="flex-shrink-0 text-primary/60" />
                                 <span className="truncate">{enrollment.students.email}</span>
                             </div>
                         )}
                         {enrollment.students?.phone && (
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <Phone size={12} className="flex-shrink-0 text-muted/70" />
+                                <Phone size={12} className="flex-shrink-0 text-primary/60" />
                                 <span>{enrollment.students.phone}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Info row */}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-primary/75">
                         {/* п.7: Registration date with relative time */}
                         <span className="flex items-center gap-1">
                             {formatDateLong(enrollment.created_at)}
-                            <span className="text-muted/40 font-normal">·</span>
-                            <span className="text-muted/60">{getRelativeTime(enrollment.created_at)}</span>
+                            <span className="text-primary/40 font-normal">·</span>
+                            <span className="text-primary/60">{getRelativeTime(enrollment.created_at)}</span>
                         </span>
 
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
@@ -362,10 +362,10 @@ const EnrollmentCard = function EnrollmentCard({
                             const isUrgent = timerLevel === 'urgent';
                             return (
                                 <div
-                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium shadow-sm transition-colors ${
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[12px] font-medium shadow-sm transition-colors ${
                                         isUrgent
                                             ? 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-pulse-timer'
-                                            : 'bg-surface-elevated border border-border-subtle text-muted-strong'
+                                            : 'bg-surface-elevated border border-border-subtle text-primary/80'
                                     }`}
                                     title={`${timerText} remaining (${days}-day deadline)`}
                                 >
@@ -378,7 +378,7 @@ const EnrollmentCard = function EnrollmentCard({
 
                     {/* Notes */}
                     {enrollment.notes && (
-                        <div className="mt-1.5 flex items-start gap-1.5 text-[12px] text-muted-strong bg-surface-elevated border border-border-subtle p-2 rounded-md shadow-sm">
+                        <div className="mt-1.5 flex items-start gap-1.5 text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-2 rounded-md shadow-sm">
                             <Pencil size={12} className="mt-0.5 flex-shrink-0 text-brand-500" />
                             <p className="italic leading-relaxed">{enrollment.notes}</p>
                         </div>

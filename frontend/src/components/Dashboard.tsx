@@ -508,10 +508,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 >
                                     {/* Header: Student name + date */}
                                     <div className="flex items-center justify-between gap-3 mb-2">
-                                        <p className="text-sm font-semibold text-primary truncate tracking-tight">
+                                        <p className="text-base font-semibold text-primary truncate tracking-tight">
                                             {group.studentName}
                                         </p>
-                                        <span className="text-[11px] text-muted font-mono whitespace-nowrap opacity-75 flex-shrink-0">
+                                        <span className="text-[12px] text-primary/65 font-mono whitespace-nowrap flex-shrink-0">
                                             {group.dateLabel}
                                         </span>
                                     </div>
@@ -521,12 +521,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                         {group.enrollments.map(en => (
                                             <span
                                                 key={en.id}
-                                                className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
+                                                className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full font-semibold tracking-wide ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
                                             >
                                                 <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
                                                 {en.courseName}
                                                 {en.courseVariant && (
-                                                    <span className="opacity-60">({en.courseVariant})</span>
+                                                    <span className="opacity-75">({en.courseVariant})</span>
                                                 )}
                                             </span>
                                         ))}
@@ -534,8 +534,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
                                     {/* History hint for previous registrations */}
                                     {group.previousEnrollments.length > 0 && (
-                                        <div className="flex items-start gap-1.5 mt-2 text-[10px] text-muted/70 leading-relaxed">
-                                            <History size={10} className="flex-shrink-0 mt-0.5 opacity-60" />
+                                        <div className="flex items-start gap-1.5 mt-2.5 text-[12px] text-muted leading-relaxed">
+                                            <History size={12} className="flex-shrink-0 mt-0.5 opacity-70" />
                                             <span>
                                                 Also registered for:{' '}
                                                 {(() => {
@@ -549,8 +549,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                                     return Array.from(byDate.entries()).map(([date, courses], idx) => (
                                                         <span key={date}>
                                                             {idx > 0 && '; '}
-                                                            <span className="text-muted">{courses.join(', ')}</span>
-                                                            <span className="opacity-50"> ({date})</span>
+                                                            <span className="text-primary/80 font-medium">{courses.join(', ')}</span>
+                                                            <span className="opacity-70"> ({date})</span>
                                                         </span>
                                                     ));
                                                 })()}
