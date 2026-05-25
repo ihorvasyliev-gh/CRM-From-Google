@@ -21,10 +21,11 @@
         --accent-primary-hover: 0.48 0.22 260;
 
         /* Semantic Status */
-        --status-success: 0.72 0.17 150;
-        --status-warning: 0.79 0.16 75;
-        --status-danger: 0.62 0.22 25;
-        --status-info: 0.65 0.18 200;
+        --status-warning:   0.79 0.17 75;    /* Amber   — Requested  */
+        --status-info:      0.62 0.19 210;   /* Sky     — Invited    */
+        --status-success:   0.70 0.18 152;   /* Emerald — Confirmed  */
+        --status-completed: 0.60 0.22 295;   /* Violet  — Completed  */
+        --status-danger:    0.62 0.22 25;    /* Red     — Rejected   */
 
         --glass-bg: rgba(255, 255, 255, 0.7);
         --glass-border: rgba(228, 228, 231, 0.5);
@@ -35,26 +36,26 @@
         /* Chart Colors - Light Mode Defaults */
         --color-chart-border: #e2e8f0;
         --color-chart-text: #64748b;
-        --color-requested: #f59e0b;
-        --color-invited: #8b5cf6;
-        --color-confirmed: #0ea5e9;
-        --color-completed: #10b981;
-        --color-trend-reg: #818cf8;
+        --color-requested:  #f59e0b;   /* Amber   */
+        --color-invited:    #0ea5e9;   /* Sky Blue */
+        --color-confirmed:  #10b981;   /* Emerald */
+        --color-completed:  #8b5cf6;   /* Violet  */
+        --color-trend-reg:  #0ea5e9;
         --color-trend-comp: #10b981;
-        --color-course-start: #818cf8;
-        --color-course-end: #a78bfa;
+        --color-course-start: #8b5cf6;
+        --color-course-end:   #6d28d9;
         --color-variant-start: #10b981;
-        --color-variant-end: #059669;
-        --color-fulltime: #10b981;
-        --color-parttime: #3b82f6;
+        --color-variant-end:   #059669;
+        --color-fulltime:    #10b981;
+        --color-parttime:    #0ea5e9;
         --color-unspecified: #8b5cf6;
-        --color-totalgrads: #818cf8;
-        --color-contacted: #a78bfa;
-        --color-responded: #10b981;
+        --color-totalgrads:  #8b5cf6;
+        --color-contacted:   #a78bfa;
+        --color-responded:   #10b981;
         --color-field-start: #60a5fa;
-        --color-field-end: #3b82f6;
-        --color-jobs-start: #10b981;
-        --color-jobs-end: #10b981;
+        --color-field-end:   #3b82f6;
+        --color-jobs-start:  #10b981;
+        --color-jobs-end:    #10b981;
     }
 
     .dark {
@@ -73,37 +74,38 @@
         --accent-primary-hover: 0.74 0.16 260;
 
         /* Semantic Status */
-        --status-success: 0.82 0.14 150;
-        --status-warning: 0.86 0.13 75;
-        --status-danger: 0.73 0.18 25;
-        --status-info: 0.75 0.14 200;
+        --status-warning:   0.86 0.14 75;    /* Amber   — Requested  */
+        --status-info:      0.75 0.15 210;   /* Sky     — Invited    */
+        --status-success:   0.82 0.14 152;   /* Emerald — Confirmed  */
+        --status-completed: 0.78 0.18 295;   /* Violet  — Completed  */
+        --status-danger:    0.73 0.18 25;    /* Red     — Rejected   */
 
         --glass-bg: rgba(24, 24, 27, 0.7);
         --glass-border: rgba(63, 63, 70, 0.5);
 
-        /* Chart Colors - Dark Mode Cyber-Minimalism Contrast Polish */
+        /* Chart Colors - Dark Mode */
         --color-chart-border: #27272a;
         --color-chart-text: #a1a1aa;
-        --color-requested: #fbbf24;    /* Vibrant Amber-400 */
-        --color-invited: #c084fc;      /* Bright Lilac/Purple-400 */
-        --color-confirmed: #38bdf8;    /* Bright Sky Blue-400 */
-        --color-completed: #34d399;    /* Bright Emerald-400 */
-        --color-trend-reg: #a5b4fc;    /* Light Indigo-300 */
-        --color-trend-comp: #34d399;   /* Light Emerald-400 */
-        --color-course-start: #a5b4fc; /* Light Indigo-300 */
-        --color-course-end: #c084fc;   /* Light Lilac/Purple-400 */
-        --color-variant-start: #34d399; /* Light Emerald-400 */
-        --color-variant-end: #10b981;   /* Emerald-500 */
-        --color-fulltime: #34d399;     /* Light Emerald-400 */
-        --color-parttime: #38bdf8;     /* Bright Sky Blue-400 */
-        --color-unspecified: #c084fc;   /* Bright Lilac/Purple-400 */
-        --color-totalgrads: #a5b4fc;   /* Light Indigo-300 */
-        --color-contacted: #c084fc;     /* Bright Lilac-400 */
-        --color-responded: #34d399;     /* Bright Emerald-400 */
-        --color-field-start: #93c5fd;   /* Soft Blue-300 */
-        --color-field-end: #3b82f6;     /* Vibrant Blue-500 */
-        --color-jobs-start: #34d399;    /* Bright Emerald-400 */
-        --color-jobs-end: #34d399;      /* Bright Emerald-400 */
+        --color-requested:  #fbbf24;   /* Amber-400   */
+        --color-invited:    #38bdf8;   /* Sky-400     */
+        --color-confirmed:  #34d399;   /* Emerald-400 */
+        --color-completed:  #c084fc;   /* Violet-400  */
+        --color-trend-reg:  #38bdf8;
+        --color-trend-comp: #34d399;
+        --color-course-start: #c084fc;
+        --color-course-end:   #a855f7;
+        --color-variant-start: #34d399;
+        --color-variant-end:   #10b981;
+        --color-fulltime:    #34d399;
+        --color-parttime:    #38bdf8;
+        --color-unspecified: #c084fc;
+        --color-totalgrads:  #c084fc;
+        --color-contacted:   #a78bfa;
+        --color-responded:   #34d399;
+        --color-field-start: #93c5fd;
+        --color-field-end:   #3b82f6;
+        --color-jobs-start:  #34d399;
+        --color-jobs-end:    #34d399;
     }
 }
 
@@ -516,123 +518,112 @@ textarea {
     margin-right: auto !important;
 }
 
-/* ===== Status Text Utility Classes for High Contrast & Readability ===== */
-.text-status-requested {
-    color: oklch(0.42 0.15 75);
-}
-.dark .text-status-requested {
-    color: oklch(0.86 0.11 75);
-}
+/* ===== Status Text Utility Classes ===== */
+/* Requested — Amber */
+.text-status-requested      { color: oklch(0.40 0.17 75); }
+.dark .text-status-requested { color: oklch(0.88 0.12 75); }
 
-.text-status-invited {
-    color: oklch(0.45 0.20 260);
-}
-.dark .text-status-invited {
-    color: oklch(0.85 0.12 260);
-}
+/* Invited — Sky Blue */
+.text-status-invited        { color: oklch(0.38 0.18 210); }
+.dark .text-status-invited  { color: oklch(0.84 0.12 210); }
 
-.text-status-confirmed {
-    color: oklch(0.45 0.16 200);
-}
-.dark .text-status-confirmed {
-    color: oklch(0.82 0.12 200);
-}
+/* Confirmed — Emerald */
+.text-status-confirmed      { color: oklch(0.38 0.16 152); }
+.dark .text-status-confirmed { color: oklch(0.84 0.12 152); }
 
-.text-status-completed {
-    color: oklch(0.42 0.15 150);
-}
-.dark .text-status-completed {
-    color: oklch(0.82 0.12 150);
-}
+/* Completed — Violet */
+.text-status-completed      { color: oklch(0.40 0.20 295); }
+.dark .text-status-completed { color: oklch(0.84 0.14 295); }
 
-.text-status-withdrawn {
-    color: oklch(0.4 0 0);
-}
-.dark .text-status-withdrawn {
-    color: oklch(0.8 0 0);
-}
+/* Withdrawn — Slate */
+.text-status-withdrawn      { color: oklch(0.42 0.01 240); }
+.dark .text-status-withdrawn { color: oklch(0.78 0.01 240); }
 
-.text-status-rejected {
-    color: oklch(0.42 0.18 25);
-}
-.dark .text-status-rejected {
-    color: oklch(0.85 0.12 25);
-}
+/* Rejected — Red */
+.text-status-rejected       { color: oklch(0.42 0.20 25); }
+.dark .text-status-rejected { color: oklch(0.84 0.14 25); }
 
-/* ===== Status Pill Utility Classes for Contrast ===== */
+/* ===== Status Pill Utility Classes ===== */
+
+/* Requested — Amber */
 .status-pill-requested {
-    background-color: oklch(var(--status-warning) / 0.12);
-    color: oklch(0.38 0.15 75);
-    border: 1px solid oklch(var(--status-warning) / 0.25);
+    background-color: oklch(var(--status-warning) / 0.13);
+    color: oklch(0.35 0.17 75);
+    border: 1px solid oklch(var(--status-warning) / 0.30);
 }
 .dark .status-pill-requested {
-    background-color: oklch(var(--status-warning) / 0.15);
-    color: oklch(0.95 0.08 75);
-    border: 1px solid oklch(var(--status-warning) / 0.35);
+    background-color: oklch(var(--status-warning) / 0.16);
+    color: oklch(0.93 0.10 75);
+    border: 1px solid oklch(var(--status-warning) / 0.40);
 }
 
+/* Invited — Sky Blue */
 .status-pill-invited {
-    background-color: oklch(var(--accent-primary) / 0.12);
-    color: oklch(0.40 0.20 260);
-    border: 1px solid oklch(var(--accent-primary) / 0.25);
+    background-color: oklch(var(--status-info) / 0.13);
+    color: oklch(0.33 0.18 210);
+    border: 1px solid oklch(var(--status-info) / 0.30);
 }
 .dark .status-pill-invited {
-    background-color: oklch(var(--accent-primary) / 0.15);
-    color: oklch(0.92 0.08 260);
-    border: 1px solid oklch(var(--accent-primary) / 0.35);
+    background-color: oklch(var(--status-info) / 0.16);
+    color: oklch(0.91 0.10 210);
+    border: 1px solid oklch(var(--status-info) / 0.40);
 }
 
+/* Confirmed — Emerald */
 .status-pill-confirmed {
-    background-color: oklch(var(--status-info) / 0.12);
-    color: oklch(0.40 0.16 200);
-    border: 1px solid oklch(var(--status-info) / 0.25);
+    background-color: oklch(var(--status-success) / 0.13);
+    color: oklch(0.33 0.16 152);
+    border: 1px solid oklch(var(--status-success) / 0.30);
 }
 .dark .status-pill-confirmed {
-    background-color: oklch(var(--status-info) / 0.15);
-    color: oklch(0.92 0.08 200);
-    border: 1px solid oklch(var(--status-info) / 0.35);
+    background-color: oklch(var(--status-success) / 0.16);
+    color: oklch(0.91 0.10 152);
+    border: 1px solid oklch(var(--status-success) / 0.40);
 }
 
+/* Completed — Violet */
 .status-pill-completed {
-    background-color: oklch(var(--status-success) / 0.12);
-    color: oklch(0.38 0.15 150);
-    border: 1px solid oklch(var(--status-success) / 0.25);
+    background-color: oklch(var(--status-completed) / 0.13);
+    color: oklch(0.35 0.22 295);
+    border: 1px solid oklch(var(--status-completed) / 0.30);
 }
 .dark .status-pill-completed {
-    background-color: oklch(var(--status-success) / 0.15);
-    color: oklch(0.92 0.08 150);
-    border: 1px solid oklch(var(--status-success) / 0.35);
+    background-color: oklch(var(--status-completed) / 0.16);
+    color: oklch(0.91 0.12 295);
+    border: 1px solid oklch(var(--status-completed) / 0.40);
 }
 
+/* Withdrawn — Slate */
 .status-pill-withdrawn {
-    background-color: oklch(var(--text-muted) / 0.12);
-    color: oklch(0.35 0 0);
-    border: 1px solid oklch(var(--text-muted) / 0.25);
+    background-color: oklch(0.55 0.01 240 / 0.10);
+    color: oklch(0.35 0.01 240);
+    border: 1px solid oklch(0.55 0.01 240 / 0.20);
 }
 .dark .status-pill-withdrawn {
-    background-color: oklch(var(--text-muted) / 0.15);
-    color: oklch(0.90 0 0);
-    border: 1px solid oklch(var(--text-muted) / 0.35);
+    background-color: oklch(0.55 0.01 240 / 0.14);
+    color: oklch(0.82 0.01 240);
+    border: 1px solid oklch(0.55 0.01 240 / 0.28);
 }
 
+/* Rejected — Red */
 .status-pill-rejected {
-    background-color: oklch(var(--status-danger) / 0.12);
-    color: oklch(0.38 0.18 25);
-    border: 1px solid oklch(var(--status-danger) / 0.25);
+    background-color: oklch(var(--status-danger) / 0.13);
+    color: oklch(0.35 0.20 25);
+    border: 1px solid oklch(var(--status-danger) / 0.30);
 }
 .dark .status-pill-rejected {
-    background-color: oklch(var(--status-danger) / 0.15);
-    color: oklch(0.92 0.08 25);
-    border: 1px solid oklch(var(--status-danger) / 0.35);
+    background-color: oklch(var(--status-danger) / 0.16);
+    color: oklch(0.91 0.12 25);
+    border: 1px solid oklch(var(--status-danger) / 0.40);
 }
 
 .priority-badge {
-    background-color: oklch(var(--status-warning) / 0.12);
-    color: oklch(0.38 0.15 75);
-    border: 1px solid oklch(var(--status-warning) / 0.25);
+    background-color: oklch(var(--status-warning) / 0.13);
+    color: oklch(0.35 0.17 75);
+    border: 1px solid oklch(var(--status-warning) / 0.30);
 }
 .dark .priority-badge {
-    background-color: oklch(var(--status-warning) / 0.15);
-    color: oklch(0.95 0.08 75);
-    border: 1px solid oklch(var(--status-warning) / 0.35);
+    background-color: oklch(var(--status-warning) / 0.16);
+    color: oklch(0.93 0.10 75);
+    border: 1px solid oklch(var(--status-warning) / 0.40);
 }

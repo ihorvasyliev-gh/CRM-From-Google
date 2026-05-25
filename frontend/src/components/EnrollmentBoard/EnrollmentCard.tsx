@@ -38,12 +38,12 @@ function getRelativeTime(isoDate: string): string {
     return `${Math.floor(months / 12)}y ago`;
 }
 
-// Left accent border color per status — п.13
+// Left accent border per status
 const STATUS_LEFT_BORDER: Record<string, string> = {
     requested: 'border-l-warning',
     invited:   'border-l-info',
     confirmed: 'border-l-success',
-    completed: 'border-l-brand-500',
+    completed: 'border-l-[oklch(var(--status-completed))]',
     withdrawn: 'border-l-muted',
     rejected:  'border-l-danger',
 };
@@ -311,7 +311,7 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.invited_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">
+                                <span className="text-status-invited font-medium flex items-center gap-1 bg-info/8 px-1.5 py-0.5 rounded">
                                     <Send size={11} />
                                     {formatDateLong(enrollment.invited_date)}
                                 </span>
@@ -320,7 +320,7 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.confirmed_date && enrollment.status !== 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                <span className="text-status-confirmed font-medium flex items-center gap-1 bg-success/8 px-1.5 py-0.5 rounded">
                                     <CheckCircle size={11} />
                                     {formatDateLong(enrollment.confirmed_date)}
                                 </span>
@@ -329,7 +329,7 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.completed_date && enrollment.status === 'completed' && (
                             <>
                                 <span>•</span>
-                                <span className="text-brand-600 dark:text-brand-400 font-medium flex items-center gap-1 bg-brand-50 dark:bg-brand-500/10 px-1.5 py-0.5 rounded">
+                                <span className="text-status-completed font-medium flex items-center gap-1 bg-[oklch(var(--status-completed)/0.08)] px-1.5 py-0.5 rounded">
                                     <GraduationCap size={11} />
                                     {formatDateLong(enrollment.completed_date)}
                                 </span>

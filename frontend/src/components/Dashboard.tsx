@@ -33,19 +33,19 @@ interface GroupedActivity {
 
 const STATUS_DOT: Record<string, string> = {
     requested: 'bg-warning',
-    invited: 'bg-brand-500',
-    confirmed: 'bg-info',
-    completed: 'bg-success',
+    invited:   'bg-info',
+    confirmed: 'bg-success',
+    completed: 'bg-[oklch(var(--status-completed))]',
     withdrawn: 'bg-muted',
-    rejected: 'bg-danger',
+    rejected:  'bg-danger',
 };
 
 const FILTER_ACTIVE_CLASSES: Record<ActivityFilter, string> = {
-    all: 'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105',
+    all:       'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105',
     requested: 'status-pill-requested border-warning/50 font-bold scale-105 shadow-sm',
-    invited: 'status-pill-invited border-brand-500/50 font-bold scale-105 shadow-sm',
-    confirmed: 'status-pill-confirmed border-info/50 font-bold scale-105 shadow-sm',
-    completed: 'status-pill-completed border-success/50 font-bold scale-105 shadow-sm',
+    invited:   'status-pill-invited   border-info/50    font-bold scale-105 shadow-sm',
+    confirmed: 'status-pill-confirmed border-success/50 font-bold scale-105 shadow-sm',
+    completed: 'status-pill-completed border-[oklch(var(--status-completed)/0.50)] font-bold scale-105 shadow-sm',
 };
 
 
@@ -474,12 +474,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     const totalStatus = Object.values(statusBreakdown).reduce((a, b) => a + b, 0);
     const statusItems = [
-        { key: 'requested', label: 'Requested', color: 'bg-warning', lightBg: 'bg-warning/10 text-warning' },
-        { key: 'invited', label: 'Invited', color: 'bg-brand-500', lightBg: 'bg-brand-500/10 text-brand-500' },
-        { key: 'confirmed', label: 'Confirmed', color: 'bg-info', lightBg: 'bg-info/10 text-info' },
-        { key: 'completed', label: 'Completed', color: 'bg-success', lightBg: 'bg-success/10 text-success' },
-        { key: 'withdrawn', label: 'Withdrawn', color: 'bg-muted', lightBg: 'bg-muted/10 text-muted' },
-        { key: 'rejected', label: 'Rejected', color: 'bg-danger', lightBg: 'bg-danger/10 text-danger' },
+        { key: 'requested', label: 'Requested', color: 'bg-warning',                              lightBg: 'bg-warning/10 text-warning' },
+        { key: 'invited',   label: 'Invited',   color: 'bg-info',                                 lightBg: 'bg-info/10 text-info' },
+        { key: 'confirmed', label: 'Confirmed', color: 'bg-success',                              lightBg: 'bg-success/10 text-success' },
+        { key: 'completed', label: 'Completed', color: 'bg-[oklch(var(--status-completed))]',     lightBg: 'bg-[oklch(var(--status-completed)/0.12)] text-status-completed' },
+        { key: 'withdrawn', label: 'Withdrawn', color: 'bg-muted',                               lightBg: 'bg-muted/10 text-muted' },
+        { key: 'rejected',  label: 'Rejected',  color: 'bg-danger',                              lightBg: 'bg-danger/10 text-danger' },
     ];
 
     return (
