@@ -318,17 +318,36 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             });
         }
 
-        // For each group, find this student's enrollments on OTHER days as "previous"
+        // For each group, find this student's enrollments on OTHER days as "previous" using allEnrollments
         const allGroupsList = Array.from(groupMap.values());
         for (const group of allGroupsList) {
-            const otherGroups = allGroupsList.filter(
-                g => g.studentId === group.studentId && g.date !== group.date && g.date < group.date
-            );
-            for (const other of otherGroups) {
-                for (const en of other.enrollments) {
+            const studentAllEn = allEnrollments.filter(e => e.student_id === group.studentId);
+            const otherDaysMap = new Map<string, { dateLabel: string; courses: string[] }>();
+            for (const en of studentAllEn) {
+                const dateObj = new Date(en.updated_at || en.created_at);
+                const dateKey = dateObj.toISOString().slice(0, 10);
+                if (dateKey === group.date) {
+                    continue;
+                }
+                const courseName = en.courses?.name || 'Unknown Course';
+                if (!otherDaysMap.has(dateKey)) {
+                    otherDaysMap.set(dateKey, {
+                        dateLabel: dateObj.toLocaleDateString('en-IE', dateOpts),
+                        courses: []
+                    });
+                }
+                const dayData = otherDaysMap.get(dateKey)!;
+                if (!dayData.courses.includes(courseName)) {
+                    dayData.courses.push(courseName);
+                }
+            }
+            const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
+            for (const dKey of sortedDates) {
+                const dayData = otherDaysMap.get(dKey)!;
+                for (const cName of dayData.courses) {
                     group.previousEnrollments.push({
-                        courseName: en.courseName,
-                        dateLabel: other.dateLabel,
+                        courseName: cName,
+                        dateLabel: dayData.dateLabel
                     });
                 }
             }
