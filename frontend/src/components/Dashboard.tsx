@@ -23,7 +23,10 @@ interface GroupedActivity {
         status: string;
     }[];
     previousEnrollments: {
+        id: string;
         courseName: string;
+        courseVariant: string | null;
+        status: string;
         dateLabel: string;
     }[];
 }
@@ -37,14 +40,6 @@ const STATUS_DOT: Record<string, string> = {
     rejected: 'bg-danger',
 };
 
-const STATUS_BG: Record<string, string> = {
-    requested: 'bg-warning/10 text-warning',
-    invited: 'bg-info/10 text-info',
-    confirmed: 'bg-success/10 text-success',
-    completed: 'bg-brand-500/10 text-brand-500',
-    withdrawn: 'bg-muted/10 text-muted',
-    rejected: 'bg-danger/10 text-danger',
-};
 
 // ─── Skeleton Components ─────────────────────────────────────
 function SkeletonStatCard() {
@@ -305,7 +300,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             });
             group.isNew = !hasPriorEnrollments;
 
-            const otherDaysMap = new Map<string, { dateLabel: string; courses: string[] }>();
+            const otherDaysMap = new Map<string, { 
+                dateLabel: string; 
+                enrollments: {
+                    id: string;
+                    courseName: string;
+                    courseVariant: string | null;
+                    status: string;
+                }[];
+            }>();
+
             for (const en of studentAllEn) {
                 const dateObj = new Date(en.created_at);
                 const dateKey = dateObj.toISOString().slice(0, 10);
@@ -316,20 +320,49 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 if (!otherDaysMap.has(dateKey)) {
                     otherDaysMap.set(dateKey, {
                         dateLabel: dateObj.toLocaleDateString('en-IE', dateOpts),
-                        courses: []
+                        enrollments: []
                     });
                 }
                 const dayData = otherDaysMap.get(dateKey)!;
-                if (!dayData.courses.includes(courseName)) {
-                    dayData.courses.push(courseName);
-                }
+                dayData.enrollments.push({
+                    id: en.id,
+                    courseName,
+                    courseVariant: en.course_variant,
+                    status: en.status
+                });
             }
+
             const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
             for (const dKey of sortedDates) {
                 const dayData = otherDaysMap.get(dKey)!;
-                for (const cName of dayData.courses) {
+                
+                // Group by courseName on this other day
+                const otherCourseGroups = new Map<string, typeof dayData.enrollments>();
+                for (const en of dayData.enrollments) {
+                    const existing = otherCourseGroups.get(en.courseName) || [];
+                    existing.push(en);
+                    otherCourseGroups.set(en.courseName, existing);
+                }
+
+                const groupedOtherEnrollments = Array.from(otherCourseGroups.entries()).map(([courseName, ens]) => {
+                    const variants = ens
+                        .map(en => cleanVariant(courseName, en.courseVariant))
+                        .filter((v, idx, self) => v && self.indexOf(v) === idx);
+                    const first = ens[0];
+                    return {
+                        id: first.id,
+                        courseName,
+                        courseVariant: variants.length > 0 ? variants.join(', ') : null,
+                        status: first.status,
+                    };
+                });
+
+                for (const en of groupedOtherEnrollments) {
                     group.previousEnrollments.push({
-                        courseName: cName,
+                        id: en.id,
+                        courseName: en.courseName,
+                        courseVariant: en.courseVariant,
+                        status: en.status,
                         dateLabel: dayData.dateLabel
                     });
                 }
@@ -514,71 +547,81 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-0.5 overflow-y-auto pr-1 flex-1 min-h-0">
+                            <div className="space-y-1 overflow-y-auto pr-1 flex-1 min-h-0">
                                 {groupedActivity.map((group, i) => (
                                     <div
                                         key={group.key}
-                                        className="px-3 py-1.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:shadow-sm transition-all duration-300 ease-spring cursor-default"
+                                        className="p-3 rounded-xl hover:bg-surface-elevated/60 border border-transparent hover:border-border-subtle/50 hover:shadow-sm transition-all duration-300 ease-spring cursor-default flex flex-col gap-1.5"
                                         style={{ animationDelay: `${i * 50}ms` }}
                                     >
-                                        {/* Single main line: name · course tags · date */}
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            {/* Name + NEW badge */}
-                                            <p className="text-[14px] font-semibold text-primary whitespace-nowrap tracking-tight flex items-center gap-1.5 flex-shrink-0">
-                                                {group.studentName}
+                                        {/* Main Line: Name (left) · Course Tags (middle, left-aligned) · Date (right) */}
+                                        <div className="flex items-center gap-4 min-w-0">
+                                            {/* Student Name + NEW badge */}
+                                            <div className="flex items-center gap-2 w-1/4 min-w-[160px] max-w-[240px] flex-shrink-0">
+                                                <span className="text-[13px] font-semibold text-primary truncate tracking-tight">
+                                                    {group.studentName}
+                                                </span>
                                                 {group.isNew && (
-                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider">
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
                                                         NEW
                                                     </span>
                                                 )}
-                                            </p>
+                                            </div>
 
-                                            {/* Course pill-tags — fill remaining space, centred */}
-                                            <div className="flex flex-wrap gap-1 flex-1 justify-center min-w-0">
+                                            {/* Course status pills — left-aligned */}
+                                            <div className="flex flex-wrap gap-1.5 flex-1 min-w-0 justify-start">
                                                 {group.enrollments.map(en => (
                                                     <span
                                                         key={en.id}
-                                                        className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
+                                                        className={`status-pill-${en.status} inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-semibold whitespace-nowrap shadow-sm`}
                                                     >
                                                         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
                                                         {en.courseName}
                                                         {en.courseVariant && (
-                                                            <span className="opacity-70"> ({en.courseVariant})</span>
+                                                            <span className="opacity-75 font-normal"> ({en.courseVariant})</span>
                                                         )}
                                                     </span>
                                                 ))}
                                             </div>
 
                                             {/* Date — always right-aligned */}
-                                            <span className="text-[12px] text-primary/60 font-mono whitespace-nowrap flex-shrink-0 ml-auto">
+                                            <span className="text-[11px] text-muted font-mono whitespace-nowrap flex-shrink-0 ml-auto select-none">
                                                 {group.dateLabel}
                                             </span>
                                         </div>
 
-                                        {/* Also subline — slim second line when previous enrollments exist */}
+                                        {/* History Sub-timeline: Detailed, color-coded, compact */}
                                         {group.previousEnrollments.length > 0 && (() => {
-                                            const byDate = new Map<string, string[]>();
+                                            const byDate = new Map<string, typeof group.previousEnrollments>();
                                             for (const pe of group.previousEnrollments) {
                                                 const existing = byDate.get(pe.dateLabel) || [];
-                                                existing.push(pe.courseName);
+                                                existing.push(pe);
                                                 byDate.set(pe.dateLabel, existing);
                                             }
                                             const entries = Array.from(byDate.entries());
                                             return (
-                                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                                                    <span className="flex items-center gap-1 text-[10px] text-muted/60 font-semibold uppercase tracking-wider flex-shrink-0">
-                                                        <History size={10} className="opacity-60" />
-                                                        Also
-                                                    </span>
-                                                    {entries.map(([date, courses]) => (
-                                                        <span
-                                                            key={date}
-                                                            className="inline-flex items-center gap-1 bg-surface-elevated/70 border border-border-subtle/60 rounded px-1.5 py-px text-[10px]"
-                                                        >
-                                                            <span className="text-primary/70 font-medium">{courses.join(', ')}</span>
-                                                            <span className="text-muted/40">·</span>
-                                                            <span className="text-muted/55 font-mono">{date}</span>
-                                                        </span>
+                                                <div className="mt-1.5 ml-2 pl-3.5 border-l border-border-subtle/60 flex flex-col gap-1">
+                                                    {entries.map(([date, enrollments]) => (
+                                                        <div key={date} className="flex items-center gap-2 text-[10px]">
+                                                            <History size={10} className="text-muted/40 flex-shrink-0" />
+                                                            <span className="font-mono text-muted/60 font-semibold w-11 flex-shrink-0 select-none">
+                                                                {date}
+                                                            </span>
+                                                            <div className="flex flex-wrap gap-1 items-center">
+                                                                {enrollments.map(pe => (
+                                                                    <span
+                                                                        key={pe.id}
+                                                                        className={`status-pill-${pe.status} inline-flex items-center gap-1 text-[10px] px-1.5 py-0.25 rounded-md font-medium whitespace-nowrap`}
+                                                                    >
+                                                                        <span className={`w-1 h-1 rounded-full ${STATUS_DOT[pe.status] || 'bg-muted'} flex-shrink-0`} />
+                                                                        {pe.courseName}
+                                                                        {pe.courseVariant && (
+                                                                            <span className="opacity-75 font-normal"> ({pe.courseVariant})</span>
+                                                                        )}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             );
