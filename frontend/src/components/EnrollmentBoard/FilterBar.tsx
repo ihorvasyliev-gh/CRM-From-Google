@@ -265,7 +265,7 @@ export default function FilterBar({
                         >
                             {cfg.icon}
                             <span>{cfg.label}</span>
-                            <span className="font-mono bg-background/50 px-1.5 py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
+                            <span className="font-mono bg-black/15 dark:bg-white/10 text-primary px-1.5 py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
                         </button>
                     );
                 })}
