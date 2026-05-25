@@ -362,7 +362,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         }
 
         return sorted;
-    }, [filteredRecent, activityFilter]);
+    }, [filteredRecent, activityFilter, allEnrollments]);
 
     // Counts per filter for pill badges
     const filterCounts = useMemo(() => {
