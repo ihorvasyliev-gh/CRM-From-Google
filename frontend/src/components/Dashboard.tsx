@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, History } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
 
@@ -547,18 +547,41 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-1 overflow-y-auto pr-1 flex-1 min-h-0">
-                                {groupedActivity.map((group, i) => (
-                                    <div
-                                        key={group.key}
-                                        className="p-3 rounded-xl hover:bg-surface-elevated/60 border border-transparent hover:border-border-subtle/50 hover:shadow-sm transition-all duration-300 ease-spring cursor-default flex flex-col gap-1.5"
-                                        style={{ animationDelay: `${i * 50}ms` }}
-                                    >
-                                        {/* Main Line: Name (left) · Course Tags (middle, left-aligned) · Date (right) */}
-                                        <div className="flex items-center gap-4 min-w-0">
-                                            {/* Student Name + NEW badge */}
-                                            <div className="flex items-center gap-2 w-1/4 min-w-[160px] max-w-[240px] flex-shrink-0">
-                                                <span className="text-[13px] font-semibold text-primary truncate tracking-tight">
+                            <div className="space-y-1.5 overflow-y-auto pr-1 flex-1 min-h-0">
+                                {groupedActivity.map((group, i) => {
+                                    // Group history by date
+                                    const historyByDate = new Map<string, typeof group.previousEnrollments>();
+                                    for (const pe of group.previousEnrollments) {
+                                        const existing = historyByDate.get(pe.dateLabel) || [];
+                                        existing.push(pe);
+                                        historyByDate.set(pe.dateLabel, existing);
+                                    }
+
+                                    // Build unified timeline events
+                                    const timelineEvents = [
+                                        {
+                                            date: group.dateLabel,
+                                            enrollments: group.enrollments,
+                                            isCurrent: true,
+                                            key: 'current'
+                                        },
+                                        ...Array.from(historyByDate.entries()).map(([date, enrollments]) => ({
+                                            date,
+                                            enrollments,
+                                            isCurrent: false,
+                                            key: date
+                                        }))
+                                    ];
+
+                                    return (
+                                        <div
+                                            key={group.key}
+                                            className="p-3.5 rounded-xl hover:bg-surface-elevated/60 border border-transparent hover:border-border-subtle/50 hover:shadow-sm transition-all duration-300 ease-spring cursor-default flex gap-4"
+                                            style={{ animationDelay: `${i * 50}ms` }}
+                                        >
+                                            {/* Left Column: Student Info */}
+                                            <div className="flex flex-col items-start gap-1.5 w-1/4 min-w-[160px] max-w-[240px] flex-shrink-0 pt-0.5">
+                                                <span className="text-[13px] font-semibold text-primary truncate tracking-tight leading-tight">
                                                     {group.studentName}
                                                 </span>
                                                 {group.isNew && (
@@ -568,66 +591,62 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                                 )}
                                             </div>
 
-                                            {/* Course status pills — left-aligned */}
-                                            <div className="flex flex-wrap gap-1.5 flex-1 min-w-0 justify-start">
-                                                {group.enrollments.map(en => (
-                                                    <span
-                                                        key={en.id}
-                                                        className={`status-pill-${en.status} inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-semibold whitespace-nowrap shadow-sm`}
-                                                    >
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
-                                                        {en.courseName}
-                                                        {en.courseVariant && (
-                                                            <span className="opacity-75 font-normal"> ({en.courseVariant})</span>
-                                                        )}
-                                                    </span>
+                                            {/* Right Column: Unified Timeline */}
+                                            <div className="flex-1 min-w-0 relative pl-5 flex flex-col gap-3">
+                                                {/* Vertical line connecting the timeline nodes */}
+                                                {timelineEvents.length > 1 && (
+                                                    <div className="absolute left-[8px] top-2.5 bottom-2.5 w-0.5 bg-border-subtle/50" />
+                                                )}
+
+                                                {timelineEvents.map((event) => (
+                                                    <div key={event.key} className="flex items-start gap-3 relative min-w-0">
+                                                        {/* Timeline node */}
+                                                        <div
+                                                            className={`absolute left-[-17px] top-[5px] w-2.5 h-2.5 rounded-full border-2 ${
+                                                                event.isCurrent
+                                                                    ? 'bg-brand-500 border-brand-500 shadow-glow-sm'
+                                                                    : 'bg-surface border-border-strong'
+                                                            } z-10`}
+                                                        />
+
+                                                        {/* Event Date */}
+                                                        <span
+                                                            className={`font-mono text-[10px] w-12 pt-[3px] flex-shrink-0 select-none ${
+                                                                event.isCurrent ? 'text-primary font-bold' : 'text-muted/60'
+                                                            }`}
+                                                        >
+                                                            {event.date}
+                                                        </span>
+
+                                                        {/* Event Badges */}
+                                                        <div className="flex flex-wrap gap-1.5 items-center flex-1 min-w-0">
+                                                            {event.enrollments.map((en) => (
+                                                                <span
+                                                                    key={en.id}
+                                                                    className={`status-pill-${en.status} inline-flex items-center gap-1.5 ${
+                                                                        event.isCurrent
+                                                                            ? 'text-[11px] px-2.5 py-0.5 rounded-full font-semibold shadow-sm'
+                                                                            : 'text-[10px] px-1.5 py-0.25 rounded-md font-medium'
+                                                                    } whitespace-nowrap`}
+                                                                >
+                                                                    <span
+                                                                        className={`${
+                                                                            event.isCurrent ? 'w-1.5 h-1.5' : 'w-1 h-1'
+                                                                        } rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`}
+                                                                    />
+                                                                    {en.courseName}
+                                                                    {en.courseVariant && (
+                                                                        <span className="opacity-75 font-normal"> ({en.courseVariant})</span>
+                                                                    )}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 ))}
                                             </div>
-
-                                            {/* Date — always right-aligned */}
-                                            <span className="text-[11px] text-muted font-mono whitespace-nowrap flex-shrink-0 ml-auto select-none">
-                                                {group.dateLabel}
-                                            </span>
                                         </div>
-
-                                        {/* History Sub-timeline: Detailed, color-coded, compact */}
-                                        {group.previousEnrollments.length > 0 && (() => {
-                                            const byDate = new Map<string, typeof group.previousEnrollments>();
-                                            for (const pe of group.previousEnrollments) {
-                                                const existing = byDate.get(pe.dateLabel) || [];
-                                                existing.push(pe);
-                                                byDate.set(pe.dateLabel, existing);
-                                            }
-                                            const entries = Array.from(byDate.entries());
-                                            return (
-                                                <div className="mt-1.5 ml-2 pl-3.5 border-l border-border-subtle/60 flex flex-col gap-1">
-                                                    {entries.map(([date, enrollments]) => (
-                                                        <div key={date} className="flex items-center gap-2 text-[10px]">
-                                                            <History size={10} className="text-muted/40 flex-shrink-0" />
-                                                            <span className="font-mono text-muted/60 font-semibold w-11 flex-shrink-0 select-none">
-                                                                {date}
-                                                            </span>
-                                                            <div className="flex flex-wrap gap-1 items-center">
-                                                                {enrollments.map(pe => (
-                                                                    <span
-                                                                        key={pe.id}
-                                                                        className={`status-pill-${pe.status} inline-flex items-center gap-1 text-[10px] px-1.5 py-0.25 rounded-md font-medium whitespace-nowrap`}
-                                                                    >
-                                                                        <span className={`w-1 h-1 rounded-full ${STATUS_DOT[pe.status] || 'bg-muted'} flex-shrink-0`} />
-                                                                        {pe.courseName}
-                                                                        {pe.courseVariant && (
-                                                                            <span className="opacity-75 font-normal"> ({pe.courseVariant})</span>
-                                                                        )}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
