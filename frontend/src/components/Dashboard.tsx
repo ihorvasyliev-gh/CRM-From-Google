@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, History } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 
 interface DashboardProps {
@@ -10,12 +10,31 @@ interface DashboardProps {
 
 interface RecentEnrollment {
     id: string;
+    student_id: string;
     status: string;
     created_at: string;
     updated_at: string;
     course_variant: string | null;
     students: { first_name: string; last_name: string } | null;
     courses: { name: string } | null;
+}
+
+interface GroupedActivity {
+    key: string;                // studentName + date for unique key
+    studentName: string;
+    studentId: string;
+    date: string;               // ISO date string (YYYY-MM-DD)
+    dateLabel: string;          // formatted "24 May"
+    enrollments: {
+        id: string;
+        courseName: string;
+        courseVariant: string | null;
+        status: string;
+    }[];
+    previousEnrollments: {
+        courseName: string;
+        dateLabel: string;
+    }[];
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -212,7 +231,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         queryFn: async () => {
             const { data } = await supabase
                 .from('enrollments')
-                .select('id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
+                .select('id, student_id, status, created_at, updated_at, course_variant, students(first_name, last_name), courses(name)')
                 .order('updated_at', { ascending: false })
                 .limit(50);
             return (data || []) as unknown as RecentEnrollment[];
@@ -237,13 +256,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     const loading = statsLoading || recentLoading || enrollmentsLoading;
 
-    // Filter recent activity by selected status
+    // Build flat list of enrollments based on filter
     const filteredRecent = useMemo(() => {
         if (activityFilter === 'invited' || activityFilter === 'confirmed') {
             return allEnrollments
                 .filter(en => en.status === activityFilter)
                 .map(en => ({
                     id: en.id,
+                    student_id: en.student_id,
                     status: en.status,
                     created_at: en.created_at,
                     updated_at: en.updated_at,
@@ -254,11 +274,76 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
         }
 
-        const filtered = activityFilter === 'all'
-            ? recent
-            : recent.filter(en => en.status === activityFilter);
-        return filtered.slice(0, 10);
+        if (activityFilter === 'all') return recent;
+
+        // For 'requested' and 'completed': show groups that have at least one matching status
+        // We return all recent, but grouping logic will handle filtering
+        return recent;
     }, [recent, allEnrollments, activityFilter]);
+
+    // Group enrollments by student + day
+    const groupedActivity = useMemo((): GroupedActivity[] => {
+        const source = filteredRecent;
+        const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+
+        // Build groups keyed by studentId + date
+        const groupMap = new Map<string, GroupedActivity>();
+
+        for (const en of source) {
+            const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
+            const studentId = en.student_id || en.id;
+            const dateObj = new Date(en.updated_at || en.created_at);
+            const dateKey = dateObj.toISOString().slice(0, 10); // YYYY-MM-DD
+            const dateLabel = dateObj.toLocaleDateString('en-IE', dateOpts);
+            const groupKey = `${studentId}__${dateKey}`;
+
+            if (!groupMap.has(groupKey)) {
+                groupMap.set(groupKey, {
+                    key: groupKey,
+                    studentName,
+                    studentId,
+                    date: dateKey,
+                    dateLabel,
+                    enrollments: [],
+                    previousEnrollments: [],
+                });
+            }
+
+            const group = groupMap.get(groupKey)!;
+            group.enrollments.push({
+                id: en.id,
+                courseName: en.courses?.name || 'Unknown Course',
+                courseVariant: en.course_variant,
+                status: en.status,
+            });
+        }
+
+        // For each group, find this student's enrollments on OTHER days as "previous"
+        const allGroupsList = Array.from(groupMap.values());
+        for (const group of allGroupsList) {
+            const otherGroups = allGroupsList.filter(
+                g => g.studentId === group.studentId && g.date !== group.date && g.date < group.date
+            );
+            for (const other of otherGroups) {
+                for (const en of other.enrollments) {
+                    group.previousEnrollments.push({
+                        courseName: en.courseName,
+                        dateLabel: other.dateLabel,
+                    });
+                }
+            }
+        }
+
+        // Sort by date descending
+        let sorted = allGroupsList.sort((a, b) => b.date.localeCompare(a.date));
+
+        // Apply status filter at group level (for non-invited/confirmed filters)
+        if (activityFilter !== 'all' && activityFilter !== 'invited' && activityFilter !== 'confirmed') {
+            sorted = sorted.filter(g => g.enrollments.some(en => en.status === activityFilter));
+        }
+
+        return sorted;
+    }, [filteredRecent, activityFilter]);
 
     // Counts per filter for pill badges
     const filterCounts = useMemo(() => {
@@ -389,52 +474,70 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                         <div className="space-y-1">
                             {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
                         </div>
-                    ) : filteredRecent.length === 0 ? (
+                    ) : groupedActivity.length === 0 ? (
                         <div className="text-center py-8">
                             <Clock size={40} className="mx-auto mb-2 text-muted/50" />
                             <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                         </div>
                     ) : (
-                        <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
-                            {filteredRecent.map((en, i) => (
+                        <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+                            {groupedActivity.map((group, i) => (
                                 <div
-                                    key={en.id}
-                                    className="flex items-center justify-between gap-4 p-3.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:scale-[1.005] hover:shadow-sm transition-all duration-500 ease-spring group cursor-default"
+                                    key={group.key}
+                                    className="p-3.5 rounded-xl hover:bg-surface-elevated/80 border border-transparent hover:border-border-subtle hover:scale-[1.003] hover:shadow-sm transition-all duration-500 ease-spring group cursor-default"
                                     style={{ animationDelay: `${i * 50}ms` }}
                                 >
-                                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                                        {/* Timeline dot */}
-                                        <div className="flex-shrink-0 relative">
-                                            <span className={`w-2.5 h-2.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} block ring-[3px] ring-background`} />
-                                        </div>
+                                    {/* Header: Student name + date */}
+                                    <div className="flex items-center justify-between gap-3 mb-2">
+                                        <p className="text-sm font-semibold text-primary truncate tracking-tight">
+                                            {group.studentName}
+                                        </p>
+                                        <span className="text-[11px] text-muted font-mono whitespace-nowrap opacity-75 flex-shrink-0">
+                                            {group.dateLabel}
+                                        </span>
+                                    </div>
 
-                                        {/* Student details */}
-                                        <div className="min-w-0 flex-1 sm:grid sm:grid-cols-2 sm:gap-4 sm:items-center">
-                                            <div>
-                                                <p className="text-sm font-semibold text-primary truncate tracking-tight">
-                                                    {en.students?.first_name} {en.students?.last_name}
-                                                </p>
-                                                {en.course_variant && (
-                                                    <p className="text-[10px] text-muted tracking-wide truncate mt-0.5">{en.course_variant}</p>
+                                    {/* Course tags with individual statuses */}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {group.enrollments.map(en => (
+                                            <span
+                                                key={en.id}
+                                                className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-semibold tracking-wide ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}
+                                            >
+                                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
+                                                {en.courseName}
+                                                {en.courseVariant && (
+                                                    <span className="opacity-60">({en.courseVariant})</span>
                                                 )}
-                                            </div>
-                                            <div className="hidden sm:block">
-                                                <p className="text-sm text-muted/95 font-medium truncate">
-                                                    {en.courses?.name}
-                                                </p>
-                                            </div>
-                                        </div>
+                                            </span>
+                                        ))}
                                     </div>
 
-                                    {/* Status badge and Date */}
-                                    <div className="flex items-center gap-4 flex-shrink-0">
-                                        <span className={`text-[10px] px-2.5 py-0.75 rounded-full font-bold uppercase tracking-wider ${STATUS_BG[en.status] || 'bg-surface-elevated text-muted'}`}>
-                                            {en.status}
-                                        </span>
-                                        <span className="text-[11px] text-muted font-mono whitespace-nowrap opacity-75 min-w-[50px] text-right">
-                                            {new Date(en.updated_at || en.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}
-                                        </span>
-                                    </div>
+                                    {/* History hint for previous registrations */}
+                                    {group.previousEnrollments.length > 0 && (
+                                        <div className="flex items-start gap-1.5 mt-2 text-[10px] text-muted/70 leading-relaxed">
+                                            <History size={10} className="flex-shrink-0 mt-0.5 opacity-60" />
+                                            <span>
+                                                Also registered for:{' '}
+                                                {(() => {
+                                                    // Group previous enrollments by date
+                                                    const byDate = new Map<string, string[]>();
+                                                    for (const pe of group.previousEnrollments) {
+                                                        const existing = byDate.get(pe.dateLabel) || [];
+                                                        existing.push(pe.courseName);
+                                                        byDate.set(pe.dateLabel, existing);
+                                                    }
+                                                    return Array.from(byDate.entries()).map(([date, courses], idx) => (
+                                                        <span key={date}>
+                                                            {idx > 0 && '; '}
+                                                            <span className="text-muted">{courses.join(', ')}</span>
+                                                            <span className="opacity-50"> ({date})</span>
+                                                        </span>
+                                                    ));
+                                                })()}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
