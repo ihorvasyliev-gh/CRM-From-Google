@@ -24,7 +24,7 @@
         --status-success: 0.72 0.17 150;
         --status-warning: 0.79 0.16 75;
         --status-danger: 0.62 0.22 25;
-        --status-info: 0.65 0.18 245;
+        --status-info: 0.65 0.18 290;
 
         --glass-bg: rgba(255, 255, 255, 0.7);
         --glass-border: rgba(228, 228, 231, 0.5);
@@ -76,7 +76,7 @@
         --status-success: 0.82 0.14 150;
         --status-warning: 0.86 0.13 75;
         --status-danger: 0.73 0.18 25;
-        --status-info: 0.75 0.14 245;
+        --status-info: 0.75 0.14 290;
 
         --glass-bg: rgba(24, 24, 27, 0.7);
         --glass-border: rgba(63, 63, 70, 0.5);
@@ -525,10 +525,10 @@ textarea {
 }
 
 .text-status-invited {
-    color: oklch(0.45 0.16 245);
+    color: oklch(0.45 0.16 290);
 }
 .dark .text-status-invited {
-    color: oklch(0.82 0.12 245);
+    color: oklch(0.82 0.12 290);
 }
 
 .text-status-confirmed {
@@ -573,12 +573,12 @@ textarea {
 
 .status-pill-invited {
     background-color: oklch(var(--status-info) / 0.12);
-    color: oklch(0.40 0.16 245);
+    color: oklch(0.40 0.16 290);
     border: 1px solid oklch(var(--status-info) / 0.25);
 }
 .dark .status-pill-invited {
     background-color: oklch(var(--status-info) / 0.15);
-    color: oklch(0.92 0.08 245);
+    color: oklch(0.92 0.08 290);
     border: 1px solid oklch(var(--status-info) / 0.35);
 }
 

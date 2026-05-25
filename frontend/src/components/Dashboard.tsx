@@ -40,6 +40,14 @@ const STATUS_DOT: Record<string, string> = {
     rejected: 'bg-danger',
 };
 
+const FILTER_ACTIVE_CLASSES: Record<ActivityFilter, string> = {
+    all: 'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105',
+    requested: 'status-pill-requested border-warning/50 font-bold scale-105 shadow-sm',
+    invited: 'status-pill-invited border-info/50 font-bold scale-105 shadow-sm',
+    confirmed: 'status-pill-confirmed border-success/50 font-bold scale-105 shadow-sm',
+    completed: 'status-pill-completed border-brand-500/50 font-bold scale-105 shadow-sm',
+};
+
 
 // ─── Skeleton Components ─────────────────────────────────────
 function SkeletonStatCard() {
@@ -520,21 +528,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             <Filter size={12} className="text-muted" />
                         </div>
                         {/* Filter pills */}
+                        {/* Filter pills & Legend */}
                         {!loading && allEnrollments.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-4">
-                                {ACTIVITY_FILTERS.map(f => (
-                                    <button
-                                        key={f.key}
-                                        onClick={() => setActivityFilter(f.key)}
-                                        className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all duration-300 ease-spring ${
-                                            activityFilter === f.key
-                                                ? 'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105'
-                                                : 'bg-surface-elevated/50 text-muted hover:text-primary border-border-subtle hover:border-border-strong hover:scale-105'
-                                        }`}
-                                    >
-                                        {f.label} ({filterCounts[f.key]})
-                                    </button>
-                                ))}
+                            <div className="flex flex-wrap gap-1.5 mb-4 items-center">
+                                {ACTIVITY_FILTERS.map(f => {
+                                    const isActive = activityFilter === f.key;
+                                    return (
+                                        <button
+                                            key={f.key}
+                                            onClick={() => setActivityFilter(f.key)}
+                                            className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all duration-300 ease-spring flex items-center gap-1.5 ${
+                                                isActive
+                                                    ? FILTER_ACTIVE_CLASSES[f.key]
+                                                    : 'bg-surface-elevated/50 text-muted hover:text-primary border-border-subtle hover:border-border-strong hover:scale-105'
+                                            }`}
+                                        >
+                                            {f.key !== 'all' && (
+                                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[f.key]} ${isActive ? '' : 'opacity-60'} flex-shrink-0`} />
+                                            )}
+                                            {f.label} ({filterCounts[f.key]})
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                         {loading ? (
