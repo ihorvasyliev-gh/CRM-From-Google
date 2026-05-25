@@ -442,9 +442,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     ];
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 grid-rows-auto lg:grid-cols-3 lg:grid-rows-[auto_1fr] gap-6 flex-1 min-h-0">
             {/* Top Row: Stats Cards (Full Width) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:col-span-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:col-span-3 flex-shrink-0">
                 {loading ? (
                     <>{Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}</>
                 ) : (
@@ -474,10 +474,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Left Column: Recent Activity (Col-span 2) */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 min-h-0 flex flex-col">
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 h-full"
+                    className="p-5 flex-1 min-h-0"
                 >
                     <div className="flex flex-col h-full">
                         <div className="flex items-center justify-between mb-4">
@@ -586,11 +586,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Right Column: Quick Actions + Enrollment Status (Col-span 1) */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
+            <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
                 {/* Quick Actions */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.12)"
-                    className="p-5"
+                    className="p-5 flex-shrink-0"
                 >
                     <div className="flex flex-col justify-between h-full">
                         <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -643,23 +643,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 {/* Enrollment Status */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 flex-1 flex flex-col justify-between"
+                    className="p-5 flex-1 min-h-0"
                 >
-                    <div>
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2">
+                    <div className="flex flex-col h-full">
+                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-5 flex items-center gap-2 flex-shrink-0">
                             <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
                         </h3>
                         {loading ? (
                             <SkeletonStatusBreakdown />
                         ) : totalStatus === 0 ? (
-                            <div className="text-center py-8">
-                                <GraduationCap size={40} className="mx-auto mb-2 text-muted/50" />
+                            <div className="text-center py-8 flex-1 flex flex-col justify-center items-center">
+                                <GraduationCap size={40} className="mx-auto mb-2 text-muted/50 flex-shrink-0" />
                                 <p className="text-sm text-muted">No enrollments yet</p>
                             </div>
                         ) : (
-                            <div className="space-y-5">
+                            <div className="space-y-4 flex-1 min-h-0 flex flex-col justify-between">
                                 {/* Visual bar */}
-                                <div className="flex h-3.5 items-center bg-surface-elevated/50 rounded-full p-[2px] border border-border-subtle/30 backdrop-blur-sm">
+                                <div className="flex h-3.5 items-center bg-surface-elevated/50 rounded-full p-[2px] border border-border-subtle/30 backdrop-blur-sm flex-shrink-0">
                                     {statusItems.map(s => {
                                         const count = statusBreakdown[s.key] || 0;
                                         if (count === 0) return null;
@@ -674,7 +674,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     })}
                                 </div>
                                 {/* Legend */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-3 overflow-y-auto flex-1 min-h-0 pr-1 mt-2">
                                     {statusItems.map(s => {
                                         const count = statusBreakdown[s.key] || 0;
                                         const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;

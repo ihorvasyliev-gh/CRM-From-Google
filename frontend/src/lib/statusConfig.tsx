@@ -20,7 +20,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-warning',
         bg: 'bg-warning/10',
         border: 'border-warning/20',
-        pillBg: 'bg-warning/15 text-amber-800 dark:text-amber-200',
+        pillBg: 'status-pill-requested',
         gradient: 'from-warning to-amber-500',
     },
     invited: {
@@ -29,7 +29,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-info',
         bg: 'bg-info/10',
         border: 'border-info/20',
-        pillBg: 'bg-info/15 text-blue-800 dark:text-blue-200',
+        pillBg: 'status-pill-invited',
         gradient: 'from-info to-blue-500',
     },
     confirmed: {
@@ -38,7 +38,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-success',
         bg: 'bg-success/10',
         border: 'border-success/20',
-        pillBg: 'bg-success/15 text-emerald-800 dark:text-emerald-200',
+        pillBg: 'status-pill-confirmed',
         gradient: 'from-success to-emerald-500',
     },
     completed: {
@@ -47,7 +47,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-brand-500',
         bg: 'bg-brand-500/10',
         border: 'border-brand-500/20',
-        pillBg: 'bg-brand-500/15 text-brand-800 dark:text-brand-200',
+        pillBg: 'status-pill-completed',
         gradient: 'from-brand-500 to-brand-400',
     },
     withdrawn: {
@@ -56,7 +56,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-muted',
         bg: 'bg-muted/10',
         border: 'border-muted/20',
-        pillBg: 'bg-muted/15 text-gray-800 dark:text-gray-200',
+        pillBg: 'status-pill-withdrawn',
         gradient: 'from-muted to-surface-500',
     },
     rejected: {
@@ -65,7 +65,7 @@ export const STATUS_CONFIG: Record<string, {
         color: 'text-danger',
         bg: 'bg-danger/10',
         border: 'border-danger/20',
-        pillBg: 'bg-danger/15 text-red-800 dark:text-red-200',
+        pillBg: 'status-pill-rejected',
         gradient: 'from-danger to-red-500',
     },
 };

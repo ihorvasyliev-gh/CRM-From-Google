@@ -515,3 +515,58 @@ textarea {
     margin-left: auto !important;
     margin-right: auto !important;
 }
+
+/* ===== Status Pill Utility Classes for Contrast ===== */
+.status-pill-requested {
+    background-color: oklch(var(--status-warning) / 0.15);
+    color: oklch(0.42 0.15 75);
+}
+.dark .status-pill-requested {
+    background-color: oklch(var(--status-warning) / 0.18);
+    color: oklch(0.86 0.11 75);
+}
+
+.status-pill-invited {
+    background-color: oklch(var(--status-info) / 0.15);
+    color: oklch(0.45 0.16 245);
+}
+.dark .status-pill-invited {
+    background-color: oklch(var(--status-info) / 0.18);
+    color: oklch(0.82 0.12 245);
+}
+
+.status-pill-confirmed {
+    background-color: oklch(var(--status-success) / 0.15);
+    color: oklch(0.42 0.15 150);
+}
+.dark .status-pill-confirmed {
+    background-color: oklch(var(--status-success) / 0.18);
+    color: oklch(0.82 0.12 150);
+}
+
+.status-pill-completed {
+    background-color: oklch(var(--accent-primary) / 0.15);
+    color: oklch(0.45 0.20 260);
+}
+.dark .status-pill-completed {
+    background-color: oklch(var(--accent-primary) / 0.18);
+    color: oklch(0.85 0.12 260);
+}
+
+.status-pill-withdrawn {
+    background-color: oklch(var(--text-muted) / 0.15);
+    color: oklch(0.4 0 0);
+}
+.dark .status-pill-withdrawn {
+    background-color: oklch(var(--text-muted) / 0.18);
+    color: oklch(0.8 0 0);
+}
+
+.status-pill-rejected {
+    background-color: oklch(var(--status-danger) / 0.15);
+    color: oklch(0.42 0.18 25);
+}
+.dark .status-pill-rejected {
+    background-color: oklch(var(--status-danger) / 0.18);
+    color: oklch(0.85 0.12 25);
+}

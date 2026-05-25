@@ -459,7 +459,13 @@ function App() {
                 </aside>
 
                 {/* Main Content */}
-                <div className={`flex-1 flex flex-col h-screen relative z-10 min-w-0 ${activeTab === 'enrollments' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                <div className={`flex-1 flex flex-col h-screen relative z-10 min-w-0 ${
+                    activeTab === 'enrollments'
+                        ? 'overflow-hidden'
+                        : activeTab === 'dashboard'
+                            ? 'overflow-y-auto lg:overflow-hidden'
+                            : 'overflow-y-auto'
+                }`}>
                     {/* Notification Permission Banner */}
                     {showNotifBanner && (
                         <div className="bg-brand-500/10 border-b border-brand-500/20 px-4 py-2.5 flex items-center justify-between gap-3 animate-fadeIn">
@@ -526,7 +532,13 @@ function App() {
                     </header>
 
                     {/* Page Content */}
-                    <main className={`flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-col min-h-0 ${activeTab === 'enrollments' ? 'overflow-hidden' : ''}`}>
+                    <main className={`flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-col min-h-0 ${
+                        activeTab === 'enrollments'
+                            ? 'overflow-hidden'
+                            : activeTab === 'dashboard'
+                                ? 'lg:overflow-hidden'
+                                : ''
+                    }`}>
                         <Suspense fallback={
                             <div className="w-full h-full flex items-center justify-center min-h-[50vh]">
                                 <div className="flex flex-col items-center gap-3">
