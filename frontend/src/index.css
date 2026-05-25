@@ -24,7 +24,7 @@
         --status-success: 0.72 0.17 150;
         --status-warning: 0.79 0.16 75;
         --status-danger: 0.62 0.22 25;
-        --status-info: 0.65 0.18 290;
+        --status-info: 0.65 0.18 200;
 
         --glass-bg: rgba(255, 255, 255, 0.7);
         --glass-border: rgba(228, 228, 231, 0.5);
@@ -76,7 +76,7 @@
         --status-success: 0.82 0.14 150;
         --status-warning: 0.86 0.13 75;
         --status-danger: 0.73 0.18 25;
-        --status-info: 0.75 0.14 290;
+        --status-info: 0.75 0.14 200;
 
         --glass-bg: rgba(24, 24, 27, 0.7);
         --glass-border: rgba(63, 63, 70, 0.5);
@@ -525,24 +525,24 @@ textarea {
 }
 
 .text-status-invited {
-    color: oklch(0.45 0.16 290);
+    color: oklch(0.45 0.20 260);
 }
 .dark .text-status-invited {
-    color: oklch(0.82 0.12 290);
+    color: oklch(0.85 0.12 260);
 }
 
 .text-status-confirmed {
-    color: oklch(0.42 0.15 150);
+    color: oklch(0.45 0.16 200);
 }
 .dark .text-status-confirmed {
-    color: oklch(0.82 0.12 150);
+    color: oklch(0.82 0.12 200);
 }
 
 .text-status-completed {
-    color: oklch(0.45 0.20 260);
+    color: oklch(0.42 0.15 150);
 }
 .dark .text-status-completed {
-    color: oklch(0.85 0.12 260);
+    color: oklch(0.82 0.12 150);
 }
 
 .text-status-withdrawn {
@@ -572,36 +572,36 @@ textarea {
 }
 
 .status-pill-invited {
-    background-color: oklch(var(--status-info) / 0.12);
-    color: oklch(0.40 0.16 290);
-    border: 1px solid oklch(var(--status-info) / 0.25);
-}
-.dark .status-pill-invited {
-    background-color: oklch(var(--status-info) / 0.15);
-    color: oklch(0.92 0.08 290);
-    border: 1px solid oklch(var(--status-info) / 0.35);
-}
-
-.status-pill-confirmed {
-    background-color: oklch(var(--status-success) / 0.12);
-    color: oklch(0.38 0.15 150);
-    border: 1px solid oklch(var(--status-success) / 0.25);
-}
-.dark .status-pill-confirmed {
-    background-color: oklch(var(--status-success) / 0.15);
-    color: oklch(0.92 0.08 150);
-    border: 1px solid oklch(var(--status-success) / 0.35);
-}
-
-.status-pill-completed {
     background-color: oklch(var(--accent-primary) / 0.12);
     color: oklch(0.40 0.20 260);
     border: 1px solid oklch(var(--accent-primary) / 0.25);
 }
-.dark .status-pill-completed {
+.dark .status-pill-invited {
     background-color: oklch(var(--accent-primary) / 0.15);
     color: oklch(0.92 0.08 260);
     border: 1px solid oklch(var(--accent-primary) / 0.35);
+}
+
+.status-pill-confirmed {
+    background-color: oklch(var(--status-info) / 0.12);
+    color: oklch(0.40 0.16 200);
+    border: 1px solid oklch(var(--status-info) / 0.25);
+}
+.dark .status-pill-confirmed {
+    background-color: oklch(var(--status-info) / 0.15);
+    color: oklch(0.92 0.08 200);
+    border: 1px solid oklch(var(--status-info) / 0.35);
+}
+
+.status-pill-completed {
+    background-color: oklch(var(--status-success) / 0.12);
+    color: oklch(0.38 0.15 150);
+    border: 1px solid oklch(var(--status-success) / 0.25);
+}
+.dark .status-pill-completed {
+    background-color: oklch(var(--status-success) / 0.15);
+    color: oklch(0.92 0.08 150);
+    border: 1px solid oklch(var(--status-success) / 0.35);
 }
 
 .status-pill-withdrawn {
