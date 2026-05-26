@@ -66,6 +66,7 @@ const EnrollmentCard = function EnrollmentCard({
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
     
     useEffect(() => {
         if (status === 'invited') {
@@ -74,13 +75,21 @@ const EnrollmentCard = function EnrollmentCard({
         }
     }, [status]);
 
+    useEffect(() => {
+        const media = window.matchMedia('(max-width: 1023px)');
+        setIsMobile(media.matches);
+        const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+        media.addEventListener('change', listener);
+        return () => media.removeEventListener('change', listener);
+    }, []);
+
     const cfg = STATUS_CONFIG[status];
     const draggableData = useMemo(() => ({ status }), [status]);
 
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: enrollment.id,
         data: draggableData,
-        disabled: isOverlay
+        disabled: isOverlay || isMobile
     });
 
     const style = useMemo(() => ({
@@ -114,7 +123,9 @@ const EnrollmentCard = function EnrollmentCard({
             className={`group relative p-3 rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]'
-                    : 'cursor-grab'
+                    : isMobile
+                        ? ''
+                        : 'cursor-grab'
             } ${isSelected
                 ? 'border-brand-500 bg-brand-50/80 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500'
                 : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
@@ -142,7 +153,7 @@ const EnrollmentCard = function EnrollmentCard({
                         }}
                         className={`transition-all ${enrollment.is_priority
                             ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                            : 'text-muted/30 hover:text-warning/60 opacity-0 group-hover:opacity-100'
+                            : 'text-muted/30 hover:text-warning/60 lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
                             }`}
                     >
                         <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
@@ -161,7 +172,7 @@ const EnrollmentCard = function EnrollmentCard({
                         <button
                             title="Flag student (e.g. failed a course)"
                             onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                            className="text-muted/30 hover:text-orange-400 transition-colors opacity-0 group-hover:opacity-100"
+                            className="text-muted/30 hover:text-orange-400 transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
                         >
                             <AlertTriangle size={14} />
                         </button>
@@ -366,7 +377,7 @@ const EnrollmentCard = function EnrollmentCard({
                         onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
                         className={`p-1 rounded transition-colors border ${enrollment.notes
                             ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
-                            : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
+                            : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
                             }`}
                     >
                         <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
@@ -389,7 +400,7 @@ const EnrollmentCard = function EnrollmentCard({
                 <button
                     title="View Student Details"
                     onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                    className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100"
+                    className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
                 >
                     <Info size={14} />
                 </button>

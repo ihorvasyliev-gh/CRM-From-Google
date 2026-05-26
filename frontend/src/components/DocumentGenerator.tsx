@@ -777,8 +777,8 @@ export default function DocumentGenerator() {
                 {/* Add Variable Form */}
                 <div className="px-5 pb-5 pt-4">
                     <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Add New Variable</p>
-                    <div className="flex items-end gap-3">
-                        <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                        <div className="w-full sm:flex-1">
                             <label className="block text-[11px] text-muted mb-1">Variable Name</label>
                             <input
                                 type="text"
@@ -788,7 +788,7 @@ export default function DocumentGenerator() {
                                 className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                             />
                         </div>
-                        <div className="flex-1">
+                        <div className="w-full sm:flex-1">
                             <label className="block text-[11px] text-muted mb-1">Value</label>
                             <input
                                 type="text"
@@ -802,7 +802,7 @@ export default function DocumentGenerator() {
                         <button
                             onClick={handleAddVariable}
                             disabled={!newVarKey.trim() || addingVar}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0 ${
+                            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all w-full sm:w-auto flex-shrink-0 ${
                                 !newVarKey.trim() || addingVar
                                     ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
                                     : 'text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm hover:shadow-md hover:shadow-emerald-500/25'

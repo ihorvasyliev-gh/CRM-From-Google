@@ -117,7 +117,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">First Name *</label>
                             <input
@@ -151,7 +151,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Phone</label>
                             <input

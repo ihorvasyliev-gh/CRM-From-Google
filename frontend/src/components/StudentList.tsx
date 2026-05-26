@@ -295,7 +295,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                             <td className="px-5 py-3.5 text-muted hidden md:table-cell">{student.phone}</td>
                                             <td className="px-5 py-3.5 text-muted hidden lg:table-cell">{student.eircode}</td>
                                             <td className="px-5 py-3.5">
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-all" onClick={e => e.stopPropagation()}>
                                                     <button
                                                         onClick={() => openEdit(student)}
                                                         className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"

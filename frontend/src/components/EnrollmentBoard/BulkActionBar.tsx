@@ -63,7 +63,7 @@ export default function BulkActionBar({
                 </div>
             )}
 
-            <div className="glass-dark rounded-2xl shadow-float px-4 py-2.5 flex items-center gap-1.5">
+            <div className="glass-dark rounded-2xl shadow-float px-4 py-2.5 flex flex-wrap justify-center items-center gap-1.5 w-[calc(100vw-2rem)] sm:w-auto max-w-[450px] sm:max-w-none">
                 <button 
                     onClick={() => setShowList(!showList)}
                     className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white leading-none rounded-lg transition-colors whitespace-nowrap ${showList ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}

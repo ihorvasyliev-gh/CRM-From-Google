@@ -511,7 +511,7 @@ export default function OutcomesList() {
 
             {/* Bulk Action Bar */}
             {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/20 px-5 py-3 flex items-center gap-3 animate-slideUp">
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/20 px-4 py-3 flex flex-wrap justify-center items-center gap-3 animate-slideUp w-[calc(100vw-2rem)] sm:w-auto max-w-[480px] sm:max-w-none">
                     <span className="text-sm font-bold text-primary">
                         {selectedIds.size} selected
                     </span>
@@ -530,7 +530,11 @@ export default function OutcomesList() {
                         {sending ? (
                             <><Loader2 size={12} className="animate-spin" /> Moving...</>
                         ) : (
-                            <><Mail size={12} /> Send Email & Move to Pending</>
+                            <>
+                                <Mail size={12} />
+                                <span className="hidden sm:inline">Send Email & Move to Pending</span>
+                                <span className="inline sm:hidden">Send Email</span>
+                            </>
                         )}
                     </button>
                     <button
