@@ -177,7 +177,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         const groups = new Map<string, EnrollmentRow[]>();
 
         requested.forEach(e => {
-            const key = `${e.course_id}_${(e.course_variant || '').toLowerCase().trim()}`;
+            const cleaned = cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase().trim();
+            const key = `${e.course_id}_${cleaned}`;
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(e);
         });
