@@ -109,14 +109,14 @@ const StatusColumn = function StatusColumn({
         >
             <div className={`sticky top-0 z-10 border-b ${cfg.border} bg-surface-elevated/95 backdrop-blur-sm`}>
                 <div className={`h-[3px] w-full bg-gradient-to-r ${cfg.gradient}`} />
-                <div className="px-3.5 py-2.5">
+                <div className="px-2 py-2 md:px-3.5 md:py-2.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <span className={`${cfg.color} flex items-center flex-shrink-0`}>
+                            <span className={`${cfg.color} flex items-center flex-shrink-0 scale-90 md:scale-100`}>
                                 {cfg.icon}
                             </span>
-                            <h3 className={`text-sm font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</h3>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
+                            <h3 className={`text-xs md:text-sm font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</h3>
+                            <span className={`text-[10px] md:text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                 {items.length}
                             </span>
                             {status === 'requested' && priorityCount > 0 && (

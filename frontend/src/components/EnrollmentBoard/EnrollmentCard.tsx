@@ -94,9 +94,7 @@ const EnrollmentCard = function EnrollmentCard({
 
     const style = useMemo(() => ({
         opacity: isDragging && !isOverlay ? 0.3 : 1,
-        contentVisibility: (isOverlay || showCompleted) ? 'visible' as const : 'auto' as const,
-        containIntrinsicSize: '0 100px',
-    }), [isDragging, isOverlay, showCompleted]);
+    }), [isDragging, isOverlay]);
 
     // п.3: Timer level — grey / orange / red
     const timerLevel = useMemo(() => {
@@ -120,7 +118,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative p-3 rounded-xl border border-l-4 ${leftBorder} ${
+            className={`group relative p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]'
                     : isMobile
@@ -132,9 +130,9 @@ const EnrollmentCard = function EnrollmentCard({
             } transition-all duration-200 animate-card-drop-in`}
             onClick={() => toggleSelect(enrollment.id)}
         >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2 md:gap-3">
                 {/* Left Actions Column */}
-                <div className="mt-0.5 flex flex-col items-center gap-2 flex-shrink-0">
+                <div className="mt-0.5 flex flex-col items-center gap-1.5 md:gap-2 flex-shrink-0">
                     <div
                         className={`w-[16px] h-[16px] rounded flex items-center justify-center border transition-all ${isSelected
                             ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
@@ -179,15 +177,15 @@ const EnrollmentCard = function EnrollmentCard({
                     )}
                 </div>
 
-                <div className="flex-1 min-w-0 flex flex-col pr-6">
+                <div className="flex-1 min-w-0 flex flex-col pr-5 md:pr-6">
                     {/* Header: Name & Badges */}
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <p className="font-bold text-primary text-[16px] leading-tight">
+                            <p className="font-bold text-primary text-[14px] md:text-[16px] leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
 
                             {/* Course Pill — inline with name */}
-                            <span className={`inline-block text-[12px] font-medium px-2 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
+                            <span className={`inline-block text-[10px] md:text-[12px] font-medium px-1.5 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
                                 {getCoursePill(enrollment)}
                             </span>
                             
@@ -206,10 +204,10 @@ const EnrollmentCard = function EnrollmentCard({
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                                         title="Click to view completed courses"
-                                        className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                                        className="flex items-center justify-center gap-0.5 px-1 py-0.5 md:px-1.5 md:py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
                                     >
-                                        <Award size={12} strokeWidth={2.5} />
-                                        <span className="text-[11px] font-bold">{completedCourses.length}</span>
+                                        <Award size={isMobile ? 11 : 12} strokeWidth={2.5} />
+                                        <span className="text-[10px] md:text-[11px] font-bold">{completedCourses.length}</span>
                                     </button>
                                     
                                     {showCompleted && createPortal(
@@ -262,23 +260,23 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
 
                     {/* Contact Info */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[13px] text-primary/80 truncate">
+                    <div className="mt-1 md:mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-[11px] md:text-[13px] text-primary/80 truncate">
                         {enrollment.students?.email && (
                             <div className="flex items-center gap-1.5 truncate min-w-0">
-                                <Mail size={12} className="flex-shrink-0 text-primary/60" />
+                                <Mail size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
                                 <span className="truncate">{enrollment.students.email}</span>
                             </div>
                         )}
                         {enrollment.students?.phone && (
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <Phone size={12} className="flex-shrink-0 text-primary/60" />
+                                <Phone size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
                                 <span>{enrollment.students.phone}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Info row */}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-primary/75">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 md:gap-x-2 gap-y-1 text-[10px] md:text-[12px] text-primary/75">
                         {/* п.7: Registration date with relative time */}
                         <span className="flex items-center gap-1">
                             {formatDateLong(enrollment.created_at)}
@@ -290,7 +288,7 @@ const EnrollmentCard = function EnrollmentCard({
                             <>
                                 <span>•</span>
                                 <span className="text-status-invited font-medium flex items-center gap-1 bg-info/8 px-1.5 py-0.5 rounded">
-                                    <Send size={11} />
+                                    <Send size={isMobile ? 10 : 11} />
                                     {formatDateLong(enrollment.invited_date)}
                                 </span>
                             </>
@@ -299,7 +297,7 @@ const EnrollmentCard = function EnrollmentCard({
                             <>
                                 <span>•</span>
                                 <span className="text-status-confirmed font-medium flex items-center gap-1 bg-success/8 px-1.5 py-0.5 rounded">
-                                    <CheckCircle size={11} />
+                                    <CheckCircle size={isMobile ? 10 : 11} />
                                     {formatDateLong(enrollment.confirmed_date)}
                                 </span>
                             </>
@@ -308,7 +306,7 @@ const EnrollmentCard = function EnrollmentCard({
                             <>
                                 <span>•</span>
                                 <span className="text-status-completed font-medium flex items-center gap-1 bg-[oklch(var(--status-completed)/0.08)] px-1.5 py-0.5 rounded">
-                                    <GraduationCap size={11} />
+                                    <GraduationCap size={isMobile ? 10 : 11} />
                                     {formatDateLong(enrollment.completed_date)}
                                 </span>
                             </>
@@ -326,7 +324,7 @@ const EnrollmentCard = function EnrollmentCard({
                                 const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                                 return (
                                     <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold animate-pulse-timer" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                        <Timer size={12} strokeWidth={2.5} />
+                                        <Timer size={isMobile ? 11 : 12} strokeWidth={2.5} />
                                         <span>Expired</span>
                                     </div>
                                 );
@@ -347,7 +345,7 @@ const EnrollmentCard = function EnrollmentCard({
                                     }`}
                                     title={`${timerText} remaining (${days}-day deadline)`}
                                 >
-                                    <Timer size={12} />
+                                    <Timer size={isMobile ? 11 : 12} />
                                     <span>{timerText}</span>
                                 </div>
                             );
@@ -356,8 +354,8 @@ const EnrollmentCard = function EnrollmentCard({
 
                     {/* Notes */}
                     {enrollment.notes && (
-                        <div className="mt-1.5 flex items-start gap-1.5 text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-2 rounded-md shadow-sm">
-                            <Pencil size={12} className="mt-0.5 flex-shrink-0 text-brand-500" />
+                        <div className="mt-1 md:mt-1.5 flex items-start gap-1 md:gap-1.5 text-[11px] md:text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-1.5 md:p-2 rounded-md shadow-sm">
+                            <Pencil size={isMobile ? 10 : 12} className="mt-0.5 flex-shrink-0 text-brand-500" />
                             <p className="italic leading-relaxed">{enrollment.notes}</p>
                         </div>
                     )}
@@ -365,7 +363,7 @@ const EnrollmentCard = function EnrollmentCard({
             </div>
 
             {/* Right Quick Actions */}
-            <div className="absolute top-3 right-3 flex flex-col items-center gap-1.5 z-10">
+            <div className="absolute top-2 right-2 md:top-3 md:right-3 flex flex-col items-center gap-1 md:gap-1.5 z-10">
                 {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
                 <div
                     className="relative"

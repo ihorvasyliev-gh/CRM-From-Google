@@ -374,7 +374,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     }, [byStatus]);
 
     return (
-        <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col gap-2 md:gap-4 overflow-hidden">
             <FilterBar
                 enrollmentCount={enrollments.length}
                 filteredCount={filteredEnrollments.length}
@@ -405,7 +405,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onDragCancel={handleDragCancel}
                 measuring={measuringConfig}
             >
-                <div className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-4 snap-x snap-mandatory scrollbar-none pb-2">
+                <div className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2">
                     {PIPELINE_STATUSES.map(status => (
                         <div
                             key={status}
