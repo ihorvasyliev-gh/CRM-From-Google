@@ -168,10 +168,9 @@ const EnrollmentCard = function EnrollmentCard({
                     )}
                 </div>
 
-                <div className="flex-1 min-w-0 flex flex-col">
-                    {/* Header: Name, Badges & Actions */}
-                    <div className="flex justify-between items-start gap-2">
-                        <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                <div className="flex-1 min-w-0 flex flex-col pr-6">
+                    {/* Header: Name & Badges */}
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                             <p className="font-bold text-primary text-[16px] leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
@@ -250,49 +249,6 @@ const EnrollmentCard = function EnrollmentCard({
                             )}
 
                         </div>
-
-                        {/* Right Quick Actions */}
-                        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                            {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
-                            <div
-                                className="relative"
-                                onMouseEnter={() => enrollment.notes && setNoteTooltipVisible(true)}
-                                onMouseLeave={() => setNoteTooltipVisible(false)}
-                            >
-                                <button
-                                    title={enrollment.notes ? '' : 'Add Note'}
-                                    onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                                    className={`p-1 rounded transition-colors border ${enrollment.notes
-                                        ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
-                                        : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
-                                        }`}
-                                >
-                                    <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
-                                </button>
-                                {/* Note preview tooltip — п.6 */}
-                                {noteTooltipVisible && enrollment.notes && (
-                                    <div
-                                        className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-3 animate-fadeIn pointer-events-none"
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <p className="text-[12px] text-primary/80 leading-relaxed italic line-clamp-4">
-                                            {enrollment.notes}
-                                        </p>
-                                        <p className="text-[11px] text-primary/50 mt-1.5 font-medium">Click to edit</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* ℹ Student Info Button */}
-                            <button
-                                title="View Student Details"
-                                onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                                className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100"
-                            >
-                                <Info size={14} />
-                            </button>
-                        </div>
-                    </div>
 
                     {/* Contact Info */}
                     <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[13px] text-primary/80 truncate">
@@ -395,6 +351,48 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Right Quick Actions */}
+            <div className="absolute top-3 right-3 flex flex-col items-center gap-1.5 z-10">
+                {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
+                <div
+                    className="relative"
+                    onMouseEnter={() => enrollment.notes && setNoteTooltipVisible(true)}
+                    onMouseLeave={() => setNoteTooltipVisible(false)}
+                >
+                    <button
+                        title={enrollment.notes ? '' : 'Add Note'}
+                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                        className={`p-1 rounded transition-colors border ${enrollment.notes
+                            ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
+                            : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100'
+                            }`}
+                    >
+                        <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
+                    </button>
+                    {/* Note preview tooltip — п.6 */}
+                    {noteTooltipVisible && enrollment.notes && (
+                        <div
+                            className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-3 animate-fadeIn pointer-events-none"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <p className="text-[12px] text-primary/80 leading-relaxed italic line-clamp-4">
+                                {enrollment.notes}
+                            </p>
+                            <p className="text-[11px] text-primary/50 mt-1.5 font-medium">Click to edit</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* ℹ Student Info Button */}
+                <button
+                    title="View Student Details"
+                    onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                    className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100"
+                >
+                    <Info size={14} />
+                </button>
             </div>
         </div>
     );
