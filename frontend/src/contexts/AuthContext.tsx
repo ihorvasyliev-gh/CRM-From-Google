@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { AlertCircle } from 'lucide-react';
+import { getConfig } from '../lib/appConfig';
 
 interface AuthContextType {
     session: Session | null;
@@ -28,7 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
         }
 
+        const syncedUsers = new Set<string>();
+
         const syncUserSettings = async (userId: string) => {
+            if (syncedUsers.has(userId)) return;
+            syncedUsers.add(userId);
+
             try {
                 const { data, error } = await supabase
                     .from('user_settings')
@@ -38,13 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (error) {
                     console.error('Error fetching user settings:', error);
+                    syncedUsers.delete(userId);
                 } else if (data && data.settings) {
                     localStorage.setItem('crm_app_config', JSON.stringify(data.settings));
                 } else {
-                    // Create default settings row in Supabase
-                    const { DEFAULT_CONFIG } = await import('../lib/appConfig');
-                    const settingsToSave = { ...DEFAULT_CONFIG };
-                    localStorage.setItem('crm_app_config', JSON.stringify(settingsToSave));
+                    // Create settings row in Supabase using the existing local config (if any) or defaults
+                    const settingsToSave = getConfig();
                     await supabase.from('user_settings').insert({
                         user_id: userId,
                         settings: settingsToSave
@@ -52,12 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             } catch (e) {
                 console.error('Failed to sync user settings:', e);
+                syncedUsers.delete(userId);
             }
         };
 
         // Get initial session
         supabase.auth.getSession()
-            .then(async ({ data: { session }, error }) => {
+            .then(({ data: { session }, error }) => {
                 if (error) {
                     console.error("Auth Session Error:", error);
                     setSetupError(error.message || "Failed to connect. Invalid or expired token.");
@@ -65,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setSession(session);
                     setUser(session?.user ?? null);
                     if (session?.user) {
-                        await syncUserSettings(session.user.id);
+                        syncUserSettings(session.user.id);
                     }
                 }
                 setLoading(false);
@@ -78,12 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
+            (event, session) => {
                 setSession(session);
                 setUser(session?.user ?? null);
                 
                 if (session?.user) {
-                    await syncUserSettings(session.user.id);
+                    syncUserSettings(session.user.id);
                 } else if (event === 'SIGNED_OUT') {
                     localStorage.removeItem('crm_app_config');
                 }
