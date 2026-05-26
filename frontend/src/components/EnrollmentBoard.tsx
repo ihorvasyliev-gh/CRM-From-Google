@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 
@@ -8,7 +9,8 @@ import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { cleanVariant } from '../lib/types';
+import { cleanVariant, Student } from '../lib/types';
+import StudentDetail from './StudentDetail';
 import { formatDateLong } from '../lib/dateUtils';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
 
@@ -35,6 +37,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
+    const queryClient = useQueryClient();
+    const [detailStudent, setDetailStudent] = useState<Student | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<EnrollmentRow | null>(null);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
@@ -239,6 +243,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setEditNoteText(enrollment.notes || '');
     }, []);
 
+    const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
+        if (enrollment.students) {
+            setDetailStudent(enrollment.students);
+        }
+    }, []);
+
     const openFlagModal = useCallback((enrollment: EnrollmentRow) => {
         const name = [enrollment.students?.first_name, enrollment.students?.last_name].filter(Boolean).join(' ');
         setFlagModalTarget({ studentId: enrollment.student_id, studentName: name });
@@ -418,6 +428,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 emptyFlags={EMPTY_FLAGS}
                                 emptyCompletedCourses={EMPTY_COMPLETED_COURSES}
                                 totalCount={totalPipelineCount}
+                                onShowDetail={handleShowDetail}
                             />
                         </div>
                     ))}
@@ -441,6 +452,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 completedCourses={completedCoursesByStudentId.get(activeEnrollment.student_id) || EMPTY_COMPLETED_COURSES}
                                 onFlagClick={openFlagModal}
                                 isOverlay
+                                onShowDetail={handleShowDetail}
                             />
                         );
                     })() : null}
@@ -905,6 +917,18 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Student Detail Drawer */}
+            {detailStudent && (
+                <StudentDetail
+                    student={detailStudent}
+                    onClose={() => setDetailStudent(null)}
+                    onStudentUpdated={(updatedStudent) => {
+                        setDetailStudent(updatedStudent);
+                        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                    }}
+                />
             )}
         </div>
     );

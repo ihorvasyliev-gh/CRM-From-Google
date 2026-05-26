@@ -19,9 +19,9 @@ interface Enrollment {
 interface Props {
     student: Student;
     onClose: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
-    onEnroll: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
+    onEnroll?: () => void;
     onStudentUpdated?: (student: Student) => void;
     onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
 }
@@ -270,17 +270,25 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
                 <div className="p-5 space-y-5">
                     {/* Actions */}
-                    <div className="flex gap-2">
-                        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
-                            <Edit2 size={14} /> Edit
-                        </button>
-                        <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
-                            <UserPlus size={14} /> Enroll
-                        </button>
-                        <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all">
-                            <Trash2 size={14} />
-                        </button>
-                    </div>
+                    {(onEdit || onEnroll || onDelete) && (
+                        <div className="flex gap-2">
+                            {onEdit && (
+                                <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
+                                    <Edit2 size={14} /> Edit
+                                </button>
+                            )}
+                            {onEnroll && (
+                                <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
+                                    <UserPlus size={14} /> Enroll
+                                </button>
+                            )}
+                            {onDelete && (
+                                <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all">
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     {/* Contact Info — Inline Editable */}
                     <div className="space-y-2">

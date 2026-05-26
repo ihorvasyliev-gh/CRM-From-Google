@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
@@ -20,6 +20,7 @@ interface EnrollmentCardProps {
     completedCourses?: Array<{id: string, name: string}>;
     onFlagClick?: (enrollment: EnrollmentRow) => void;
     isOverlay?: boolean;
+    onShowDetail?: (enrollment: EnrollmentRow) => void;
 }
 
 // --- п.7: Relative time helper ---
@@ -59,7 +60,8 @@ const EnrollmentCard = function EnrollmentCard({
     studentFlags = [],
     completedCourses = [],
     onFlagClick,
-    isOverlay
+    isOverlay,
+    onShowDetail
 }: EnrollmentCardProps) {
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
@@ -250,7 +252,7 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
 
                         {/* Right Quick Actions */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                             {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
                             <div
                                 className="relative"
@@ -280,6 +282,15 @@ const EnrollmentCard = function EnrollmentCard({
                                     </div>
                                 )}
                             </div>
+
+                            {/* ℹ Student Info Button */}
+                            <button
+                                title="View Student Details"
+                                onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                                className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent opacity-0 group-hover:opacity-100"
+                            >
+                                <Info size={14} />
+                            </button>
                         </div>
                     </div>
 
