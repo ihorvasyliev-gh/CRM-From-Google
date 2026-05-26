@@ -293,7 +293,8 @@ export function useBulkActions({
                 attTemplate?.storage_path,
                 customVars,
                 lblTemplate?.storage_path,
-                excelColumns
+                excelColumns,
+                (msg) => showToast(msg, 'error')
             );
 
             showToast(`Generated ${selectedEnrollments.length} document(s) with ${templateDescriptors.length} template(s)!`, 'success');

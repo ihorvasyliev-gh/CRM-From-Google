@@ -67,7 +67,9 @@ export async function generateDocumentsArchive(
     attendanceTemplateStoragePath?: string,
     customVariables?: Record<string, string>,
     labelTemplateStoragePath?: string,
-    excelColumns?: ExcelColumn[]
+    excelColumns?: ExcelColumn[],
+    /** Optional callback to surface non-fatal warnings to the UI (replaces raw alert()). */
+    onWarning?: (message: string) => void
 ): Promise<GenerationResult> {
     // Dynamically import heavy libraries for document generation
     const JSZipModule = await import('jszip');
@@ -230,7 +232,9 @@ export async function generateDocumentsArchive(
                 const errMsg = lblDownloadError?.message || 'File not found';
                 result.labelsOk = false;
                 result.labelsError = `Download failed: ${errMsg}`;
-                alert('[Labels] Download FAILED: ' + errMsg);
+                const warningMsg = `Labels download failed: ${errMsg}`;
+                if (onWarning) onWarning(warningMsg);
+                else console.warn('[Labels]', warningMsg);
             } else {
                 const lblTemplateBuffer = await lblTemplateData.arrayBuffer();
                 const lblPizZip = new PizZip(lblTemplateBuffer);
