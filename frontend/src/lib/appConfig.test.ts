@@ -13,9 +13,9 @@ describe('appConfig', () => {
         });
 
         it('returns merged config when valid data is in local storage', () => {
-            localStorage.setItem('crm_app_config', JSON.stringify({ dateFormat: 'ISO' }));
+            localStorage.setItem('crm_app_config', JSON.stringify({ emailSubjectFormat: 'Custom Subject' }));
             const config = getConfig();
-            expect(config.dateFormat).toBe('ISO');
+            expect(config.emailSubjectFormat).toBe('Custom Subject');
             expect(config.htmlEmailTemplate).toBe(DEFAULT_CONFIG.htmlEmailTemplate);
         });
     });
@@ -32,7 +32,7 @@ describe('appConfig', () => {
 
     describe('resetConfig', () => {
         it('clears local storage and returns defaults', () => {
-            setConfig({ dateFormat: 'ISO' });
+            setConfig({ emailSubjectFormat: 'Custom Subject' });
             const result = resetConfig();
             expect(result).toEqual(DEFAULT_CONFIG);
             expect(localStorage.getItem('crm_app_config')).toBeNull();

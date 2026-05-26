@@ -3,31 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { LayoutDashboard, Users, Calendar, Download, Briefcase } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import { fetchAllEnrollments } from '../hooks/useEnrollments';
 
 import OverviewTab from './Analytics/OverviewTab';
 import DemographicsTab from './Analytics/DemographicsTab';
 import OutcomesTab from './Analytics/OutcomesTab';
 import DrillDownModal from './Analytics/DrillDownModal';
 
-// Helper to fetch all enrollments with related data
-async function fetchAllEnrollments() {
-    let allData: EnrollmentWithRelations[] = [];
-    let from = 0;
-    const limit = 1000;
-    while (true) {
-        const { data, error } = await supabase
-            .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, dob, address, eircode), courses(id, name)')
-            .order('created_at', { ascending: true })
-            .range(from, from + limit - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = [...allData, ...data as EnrollmentWithRelations[]];
-        if (data.length < limit) break;
-        from += limit;
-    }
-    return allData;
-}
+
 
 // Helper to fetch employment statuses
 async function fetchEmploymentStatuses() {

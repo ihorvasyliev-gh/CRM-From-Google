@@ -16,39 +16,39 @@ interface UseEnrollmentsProps {
     openConfirmModal: (id: string, defaultDate: string, courseId: string) => void;
 }
 
+export async function fetchAllEnrollments() {
+    let allData: EnrollmentRow[] = [];
+    let from = 0;
+    const limit = 1000;
+
+    while (true) {
+        const { data, error } = await supabase
+            .from('enrollments')
+            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+            .order('created_at', { ascending: false })
+            .range(from, from + limit - 1);
+            
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData = [...allData, ...data as EnrollmentRow[]];
+        
+        if (data.length < limit) break;
+        from += limit;
+    }
+    
+    return allData;
+}
+
 export function useEnrollments({ showToast, openInviteModal, openConfirmModal }: UseEnrollmentsProps) {
     const queryClient = useQueryClient();
 
     // Ref to access current enrollments without re-creating callbacks
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
 
-    const fetchEnrollmentsFn = async () => {
-        let allData: EnrollmentRow[] = [];
-        let from = 0;
-        const limit = 1000;
-
-        while (true) {
-            const { data, error } = await supabase
-                .from('enrollments')
-                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-                .order('created_at', { ascending: false })
-                .range(from, from + limit - 1);
-                
-            if (error) throw error;
-            if (!data || data.length === 0) break;
-            
-            allData = [...allData, ...data as EnrollmentRow[]];
-            
-            if (data.length < limit) break;
-            from += limit;
-        }
-        
-        return allData;
-    };
-
     const { data: enrollments = [], refetch: fetchEnrollments } = useQuery({
         queryKey: ['enrollments'],
-        queryFn: fetchEnrollmentsFn,
+        queryFn: fetchAllEnrollments,
     });
 
     // Keep ref in sync

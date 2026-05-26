@@ -1,5 +1,6 @@
-// ─── App Configuration (localStorage-based) ────────────────────
+// ─── App Configuration (localStorage/Supabase-based) ───────────
 // Centralized config for email templates, display preferences, etc.
+import { supabase } from './supabase';
 
 export interface ExcelColumn {
     /** Column header text shown in the Excel file */
@@ -13,8 +14,6 @@ export interface AppConfig {
     htmlEmailTemplate: string;
     /** Email subject format. Supports placeholders: {courseName}, {date} */
     emailSubjectFormat: string;
-    /** Date display format across the app */
-    dateFormat: 'en-IE' | 'en-US' | 'ISO';
     /** Columns to include in the Excel spreadsheet exported with the archive */
     excelColumns: ExcelColumn[];
     /** HTML Email body template for status clarification. Supports: {statusButton}, {statusLink} */
@@ -44,7 +43,6 @@ export const DEFAULT_CONFIG: AppConfig = {
 {confirmationButton}
 <p style="margin:0;font-size:15px;color:#94a3b8;line-height:1.6;text-align:center;">If you have any questions, simply reply to this email.</p>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
-    dateFormat: 'en-IE',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello from <strong>Cork City Partnership</strong>,</p>
 <p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">We hope you're doing well! As a recent participant in our programmes, we'd love to hear how things are going for you.</p>
@@ -80,12 +78,52 @@ export function setConfig(patch: Partial<AppConfig>): AppConfig {
     const current = getConfig();
     const merged = { ...current, ...patch };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+
+    // Async sync to Supabase in background if user is authenticated
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        const user = session?.user;
+        if (user) {
+            supabase
+                .from('user_settings')
+                .upsert({
+                    user_id: user.id,
+                    settings: merged,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id' })
+                .then(({ error }) => {
+                    if (error) {
+                        console.error('Failed to sync settings to Supabase:', error);
+                    }
+                });
+        }
+    });
+
     return merged;
 }
 
 /** Reset config to defaults. */
 export function resetConfig(): AppConfig {
     localStorage.removeItem(STORAGE_KEY);
+
+    // Async reset in Supabase in background
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        const user = session?.user;
+        if (user) {
+            supabase
+                .from('user_settings')
+                .upsert({
+                    user_id: user.id,
+                    settings: DEFAULT_CONFIG,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id' })
+                .then(({ error }) => {
+                    if (error) {
+                        console.error('Failed to reset settings in Supabase:', error);
+                    }
+                });
+        }
+    });
+
     return { ...DEFAULT_CONFIG };
 }
 

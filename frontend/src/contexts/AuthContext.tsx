@@ -28,15 +28,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
         }
 
+        const syncUserSettings = async (userId: string) => {
+            try {
+                const { data, error } = await supabase
+                    .from('user_settings')
+                    .select('settings')
+                    .eq('user_id', userId)
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('Error fetching user settings:', error);
+                } else if (data && data.settings) {
+                    localStorage.setItem('crm_app_config', JSON.stringify(data.settings));
+                } else {
+                    // Create default settings row in Supabase
+                    const { DEFAULT_CONFIG } = await import('../lib/appConfig');
+                    const settingsToSave = { ...DEFAULT_CONFIG };
+                    localStorage.setItem('crm_app_config', JSON.stringify(settingsToSave));
+                    await supabase.from('user_settings').insert({
+                        user_id: userId,
+                        settings: settingsToSave
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to sync user settings:', e);
+            }
+        };
+
         // Get initial session
         supabase.auth.getSession()
-            .then(({ data: { session }, error }) => {
+            .then(async ({ data: { session }, error }) => {
                 if (error) {
                     console.error("Auth Session Error:", error);
                     setSetupError(error.message || "Failed to connect. Invalid or expired token.");
                 } else {
                     setSession(session);
                     setUser(session?.user ?? null);
+                    if (session?.user) {
+                        await syncUserSettings(session.user.id);
+                    }
                 }
                 setLoading(false);
             })
@@ -48,9 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => {
+            async (event, session) => {
                 setSession(session);
                 setUser(session?.user ?? null);
+                
+                if (session?.user) {
+                    await syncUserSettings(session.user.id);
+                } else if (event === 'SIGNED_OUT') {
+                    localStorage.removeItem('crm_app_config');
+                }
+                
                 setLoading(false);
             }
         );

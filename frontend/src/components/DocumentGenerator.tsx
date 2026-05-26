@@ -2,7 +2,8 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
-import { generateDocumentsArchive, type EnrollmentWithRelations, type TemplateDescriptor } from '../lib/documentUtils';
+import { generateDocumentsArchive, type TemplateDescriptor } from '../lib/documentUtils';
+import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong } from '../lib/dateUtils';
 import { DocumentTemplate, Course, TemplateVariable } from '../lib/types';
 import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/appConfig';
@@ -54,25 +55,7 @@ const PLACEHOLDER_CATEGORIES = [
     },
 ];
 
-// ─── Shared fetch function for enrollments (same as useEnrollments) ───
-async function fetchAllEnrollments(): Promise<EnrollmentWithRelations[]> {
-    let allData: EnrollmentWithRelations[] = [];
-    let from = 0;
-    const limit = 1000;
-    while (true) {
-        const { data, error } = await supabase
-            .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-            .order('created_at', { ascending: false })
-            .range(from, from + limit - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = [...allData, ...(data as EnrollmentWithRelations[])];
-        if (data.length < limit) break;
-        from += limit;
-    }
-    return allData;
-}
+
 
 // ─── Component ──────────────────────────────────────────────
 export default function DocumentGenerator() {

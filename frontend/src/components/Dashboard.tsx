@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
-import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { cleanVariant } from '../lib/types';
 
 interface DashboardProps {
@@ -163,25 +163,7 @@ function BentoCard({
     );
 }
 
-// ─── Shared fetch function for enrollments (same as useEnrollments) ───
-async function fetchAllEnrollments() {
-    let allData: EnrollmentWithRelations[] = [];
-    let from = 0;
-    const limit = 1000;
-    while (true) {
-        const { data, error } = await supabase
-            .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-            .order('created_at', { ascending: false })
-            .range(from, from + limit - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allData = [...allData, ...data as EnrollmentWithRelations[]];
-        if (data.length < limit) break;
-        from += limit;
-    }
-    return allData;
-}
+
 
 type ActivityFilter = 'all' | 'requested' | 'invited' | 'confirmed' | 'completed';
 

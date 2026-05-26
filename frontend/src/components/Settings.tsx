@@ -277,23 +277,11 @@ export default function Settings() {
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-primary">General Preferences</h3>
-                            <p className="text-xs text-muted mt-0.5">Customize how dates and data are displayed</p>
+                            <p className="text-xs text-muted mt-0.5">Customize email and display preferences</p>
                         </div>
                     </div>
                 </div>
-                <div className="p-5 space-y-6">
-                    <div>
-                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">Date Format</label>
-                        <select
-                            value={config.dateFormat}
-                            onChange={e => setLocalConfig({ ...config, dateFormat: e.target.value as AppConfig['dateFormat'] })}
-                            className="w-full sm:w-64 px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary appearance-none cursor-pointer"
-                        >
-                            <option value="en-IE">DD MMM YYYY (e.g. 02 Mar 2026)</option>
-                            <option value="en-US">MMM DD, YYYY (e.g. Mar 02, 2026)</option>
-                            <option value="ISO">YYYY-MM-DD (e.g. 2026-03-02)</option>
-                        </select>
-                    </div>
+                <div className="p-5">
                     <div>
                         <label className="flex items-center gap-3 cursor-pointer group w-max">
                             <div className="relative flex items-center justify-center">
