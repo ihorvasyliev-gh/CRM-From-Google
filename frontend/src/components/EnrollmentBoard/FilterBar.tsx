@@ -114,7 +114,7 @@ export default function FilterBar({
             </div>
 
             {/* Row 2: Course chips */}
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex overflow-x-auto md:flex-wrap gap-2 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                 <button
                     onClick={() => setSelectedCourse('all')}
                     className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${selectedCourse === 'all'
@@ -144,7 +144,7 @@ export default function FilterBar({
 
             {/* Row 2b: Language chips */}
             {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex overflow-x-auto md:flex-wrap gap-2 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                     <Globe size={14} className="text-muted mr-0.5" />
                     {uniqueVariants.length > 1 && (
                         <button
@@ -251,7 +251,7 @@ export default function FilterBar({
             )}
 
             {/* Row 4: Status Summary Bar — п.9: clickable badges */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex overflow-x-auto md:flex-wrap gap-2 scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                 {ALL_STATUSES.map(status => {
                     const cfg = STATUS_CONFIG[status];
                     const count = statusCounts[status] || 0;
