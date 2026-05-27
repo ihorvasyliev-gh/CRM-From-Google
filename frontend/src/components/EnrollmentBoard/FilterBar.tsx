@@ -257,7 +257,7 @@ export default function FilterBar({
             )}
 
             {/* Row 4: Status Summary Bar — п.9: clickable badges */}
-            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                 {ALL_STATUSES.map(status => {
                     const cfg = STATUS_CONFIG[status];
                     const count = statusCounts[status] || 0;
