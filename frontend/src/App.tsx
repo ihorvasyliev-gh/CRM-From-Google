@@ -532,12 +532,10 @@ function App() {
                     </header>
 
                     {/* Page Content */}
-                    <main className={`flex-1 w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-col min-h-0 ${
+                    <main className={`flex-1 w-full flex flex-col min-h-0 ${
                         activeTab === 'enrollments'
-                            ? 'overflow-hidden'
-                            : activeTab === 'dashboard'
-                                ? 'lg:overflow-hidden'
-                                : ''
+                            ? 'px-3 py-3 sm:px-6 lg:px-8 sm:py-4 overflow-hidden'
+                            : 'px-4 sm:px-6 lg:px-8 py-4'
                     }`}>
                         <Suspense fallback={
                             <div className="w-full h-full flex items-center justify-center min-h-[50vh]">

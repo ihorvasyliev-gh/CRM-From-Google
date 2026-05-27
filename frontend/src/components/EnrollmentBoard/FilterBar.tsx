@@ -53,7 +53,7 @@ export default function FilterBar({
     const searchIsFiltering = !!searchQuery && filteredCount < enrollmentCount;
 
     return (
-        <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-2 md:p-4 space-y-2 md:space-y-3">
+        <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2 md:space-y-3">
             {/* Row 1: Title + Search + Add */}
             <div className="flex flex-col sm:flex-row gap-2 md:gap-3 items-start sm:items-center justify-between">
                 <div className="hidden md:flex items-center gap-3">
@@ -115,10 +115,10 @@ export default function FilterBar({
             </div>
 
             {/* Row 2: Course chips */}
-            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-3 px-3 sm:mx-0 sm:px-0">
                 <button
                     onClick={() => setSelectedCourse('all')}
-                    className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedCourse === 'all'
+                    className={`px-3 py-2 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedCourse === 'all'
                         ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                         : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                         }`}
@@ -133,7 +133,7 @@ export default function FilterBar({
                             setSelectedCourse(newCourse);
                             setSelectedVariant('all');
                         }}
-                        className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedCourse === c.id
+                        className={`px-3 py-2 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedCourse === c.id
                             ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                             : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                             }`}
@@ -145,12 +145,12 @@ export default function FilterBar({
 
             {/* Row 2b: Language chips */}
             {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-3 px-3 sm:mx-0 sm:px-0">
                     <Globe size={13} className="text-muted mr-0.5 flex-shrink-0" />
                     {uniqueVariants.length > 1 && (
                         <button
                             onClick={() => setSelectedVariant('all')}
-                            className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedVariant === 'all'
+                            className={`px-3 py-2 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedVariant === 'all'
                                 ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
                                 : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                 }`}
@@ -162,7 +162,7 @@ export default function FilterBar({
                         <button
                             key={v}
                             onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                            className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedVariant === v
+                            className={`px-3 py-2 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedVariant === v
                                 ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
                                 : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                 }`}

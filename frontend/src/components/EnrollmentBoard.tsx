@@ -423,7 +423,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         <div
                             key={status}
                             ref={el => { columnRefs.current[status] = el; }}
-                            className="min-h-0 flex flex-col w-[calc(100vw-4.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none"
+                            className="min-h-0 flex flex-col w-[calc(100vw-2.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none"
                         >
                             <StatusColumn
                                 status={status}
