@@ -287,28 +287,28 @@ export default function OutcomesList() {
     return (
         <div className="space-y-4 pb-8">
             {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-surface rounded-2xl border border-border-subtle p-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
                     <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Total Graduates</p>
                     <p className="text-2xl font-bold text-primary mt-1">{graduates.length}</p>
                 </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-4">
+                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
                     <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Response Rate</p>
                     <p className="text-2xl font-bold text-brand-500 mt-1">{responseRate}%</p>
                 </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-4">
+                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
                     <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Currently Working</p>
                     <p className="text-2xl font-bold text-emerald-500 mt-1">{workingCount}</p>
                 </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-4">
+                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
                     <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Pending Responses</p>
                     <p className="text-2xl font-bold text-blue-500 mt-1">{statusCounts.pending}</p>
                 </div>
             </div>
 
             {/* Toolbar */}
-            <div className="bg-surface rounded-2xl border border-border-subtle p-4">
-                <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-surface rounded-2xl border border-border-subtle p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Search */}
                     <div className="relative flex-1 min-w-[200px]">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -317,14 +317,14 @@ export default function OutcomesList() {
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             placeholder="Search by name, email, or field..."
-                            className="w-full pl-9 pr-4 py-2 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
+                            className="w-full pl-9 pr-4 py-1.5 sm:py-2 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
                         />
                     </div>
 
                     {/* Filter Toggle */}
                     <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm font-medium rounded-xl border transition-all ${
                             showFilters || filterStatus !== 'all' || filterCourse !== 'all'
                                 ? 'bg-brand-500/10 text-brand-500 border-brand-500/30'
                                 : 'bg-surface-elevated text-muted border-border-subtle hover:border-border-strong'

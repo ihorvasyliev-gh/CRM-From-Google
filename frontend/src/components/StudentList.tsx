@@ -195,9 +195,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4">
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                    <div className="flex items-center gap-3">
+            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between">
+                    <div className="hidden md:flex items-center gap-3">
                         <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
                             <Users size={20} />
                         </div>
@@ -208,20 +208,20 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-72">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search by name, email or phone..."
-                                className="w-full pl-9 pr-4 py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
+                                className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
                         <button
                             onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
-                            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
                         >
                             <Plus size={16} /> Add Student
                         </button>

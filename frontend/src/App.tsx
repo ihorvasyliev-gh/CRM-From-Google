@@ -493,10 +493,10 @@ function App() {
                         </div>
                     )}
                     {/* Mobile Header (Glassmorphism) */}
-                    <header className="lg:hidden h-14 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-4 flex items-center justify-between sticky top-0 z-30 transition-colors">
+                    <header className="lg:hidden h-12 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="text-muted hover:text-primary transition p-1.5 rounded-lg hover:bg-surface-elevated"
+                            className="text-muted hover:text-primary transition p-1 rounded-lg hover:bg-surface-elevated"
                         >
                             <Menu size={20} />
                         </button>
@@ -534,8 +534,8 @@ function App() {
                     {/* Page Content */}
                     <main className={`flex-1 w-full flex flex-col min-h-0 ${
                         activeTab === 'enrollments'
-                            ? 'px-3 py-3 sm:px-6 lg:px-8 sm:py-4 overflow-hidden'
-                            : 'px-4 sm:px-6 lg:px-8 py-4'
+                            ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 overflow-hidden'
+                            : 'px-3 py-3 sm:px-6 lg:px-8 py-4'
                     }`}>
                         <Suspense fallback={
                             <div className="w-full h-full flex items-center justify-center min-h-[50vh]">

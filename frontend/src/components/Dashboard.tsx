@@ -465,9 +465,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     ];
 
     return (
-        <div className="grid grid-cols-1 grid-rows-auto lg:grid-cols-3 lg:grid-rows-[auto_1fr] gap-6 flex-1 min-h-0">
+        <div className="grid grid-cols-1 grid-rows-auto lg:grid-cols-3 lg:grid-rows-[auto_1fr] gap-4 sm:gap-6 flex-1 min-h-0">
             {/* Top Row: Stats Cards (Full Width) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:col-span-3 flex-shrink-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 lg:col-span-3 flex-shrink-0">
                 {loading ? (
                     <>{Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}</>
                 ) : (
@@ -477,7 +477,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             onClick={() => onNavigate?.(card.tab)}
                             accentGradient={card.gradient}
                             glowColor={card.accentColor === 'brand' ? 'oklch(var(--accent-primary) / 0.12)' : card.accentColor === 'violet' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)'}
-                            className="p-5 cursor-pointer h-full"
+                            className="p-4 sm:p-5 cursor-pointer h-full"
                             style={{ animationDelay: `${i * 100}ms` }}
                         >
                             <div className="flex flex-col justify-between h-full min-h-[110px]">
@@ -500,7 +500,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             <div className="lg:col-span-2 flex flex-col lg:min-h-0">
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 lg:flex-1 lg:min-h-0"
+                    className="p-3 sm:p-5 lg:flex-1 lg:min-h-0"
                 >
                     <div className="flex flex-col h-auto lg:h-full">
                         <div className="flex items-center justify-between mb-4">
@@ -512,7 +512,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                         {/* Filter pills */}
                         {/* Filter pills & Legend */}
                         {!loading && allEnrollments.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-4 items-center">
+                            <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-4 items-center">
                                 {ACTIVITY_FILTERS.map(f => {
                                     const isActive = activityFilter === f.key;
                                     return (
@@ -544,7 +544,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
                             </div>
                         ) : (
-                            <div className="space-y-3 lg:overflow-y-auto pr-1 lg:flex-1 lg:min-h-0">
+                            <div className="space-y-2 md:space-y-3 lg:overflow-y-auto pr-1 lg:flex-1 lg:min-h-0">
                                 {groupedActivity.map((group, i) => {
                                     // Group history by date
                                     const historyByDate = new Map<string, typeof group.previousEnrollments>();
@@ -573,7 +573,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     return (
                                         <div
                                             key={group.key}
-                                            className="p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex flex-col lg:flex-row gap-3 lg:gap-4"
+                                            className="p-2.5 sm:p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex flex-col lg:flex-row gap-2 lg:gap-4"
                                             style={{ animationDelay: `${i * 50}ms` }}
                                         >
                                             {/* Left Column: Student Info */}
@@ -651,20 +651,20 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Right Column: Quick Actions + Enrollment Status (Col-span 1) */}
-            <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
+            <div className="lg:col-span-1 flex flex-col gap-4 sm:gap-6 min-h-0">
                 {/* Quick Actions */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.12)"
-                    className="p-5 flex-shrink-0"
+                    className="p-4 sm:p-5 flex-shrink-0"
                 >
                     <div className="flex flex-col justify-between h-full">
                         <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
                             <Sparkles size={14} className="text-brand-500" /> Quick Actions
                         </h3>
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2.5 sm:gap-3">
                             <button
                                 onClick={() => onNavigate?.('students')}
-                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
                             >
                                 <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
                                     <Plus size={16} />
@@ -677,7 +677,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             </button>
                             <button
                                 onClick={() => onNavigate?.('courses')}
-                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
                             >
                                 <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
                                     <BookOpen size={16} />
@@ -690,7 +690,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             </button>
                             <button
                                 onClick={() => onNavigate?.('enrollments')}
-                                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
                             >
                                 <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
                                     <UserPlus size={16} />
@@ -708,7 +708,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 {/* Enrollment Status */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-5 flex-shrink-0"
+                    className="p-4 sm:p-5 flex-shrink-0"
                 >
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
                         <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
@@ -721,7 +721,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             <p className="text-sm text-muted">No enrollments yet</p>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2.5 sm:gap-3">
                             {/* Stacked bar — no padding/wrapper, just overflow:hidden on the container */}
                             <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
                                 {statusItems.map(s => {
@@ -743,7 +743,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     const count = statusBreakdown[s.key] || 0;
                                     const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
                                     return (
-                                        <div key={s.key} className="flex items-center gap-2.5 px-2 py-[7px] rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200">
+                                        <div key={s.key} className="flex items-center gap-2.5 px-2 py-1 sm:py-[7px] rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200">
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.color}`} />
                                             <span className="text-[12px] text-muted font-medium w-[68px] flex-shrink-0">{s.label}</span>
                                             <div className="flex-1 h-[5px] bg-border-subtle/25 rounded-full overflow-hidden">
