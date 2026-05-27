@@ -413,12 +413,20 @@ option {
     }
 
     .card-hover {
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .card-hover:hover {
         transform: translateY(-2px);
         box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    }
+
+    .card-transition {
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                    background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .gradient-text {

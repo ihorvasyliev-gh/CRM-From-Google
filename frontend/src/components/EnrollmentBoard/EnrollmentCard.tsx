@@ -127,7 +127,7 @@ const EnrollmentCard = function EnrollmentCard({
             } ${isSelected
                 ? 'border-brand-500 bg-brand-50/80 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500'
                 : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
-            } transition-all duration-200 animate-card-drop-in`}
+            } card-transition animate-card-drop-in`}
             onClick={() => toggleSelect(enrollment.id)}
         >
             <div className="flex items-start gap-2 md:gap-3">

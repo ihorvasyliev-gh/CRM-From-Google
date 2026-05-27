@@ -418,12 +418,15 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onDragCancel={handleDragCancel}
                 measuring={measuringConfig}
             >
-                <div className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2">
+                <div 
+                    className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                >
                     {PIPELINE_STATUSES.map(status => (
                         <div
                             key={status}
                             ref={el => { columnRefs.current[status] = el; }}
-                            className="min-h-0 flex flex-col w-[calc(100vw-2.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none"
+                            className="min-h-0 flex flex-col w-[calc(100vw-2.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none transform-gpu"
                         >
                             <StatusColumn
                                 status={status}
