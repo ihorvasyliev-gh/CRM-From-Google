@@ -39,6 +39,15 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
     const queryClient = useQueryClient();
     const [detailStudent, setDetailStudent] = useState<Student | null>(null);
+    const [enrollStudentId, setEnrollStudentId] = useState<string | undefined>();
+
+    const openEnrollFromDetail = useCallback(() => {
+        if (detailStudent) {
+            setEnrollStudentId(detailStudent.id);
+            setEnrollModalOpen(true);
+        }
+    }, [detailStudent]);
+
     const [deleteTarget, setDeleteTarget] = useState<EnrollmentRow | null>(null);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
@@ -381,7 +390,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 filteredCount={filteredEnrollments.length}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                setEnrollModalOpen={setEnrollModalOpen}
+                setEnrollModalOpen={(open) => {
+                    if (open) setEnrollStudentId(undefined);
+                    setEnrollModalOpen(open);
+                }}
                 selectedCourse={selectedCourse}
                 setSelectedCourse={setSelectedCourse}
                 uniqueCourses={uniqueCourses}
@@ -748,11 +760,16 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
             <EnrollmentModal
                 open={enrollModalOpen}
+                preselectedStudentId={enrollStudentId}
                 onSave={() => {
                     enrollmentsHook.fetchEnrollments();
                     showToast('Enrollment created', 'success');
+                    if (detailStudent) setDetailStudent({ ...detailStudent });
                 }}
-                onClose={() => setEnrollModalOpen(false)}
+                onClose={() => {
+                    setEnrollModalOpen(false);
+                    setEnrollStudentId(undefined);
+                }}
             />
 
             <ConfirmDialog
@@ -925,6 +942,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 <StudentDetail
                     student={detailStudent}
                     onClose={() => setDetailStudent(null)}
+                    onEnroll={openEnrollFromDetail}
                     onStudentUpdated={(updatedStudent) => {
                         setDetailStudent(updatedStudent);
                         queryClient.invalidateQueries({ queryKey: ['enrollments'] });

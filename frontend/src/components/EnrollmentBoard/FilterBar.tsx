@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GraduationCap, Search, X, Plus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
+import { GraduationCap, Search, X, UserPlus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface FilterBarProps {
@@ -108,7 +108,7 @@ export default function FilterBar({
                         onClick={() => setEnrollModalOpen(true)}
                         className="flex items-center justify-center gap-1.5 px-3 py-2 md:px-4 md:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
                     >
-                        <Plus size={16} />
+                        <UserPlus size={16} />
                         <span className="hidden sm:inline">Add</span>
                     </button>
                 </div>
@@ -118,7 +118,7 @@ export default function FilterBar({
             <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
                 <button
                     onClick={() => setSelectedCourse('all')}
-                    className={`text-[11px] md:text-xs font-semibold px-2.5 py-1 md:px-3 md:py-1.5 rounded-full border transition-all ${selectedCourse === 'all'
+                    className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedCourse === 'all'
                         ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                         : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                         }`}
@@ -133,7 +133,7 @@ export default function FilterBar({
                             setSelectedCourse(newCourse);
                             setSelectedVariant('all');
                         }}
-                        className={`text-[11px] md:text-xs font-semibold px-2.5 py-1 md:px-3 md:py-1.5 rounded-full border transition-all ${selectedCourse === c.id
+                        className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedCourse === c.id
                             ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                             : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                             }`}
@@ -146,11 +146,11 @@ export default function FilterBar({
             {/* Row 2b: Language chips */}
             {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                 <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <Globe size={13} className="text-muted mr-0.5" />
+                    <Globe size={13} className="text-muted mr-0.5 flex-shrink-0" />
                     {uniqueVariants.length > 1 && (
                         <button
                             onClick={() => setSelectedVariant('all')}
-                            className={`text-[11px] md:text-xs font-semibold px-2.5 py-1 md:px-3 md:py-1.5 rounded-full border transition-all ${selectedVariant === 'all'
+                            className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedVariant === 'all'
                                 ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
                                 : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                 }`}
@@ -162,7 +162,7 @@ export default function FilterBar({
                         <button
                             key={v}
                             onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                            className={`text-[11px] md:text-xs font-semibold px-2.5 py-1 md:px-3 md:py-1.5 rounded-full border transition-all ${selectedVariant === v
+                            className={`w-[88px] h-[38px] flex-shrink-0 flex items-center justify-center text-center whitespace-normal leading-[1.1] text-[10px] rounded-xl border transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap md:font-semibold ${selectedVariant === v
                                 ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
                                 : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
                                 }`}
