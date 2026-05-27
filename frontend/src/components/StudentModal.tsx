@@ -92,7 +92,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
     const isEditing = !!student?.id;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-lg bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 {/* Header */}

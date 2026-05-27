@@ -16,7 +16,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
     const isDanger = variant === 'danger';
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
             <div className="relative w-full max-w-sm bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 <div className="p-6 text-center">
