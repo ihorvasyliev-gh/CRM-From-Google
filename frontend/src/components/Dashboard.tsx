@@ -52,14 +52,14 @@ const FILTER_ACTIVE_CLASSES: Record<ActivityFilter, string> = {
 // ─── Skeleton Components ─────────────────────────────────────
 function SkeletonStatCard() {
     return (
-        <div className="relative bg-surface rounded-2xl shadow-card border border-border-subtle p-5 overflow-hidden animate-pulse">
+        <div className="relative bg-surface rounded-2xl shadow-card border border-border-subtle p-3.5 sm:p-4 overflow-hidden animate-pulse">
             <div className="absolute top-0 left-0 right-0 h-1 bg-surface-elevated" />
-            <div className="flex items-start justify-between">
+            <div className="flex items-center justify-between">
                 <div>
-                    <div className="h-3 w-24 rounded bg-surface-elevated mb-3" />
-                    <div className="h-10 w-16 rounded-lg bg-surface-elevated" />
+                    <div className="h-2.5 w-20 rounded bg-surface-elevated mb-1.5" />
+                    <div className="h-7 w-12 rounded bg-surface-elevated" />
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-surface-elevated" />
+                <div className="w-9 h-9 rounded-lg bg-surface-elevated" />
             </div>
         </div>
     );
@@ -477,18 +477,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                             onClick={() => onNavigate?.(card.tab)}
                             accentGradient={card.gradient}
                             glowColor={card.accentColor === 'brand' ? 'oklch(var(--accent-primary) / 0.12)' : card.accentColor === 'violet' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)'}
-                            className="p-4 sm:p-5 cursor-pointer h-full"
+                            className="p-3.5 sm:p-4 cursor-pointer h-full"
                             style={{ animationDelay: `${i * 100}ms` }}
                         >
-                            <div className="flex flex-col justify-between h-full min-h-[110px]">
-                                <div className="flex items-start justify-between">
-                                    <p className="text-[11px] font-bold text-muted uppercase tracking-wider">{card.label}</p>
-                                    <div className={`p-2.5 rounded-xl ${card.iconBg} transition-transform duration-500 ease-spring group-hover:scale-110 shadow-sm`}>
-                                        {card.icon}
-                                    </div>
+                            <div className="flex items-center justify-between h-full min-h-[56px] sm:min-h-[64px]">
+                                <div className="flex flex-col min-w-0 pr-2">
+                                    <p className="text-[10px] sm:text-[11px] font-bold text-muted uppercase tracking-wider mb-1 leading-none">{card.label}</p>
+                                    <p className="text-2xl sm:text-3xl font-mono font-bold text-primary tracking-tight leading-none animate-countUp">{card.value}</p>
                                 </div>
-                                <div className="mt-4">
-                                    <p className="text-4xl font-mono font-bold text-primary tracking-tight animate-countUp">{card.value}</p>
+                                <div className={`p-2 rounded-lg ${card.iconBg} transition-transform duration-500 ease-spring group-hover:scale-110 shadow-sm flex-shrink-0`}>
+                                    {card.icon}
                                 </div>
                             </div>
                         </BentoCard>

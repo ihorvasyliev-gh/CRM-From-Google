@@ -362,22 +362,22 @@ function App() {
 
                 {/* Sidebar */}
                 <aside className={`
-                    fixed lg:sticky top-0 left-0 h-screen w-[260px] z-40
+                    fixed lg:sticky top-0 left-0 h-screen w-[200px] z-40
                     flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                     bg-surface border-r border-border-subtle shadow-[2px_0_24px_-10px_rgba(0,0,0,0.1)]
                     ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
                 `}>
                     {/* Logo */}
-                    <div className="h-16 px-5 flex items-center justify-between flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25 animate-glow">
+                    <div className="h-16 px-4 flex items-center justify-between flex-shrink-0">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25 animate-glow flex-shrink-0">
                                 C
                             </div>
-                            <div>
-                                <h1 className="text-base font-bold text-primary tracking-tight">
+                            <div className="min-w-0">
+                                <h1 className="text-sm font-bold text-primary tracking-tight truncate">
                                     Course CRM
                                 </h1>
-                                <p className="text-[10px] text-muted font-medium -mt-0.5 tracking-wide">MANAGEMENT SYSTEM</p>
+                                <p className="text-[9px] text-muted font-medium -mt-0.5 tracking-wide truncate">MANAGEMENT SYSTEM</p>
                             </div>
                         </div>
                         <button
@@ -389,8 +389,8 @@ function App() {
                     </div>
 
                     {/* Nav */}
-                    <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                        <p className="px-3 text-[10px] font-bold text-muted uppercase tracking-wider mb-3">Navigation</p>
+                    <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto">
+                        <p className="px-2.5 text-[9px] font-bold text-muted uppercase tracking-wider mb-2">Navigation</p>
                         {NAV_ITEMS.map(item => {
                             const Icon = item.icon;
                             const isActive = activeTab === item.key;
@@ -399,7 +399,7 @@ function App() {
                                     key={item.key}
                                     onClick={() => navigate(item.key)}
                                     onMouseEnter={() => prefetchForTab(item.key)}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative
+                                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 group relative
                                         ${isActive
                                             ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400'
                                             : 'text-muted hover:text-primary hover:bg-surface-elevated'
@@ -409,14 +409,14 @@ function App() {
                                     {isActive && (
                                         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-brand-500 rounded-full" />
                                     )}
-                                    <div className={`p-1.5 rounded-lg transition-all ${isActive
+                                    <div className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${isActive
                                         ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
                                         : 'bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transform group-hover:scale-105'
                                         }`}>
                                         <Icon size={16} />
                                     </div>
-                                    <div className="text-left">
-                                        <span className="block leading-tight">{item.label}</span>
+                                    <div className="text-left min-w-0">
+                                        <span className="block leading-tight truncate">{item.label}</span>
                                     </div>
                                 </button>
                             );
@@ -424,36 +424,36 @@ function App() {
                     </nav>
 
                     {/* User / Settings / Sign Out */}
-                    <div className="p-3 border-t border-border-subtle flex-shrink-0 space-y-2">
+                    <div className="p-2 border-t border-border-subtle flex-shrink-0 space-y-2">
                         {/* Theme Toggle */}
                         <button
                             onClick={toggleDarkMode}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
                         >
-                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105">
+                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
                                 {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                             </div>
-                            <span className="flex-1 text-left">Theme</span>
-                            <span className="text-xs text-muted">{darkMode ? 'Dark' : 'Light'}</span>
+                            <span className="flex-1 text-left truncate">Theme</span>
+                            <span className="text-xs text-muted flex-shrink-0">{darkMode ? 'Dark' : 'Light'}</span>
                         </button>
 
-                        <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-elevated rounded-xl border border-border-subtle/50">
-                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm">
+                        <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-elevated rounded-lg border border-border-subtle/50">
+                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm flex-shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-primary truncate">{user.email}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    <span className="text-[10px] text-muted font-medium uppercase tracking-wider">Admin</span>
+                                    <span className="text-[9px] text-muted font-medium uppercase tracking-wider">Admin</span>
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={signOut}
-                            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
                         >
-                            <LogOut size={16} /> Sign Out
+                            <LogOut size={16} className="flex-shrink-0" /> <span className="truncate">Sign Out</span>
                         </button>
                     </div>
                 </aside>
