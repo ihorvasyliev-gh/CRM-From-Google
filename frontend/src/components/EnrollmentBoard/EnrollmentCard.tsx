@@ -120,14 +120,16 @@ const EnrollmentCard = function EnrollmentCard({
             {...(isOverlay ? {} : listeners)}
             className={`group relative p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
-                    ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100]'
+                    ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile
                         ? ''
                         : 'cursor-grab'
             } ${isSelected
                 ? 'border-brand-500 bg-brand-50/80 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500'
-                : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
-            } card-transition animate-card-drop-in`}
+                : isDragging
+                    ? 'border-border-subtle bg-surface/50'
+                    : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
+            } ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging ? '' : 'animate-card-drop-in'}`}
             onClick={() => toggleSelect(enrollment.id)}
         >
             <div className="flex items-start gap-2 md:gap-3">
