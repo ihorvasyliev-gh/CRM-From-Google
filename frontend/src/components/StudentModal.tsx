@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 
-import { X, Loader2, User } from 'lucide-react';
+import { X, Loader2, User, AlertTriangle } from 'lucide-react';
 import { StudentFormData } from '../lib/types';
+import { supabase } from '../lib/supabase';
 
 interface Props {
     open: boolean;
@@ -17,12 +18,62 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
+    const [duplicateWarning, setDuplicateWarning] = useState('');
+
     useEffect(() => {
         if (open) {
             setForm(student || { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' });
             setError('');
+            setDuplicateWarning('');
         }
     }, [open, student]);
+
+    useEffect(() => {
+        if (!open) {
+            setDuplicateWarning('');
+            return;
+        }
+
+        const checkEmail = form.email.trim().toLowerCase();
+        const checkPhone = form.phone.trim();
+        
+        if (!checkEmail && !checkPhone) {
+            setDuplicateWarning('');
+            return;
+        }
+
+        const delayCheck = setTimeout(async () => {
+            try {
+                let query = supabase.from('students').select('id, first_name, last_name, email, phone');
+                
+                const conditions: string[] = [];
+                if (checkEmail) conditions.push(`email.eq.${checkEmail}`);
+                if (checkPhone) conditions.push(`phone.eq.${checkPhone}`);
+                
+                if (conditions.length === 0) return;
+                
+                query = query.or(conditions.join(','));
+                
+                if (student?.id) {
+                    query = query.neq('id', student.id);
+                }
+                
+                const { data } = await query.limit(1);
+                
+                if (data && data.length > 0) {
+                    const match = data[0];
+                    const matchedOnEmail = match.email && match.email.trim().toLowerCase() === checkEmail;
+                    setDuplicateWarning(`A student named "${match.first_name} ${match.last_name}" already exists with this ${matchedOnEmail ? 'email' : 'phone'}.`);
+                } else {
+                    setDuplicateWarning('');
+                }
+            } catch (err) {
+                console.error('Duplicate check failed:', err);
+            }
+        }, 500);
+
+        return () => clearTimeout(delayCheck);
+    }, [form.email, form.phone, student?.id, open]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -114,6 +165,13 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                     {error && (
                         <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
+                        </div>
+                    )}
+
+                    {duplicateWarning && (
+                        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl flex items-center gap-2.5 animate-slideDown dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
+                            <AlertTriangle size={16} className="flex-shrink-0 text-amber-500" />
+                            <span>{duplicateWarning}</span>
                         </div>
                     )}
 

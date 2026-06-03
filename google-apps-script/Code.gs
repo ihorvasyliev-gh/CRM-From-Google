@@ -246,18 +246,93 @@ function syncRowsRange(sheet, startRow, endRow) {
       }
   }
 
-  // Upsert Students
-  var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', uniqueStudents, { 
-    'Prefer': 'resolution=merge-duplicates, return=representation' 
-  });
-  
-  if (!upsertedStudents) throw new Error("Failed to upsert students batch.");
-  
+  // Get list of emails in this batch to fetch existing records
+  var batchEmails = uniqueStudents.map(function(s) { return s.email; });
+  var existingStudents = [];
+  if (batchEmails.length > 0) {
+      // Build URI query for checking matching emails
+      var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.(' + batchEmails.map(encodeURIComponent).join(',') + ')';
+      existingStudents = _fetch('students?' + queryParams, 'get') || [];
+  }
+
+  var existingByEmail = {};
+  for (var j = 0; j < existingStudents.length; j++) {
+      var ext = existingStudents[j];
+      var emailKey = String(ext.email || "").trim().toLowerCase();
+      if (!existingByEmail[emailKey]) existingByEmail[emailKey] = [];
+      existingByEmail[emailKey].push(ext);
+  }
+
+  function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
+      var f1 = String(firstName1 || "").trim().toLowerCase();
+      var l1 = String(lastName1 || "").trim().toLowerCase();
+      var f2 = String(firstName2 || "").trim().toLowerCase();
+      var l2 = String(lastName2 || "").trim().toLowerCase();
+      
+      if (!f1 || !l1 || !f2 || !l2) return false;
+      
+      // First name matches or starts with the same initial
+      var firstNamesMatch = (f1 === f2) || (f1.substring(0, 1) === f2.substring(0, 1));
+      
+      // Last name matches or one is substring of another
+      var lastNamesMatch = (l1.indexOf(l2) !== -1) || (l2.indexOf(l1) !== -1);
+      
+      return firstNamesMatch && lastNamesMatch;
+  }
+
   var keyToIdMap = {};
-  for (var k = 0; k < upsertedStudents.length; k++) {
-      var s = upsertedStudents[k];
-      var key = String(s.first_name || "").toLowerCase() + "|" + String(s.last_name || "").toLowerCase() + "|" + String(s.email || "").toLowerCase();
-      keyToIdMap[key] = s.id;
+  var studentsToInsert = [];
+
+  for (var k = 0; k < uniqueStudents.length; k++) {
+      var s = uniqueStudents[k];
+      var matches = existingByEmail[s.email] || [];
+      var matchedStudent = null;
+      
+      for (var m = 0; m < matches.length; m++) {
+          var ext = matches[m];
+          if (areNamesSimilar_(s.first_name, s.last_name, ext.first_name, ext.last_name)) {
+              matchedStudent = ext;
+              break;
+          }
+      }
+      
+      var compositeKey = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
+      
+      if (matchedStudent) {
+          // Enrich existing student record
+          var patchPayload = {};
+          if (s.first_name.length > (matchedStudent.first_name || "").length) patchPayload.first_name = s.first_name;
+          if (s.last_name.length > (matchedStudent.last_name || "").length) patchPayload.last_name = s.last_name;
+          if (!matchedStudent.phone && s.phone) patchPayload.phone = s.phone;
+          if (!matchedStudent.address && s.address) patchPayload.address = s.address;
+          if (!matchedStudent.eircode && s.eircode) patchPayload.eircode = s.eircode;
+          if (!matchedStudent.dob && s.dob) patchPayload.dob = s.dob;
+          
+          if (Object.keys(patchPayload).length > 0) {
+              patchPayload.last_synced_at = new Date().toISOString();
+              _fetch('students?id=eq.' + matchedStudent.id, 'patch', patchPayload);
+              // Update in-memory object to keep cache updated
+              for (var f in patchPayload) matchedStudent[f] = patchPayload[f];
+          }
+          
+          keyToIdMap[compositeKey] = matchedStudent.id;
+      } else {
+          // No similarity match, add to list of students to insert
+          studentsToInsert.push(s);
+      }
+  }
+
+  if (studentsToInsert.length > 0) {
+      var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', studentsToInsert, { 
+        'Prefer': 'return=representation' 
+      });
+      if (!upsertedStudents) throw new Error("Failed to insert new students.");
+      
+      for (var k = 0; k < upsertedStudents.length; k++) {
+          var s = upsertedStudents[k];
+          var compositeKey = String(s.first_name || "").toLowerCase() + "|" + String(s.last_name || "").toLowerCase() + "|" + String(s.email || "").toLowerCase();
+          keyToIdMap[compositeKey] = s.id;
+      }
   }
 
   // Build Enrollments

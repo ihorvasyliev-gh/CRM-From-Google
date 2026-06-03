@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink } from 'lucide-react';
+import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
+import MergeModal from './MergeModal';
 
 interface Enrollment {
     id: string;
@@ -147,6 +148,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     const queryClient = useQueryClient();
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [mergeModalOpen, setMergeModalOpen] = useState(false);
 
     const fetchEnrollments = useCallback(async () => {
         const { data } = await supabase
@@ -273,15 +275,18 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                     {(onEdit || onEnroll || onDelete) && (
                         <div className="flex gap-2">
                             {onEdit && (
-                                <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
+                                <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
                                     <Edit2 size={14} /> Edit
                                 </button>
                             )}
                             {onEnroll && (
-                                <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
+                                <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
                                     <UserPlus size={14} /> Enroll
                                 </button>
                             )}
+                            <button onClick={() => setMergeModalOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-xl transition-all" title="Merge student profiles">
+                                <GitMerge size={14} /> Merge
+                            </button>
                             {onDelete && (
                                 <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all">
                                     <Trash2 size={14} />
@@ -415,6 +420,12 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                     </div>
                 </div>
             </div>
+            <MergeModal
+                open={mergeModalOpen}
+                student={student}
+                onClose={() => setMergeModalOpen(false)}
+                onSuccess={onClose}
+            />
         </div>
     );
 }

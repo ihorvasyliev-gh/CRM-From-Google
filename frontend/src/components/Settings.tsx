@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2 } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
+import { supabase } from '../lib/supabase';
+import { Student } from '../lib/types';
+import MergeModal from './MergeModal';
 
 const quillModules = {
     toolbar: [
@@ -50,6 +53,51 @@ export default function Settings() {
     const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config);
 
     const [showStatusPreview, setShowStatusPreview] = useState(true);
+
+    const [scanning, setScanning] = useState(false);
+    const [duplicateGroups, setDuplicateGroups] = useState<{ key: string; students: Student[] }[]>([]);
+    const [selectedStudentForMerge, setSelectedStudentForMerge] = useState<Student | null>(null);
+    const [targetStudentForMerge, setTargetStudentForMerge] = useState<Student | null>(null);
+    const [mergeModalOpen, setMergeModalOpen] = useState(false);
+    const [hasScanned, setHasScanned] = useState(false);
+
+    const runDuplicateScan = useCallback(async () => {
+        setScanning(true);
+        setHasScanned(true);
+        try {
+            const { data, error } = await supabase
+                .from('students')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            if (!data) return;
+
+            // Group by email (ignoring empty emails)
+            const groups: Record<string, Student[]> = {};
+            data.forEach(s => {
+                if (s.email && s.email.trim()) {
+                    const k = s.email.trim().toLowerCase();
+                    if (!groups[k]) groups[k] = [];
+                    groups[k].push(s);
+                }
+            });
+
+            // Filter groups with > 1 student
+            const dups = Object.entries(groups)
+                .filter(([_, list]) => list.length > 1)
+                .map(([key, list]) => ({
+                    key,
+                    students: list
+                }));
+
+            setDuplicateGroups(dups);
+        } catch (err) {
+            console.error('Scan failed:', err);
+        } finally {
+            setScanning(false);
+        }
+    }, []);
 
     return (
         <div className="space-y-6 pb-8 w-full animate-fadeIn">
@@ -266,6 +314,105 @@ export default function Settings() {
                         </div>
                     )}
                 </div>
+            </section>
+
+            {/* ═══ Duplicate Profiles Scanner ═══ */}
+            <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
+                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-indigo-500/10 rounded-lg">
+                            <GitMerge size={16} className="text-indigo-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-primary">Duplicate Profiles Scanner</h3>
+                            <p className="text-xs text-muted mt-0.5">Scan the database for student profiles sharing the same email address</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={runDuplicateScan}
+                        disabled={scanning}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                    >
+                        {scanning ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+                        {scanning ? 'Scanning...' : 'Scan for Duplicates'}
+                    </button>
+                </div>
+                <div className="p-5">
+                    {scanning && (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted animate-fadeIn">
+                            <Loader2 size={24} className="animate-spin text-indigo-500" />
+                            <p className="text-xs font-medium">Scanning all student profiles...</p>
+                        </div>
+                    )}
+
+                    {!scanning && !hasScanned && (
+                        <div className="text-center py-6 text-xs text-muted">
+                            Click "Scan for Duplicates" to search for redundant profiles.
+                        </div>
+                    )}
+
+                    {!scanning && hasScanned && duplicateGroups.length === 0 && (
+                        <div className="text-center py-6 text-xs text-green-600 dark:text-green-400 font-semibold">
+                            🎉 No duplicates found! All emails in the database are unique.
+                        </div>
+                    )}
+
+                    {!scanning && duplicateGroups.length > 0 && (
+                        <div className="space-y-4">
+                            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                                <AlertTriangle size={14} className="flex-shrink-0" />
+                                <span>Found {duplicateGroups.length} group(s) of students sharing the same email address. Review and merge them below:</span>
+                            </p>
+                            <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl overflow-hidden bg-background">
+                                {duplicateGroups.map((group) => (
+                                    <div key={group.key} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface/30 transition-all">
+                                        <div className="space-y-2">
+                                            <span className="inline-block text-[10px] font-bold bg-indigo-500/10 text-indigo-600 px-2 py-0.5 rounded-full font-mono">
+                                                {group.key}
+                                            </span>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                                                {group.students.map((s) => (
+                                                    <div key={s.id} className="text-xs text-primary font-medium flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                                                        <span>{s.first_name} {s.last_name}</span>
+                                                        {s.phone && <span className="text-muted text-[10px]">({s.phone})</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedStudentForMerge(group.students[0]);
+                                                setTargetStudentForMerge(group.students[1]);
+                                                setMergeModalOpen(true);
+                                            }}
+                                            className="px-3.5 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl transition-all self-start sm:self-center flex items-center gap-1.5 border border-indigo-500/10 hover:border-indigo-500/20 shadow-sm"
+                                        >
+                                            <GitMerge size={12} />
+                                            Review & Merge
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {mergeModalOpen && selectedStudentForMerge && (
+                    <MergeModal
+                        open={mergeModalOpen}
+                        student={selectedStudentForMerge}
+                        initialTargetStudent={targetStudentForMerge}
+                        onClose={() => {
+                            setMergeModalOpen(false);
+                            setSelectedStudentForMerge(null);
+                            setTargetStudentForMerge(null);
+                        }}
+                        onSuccess={() => {
+                            runDuplicateScan();
+                        }}
+                    />
+                )}
             </section>
 
             {/* ═══ Display Preferences ═══ */}
