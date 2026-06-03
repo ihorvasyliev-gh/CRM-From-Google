@@ -21,6 +21,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     const [primaryId, setPrimaryId] = useState<string>('');
     const [merging, setMerging] = useState(false);
     const [error, setError] = useState('');
+    const [markingNonDuplicate, setMarkingNonDuplicate] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -90,6 +91,30 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             setError(err.message || 'Failed to merge students');
         } finally {
             setMerging(false);
+        }
+    }
+
+    async function handleMarkAsNonDuplicate() {
+        if (!targetStudent) return;
+        setMarkingNonDuplicate(true);
+        setError('');
+        try {
+            const ids = [sourceStudent.id, targetStudent.id].sort();
+            const { error: insertError } = await supabase
+                .from('student_non_duplicates')
+                .upsert({
+                    student_a_id: ids[0],
+                    student_b_id: ids[1]
+                }, { onConflict: 'student_a_id,student_b_id' });
+
+            if (insertError) throw insertError;
+
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (err: any) {
+            setError(err.message || 'Failed to mark profiles as non-duplicates');
+        } finally {
+            setMarkingNonDuplicate(false);
         }
     }
 
@@ -298,8 +323,18 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                     </button>
                     {targetStudent && (
                         <button
+                            onClick={handleMarkAsNonDuplicate}
+                            disabled={markingNonDuplicate || merging}
+                            className="px-4 py-2.5 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 border border-success/10 hover:border-success/20 shadow-sm"
+                        >
+                            {markingNonDuplicate ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            Not Duplicates
+                        </button>
+                    )}
+                    {targetStudent && (
+                        <button
                             onClick={handleMerge}
-                            disabled={merging}
+                            disabled={merging || markingNonDuplicate}
                             className="px-4 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-sm hover:shadow"
                         >
                             {merging ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}

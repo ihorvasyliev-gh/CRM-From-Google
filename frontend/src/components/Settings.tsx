@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
@@ -60,22 +60,42 @@ export default function Settings() {
     const [targetStudentForMerge, setTargetStudentForMerge] = useState<Student | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
     const [hasScanned, setHasScanned] = useState(false);
+    const [markingNonDuplicates, setMarkingNonDuplicates] = useState<string | null>(null);
 
     const runDuplicateScan = useCallback(async () => {
         setScanning(true);
         setHasScanned(true);
         try {
-            const { data, error } = await supabase
+            const { data: studentsData, error: studentsError } = await supabase
                 .from('students')
                 .select('*')
                 .order('created_at', { ascending: false });
             
-            if (error) throw error;
-            if (!data) return;
+            if (studentsError) throw studentsError;
+            if (!studentsData) return;
+
+            // Load non-duplicate relationships (fail-safe if table doesn't exist yet)
+            let nonDupsData: { student_a_id: string; student_b_id: string }[] = [];
+            try {
+                const { data: ndData, error: ndError } = await supabase
+                    .from('student_non_duplicates')
+                    .select('student_a_id, student_b_id');
+                if (!ndError && ndData) {
+                    nonDupsData = ndData;
+                }
+            } catch (ndErr) {
+                console.warn('Failed to load student_non_duplicates (table may not exist yet):', ndErr);
+            }
+
+            const nonDupsSet = new Set<string>();
+            nonDupsData.forEach(row => {
+                const ids = [row.student_a_id, row.student_b_id].sort();
+                nonDupsSet.add(`${ids[0]}_${ids[1]}`);
+            });
 
             // Group by email (ignoring empty emails)
             const groups: Record<string, Student[]> = {};
-            data.forEach(s => {
+            studentsData.forEach(s => {
                 if (s.email && s.email.trim()) {
                     const k = s.email.trim().toLowerCase();
                     if (!groups[k]) groups[k] = [];
@@ -83,9 +103,20 @@ export default function Settings() {
                 }
             });
 
-            // Filter groups with > 1 student
+            // Filter groups with > 1 student AND containing unresolved duplicates
             const dups = Object.entries(groups)
-                .filter(([_, list]) => list.length > 1)
+                .filter(([_, list]) => {
+                    if (list.length <= 1) return false;
+                    for (let i = 0; i < list.length; i++) {
+                        for (let j = i + 1; j < list.length; j++) {
+                            const pair = [list[i].id, list[j].id].sort();
+                            if (!nonDupsSet.has(`${pair[0]}_${pair[1]}`)) {
+                                return true; // Found an unresolved duplicate pair
+                            }
+                        }
+                    }
+                    return false;
+                })
                 .map(([key, list]) => ({
                     key,
                     students: list
@@ -98,6 +129,36 @@ export default function Settings() {
             setScanning(false);
         }
     }, []);
+
+    const markGroupAsNonDuplicates = useCallback(async (key: string, students: Student[]) => {
+        setMarkingNonDuplicates(key);
+        try {
+            const pairsToInsert: { student_a_id: string; student_b_id: string }[] = [];
+            for (let i = 0; i < students.length; i++) {
+                for (let j = i + 1; j < students.length; j++) {
+                    const ids = [students[i].id, students[j].id].sort();
+                    pairsToInsert.push({
+                        student_a_id: ids[0],
+                        student_b_id: ids[1]
+                    });
+                }
+            }
+
+            if (pairsToInsert.length > 0) {
+                const { error } = await supabase
+                    .from('student_non_duplicates')
+                    .upsert(pairsToInsert, { onConflict: 'student_a_id,student_b_id' });
+                
+                if (error) throw error;
+            }
+
+            await runDuplicateScan();
+        } catch (err) {
+            console.error('Failed to mark group as non-duplicates:', err);
+        } finally {
+            setMarkingNonDuplicates(null);
+        }
+    }, [runDuplicateScan]);
 
     return (
         <div className="space-y-6 pb-8 w-full animate-fadeIn">
@@ -380,17 +441,31 @@ export default function Settings() {
                                                 ))}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedStudentForMerge(group.students[0]);
-                                                setTargetStudentForMerge(group.students[1]);
-                                                setMergeModalOpen(true);
-                                            }}
-                                            className="px-3.5 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl transition-all self-start sm:self-center flex items-center gap-1.5 border border-indigo-500/10 hover:border-indigo-500/20 shadow-sm"
-                                        >
-                                            <GitMerge size={12} />
-                                            Review & Merge
-                                        </button>
+                                        <div className="flex items-center gap-2 self-start sm:self-center">
+                                            <button
+                                                disabled={markingNonDuplicates === group.key || scanning}
+                                                onClick={() => markGroupAsNonDuplicates(group.key, group.students)}
+                                                className="px-3.5 py-2 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-success/10 hover:border-success/20 shadow-sm"
+                                            >
+                                                {markingNonDuplicates === group.key ? (
+                                                    <Loader2 size={12} className="animate-spin" />
+                                                ) : (
+                                                    <Check size={12} />
+                                                )}
+                                                Not Duplicates
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedStudentForMerge(group.students[0]);
+                                                    setTargetStudentForMerge(group.students[1]);
+                                                    setMergeModalOpen(true);
+                                                }}
+                                                className="px-3.5 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-indigo-500/10 hover:border-indigo-500/20 shadow-sm"
+                                            >
+                                                <GitMerge size={12} />
+                                                Review & Merge
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

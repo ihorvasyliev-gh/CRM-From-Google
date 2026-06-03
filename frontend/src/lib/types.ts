@@ -88,6 +88,13 @@ export interface StudentFlag {
     courses?: Course | null;
 }
 
+export interface NonDuplicate {
+    student_a_id: string;
+    student_b_id: string;
+    created_at?: string;
+}
+
+
 // ─── UI Utilities ────────────────────────────────────────────
 
 export const AVATAR_GRADIENTS = [
