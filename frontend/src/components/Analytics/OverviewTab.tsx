@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { 
     ResponsiveContainer, 
     BarChart, 
@@ -11,8 +11,9 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { Users, Clock, TrendingUp, Zap, Filter, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Users, Clock, TrendingUp, Zap, Filter, ArrowRight, CheckCircle2, GraduationCap, Search, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import { cleanVariant } from '../../lib/types';
 
 interface OverviewTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -197,10 +198,98 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
         return { total, queue, successRate, avgResponse };
     }, [enrollments]);
 
+    // 6. Conducted Courses calculation (runs with at least one completed enrollment)
+    const conductedCourses = useMemo(() => {
+        const groups: Record<string, {
+            courseId: string;
+            courseName: string;
+            variant: string;
+            date: string | null;
+            completedEnrollments: EnrollmentWithRelations[];
+        }> = {};
+
+        enrollments.forEach(e => {
+            const courseId = e.course_id || 'unknown';
+            const courseName = e.courses?.name || 'Unknown Course';
+            const variant = cleanVariant(courseName, e.course_variant);
+            const dateKey = e.invited_date || 'No Date';
+            const key = `${courseId}-${variant}-${dateKey}`;
+
+            if (!groups[key]) {
+                groups[key] = {
+                    courseId,
+                    courseName,
+                    variant,
+                    date: e.invited_date,
+                    completedEnrollments: []
+                };
+            }
+
+            if (e.status === 'completed') {
+                groups[key].completedEnrollments.push(e);
+            }
+        });
+
+        // Filter groups that have completed enrollments and format the records
+        return Object.values(groups)
+            .filter(g => g.completedEnrollments.length > 0)
+            .map(g => ({
+                ...g,
+                completedCount: g.completedEnrollments.length
+            }))
+            // Sort by date descending (nulls last) then by course name
+            .sort((a, b) => {
+                if (!a.date && !b.date) return a.courseName.localeCompare(b.courseName);
+                if (!a.date) return 1;
+                if (!b.date) return -1;
+                const dateCompare = b.date.localeCompare(a.date);
+                if (dateCompare !== 0) return dateCompare;
+                return a.courseName.localeCompare(b.courseName);
+            });
+    }, [enrollments]);
+
+    // Search and pagination state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
+    const filteredConductedCourses = useMemo(() => {
+        if (!searchQuery.trim()) return conductedCourses;
+        const query = searchQuery.toLowerCase().trim();
+        return conductedCourses.filter(c => 
+            c.courseName.toLowerCase().includes(query) || 
+            c.variant.toLowerCase().includes(query) || 
+            (c.date && c.date.includes(query))
+        );
+    }, [conductedCourses, searchQuery]);
+
+    // Reset current page when query changes
+    useMemo(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
+    const paginatedCourses = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredConductedCourses.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredConductedCourses, currentPage]);
+
+    const totalPages = Math.ceil(filteredConductedCourses.length / itemsPerPage) || 1;
+
+    const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return 'N/A';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fadeIn">
             {/* Header Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
                      onClick={() => onDrillDown('All Enrollments', enrollments)}>
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
@@ -211,6 +300,23 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                         </div>
                         <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                             <Users size={20} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
+                     onClick={() => {
+                         const el = document.getElementById('conducted-courses-section');
+                         if (el) el.scrollIntoView({ behavior: 'smooth' });
+                     }}>
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-600" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Conducted Courses</p>
+                            <p className="text-3xl font-mono font-bold text-primary">{conductedCourses.length}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                            <GraduationCap size={20} />
                         </div>
                     </div>
                 </div>
@@ -442,6 +548,140 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
                         <span className="text-[10px] text-muted font-medium">graduates</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Conducted Courses Details */}
+            <div id="conducted-courses-section" className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-xl">
+                            <GraduationCap size={20} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-bold text-primary uppercase tracking-wider">
+                                    Conducted Course Runs
+                                </h3>
+                                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
+                                    {filteredConductedCourses.length}
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted mt-0.5">List of course runs that have at least one completed student</p>
+                        </div>
+                    </div>
+                    
+                    {/* Search Bar */}
+                    <div className="relative w-full sm:w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Search by course or variant..."
+                            className="w-full pl-9 pr-4 py-2 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface-elevated/20">
+                    {paginatedCourses.length === 0 ? (
+                        <div className="text-center py-12 text-muted text-sm">
+                            <BookOpen size={32} className="mx-auto text-muted/40 mb-3" />
+                            {searchQuery ? 'No course runs match your search query' : 'No conducted course runs found with completed students.'}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-surface-elevated/70 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-subtle">
+                                    <tr>
+                                        <th className="py-3 px-4">Course Name</th>
+                                        <th className="py-3 px-4">Level / Variant</th>
+                                        <th className="py-3 px-4">Start Date</th>
+                                        <th className="py-3 px-4 text-center">Graduates</th>
+                                        <th className="py-3 px-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border-subtle bg-surface">
+                                    {paginatedCourses.map((course, idx) => (
+                                        <tr 
+                                            key={`${course.courseId}-${course.variant}-${course.date || idx}`}
+                                            className="hover:bg-brand-500/5 cursor-pointer transition-colors group"
+                                            onClick={() => onDrillDown(
+                                                `${course.courseName} - ${course.variant} (${formatDate(course.date)}) Graduates`,
+                                                course.completedEnrollments
+                                            )}
+                                        >
+                                            <td className="py-3.5 px-4 font-semibold text-primary">
+                                                {course.courseName}
+                                            </td>
+                                            <td className="py-3.5 px-4">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400 border border-brand-100 dark:border-brand-500/20">
+                                                    {course.variant}
+                                                </span>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-muted font-mono text-xs">
+                                                {formatDate(course.date)}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-full text-xs font-bold font-mono bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20">
+                                                    {course.completedCount}
+                                                </span>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-right">
+                                                <button 
+                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDrillDown(
+                                                            `${course.courseName} - ${course.variant} (${formatDate(course.date)}) Graduates`,
+                                                            course.completedEnrollments
+                                                        );
+                                                    }}
+                                                >
+                                                    View Graduates
+                                                    <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 px-1">
+                        <div className="text-xs text-muted font-medium">
+                            Showing <span className="font-semibold text-primary">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                            <span className="font-semibold text-primary">
+                                {Math.min(currentPage * itemsPerPage, filteredConductedCourses.length)}
+                            </span> of{' '}
+                            <span className="font-semibold text-primary">{filteredConductedCourses.length}</span> runs
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-lg border border-border-subtle bg-surface hover:bg-surface-elevated disabled:opacity-50 disabled:hover:bg-surface transition-colors cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <ChevronLeft size={16} className="text-primary" />
+                            </button>
+                            <span className="text-xs font-semibold text-primary px-2">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-lg border border-border-subtle bg-surface hover:bg-surface-elevated disabled:opacity-50 disabled:hover:bg-surface transition-colors cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <ChevronRight size={16} className="text-primary" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

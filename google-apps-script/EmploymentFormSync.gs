@@ -78,49 +78,49 @@ function onOpen() {
  */
 function onEmploymentFormSubmit(e) {
   try {
-    Logger.log('=== onEmploymentFormSubmit TRIGGERED ===');
-    Logger.log('Event object keys: ' + (e ? Object.keys(e).join(', ') : 'NULL'));
+    log_('=== onEmploymentFormSubmit TRIGGERED ===', 'INFO');
+    log_('Event object keys: ' + (e ? Object.keys(e).join(', ') : 'NULL'), 'INFO');
 
     var sheet, row;
 
     if (e && e.range) {
       sheet = e.range.getSheet();
       row = e.range.getRow();
-      Logger.log('Event sheet: "' + sheet.getName() + '", row: ' + row);
+      log_('Event sheet: "' + sheet.getName() + '", row: ' + row, 'INFO');
 
       if (!isEmploymentFormSheet_(sheet.getName())) {
-        Logger.log('Sheet name "' + sheet.getName() + '" does not match expected form responses sheet. Skipping.');
+        log_('Sheet name "' + sheet.getName() + '" does not match expected form responses sheet. Skipping.', 'INFO');
         return;
       }
     } else {
       // Fallback: event object might be missing range (known Google bug).
       // Try to find the form responses sheet and process its last row.
-      Logger.log('No event range — using fallback (last row of form sheet)');
+      log_('No event range — using fallback (last row of form sheet)', 'WARN');
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       sheet = findFormSheet_(ss);
       if (!sheet) {
-        Logger.log('Could not find form responses sheet in spreadsheet.');
+        log_('Could not find form responses sheet in spreadsheet.', 'ERROR');
         return;
       }
       row = sheet.getLastRow();
       if (row < 2) {
-        Logger.log('No data rows found in sheet.');
+        log_('No data rows found in sheet.', 'WARN');
         return;
       }
-      Logger.log('Fallback: processing last row ' + row + ' of "' + sheet.getName() + '"');
+      log_('Fallback: processing last row ' + row + ' of "' + sheet.getName() + '"', 'INFO');
     }
 
     var result = processEmploymentRow_(sheet, row);
 
     if (result === true) {
-      Logger.log('Row ' + row + ': ✅ successfully synced to Supabase');
+      log_('Row ' + row + ': ✅ successfully synced to Supabase', 'INFO');
     } else if (result === false) {
-      Logger.log('Row ' + row + ': ❌ failed to sync to Supabase');
+      log_('Row ' + row + ': ❌ failed to sync to Supabase', 'ERROR');
     } else {
-      Logger.log('Row ' + row + ': ⏭ skipped');
+      log_('Row ' + row + ': ⏭ skipped', 'INFO');
     }
   } catch (err) {
-    Logger.log('onEmploymentFormSubmit ERROR: ' + err + '\nStack: ' + (err.stack || ''));
+    log_('onEmploymentFormSubmit ERROR: ' + err + '\nStack: ' + (err.stack || ''), 'ERROR');
   }
 }
 
@@ -439,4 +439,46 @@ function setupEmploymentFormTrigger() {
     'Employment Form trigger installed!',
     'Setup ✅'
   );
+}
+
+/**
+ * Logs a message to the Google Sheet (SystemLogs) and standard Logger.
+ * @param {string} message
+ * @param {string} level - 'INFO', 'ERROR', 'WARN'
+ */
+function log_(message, level) {
+  level = level || 'INFO';
+  var timestamp = new Date();
+  
+  // Also log to built-in Logger & console for standard debuggers
+  var formattedMsg = '[' + level + '] ' + message;
+  if (level === 'ERROR') {
+    console.error(formattedMsg);
+    Logger.log(formattedMsg);
+  } else {
+    console.log(formattedMsg);
+    Logger.log(formattedMsg);
+  }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('SystemLogs');
+    if (!sheet) {
+      sheet = ss.insertSheet('SystemLogs');
+      sheet.appendRow(['Timestamp', 'Level', 'Message']);
+      sheet.getRange('A1:C1').setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    
+    // Append the log row
+    sheet.appendRow([timestamp, level, message]);
+    
+    // Keep logs to maximum of 1000 entries to prevent bloating the sheet
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1000) {
+      sheet.deleteRows(2, lastRow - 1000);
+    }
+  } catch (e) {
+    console.error('Failed to write log to SystemLogs sheet: ' + e);
+  }
 }

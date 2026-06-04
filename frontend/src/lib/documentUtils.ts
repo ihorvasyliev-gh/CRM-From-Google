@@ -102,14 +102,22 @@ export async function generateDocumentsArchive(
 
     // Generate documents for each template
     for (const tpl of templates) {
-        const { data: templateData, error: downloadError } = await supabase.storage
-            .from('templates')
-            .download(tpl.storagePath);
+        let templateData: Blob | null = null;
+        let downloadErrorMsg: string | null = null;
+        try {
+            const { data } = supabase.storage.from('templates').getPublicUrl(tpl.storagePath);
+            const response = await fetch(data.publicUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            templateData = await response.blob();
+        } catch (err) {
+            downloadErrorMsg = err instanceof Error ? err.message : String(err);
+        }
 
-        if (downloadError || !templateData) {
-            const errMsg = downloadError?.message || 'File not found in storage';
-            console.error(`Failed to download template "${tpl.name}":`, downloadError);
-            result.failedTemplates.push({ name: tpl.name, error: `Download failed: ${errMsg}` });
+        if (downloadErrorMsg || !templateData) {
+            console.error(`Failed to download template "${tpl.name}":`, downloadErrorMsg);
+            result.failedTemplates.push({ name: tpl.name, error: `Download failed: ${downloadErrorMsg || 'File not found'}` });
             continue;
         }
 
@@ -162,15 +170,23 @@ export async function generateDocumentsArchive(
     // Generate Attendance Sheet (if template provided and enrollments exist)
     if (attendanceTemplateStoragePath && enrollments.length > 0) {
         try {
-            const { data: attTemplateData, error: attDownloadError } = await supabase.storage
-                .from('templates')
-                .download(attendanceTemplateStoragePath);
+            let attTemplateData: Blob | null = null;
+            let attDownloadErrorMsg: string | null = null;
+            try {
+                const { data } = supabase.storage.from('templates').getPublicUrl(attendanceTemplateStoragePath);
+                const response = await fetch(data.publicUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                attTemplateData = await response.blob();
+            } catch (err) {
+                attDownloadErrorMsg = err instanceof Error ? err.message : String(err);
+            }
 
-            if (attDownloadError || !attTemplateData) {
-                const errMsg = attDownloadError?.message || 'File not found';
-                console.error('Failed to download attendance template:', attDownloadError);
+            if (attDownloadErrorMsg || !attTemplateData) {
+                console.error('Failed to download attendance template:', attDownloadErrorMsg);
                 result.attendanceOk = false;
-                result.attendanceError = `Download failed: ${errMsg}`;
+                result.attendanceError = `Download failed: ${attDownloadErrorMsg || 'File not found'}`;
             } else {
                 const attTemplateBuffer = await attTemplateData.arrayBuffer();
                 const attPizZip = new PizZip(attTemplateBuffer);
@@ -224,15 +240,23 @@ export async function generateDocumentsArchive(
     // Generate Address Labels (if template provided and enrollments exist)
     if (labelTemplateStoragePath && enrollments.length > 0) {
         try {
-            const { data: lblTemplateData, error: lblDownloadError } = await supabase.storage
-                .from('templates')
-                .download(labelTemplateStoragePath);
+            let lblTemplateData: Blob | null = null;
+            let lblDownloadErrorMsg: string | null = null;
+            try {
+                const { data } = supabase.storage.from('templates').getPublicUrl(labelTemplateStoragePath);
+                const response = await fetch(data.publicUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                lblTemplateData = await response.blob();
+            } catch (err) {
+                lblDownloadErrorMsg = err instanceof Error ? err.message : String(err);
+            }
 
-            if (lblDownloadError || !lblTemplateData) {
-                const errMsg = lblDownloadError?.message || 'File not found';
+            if (lblDownloadErrorMsg || !lblTemplateData) {
                 result.labelsOk = false;
-                result.labelsError = `Download failed: ${errMsg}`;
-                const warningMsg = `Labels download failed: ${errMsg}`;
+                result.labelsError = `Download failed: ${lblDownloadErrorMsg || 'File not found'}`;
+                const warningMsg = `Labels download failed: ${lblDownloadErrorMsg || 'File not found'}`;
                 if (onWarning) onWarning(warningMsg);
                 else console.warn('[Labels]', warningMsg);
             } else {

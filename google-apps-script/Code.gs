@@ -57,19 +57,30 @@ function onOpen() {
  */
 function onFormSubmit(e) {
   try {
-    if (!e || !e.range) return;
+    log_('onFormSubmit trigger started', 'INFO');
+    if (!e || !e.range) {
+      log_('onFormSubmit: Event object or range is missing', 'WARN');
+      return;
+    }
     var sheet = e.range.getSheet();
+    var sheetName = sheet.getName();
+    log_('onFormSubmit: Form submitted to sheet "' + sheetName + '"', 'INFO');
     
     // Строго проверяем, что форма отправилась на правильный лист
-    if (sheet.getName() !== SOURCE_SHEET_NAME) return;
+    if (sheetName !== SOURCE_SHEET_NAME) {
+      log_('onFormSubmit: Sheet name "' + sheetName + '" does not match expected source sheet "' + SOURCE_SHEET_NAME + '". Skipping.', 'INFO');
+      return;
+    }
     
     // Pre-load course cache to avoid duplicate creation on API failures
     warmUpCourseCache();
     
     var row = e.range.getRow();
+    log_('onFormSubmit: Starting sync for row ' + row, 'INFO');
     syncRowsRange(sheet, row, row);
+    log_('onFormSubmit: Row ' + row + ' sync completed successfully', 'INFO');
   } catch (err) {
-    Logger.log('onFormSubmit error: ' + err);
+    log_('onFormSubmit error: ' + err + (err.stack ? '\nStack: ' + err.stack : ''), 'ERROR');
   }
 }
 
@@ -1290,4 +1301,46 @@ function restoreDataFromBackup() {
   }
   
   ss.toast("Restored data for " + restoredEnrCount + " enrolls & " + restoredStuCount + " students!", "Success");
+}
+
+/**
+ * Logs a message to the Google Sheet (SystemLogs) and standard Logger.
+ * @param {string} message
+ * @param {string} level - 'INFO', 'ERROR', 'WARN'
+ */
+function log_(message, level) {
+  level = level || 'INFO';
+  var timestamp = new Date();
+  
+  // Also log to built-in Logger & console for standard debuggers
+  var formattedMsg = '[' + level + '] ' + message;
+  if (level === 'ERROR') {
+    console.error(formattedMsg);
+    Logger.log(formattedMsg);
+  } else {
+    console.log(formattedMsg);
+    Logger.log(formattedMsg);
+  }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('SystemLogs');
+    if (!sheet) {
+      sheet = ss.insertSheet('SystemLogs');
+      sheet.appendRow(['Timestamp', 'Level', 'Message']);
+      sheet.getRange('A1:C1').setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    
+    // Append the log row
+    sheet.appendRow([timestamp, level, message]);
+    
+    // Keep logs to maximum of 1000 entries to prevent bloating the sheet
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1000) {
+      sheet.deleteRows(2, lastRow - 1000);
+    }
+  } catch (e) {
+    console.error('Failed to write log to SystemLogs sheet: ' + e);
+  }
 }
