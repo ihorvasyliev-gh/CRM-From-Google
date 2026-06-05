@@ -22,6 +22,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     const [merging, setMerging] = useState(false);
     const [error, setError] = useState('');
     const [markingNonDuplicate, setMarkingNonDuplicate] = useState(false);
+    const [editedFields, setEditedFields] = useState<Partial<Student>>({});
 
     useEffect(() => {
         if (open) {
@@ -30,8 +31,13 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             setSearchQuery('');
             setSearchResults([]);
             setError('');
+            setEditedFields({});
         }
     }, [open, sourceStudent, initialTargetStudent]);
+
+    useEffect(() => {
+        setEditedFields({});
+    }, [primaryId]);
 
     // Search for students
     useEffect(() => {
@@ -68,11 +74,41 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     const primaryStudent = primaryId === sourceStudent.id ? sourceStudent : targetStudent;
     const duplicateStudent = primaryId === sourceStudent.id ? targetStudent : sourceStudent;
 
+    const getPrimaryValue = (field: keyof Student) => {
+        if (editedFields[field] !== undefined) {
+            return editedFields[field];
+        }
+        return primaryStudent ? primaryStudent[field] : '';
+    };
+
     async function handleMerge() {
-        if (!targetStudent || !duplicateId) return;
+        if (!targetStudent || !duplicateId || !primaryStudent || !duplicateStudent) return;
         setMerging(true);
         setError('');
         try {
+            // 1. If any fields were edited/copied, save them to the primary profile first
+            if (Object.keys(editedFields).length > 0) {
+                // If email was copied/updated to the duplicate's email,
+                // set the duplicate's email to NULL first in the database
+                // to prevent violating the UNIQUE email constraint.
+                if (editedFields.email && editedFields.email.trim().toLowerCase() === duplicateStudent.email?.trim().toLowerCase()) {
+                    const { error: clearEmailError } = await supabase
+                        .from('students')
+                        .update({ email: null })
+                        .eq('id', duplicateId);
+                    
+                    if (clearEmailError) throw clearEmailError;
+                }
+
+                const { error: updateError } = await supabase
+                    .from('students')
+                    .update(editedFields)
+                    .eq('id', primaryId);
+
+                if (updateError) throw updateError;
+            }
+
+            // 2. Perform the merge RPC
             const { error: rpcError } = await supabase.rpc('merge_students', {
                 p_primary_id: primaryId,
                 p_duplicate_id: duplicateId
@@ -249,54 +285,99 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                             </td>
                                         </tr>
 
-                                        {/* First Name */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">First Name</td>
-                                            <td className={`p-3 text-center ${primaryId === sourceStudent.id ? 'font-semibold text-primary' : 'text-muted/60 line-through'}`}>{sourceStudent.first_name}</td>
-                                            <td className={`p-3 text-center ${primaryId === targetStudent.id ? 'font-semibold text-primary' : 'text-muted/60 line-through'}`}>{targetStudent.first_name}</td>
-                                        </tr>
+                                        {/* Render comparing rows using helper */}
+                                        {(() => {
+                                            const renderRow = (label: string, field: keyof Student) => {
+                                                if (!primaryStudent || !duplicateStudent) return null;
+                                                
+                                                const valA = sourceStudent[field] as string;
+                                                const valB = targetStudent[field] as string;
+                                                const isAPrimary = primaryId === sourceStudent.id;
+                                                
+                                                const primaryVal = getPrimaryValue(field) as string;
+                                                const duplicateVal = (isAPrimary ? valB : valA) as string;
+                                                
+                                                const hasDiff = (valA || '') !== (valB || '');
+                                                const isModified = editedFields[field] !== undefined;
 
-                                        {/* Last Name */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">Last Name</td>
-                                            <td className={`p-3 text-center ${primaryId === sourceStudent.id ? 'font-semibold text-primary' : 'text-muted/60 line-through'}`}>{sourceStudent.last_name}</td>
-                                            <td className={`p-3 text-center ${primaryId === targetStudent.id ? 'font-semibold text-primary' : 'text-muted/60 line-through'}`}>{targetStudent.last_name}</td>
-                                        </tr>
+                                                const renderCopyButton = () => {
+                                                    if (!hasDiff || !duplicateVal) return null;
+                                                    return (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditedFields(prev => ({
+                                                                    ...prev,
+                                                                    [field]: duplicateVal
+                                                                }));
+                                                            }}
+                                                            title={`Copy "${duplicateVal}" to primary profile`}
+                                                            className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-brand-500 text-white hover:bg-brand-600 rounded transition-all shadow-sm"
+                                                        >
+                                                            {isAPrimary ? '← Copy' : 'Copy →'}
+                                                        </button>
+                                                    );
+                                                };
 
-                                        {/* Email */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">Email</td>
-                                            <td className="p-3 text-center text-muted font-medium">{sourceStudent.email}</td>
-                                            <td className="p-3 text-center text-muted font-medium">{targetStudent.email}</td>
-                                        </tr>
+                                                return (
+                                                    <tr key={field} className={hasDiff ? 'bg-amber-500/5 dark:bg-amber-500/2' : ''}>
+                                                        <td className="p-3 font-medium text-muted flex items-center justify-between">
+                                                            <span>{label}</span>
+                                                            {hasDiff && !isModified && (
+                                                                <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold uppercase">
+                                                                    Differs
+                                                                </span>
+                                                            )}
+                                                            {isModified && (
+                                                                <span className="text-[10px] bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded font-semibold uppercase">
+                                                                    Updated
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        
+                                                        {/* Profile A Cell */}
+                                                        {isAPrimary ? (
+                                                            <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
+                                                                {primaryVal || <span className="text-muted/40 italic">Not set</span>}
+                                                            </td>
+                                                        ) : (
+                                                            <td className="p-3 text-center text-muted">
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <span className="line-through text-muted/60">{valA || <span className="text-muted/20 italic">Not set</span>}</span>
+                                                                    {renderCopyButton()}
+                                                                </div>
+                                                            </td>
+                                                        )}
+                                                        
+                                                        {/* Profile B Cell */}
+                                                        {!isAPrimary ? (
+                                                            <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
+                                                                {primaryVal || <span className="text-muted/40 italic">Not set</span>}
+                                                            </td>
+                                                        ) : (
+                                                            <td className="p-3 text-center text-muted">
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <span className="line-through text-muted/60">{valB || <span className="text-muted/20 italic">Not set</span>}</span>
+                                                                    {renderCopyButton()}
+                                                                </div>
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            };
 
-                                        {/* Phone */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">Phone</td>
-                                            <td className="p-3 text-center text-muted">{sourceStudent.phone || <span className="text-muted/40 italic">Not set</span>}</td>
-                                            <td className="p-3 text-center text-muted">{targetStudent.phone || <span className="text-muted/40 italic">Not set</span>}</td>
-                                        </tr>
-
-                                        {/* Address */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">Address</td>
-                                            <td className="p-3 text-center text-muted truncate max-w-[150px]" title={sourceStudent.address || ''}>{sourceStudent.address || <span className="text-muted/40 italic">Not set</span>}</td>
-                                            <td className="p-3 text-center text-muted truncate max-w-[150px]" title={targetStudent.address || ''}>{targetStudent.address || <span className="text-muted/40 italic">Not set</span>}</td>
-                                        </tr>
-
-                                        {/* Eircode */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">Eircode</td>
-                                            <td className="p-3 text-center text-muted">{sourceStudent.eircode || <span className="text-muted/40 italic">Not set</span>}</td>
-                                            <td className="p-3 text-center text-muted">{targetStudent.eircode || <span className="text-muted/40 italic">Not set</span>}</td>
-                                        </tr>
-
-                                        {/* Date of Birth */}
-                                        <tr>
-                                            <td className="p-3 font-medium text-muted">DOB</td>
-                                            <td className="p-3 text-center text-muted">{sourceStudent.dob || <span className="text-muted/40 italic">Not set</span>}</td>
-                                            <td className="p-3 text-center text-muted">{targetStudent.dob || <span className="text-muted/40 italic">Not set</span>}</td>
-                                        </tr>
+                                            return (
+                                                <>
+                                                    {renderRow('First Name', 'first_name')}
+                                                    {renderRow('Last Name', 'last_name')}
+                                                    {renderRow('Email', 'email')}
+                                                    {renderRow('Phone', 'phone')}
+                                                    {renderRow('Address', 'address')}
+                                                    {renderRow('Eircode', 'eircode')}
+                                                    {renderRow('Date of Birth', 'dob')}
+                                                </>
+                                            );
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>

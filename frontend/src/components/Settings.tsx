@@ -6,6 +6,7 @@ import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubjec
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
 const quillModules = {
     toolbar: [
@@ -56,6 +57,7 @@ export default function Settings() {
 
     const [scanning, setScanning] = useState(false);
     const [duplicateGroups, setDuplicateGroups] = useState<{ key: string; students: Student[] }[]>([]);
+    const [potentialMatches, setPotentialMatches] = useState<{ studentA: Student; studentB: Student; reason: string }[]>([]);
     const [selectedStudentForMerge, setSelectedStudentForMerge] = useState<Student | null>(null);
     const [targetStudentForMerge, setTargetStudentForMerge] = useState<Student | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -93,7 +95,7 @@ export default function Settings() {
                 nonDupsSet.add(`${ids[0]}_${ids[1]}`);
             });
 
-            // Group by email (ignoring empty emails)
+            // 1. Group by exact email (ignoring empty emails)
             const groups: Record<string, Student[]> = {};
             studentsData.forEach(s => {
                 if (s.email && s.email.trim()) {
@@ -122,7 +124,74 @@ export default function Settings() {
                     students: list
                 }));
 
+            // 2. Scan for potential matches (similar names + matching DOB or Phone, but not same email)
+            const matchesList: { studentA: Student; studentB: Student; reason: string }[] = [];
+            const processedPairs = new Set<string>();
+
+            for (let i = 0; i < studentsData.length; i++) {
+                for (let j = i + 1; j < studentsData.length; j++) {
+                    const s1 = studentsData[i];
+                    const s2 = studentsData[j];
+
+                    // Skip if they share the exact same email (handled by email duplicate scanner)
+                    if (s1.email && s2.email && s1.email.trim().toLowerCase() === s2.email.trim().toLowerCase()) {
+                        continue;
+                    }
+
+                    const pairKey = [s1.id, s2.id].sort().join('_');
+                    if (nonDupsSet.has(pairKey) || processedPairs.has(pairKey)) {
+                        continue;
+                    }
+
+                    // Check if names are similar
+                    if (areNamesSimilar(s1.first_name, s1.last_name, s2.first_name, s2.last_name)) {
+                        let hasMatchingId = false;
+                        const reasons: string[] = [];
+
+                        // Check DOB match
+                        if (s1.dob && s2.dob && s1.dob === s2.dob) {
+                            hasMatchingId = true;
+                            reasons.push('Same DOB');
+                        }
+
+                        // Check Phone match
+                        const p1 = normalizePhone(s1.phone);
+                        const p2 = normalizePhone(s2.phone);
+                        if (p1 && p2 && p1 === p2) {
+                            hasMatchingId = true;
+                            reasons.push('Same Phone');
+                        }
+
+                        if (hasMatchingId) {
+                            processedPairs.add(pairKey);
+                            const t1 = new Date(s1.created_at || 0).getTime();
+                            const t2 = new Date(s2.created_at || 0).getTime();
+                            const studentA = t1 <= t2 ? s1 : s2; // older profile
+                            const studentB = t1 <= t2 ? s2 : s1; // newer profile
+
+                            // List the differences
+                            const diffs: string[] = [];
+                            if (studentA.address !== studentB.address) diffs.push('address');
+                            if (studentA.phone !== studentB.phone && normalizePhone(studentA.phone) !== normalizePhone(studentB.phone)) diffs.push('phone');
+                            if (studentA.email !== studentB.email) diffs.push('email');
+
+                            let reasonText = reasons.join(' & ');
+                            if (diffs.length > 0) {
+                                reasonText += `, different ${diffs.join('/')}`;
+                            }
+
+                            matchesList.push({
+                                studentA,
+                                studentB,
+                                reason: reasonText
+                            });
+                        }
+                    }
+                }
+            }
+
             setDuplicateGroups(dups);
+            setPotentialMatches(matchesList);
         } catch (err) {
             console.error('Scan failed:', err);
         } finally {
@@ -155,6 +224,28 @@ export default function Settings() {
             await runDuplicateScan();
         } catch (err) {
             console.error('Failed to mark group as non-duplicates:', err);
+        } finally {
+            setMarkingNonDuplicates(null);
+        }
+    }, [runDuplicateScan]);
+
+    const markPairAsNonDuplicates = useCallback(async (sA: Student, sB: Student) => {
+        const key = [sA.id, sB.id].sort().join('_');
+        setMarkingNonDuplicates(key);
+        try {
+            const ids = [sA.id, sB.id].sort();
+            const { error } = await supabase
+                .from('student_non_duplicates')
+                .upsert({
+                    student_a_id: ids[0],
+                    student_b_id: ids[1]
+                }, { onConflict: 'student_a_id,student_b_id' });
+            
+            if (error) throw error;
+
+            await runDuplicateScan();
+        } catch (err) {
+            console.error('Failed to mark pair as non-duplicates:', err);
         } finally {
             setMarkingNonDuplicates(null);
         }
@@ -412,9 +503,9 @@ export default function Settings() {
                         </div>
                     )}
 
-                    {!scanning && hasScanned && duplicateGroups.length === 0 && (
+                    {!scanning && hasScanned && duplicateGroups.length === 0 && potentialMatches.length === 0 && (
                         <div className="text-center py-6 text-xs text-green-600 dark:text-green-400 font-semibold">
-                            🎉 No duplicates found! All emails in the database are unique.
+                            🎉 No duplicates or profile updates found! Everything is clean.
                         </div>
                     )}
 
@@ -468,6 +559,77 @@ export default function Settings() {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {!scanning && potentialMatches.length > 0 && (
+                        <div className="space-y-4 mt-6">
+                            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20">
+                                <AlertTriangle size={14} className="flex-shrink-0" />
+                                <span>Found {potentialMatches.length} potential profile update(s) (similar name, but different details). Review them below:</span>
+                            </p>
+                            <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl overflow-hidden bg-background">
+                                {potentialMatches.map((match) => {
+                                    const pairKey = [match.studentA.id, match.studentB.id].sort().join('_');
+                                    return (
+                                        <div key={pairKey} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface/30 transition-all">
+                                            <div className="space-y-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="inline-block text-[10px] font-bold bg-indigo-500/10 text-indigo-600 px-2 py-0.5 rounded-full">
+                                                        Potential Match
+                                                    </span>
+                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full font-semibold">
+                                                        {match.reason}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="text-xs text-primary font-medium flex flex-wrap items-center gap-1.5">
+                                                        <span className="text-muted w-16 flex-shrink-0">Profile A:</span>
+                                                        <span className="font-semibold">{match.studentA.first_name} {match.studentA.last_name}</span>
+                                                        {match.studentA.phone && <span className="text-muted text-[10px]">({match.studentA.phone})</span>}
+                                                        {match.studentA.email && <span className="text-muted text-[10px]">• {match.studentA.email}</span>}
+                                                        {match.studentA.address && <span className="text-muted text-[10px]">• {match.studentA.address}</span>}
+                                                        <span className="text-[10px] text-muted font-medium bg-surface-elevated px-1.5 py-0.5 rounded">(Older)</span>
+                                                    </div>
+                                                    <div className="text-xs text-primary font-medium flex flex-wrap items-center gap-1.5">
+                                                        <span className="text-muted w-16 flex-shrink-0">Profile B:</span>
+                                                        <span className="font-semibold">{match.studentB.first_name} {match.studentB.last_name}</span>
+                                                        {match.studentB.phone && <span className="text-muted text-[10px]">({match.studentB.phone})</span>}
+                                                        {match.studentB.email && <span className="text-muted text-[10px]">• {match.studentB.email}</span>}
+                                                        {match.studentB.address && <span className="text-muted text-[10px]">• {match.studentB.address}</span>}
+                                                        <span className="text-[10px] text-brand-500 font-medium bg-brand-500/10 px-1.5 py-0.5 rounded">(Newer)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 self-start sm:self-center">
+                                                <button
+                                                    disabled={markingNonDuplicates === pairKey || scanning}
+                                                    onClick={() => markPairAsNonDuplicates(match.studentA, match.studentB)}
+                                                    className="px-3.5 py-2 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-success/10 hover:border-success/20 shadow-sm"
+                                                >
+                                                    {markingNonDuplicates === pairKey ? (
+                                                        <Loader2 size={12} className="animate-spin" />
+                                                    ) : (
+                                                        <Check size={12} />
+                                                    )}
+                                                    Not Duplicates
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedStudentForMerge(match.studentA);
+                                                        setTargetStudentForMerge(match.studentB);
+                                                        setMergeModalOpen(true);
+                                                    }}
+                                                    className="px-3.5 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 border border-indigo-500/10 hover:border-indigo-500/20 shadow-sm"
+                                                >
+                                                    <GitMerge size={12} />
+                                                    Review & Merge
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
