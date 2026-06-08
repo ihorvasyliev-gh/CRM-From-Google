@@ -3,104 +3,105 @@
 -- ============================================================
 
 -- 1. Recreate RLS policies for all tables to restrict access for 'viewer' role
+-- Using 'app_metadata' instead of 'user_metadata' for security compliance.
 
 -- Students
 DROP POLICY IF EXISTS "Authenticated access" ON public.students;
 CREATE POLICY "Authenticated access" ON public.students
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Courses
 DROP POLICY IF EXISTS "Authenticated access" ON public.courses;
 CREATE POLICY "Authenticated access" ON public.courses
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Enrollments
 DROP POLICY IF EXISTS "Authenticated access" ON public.enrollments;
 CREATE POLICY "Authenticated access" ON public.enrollments
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Invite Dates
 DROP POLICY IF EXISTS "Authenticated access" ON public.invite_dates;
 CREATE POLICY "Authenticated access" ON public.invite_dates
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Document Templates
 DROP POLICY IF EXISTS "Authenticated access" ON public.document_templates;
 CREATE POLICY "Authenticated access" ON public.document_templates
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Attendance Templates
 DROP POLICY IF EXISTS "Authenticated access" ON public.attendance_templates;
 CREATE POLICY "Authenticated access" ON public.attendance_templates
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Label Templates
 DROP POLICY IF EXISTS "Authenticated access" ON public.label_templates;
 CREATE POLICY "Authenticated access" ON public.label_templates
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Template Variables
 DROP POLICY IF EXISTS "Authenticated access" ON public.template_variables;
 CREATE POLICY "Authenticated access" ON public.template_variables
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Employment Status
 DROP POLICY IF EXISTS "Authenticated can manage employment_status" ON public.employment_status;
 CREATE POLICY "Authenticated can manage employment_status" ON public.employment_status
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Student Flags
 DROP POLICY IF EXISTS "Authenticated access" ON public.student_flags;
 CREATE POLICY "Authenticated access" ON public.student_flags
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 -- Confirmation Tokens
 DROP POLICY IF EXISTS "Authenticated can manage tokens" ON public.confirmation_tokens;
 CREATE POLICY "Authenticated can manage tokens" ON public.confirmation_tokens
     FOR ALL USING (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     ) WITH CHECK (
-        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'user_metadata' ->> 'role', '') != 'viewer'
+        auth.role() = 'authenticated' AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') != 'viewer'
     );
 
 

@@ -64,7 +64,7 @@ function App() {
 
     const location = useLocation();
     const navigateFn = useNavigate();
-    const isViewer = user?.user_metadata?.role === 'viewer';
+    const isViewer = user?.app_metadata?.role === 'viewer';
     const activeTab = isViewer ? 'lookup' : (location.pathname.split('/')[1] || 'dashboard');
 
     const [darkMode, setDarkMode] = useState(() => {
