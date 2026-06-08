@@ -27,7 +27,12 @@ interface EnrollmentDetail {
     status: string;
     course_variant: string | null;
     created_at: string;
+    invited_at: string | null;
+    invited_date: string | null;
+    confirmed_at: string | null;
     confirmed_date: string | null;
+    completed_at: string | null;
+    completed_date: string | null;
     course_id: string;
     course_name: string;
     queue_position: number | null;
@@ -89,6 +94,15 @@ function InfoField({ icon, label, value }: { icon: JSX.Element; label: string; v
             </div>
         </div>
     );
+}
+
+function formatDate(dateStr: string | null | undefined) {
+    if (!dateStr) return null;
+    try {
+        return new Date(dateStr).toLocaleDateString('en-IE');
+    } catch (e) {
+        return dateStr;
+    }
 }
 
 export default function StudentLookup() {
@@ -369,17 +383,43 @@ export default function StudentLookup() {
                                                 {studentDetail.enrollments.map(en => (
                                                     <div 
                                                         key={en.id} 
-                                                        className="p-4 rounded-2xl bg-surface border border-border-subtle shadow-sm hover:shadow transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                                        className="p-4 rounded-2xl bg-surface border border-border-subtle shadow-sm hover:shadow transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-3"
                                                     >
-                                                        <div className="min-w-0">
+                                                        <div className="min-w-0 flex-1">
                                                             <h4 className="font-bold text-primary text-sm truncate">
                                                                 {en.course_name}
                                                             </h4>
                                                             {en.course_variant && (
-                                                                <span className="text-[10px] text-muted block mt-0.5">
+                                                                <span className="text-[10px] text-muted block mt-0.5 mb-1.5">
                                                                     Variant: {cleanVariant(en.course_name, en.course_variant)}
                                                                 </span>
                                                             )}
+
+                                                            {/* Enrollment Dates */}
+                                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2.5 pt-2.5 border-t border-border-subtle/40 text-[10px] text-muted">
+                                                                <div>
+                                                                    <span className="font-semibold text-primary/70 mr-1">Registered:</span>
+                                                                    <span>{formatDate(en.created_at)}</span>
+                                                                </div>
+                                                                {(en.invited_at || en.invited_date) && (
+                                                                    <div>
+                                                                        <span className="font-semibold text-primary/70 mr-1">Invited:</span>
+                                                                        <span>{formatDate(en.invited_at || en.invited_date)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {(en.confirmed_at || en.confirmed_date) && (
+                                                                    <div>
+                                                                        <span className="font-semibold text-primary/70 mr-1">Confirmed:</span>
+                                                                        <span>{formatDate(en.confirmed_at || en.confirmed_date)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {en.status === 'completed' && (en.completed_at || en.completed_date) && (
+                                                                    <div>
+                                                                        <span className="font-semibold text-primary/70 mr-1">Completed:</span>
+                                                                        <span>{formatDate(en.completed_at || en.completed_date)}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
 
                                                         <div className="flex items-center gap-2 flex-shrink-0">
