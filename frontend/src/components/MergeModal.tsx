@@ -49,12 +49,19 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             setSearching(true);
             setError('');
             try {
-                const { data, error: err } = await supabase
+                const cleanQuery = searchQuery.trim();
+                const parts = cleanQuery.split(/\s+/);
+                let query = supabase
                     .from('students')
                     .select('*')
-                    .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
                     .neq('id', sourceStudent.id)
                     .limit(5);
+
+                parts.forEach(part => {
+                    query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%`);
+                });
+
+                const { data, error: err } = await query;
 
                 if (err) throw err;
                 setSearchResults(data || []);

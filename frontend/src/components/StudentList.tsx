@@ -43,8 +43,11 @@ async function fetchStudentsPage({ pageParam = 0, queryKey }: any) {
 
     if (search) {
         const cleanSearch = search.trim();
-        const normalizedEircodeSearch = cleanSearch.replace(/\s+/g, '').toUpperCase();
-        query = query.or(`first_name.ilike.%${cleanSearch}%,last_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%,normalized_eircode.ilike.%${normalizedEircodeSearch}%`);
+        const parts = cleanSearch.split(/\s+/);
+        parts.forEach(part => {
+            const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
+            query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
+        });
     }
 
     const { data, count, error } = await query.range(from, to);
