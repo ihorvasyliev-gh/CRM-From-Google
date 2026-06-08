@@ -228,12 +228,11 @@ BEGIN
             'course_id', e.course_id,
             'course_name', c.name,
             'queue_position', public.get_enrollment_queue_position(e.id)
-        )
+        ) ORDER BY e.created_at DESC
     ), '[]'::jsonb) INTO v_enrollments_data
     FROM public.enrollments e
     JOIN public.courses c ON c.id = e.course_id
-    WHERE e.student_id = p_student_id
-    ORDER BY e.created_at DESC;
+    WHERE e.student_id = p_student_id;
 
     RETURN v_student_data || jsonb_build_object('enrollments', v_enrollments_data);
 END;
