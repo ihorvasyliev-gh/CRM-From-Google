@@ -22,6 +22,7 @@ const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGener
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
+const StudentLookup = lazyWithRetry(() => import('./components/StudentLookup'));
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
@@ -63,7 +64,8 @@ function App() {
 
     const location = useLocation();
     const navigateFn = useNavigate();
-    const activeTab = location.pathname.split('/')[1] || 'dashboard';
+    const isViewer = user?.user_metadata?.role === 'viewer';
+    const activeTab = isViewer ? 'lookup' : (location.pathname.split('/')[1] || 'dashboard');
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -353,7 +355,7 @@ function App() {
                 )}
 
                 {/* Mobile overlay */}
-                {sidebarOpen && (
+                {sidebarOpen && !isViewer && (
                     <div
                         className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden animate-fadeIn"
                         onClick={() => setSidebarOpen(false)}
@@ -361,7 +363,8 @@ function App() {
                 )}
 
                 {/* Sidebar */}
-                <aside className={`
+                {!isViewer && (
+                    <aside className={`
                     fixed lg:sticky top-0 left-0 h-screen w-[200px] z-40
                     flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                     bg-surface border-r border-border-subtle shadow-[2px_0_24px_-10px_rgba(0,0,0,0.1)]
@@ -457,6 +460,7 @@ function App() {
                         </button>
                     </div>
                 </aside>
+                )}
 
                 {/* Main Content */}
                 <div className={`flex-1 flex flex-col h-screen relative z-10 min-w-0 ${
@@ -493,43 +497,47 @@ function App() {
                         </div>
                     )}
                     {/* Mobile Header (Glassmorphism) */}
-                    <header className="lg:hidden h-12 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            className="text-muted hover:text-primary transition p-1 rounded-lg hover:bg-surface-elevated"
-                        >
-                            <Menu size={20} />
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/20">
-                                C
+                    {!isViewer && (
+                        <header className="lg:hidden h-12 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
+                            <button
+                                onClick={() => setSidebarOpen(true)}
+                                className="text-muted hover:text-primary transition p-1 rounded-lg hover:bg-surface-elevated"
+                            >
+                                <Menu size={20} />
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/20">
+                                    C
+                                </div>
+                                <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
                             </div>
-                            <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
-                        </div>
-                        <div className="w-8" />
-                    </header>
+                            <div className="w-8" />
+                        </header>
+                    )}
 
                     {/* Desktop Floating Header (Glassmorphism) */}
-                    <header className="hidden lg:block sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 lg:px-8 py-3 transition-colors">
-                        <div className="w-full flex flex-row items-center justify-between">
-                            <div className="animate-fadeIn flex items-center gap-3">
-                                <h2 className="text-xl font-bold text-primary tracking-tight">
-                                    {PAGE_TITLES[activeTab]}
-                                </h2>
-                                <div className="h-4 w-px bg-border-strong hidden sm:block"></div>
-                                <p className="text-sm text-muted font-medium hidden sm:block">
-                                    {activeTab === 'dashboard' && 'Welcome back — here\'s your overview'}
-                                    {activeTab === 'students' && 'Manage your student database'}
-                                    {activeTab === 'courses' && 'View and manage course catalog'}
-                                    {activeTab === 'enrollments' && 'Track and manage enrollments'}
-                                    {activeTab === 'outcomes' && 'Track graduate employment status'}
-                                    {activeTab === 'documents' && 'Generate personalized documents'}
-                                    {activeTab === 'analytics' && 'Course and enrollment statistics'}
-                                    {activeTab === 'settings' && 'Configure email templates and preferences'}
-                                </p>
+                    {!isViewer && (
+                        <header className="hidden lg:block sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 lg:px-8 py-3 transition-colors">
+                            <div className="w-full flex flex-row items-center justify-between">
+                                <div className="animate-fadeIn flex items-center gap-3">
+                                    <h2 className="text-xl font-bold text-primary tracking-tight">
+                                        {PAGE_TITLES[activeTab]}
+                                    </h2>
+                                    <div className="h-4 w-px bg-border-strong hidden sm:block"></div>
+                                    <p className="text-sm text-muted font-medium hidden sm:block">
+                                        {activeTab === 'dashboard' && 'Welcome back — here\'s your overview'}
+                                        {activeTab === 'students' && 'Manage your student database'}
+                                        {activeTab === 'courses' && 'View and manage course catalog'}
+                                        {activeTab === 'enrollments' && 'Track and manage enrollments'}
+                                        {activeTab === 'outcomes' && 'Track graduate employment status'}
+                                        {activeTab === 'documents' && 'Generate personalized documents'}
+                                        {activeTab === 'analytics' && 'Course and enrollment statistics'}
+                                        {activeTab === 'settings' && 'Configure email templates and preferences'}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    </header>
+                        </header>
+                    )}
 
                     {/* Page Content */}
                     <main className={`flex-1 w-full flex flex-col min-h-0 ${
@@ -548,16 +556,25 @@ function App() {
                             </div>
                         }>
                             <Routes>
-                                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                                <Route path="/dashboard" element={<Dashboard onNavigate={navigate} />} />
-                                <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
-                                <Route path="/courses" element={<CourseList />} />
-                                <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />
-                                <Route path="/outcomes" element={<OutcomesList />} />
-                                <Route path="/documents" element={<DocumentGenerator />} />
-                                <Route path="/analytics" element={<Analytics />} />
-                                <Route path="/settings" element={<Settings />} />
-                                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                                {isViewer ? (
+                                    <>
+                                        <Route path="/lookup" element={<StudentLookup />} />
+                                        <Route path="*" element={<Navigate to="/lookup" replace />} />
+                                    </>
+                                ) : (
+                                    <>
+                                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                                        <Route path="/dashboard" element={<Dashboard onNavigate={navigate} />} />
+                                        <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
+                                        <Route path="/courses" element={<CourseList />} />
+                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />
+                                        <Route path="/outcomes" element={<OutcomesList />} />
+                                        <Route path="/documents" element={<DocumentGenerator />} />
+                                        <Route path="/analytics" element={<Analytics />} />
+                                        <Route path="/settings" element={<Settings />} />
+                                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                                    </>
+                                )}
                             </Routes>
                         </Suspense>
                     </main>
