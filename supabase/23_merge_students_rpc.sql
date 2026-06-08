@@ -147,6 +147,9 @@ BEGIN
         UPDATE employment_status SET student_id = p_primary_id WHERE id = v_dup_emp_id;
     END IF;
 
+    -- 6. Delete Duplicate Student Profile
+    DELETE FROM students WHERE id = p_duplicate_id;
+
     -- 5. Enrich Primary Student Info
     UPDATE students
     SET
@@ -164,9 +167,6 @@ BEGIN
         dob = COALESCE(dob, v_duplicate.dob),
         created_at = LEAST(created_at, v_duplicate.created_at)
     WHERE id = p_primary_id;
-
-    -- 6. Delete Duplicate Student Profile
-    DELETE FROM students WHERE id = p_duplicate_id;
 
 END;
 $$;

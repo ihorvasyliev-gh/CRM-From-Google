@@ -88,17 +88,16 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
         try {
             // 1. If any fields were edited/copied, save them to the primary profile first
             if (Object.keys(editedFields).length > 0) {
-                // If email was copied/updated to the duplicate's email,
-                // set the duplicate's email to NULL first in the database
-                // to prevent violating the UNIQUE email constraint.
-                if (editedFields.email && editedFields.email.trim().toLowerCase() === duplicateStudent.email?.trim().toLowerCase()) {
-                    const { error: clearEmailError } = await supabase
-                        .from('students')
-                        .update({ email: null })
-                        .eq('id', duplicateId);
-                    
-                    if (clearEmailError) throw clearEmailError;
-                }
+                // To prevent violating the UNIQUE constraint on (first_name, last_name, email)
+                // when updating the primary student with fields (like name or email) that conflict with
+                // the duplicate student, set the duplicate student's email to NULL first.
+                // Since the duplicate is deleted in the merge RPC right after, this is completely safe.
+                const { error: clearEmailError } = await supabase
+                    .from('students')
+                    .update({ email: null })
+                    .eq('id', duplicateId);
+                
+                if (clearEmailError) throw clearEmailError;
 
                 const { error: updateError } = await supabase
                     .from('students')
