@@ -44,7 +44,7 @@ async function fetchStudentsPage({ pageParam = 0, queryKey }: any) {
     if (search) {
         const cleanSearch = search.trim();
         const parts = cleanSearch.split(/\s+/);
-        parts.forEach(part => {
+        parts.forEach((part: string) => {
             const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
             query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
         });

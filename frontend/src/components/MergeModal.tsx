@@ -57,7 +57,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                     .neq('id', sourceStudent.id)
                     .limit(5);
 
-                parts.forEach(part => {
+                parts.forEach((part: string) => {
                     query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%`);
                 });
 
