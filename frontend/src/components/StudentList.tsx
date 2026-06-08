@@ -42,7 +42,9 @@ async function fetchStudentsPage({ pageParam = 0, queryKey }: any) {
     let query = supabase.from('students').select('*', { count: 'exact' }).order('created_at', { ascending: false });
 
     if (search) {
-        query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+        const cleanSearch = search.trim();
+        const normalizedEircodeSearch = cleanSearch.replace(/\s+/g, '').toUpperCase();
+        query = query.or(`first_name.ilike.%${cleanSearch}%,last_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%,normalized_eircode.ilike.%${normalizedEircodeSearch}%`);
     }
 
     const { data, count, error } = await query.range(from, to);
@@ -213,7 +215,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
-                                placeholder="Search by name, email or phone..."
+                                placeholder="Search by name, email, phone or eircode..."
                                 className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}

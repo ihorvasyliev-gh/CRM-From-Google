@@ -99,4 +99,30 @@ describe('matchesSearch', () => {
         expect(matchesSearch(student, 'john deposit')).toBe(true);  // john in name, deposit in notes
         expect(matchesSearch(student, 'john xyz')).toBe(false);     // xyz matches nothing
     });
+
+    describe('Eircode search matching', () => {
+        const studentWithEircode = {
+            firstName: 'John',
+            lastName: 'Smith',
+            email: 'john.smith@example.com',
+            phone: '0871234567',
+            notes: '',
+            eircode: 'T23 Y2Y4',
+        };
+
+        it('matches eircode exactly', () => {
+            expect(matchesSearch(studentWithEircode, 'T23 Y2Y4')).toBe(true);
+        });
+
+        it('matches eircode case-insensitively and space-insensitively', () => {
+            expect(matchesSearch(studentWithEircode, 't23 y2y4')).toBe(true);
+            expect(matchesSearch(studentWithEircode, 'T23Y2Y4')).toBe(true);
+            expect(matchesSearch(studentWithEircode, 't23y2y4')).toBe(true);
+        });
+
+        it('matches partial eircode', () => {
+            expect(matchesSearch(studentWithEircode, 't23')).toBe(true);
+            expect(matchesSearch(studentWithEircode, 'y2y4')).toBe(true);
+        });
+    });
 });

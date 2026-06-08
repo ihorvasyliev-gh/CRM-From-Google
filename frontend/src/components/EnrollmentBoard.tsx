@@ -130,6 +130,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                     email: e.students?.email,
                     phone: e.students?.phone,
                     notes: e.notes,
+                    eircode: e.students?.eircode,
                 }, debouncedSearchQuery)
             );
         }

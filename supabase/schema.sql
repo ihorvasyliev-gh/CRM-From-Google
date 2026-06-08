@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS students (
     phone           TEXT,
     address         TEXT,
     eircode         TEXT,
+    normalized_eircode TEXT GENERATED ALWAYS AS (upper(replace(eircode, ' '::text, ''::text))) STORED,
     dob             DATE,
     last_synced_at  TIMESTAMPTZ DEFAULT now(),
     created_at      TIMESTAMPTZ DEFAULT now()
@@ -148,6 +149,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 
 CREATE INDEX IF NOT EXISTS idx_students_email          ON students(email);
 CREATE INDEX IF NOT EXISTS idx_students_phone          ON students(phone);
+CREATE INDEX IF NOT EXISTS idx_students_normalized_eircode ON students(normalized_eircode);
 CREATE INDEX IF NOT EXISTS idx_courses_name            ON courses(name);
 CREATE INDEX IF NOT EXISTS idx_enrollments_student_id  ON enrollments(student_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_course_id   ON enrollments(course_id);

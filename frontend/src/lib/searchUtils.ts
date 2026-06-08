@@ -48,6 +48,7 @@ export function matchesSearch(
         email?: string | null;
         phone?: string | null;
         notes?: string | null;
+        eircode?: string | null;
     },
     query: string
 ): boolean {
@@ -61,6 +62,7 @@ export function matchesSearch(
     const fullName = `${firstName} ${lastName}`;
     const email = (fields.email || '').toLowerCase();
     const notes = (fields.notes || '').toLowerCase();
+    const eircodeClean = (fields.eircode || '').toUpperCase().replace(/\s+/g, '');
 
     // Every word in the query must match at least one field
     return words.every(word => {
@@ -70,6 +72,10 @@ export function matchesSearch(
         if (email.includes(word)) return true;
         if (notes.includes(word)) return true;
         if (isPhoneMatch(fields.phone, word)) return true;
+        
+        const wordClean = word.toUpperCase().replace(/\s+/g, '');
+        if (wordClean && eircodeClean.includes(wordClean)) return true;
+        
         return false;
     });
 }
