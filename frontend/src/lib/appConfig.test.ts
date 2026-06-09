@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -93,6 +93,32 @@ describe('appConfig', () => {
         it('ignores standard hex colors', () => {
             const html = 'color: #123456;';
             expect(convertRgbToHex(html)).toBe(html);
+        });
+    });
+
+    describe('convertQuillClassesToInlineStyles', () => {
+        it('converts basic ql-color classes to inline styles', () => {
+            const html = '<span class="ql-color-red">text</span>';
+            const expected = '<span style="color: #e60000;">text</span>';
+            expect(convertQuillClassesToInlineStyles(html)).toBe(expected);
+        });
+
+        it('converts ql-bg classes and hex values', () => {
+            const html = '<span class="ql-bg-ff9900">text</span>';
+            const expected = '<span style="background-color: #ff9900;">text</span>';
+            expect(convertQuillClassesToInlineStyles(html)).toBe(expected);
+        });
+
+        it('merges with existing style attributes', () => {
+            const html = '<span style="font-weight: bold;" class="ql-color-blue ql-font-serif">text</span>';
+            const expected = '<span style="font-weight: bold; color: #0066cc; font-family: Georgia, Times New Roman, serif;">text</span>';
+            expect(convertQuillClassesToInlineStyles(html)).toBe(expected);
+        });
+
+        it('retains unrelated classes', () => {
+            const html = '<span class="my-custom-class ql-size-large">text</span>';
+            const expected = '<span class="my-custom-class" style="font-size: 1.5em;">text</span>';
+            expect(convertQuillClassesToInlineStyles(html)).toBe(expected);
         });
     });
 });

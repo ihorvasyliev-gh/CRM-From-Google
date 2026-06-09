@@ -131,6 +131,10 @@ export function resetConfig(): AppConfig {
  * Converts rgb(...) and rgba(...) color values in HTML string to hex format (#RRGGBB).
  * This ensures Outlook compatibility, as Outlook ignores rgb() colors in inline styles.
  */
+/**
+ * Converts rgb(...) and rgba(...) color values in HTML string to hex format (#RRGGBB).
+ * This ensures Outlook compatibility, as Outlook ignores rgb() colors in inline styles.
+ */
 export function convertRgbToHex(html: string): string {
     return html.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/gi, (_match, rStr, gStr, bStr) => {
         const r = parseInt(rStr, 10);
@@ -140,6 +144,108 @@ export function convertRgbToHex(html: string): string {
         const clamp = (val: number) => Math.max(0, Math.min(255, val));
         const hex = ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
         return `#${hex}`;
+    });
+}
+
+/**
+ * Inlines Quill's class-based formatting (e.g. ql-color-red, ql-bg-facccc) to standard inline CSS styles.
+ * This is crucial for HTML email rendering in clients like Outlook which do not load the Quill stylesheet.
+ */
+export function convertQuillClassesToInlineStyles(html: string): string {
+    const colorMap: Record<string, string> = {
+        'black': '#000000',
+        'red': '#e60000',
+        'orange': '#ff9900',
+        'yellow': '#ffff00',
+        'green': '#008a00',
+        'blue': '#0066cc',
+        'purple': '#9933ff',
+        'white': '#ffffff',
+        'silver': '#bbbbbb',
+        'gray': '#888888'
+    };
+
+    const fontMap: Record<string, string> = {
+        'serif': 'Georgia, Times New Roman, serif',
+        'monospace': 'Monaco, Courier New, monospace'
+    };
+
+    const sizeMap: Record<string, string> = {
+        'small': '0.75em',
+        'large': '1.5em',
+        'huge': '2.5em'
+    };
+
+    return html.replace(/<([a-z0-9]+)(\s+[^>]*)>/gi, (tagMatch, tagName, attrs) => {
+        const classMatch = attrs.match(/class=["']([^"']+)["']/i);
+        if (!classMatch) return tagMatch;
+
+        const classList = classMatch[1].split(/\s+/);
+        const stylesToAdd: string[] = [];
+        const remainingClasses: string[] = [];
+
+        for (const cls of classList) {
+            let processed = false;
+
+            if (cls.startsWith('ql-color-')) {
+                const val = cls.substring(9);
+                const color = colorMap[val] || (val.match(/^[0-9a-f]{3,6}$/i) ? `#${val}` : null);
+                if (color) {
+                    stylesToAdd.push(`color: ${color};`);
+                    processed = true;
+                }
+            } else if (cls.startsWith('ql-bg-')) {
+                const val = cls.substring(6);
+                const color = colorMap[val] || (val.match(/^[0-9a-f]{3,6}$/i) ? `#${val}` : null);
+                if (color) {
+                    stylesToAdd.push(`background-color: ${color};`);
+                    processed = true;
+                }
+            } else if (cls.startsWith('ql-font-')) {
+                const val = cls.substring(8);
+                const font = fontMap[val];
+                if (font) {
+                    stylesToAdd.push(`font-family: ${font};`);
+                    processed = true;
+                }
+            } else if (cls.startsWith('ql-size-')) {
+                const val = cls.substring(8);
+                const size = sizeMap[val];
+                if (size) {
+                    stylesToAdd.push(`font-size: ${size};`);
+                    processed = true;
+                }
+            }
+
+            if (!processed && cls.trim()) {
+                remainingClasses.push(cls);
+            }
+        }
+
+        if (stylesToAdd.length === 0) {
+            return tagMatch;
+        }
+
+        let newAttrs = attrs;
+
+        const styleMatch = attrs.match(/style=["']([^"']*)["']/i);
+        const styleStr = stylesToAdd.join(' ');
+        if (styleMatch) {
+            const existingStyle = styleMatch[1].trim();
+            const delimiter = existingStyle && !existingStyle.endsWith(';') ? ';' : '';
+            const newStyle = `${existingStyle}${delimiter} ${styleStr}`.trim();
+            newAttrs = newAttrs.replace(/style=["']([^"']*)["']/i, `style="${newStyle}"`);
+        } else {
+            newAttrs = `${newAttrs} style="${styleStr}"`;
+        }
+
+        if (remainingClasses.length > 0) {
+            newAttrs = newAttrs.replace(/class=["']([^"']+)["']/i, `class="${remainingClasses.join(' ')}"`);
+        } else {
+            newAttrs = newAttrs.replace(/\s*class=["']([^"']+)["']/i, '');
+        }
+
+        return `<${tagName}${newAttrs}>`;
     });
 }
 
@@ -209,7 +315,8 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 </body>
 </html>`;
 
-    return convertRgbToHex(htmlWrapper);
+    const inlined = convertQuillClassesToInlineStyles(htmlWrapper);
+    return convertRgbToHex(inlined);
 }
 
 /** Build the email body HTML by replacing placeholders. */
