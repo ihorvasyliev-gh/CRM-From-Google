@@ -131,30 +131,14 @@ export function useInviteFlow({
 
         const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays);
 
-        // Copy by rendering in a hidden DOM element and using execCommand('copy').
-        // This makes the browser generate proper rich clipboard data (RTF) that
-        // Outlook understands, preserving inline colors and formatting on paste.
         try {
-            const container = document.createElement('div');
-            container.innerHTML = htmlBody;
-            container.style.position = 'fixed';
-            container.style.left = '-9999px';
-            container.style.top = '0';
-            container.style.width = '600px';
-            document.body.appendChild(container);
-
-            const range = document.createRange();
-            range.selectNodeContents(container);
-            const selection = window.getSelection();
-            if (!selection) throw new Error('No selection available');
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            const success = document.execCommand('copy');
-            selection.removeAllRanges();
-            document.body.removeChild(container);
-
-            if (!success) throw new Error('execCommand copy failed');
+            const blobHtml = new Blob([htmlBody], { type: "text/html" });
+            const blobText = new Blob(["Please view this email in an HTML-compatible client."], { type: "text/plain" });
+            const data = [new ClipboardItem({
+                "text/html": blobHtml,
+                "text/plain": blobText,
+            })];
+            await navigator.clipboard.write(data);
             showToast('HTML template copied! Press Ctrl+V in your email client.', 'success');
         } catch (err) {
             console.error('Failed to copy HTML to clipboard:', err);

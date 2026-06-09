@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, wrapSpanColorsWithFontTags } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -122,17 +122,28 @@ describe('appConfig', () => {
         });
     });
 
-    describe('wrapSpanColorsWithFontTags', () => {
-        it('wraps simple color spans with font tags', () => {
+    describe('replaceColorSpansWithFontTags', () => {
+        it('replaces color spans with font tags', () => {
             const html = '<span style="color: #e60000;">text</span>';
-            const expected = '<span style="color: #e60000;"><font color="#e60000">text</font></span>';
-            expect(wrapSpanColorsWithFontTags(html)).toBe(expected);
+            const expected = '<font color="#e60000">text</font>';
+            expect(replaceColorSpansWithFontTags(html)).toBe(expected);
         });
 
-        it('handles other styles and nested tags', () => {
+        it('replaces spans and preserves nested tags', () => {
             const html = '<span style="font-weight: bold; color: #ff9900;"><strong>bold text</strong></span>';
-            const expected = '<span style="font-weight: bold; color: #ff9900;"><font color="#ff9900"><strong>bold text</strong></font></span>';
-            expect(wrapSpanColorsWithFontTags(html)).toBe(expected);
+            const expected = '<font color="#ff9900"><strong>bold text</strong></font>';
+            expect(replaceColorSpansWithFontTags(html)).toBe(expected);
+        });
+
+        it('does not match background-color as color', () => {
+            const html = '<span style="background-color: #e60000;">text</span>';
+            expect(replaceColorSpansWithFontTags(html)).toBe(html);
+        });
+
+        it('handles both color and background-color', () => {
+            const html = '<span style="color: #ff0000; background-color: #ffff00;">text</span>';
+            const expected = '<font color="#ff0000" style="background-color:#ffff00;">text</font>';
+            expect(replaceColorSpansWithFontTags(html)).toBe(expected);
         });
     });
 });

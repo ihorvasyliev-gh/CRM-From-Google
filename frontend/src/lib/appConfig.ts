@@ -250,15 +250,35 @@ export function convertQuillClassesToInlineStyles(html: string): string {
 }
 
 /**
- * Wraps text inside color-styled span tags with <font color="..."> tags for Outlook compatibility.
- * Outlook desktop rendering engine often strips color styles from spans but respects legacy font tags.
+ * Replaces color-styled <span> tags with <font color> tags for Outlook compatibility.
+ * Outlook's Word engine strips <span> elements during paste but preserves legacy <font> tags.
+ * Uses a non-regex DOM approach to handle nested elements correctly.
  */
-export function wrapSpanColorsWithFontTags(html: string): string {
-    return html.replace(/<span(\s+[^>]*)>(.*?)<\/span>/gi, (match, attrs, content) => {
-        const styleMatch = attrs.match(/style=["']([^"']*color:\s*([^;]+);?[^"']*)["']/i);
-        if (!styleMatch) return match;
-        const color = styleMatch[2].trim();
-        return `<span${attrs}><font color="${color}">${content}</font></span>`;
+export function replaceColorSpansWithFontTags(html: string): string {
+    // Use regex that handles nested content (including other tags) inside spans.
+    // Match spans with style attributes containing color (but not background-color).
+    return html.replace(/<span\s+([^>]*?)>([\s\S]*?)<\/span>/gi, (match, attrs, content) => {
+        // Extract color from style, being careful not to match background-color
+        const colorMatch = attrs.match(/style\s*=\s*["']([^"']*)(?:^|[;\s])color\s*:\s*([^;"']+)/i) ||
+                           attrs.match(/style\s*=\s*["']color\s*:\s*([^;"']+)/i);
+        
+        if (!colorMatch) return match;
+        
+        // Get the color value (last capture group)
+        const color = colorMatch[colorMatch.length === 3 ? 2 : 1].trim();
+        if (!color) return match;
+        
+        // Check for background-color too
+        const bgMatch = attrs.match(/background-color\s*:\s*([^;"']+)/i);
+        
+        if (bgMatch) {
+            const bgColor = bgMatch[1].trim();
+            // Use font tag for color + inline style for background
+            return `<font color="${color}" style="background-color:${bgColor};">${content}</font>`;
+        }
+        
+        // Replace span entirely with font tag
+        return `<font color="${color}">${content}</font>`;
     });
 }
 
@@ -330,7 +350,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 
     const inlined = convertQuillClassesToInlineStyles(htmlWrapper);
     const withHex = convertRgbToHex(inlined);
-    return wrapSpanColorsWithFontTags(withHex);
+    return replaceColorSpansWithFontTags(withHex);
 }
 
 /** Build the email body HTML by replacing placeholders. */

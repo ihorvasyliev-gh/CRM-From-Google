@@ -217,25 +217,12 @@ export default function OutcomesList() {
             const htmlBody = buildStatusEmailBodyHtml(statusLink);
             const subject = encodeURIComponent(buildStatusEmailSubject());
 
-            // Copy by rendering in a hidden DOM element for Outlook-compatible RTF
-            const container = document.createElement('div');
-            container.innerHTML = htmlBody;
-            container.style.position = 'fixed';
-            container.style.left = '-9999px';
-            container.style.top = '0';
-            container.style.width = '600px';
-            document.body.appendChild(container);
-
-            const range = document.createRange();
-            range.selectNodeContents(container);
-            const selection = window.getSelection();
-            if (selection) {
-                selection.removeAllRanges();
-                selection.addRange(range);
-                document.execCommand('copy');
-                selection.removeAllRanges();
-            }
-            document.body.removeChild(container);
+            const blobHtml = new Blob([htmlBody], { type: 'text/html' });
+            const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/html': blobHtml,
+                'text/plain': blobText,
+            })]);
             
             showToast(`Status requests sent to ${selected.length} graduate(s). Template copied!`, 'success');
 
