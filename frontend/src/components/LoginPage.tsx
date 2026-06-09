@@ -125,39 +125,39 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-surface-950 via-brand-950 to-surface-900 flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="min-h-screen bg-gradient-to-br from-background via-brand-50/30 to-background dark:via-brand-950/20 flex items-center justify-center px-4 relative overflow-hidden">
             {/* Animated orbs */}
             <div className="absolute top-20 left-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl animate-orb1" />
-            <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent-500/8 rounded-full blur-3xl animate-orb2" />
+            <div className="absolute bottom-20 right-20 w-96 h-96 bg-brand-400/10 rounded-full blur-3xl animate-orb2" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
 
             <div className="relative w-full max-w-md animate-scaleIn">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 animate-glow">
+                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-brand-400 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 animate-glow">
                         <Sparkles size={28} />
                     </div>
-                    <h1 className="text-3xl font-bold text-white mb-1">Course CRM</h1>
-                    <p className="text-sm text-white/40 font-medium">Sign in to manage your courses</p>
+                    <h1 className="text-3xl font-bold text-primary mb-1">Course CRM</h1>
+                    <p className="text-sm text-muted font-medium">Sign in to manage your courses</p>
                 </div>
 
                 {/* Card */}
-                <div className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-8">
+                <div className="bg-surface/60 dark:bg-white/5 backdrop-blur-2xl border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
-                            <div className="text-sm text-red-300 bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
+                            <div className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
                                 {error}
                             </div>
                         )}
 
                         <div>
-                            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Email</label>
+                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Email</label>
                             <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
                                     type="email"
                                     placeholder="admin@example.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full pl-10 pr-4 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
@@ -168,13 +168,13 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 block">Password</label>
+                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Password</label>
                             <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full pl-10 pr-4 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     required
@@ -194,7 +194,7 @@ export default function LoginPage() {
                     </form>
                 </div>
 
-                <p className="text-center text-xs text-white/20 mt-6 font-medium">
+                <p className="text-center text-xs text-muted/50 dark:text-white/20 mt-6 font-medium">
                     Course CRM • Management System
                 </p>
             </div>
