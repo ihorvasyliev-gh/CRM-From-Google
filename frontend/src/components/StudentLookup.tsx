@@ -7,7 +7,8 @@ import { getAvatarGradient } from '../lib/types';
 import { cleanVariant } from '../lib/types';
 import { 
     Search, LogOut, Sun, Moon, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
-    Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info 
+    Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info,
+    Star, AlertTriangle, MessageSquare 
 } from 'lucide-react';
 
 interface StudentSearchResult {
@@ -36,6 +37,16 @@ interface EnrollmentDetail {
     course_id: string;
     course_name: string;
     queue_position: number | null;
+    notes: string | null;
+    is_priority: boolean;
+}
+
+interface StudentFlag {
+    id: string;
+    course_id: string;
+    course_name: string;
+    comment: string | null;
+    created_at: string;
 }
 
 interface StudentDetailData {
@@ -49,6 +60,7 @@ interface StudentDetailData {
     dob: string | null;
     created_at: string;
     enrollments: EnrollmentDetail[];
+    flags: StudentFlag[];
 }
 
 const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string; label: string }> = {
@@ -287,13 +299,6 @@ export default function StudentLookup() {
                                             <h4 className="font-bold text-primary text-sm group-hover:text-brand-500 transition-colors">
                                                 {student.first_name} {student.last_name}
                                             </h4>
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 text-xs text-muted mt-0.5">
-                                                <span className="truncate">{student.email}</span>
-                                                {student.phone && (
-                                                    <span className="hidden sm:inline text-muted/40">•</span>
-                                                )}
-                                                {student.phone && <span className="truncate">{student.phone}</span>}
-                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -371,6 +376,38 @@ export default function StudentLookup() {
                                         </div>
                                     </div>
 
+                                    {/* Student Flags (Failed Courses) */}
+                                    {studentDetail.flags && studentDetail.flags.length > 0 && (
+                                        <div className="space-y-2">
+                                            <h3 className="text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
+                                                <AlertTriangle size={12} />
+                                                Course Flags
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {studentDetail.flags.map(flag => (
+                                                    <div 
+                                                        key={flag.id}
+                                                        className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-start gap-3"
+                                                    >
+                                                        <div className="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center">
+                                                            <XCircle size={16} className="text-red-500" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-bold text-red-700 dark:text-red-400">
+                                                                {flag.course_name}
+                                                            </p>
+                                                            {flag.comment && (
+                                                                <p className="text-xs text-red-600/80 dark:text-red-400/70 mt-0.5">
+                                                                    {flag.comment}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Course Registrations & Queues */}
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Course Registrations</h3>
@@ -386,13 +423,31 @@ export default function StudentLookup() {
                                                         className="p-4 rounded-2xl bg-surface border border-border-subtle shadow-sm hover:shadow transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-3"
                                                     >
                                                         <div className="min-w-0 flex-1">
-                                                            <h4 className="font-bold text-primary text-sm truncate">
-                                                                {en.course_name}
-                                                            </h4>
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-bold text-primary text-sm truncate">
+                                                                    {en.course_name}
+                                                                </h4>
+                                                                {en.is_priority && (
+                                                                    <span 
+                                                                        className="flex-shrink-0 text-amber-500" 
+                                                                        title="Priority enrollment"
+                                                                    >
+                                                                        <Star size={14} fill="currentColor" />
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             {en.course_variant && (
                                                                 <span className="text-[10px] text-muted block mt-0.5 mb-1.5">
                                                                     Variant: {cleanVariant(en.course_name, en.course_variant)}
                                                                 </span>
+                                                            )}
+
+                                                            {/* Enrollment Notes */}
+                                                            {en.notes && (
+                                                                <div className="flex items-start gap-1.5 mt-1.5 mb-1 px-2 py-1.5 bg-brand-500/5 dark:bg-brand-500/10 border border-brand-500/10 dark:border-brand-500/15 rounded-lg">
+                                                                    <MessageSquare size={11} className="text-brand-500 flex-shrink-0 mt-0.5" />
+                                                                    <p className="text-[11px] text-primary/70 dark:text-primary/60 leading-snug">{en.notes}</p>
+                                                                </div>
                                                             )}
 
                                                             {/* Enrollment Dates */}
