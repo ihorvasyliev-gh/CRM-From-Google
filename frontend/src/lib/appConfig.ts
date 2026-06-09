@@ -249,6 +249,19 @@ export function convertQuillClassesToInlineStyles(html: string): string {
     });
 }
 
+/**
+ * Wraps text inside color-styled span tags with <font color="..."> tags for Outlook compatibility.
+ * Outlook desktop rendering engine often strips color styles from spans but respects legacy font tags.
+ */
+export function wrapSpanColorsWithFontTags(html: string): string {
+    return html.replace(/<span(\s+[^>]*)>(.*?)<\/span>/gi, (match, attrs, content) => {
+        const styleMatch = attrs.match(/style=["']([^"']*color:\s*([^;]+);?[^"']*)["']/i);
+        if (!styleMatch) return match;
+        const color = styleMatch[2].trim();
+        return `<span${attrs}><font color="${color}">${content}</font></span>`;
+    });
+}
+
 function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogos: boolean) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
@@ -316,7 +329,8 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 </html>`;
 
     const inlined = convertQuillClassesToInlineStyles(htmlWrapper);
-    return convertRgbToHex(inlined);
+    const withHex = convertRgbToHex(inlined);
+    return wrapSpanColorsWithFontTags(withHex);
 }
 
 /** Build the email body HTML by replacing placeholders. */

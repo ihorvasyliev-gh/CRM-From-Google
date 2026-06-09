@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, wrapSpanColorsWithFontTags } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -119,6 +119,20 @@ describe('appConfig', () => {
             const html = '<span class="my-custom-class ql-size-large">text</span>';
             const expected = '<span class="my-custom-class" style="font-size: 1.5em;">text</span>';
             expect(convertQuillClassesToInlineStyles(html)).toBe(expected);
+        });
+    });
+
+    describe('wrapSpanColorsWithFontTags', () => {
+        it('wraps simple color spans with font tags', () => {
+            const html = '<span style="color: #e60000;">text</span>';
+            const expected = '<span style="color: #e60000;"><font color="#e60000">text</font></span>';
+            expect(wrapSpanColorsWithFontTags(html)).toBe(expected);
+        });
+
+        it('handles other styles and nested tags', () => {
+            const html = '<span style="font-weight: bold; color: #ff9900;"><strong>bold text</strong></span>';
+            const expected = '<span style="font-weight: bold; color: #ff9900;"><font color="#ff9900"><strong>bold text</strong></font></span>';
+            expect(wrapSpanColorsWithFontTags(html)).toBe(expected);
         });
     });
 });
