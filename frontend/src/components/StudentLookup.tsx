@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,7 +8,7 @@ import { cleanVariant } from '../lib/types';
 import { 
     Search, LogOut, Sun, Moon, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
     Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info,
-    Star, AlertTriangle, MessageSquare 
+    Star, AlertTriangle, MessageSquare, Filter
 } from 'lucide-react';
 
 interface StudentSearchResult {
@@ -122,6 +122,8 @@ export default function StudentLookup() {
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+    const [sortBy, setSortBy] = useState<'relevance' | 'asc' | 'desc'>('relevance');
+    const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
 
     const [darkMode, setDarkMode] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -171,10 +173,62 @@ export default function StudentLookup() {
         enabled: !!selectedStudentId
     });
 
-    // Reset details if search query changes
+    // Reset details and filters if search query changes
     useEffect(() => {
         setSelectedStudentId(null);
+        setSelectedLetter(null);
+        setSortBy('relevance');
     }, [debouncedSearch]);
+
+    // Compute uppercase letters that exist in results (first letter of first_name or last_name)
+    const availableLetters = useMemo(() => {
+        const letters = new Set<string>();
+        if (!searchResults) return letters;
+        
+        searchResults.forEach(student => {
+            const firstLetter = (student.first_name || '').trim()[0]?.toUpperCase();
+            if (firstLetter && /[A-Z]/.test(firstLetter)) {
+                letters.add(firstLetter);
+            }
+            const lastLetter = (student.last_name || '').trim()[0]?.toUpperCase();
+            if (lastLetter && /[A-Z]/.test(lastLetter)) {
+                letters.add(lastLetter);
+            }
+        });
+        return letters;
+    }, [searchResults]);
+
+    // Apply letter filtering and alphabetical sorting to the search results
+    const processedResults = useMemo(() => {
+        if (!searchResults) return [];
+        let results = [...searchResults];
+
+        // 1. Filter by letter (checks first letter of first_name or last_name)
+        if (selectedLetter) {
+            results = results.filter(student => {
+                const firstLetter = (student.first_name || '').trim()[0]?.toUpperCase();
+                const lastLetter = (student.last_name || '').trim()[0]?.toUpperCase();
+                return firstLetter === selectedLetter || lastLetter === selectedLetter;
+            });
+        }
+
+        // 2. Sort by selected method
+        if (sortBy === 'asc') {
+            results.sort((a, b) => {
+                const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+                const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+        } else if (sortBy === 'desc') {
+            results.sort((a, b) => {
+                const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+                const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+                return nameB.localeCompare(nameA);
+            });
+        }
+
+        return results;
+    }, [searchResults, selectedLetter, sortBy]);
 
     return (
         <div className="flex-1 flex flex-col min-h-0 bg-background text-primary transition-colors duration-300">
@@ -248,6 +302,82 @@ export default function StudentLookup() {
                         </div>
                     </div>
 
+                    {/* Alphabet Filter and Sort Bar */}
+                    {search.trim().length >= 3 && !isSearching && !searchError && searchResults && searchResults.length > 0 && (
+                        <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 mb-4 space-y-3 animate-fadeIn flex-shrink-0">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                                    <Filter size={13} className="text-muted/80" />
+                                    Alphabet Filter
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] text-muted font-bold uppercase tracking-wider">Sort:</span>
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value as any)}
+                                        className="text-xs font-semibold bg-surface-elevated border border-border-strong rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary cursor-pointer hover:border-brand-500 transition-all"
+                                    >
+                                        <option value="relevance">Relevance</option>
+                                        <option value="asc">Name (A-Z)</option>
+                                        <option value="desc">Name (Z-A)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            {/* Alphabet Scrollable Bar */}
+                            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                                <button
+                                    onClick={() => setSelectedLetter(null)}
+                                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex-shrink-0 border ${
+                                        selectedLetter === null
+                                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                            : 'bg-surface-elevated hover:bg-surface text-primary border-border-subtle hover:border-border-strong'
+                                    }`}
+                                >
+                                    All
+                                </button>
+                                {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => {
+                                    const isAvailable = availableLetters.has(letter);
+                                    const isSelected = selectedLetter === letter;
+                                    
+                                    return (
+                                        <button
+                                            key={letter}
+                                            disabled={!isAvailable}
+                                            onClick={() => setSelectedLetter(letter)}
+                                            className={`w-7 h-7 text-xs font-bold rounded-lg transition-all flex-shrink-0 flex items-center justify-center border ${
+                                                isSelected
+                                                    ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                                    : isAvailable
+                                                    ? 'bg-surface-elevated hover:bg-surface text-primary border-border-subtle hover:border-border-strong cursor-pointer'
+                                                    : 'bg-surface-elevated/40 text-muted/30 border-border-subtle/20 cursor-not-allowed opacity-40'
+                                            }`}
+                                            title={isAvailable ? `Filter by name starting with ${letter}` : `No students starting with ${letter}`}
+                                        >
+                                            {letter}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Active letter quick info / clear button */}
+                            {selectedLetter && (
+                                <div className="flex items-center justify-between text-xs text-muted bg-surface-elevated border border-border-subtle/80 px-3 py-1.5 rounded-xl animate-fadeIn">
+                                    <span>
+                                        Showing <strong className="text-primary font-bold">{processedResults.length}</strong> of{' '}
+                                        <strong className="text-primary font-bold">{searchResults.length}</strong> students starting with "{selectedLetter}"
+                                    </span>
+                                    <button
+                                        onClick={() => setSelectedLetter(null)}
+                                        className="text-brand-500 hover:text-brand-600 font-bold transition-colors text-xs"
+                                    >
+                                        Clear Filter
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Results Container */}
                     <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                         {search.trim().length < 3 ? (
@@ -280,9 +410,25 @@ export default function StudentLookup() {
                                     Double-check spelling or try searching by email or phone.
                                 </p>
                             </div>
+                        ) : processedResults && processedResults.length === 0 ? (
+                            <div className="text-center py-12 px-4 bg-surface/30 rounded-2xl border border-dashed border-border-subtle">
+                                <div className="w-12 h-12 bg-surface-elevated border border-border-subtle rounded-2xl flex items-center justify-center mx-auto mb-3 text-muted shadow-sm">
+                                    <Users size={20} />
+                                </div>
+                                <h3 className="text-sm font-bold text-primary">No students match filter</h3>
+                                <p className="text-xs text-muted mt-1 max-w-xs mx-auto">
+                                    No students start with the letter "{selectedLetter}". Try selecting another letter or clearing the filter.
+                                </p>
+                                <button
+                                    onClick={() => setSelectedLetter(null)}
+                                    className="mt-3 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                                >
+                                    Show All Students
+                                </button>
+                            </div>
                         ) : (
                             <div className="space-y-2.5 animate-fadeIn">
-                                {searchResults?.map(student => (
+                                {processedResults.map(student => (
                                     <div
                                         key={student.id}
                                         onClick={() => setSelectedStudentId(student.id)}
