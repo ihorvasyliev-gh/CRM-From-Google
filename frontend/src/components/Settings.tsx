@@ -1,12 +1,22 @@
 import { useState, useCallback } from 'react';
 import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check } from 'lucide-react';
-import ReactQuill from 'react-quill-new';
+import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
+
+// Register inline styles for Quill color, background, font, and size to ensure email client compatibility
+const ColorStyle = Quill.import('attributors/style/color') as any;
+const BackgroundStyle = Quill.import('attributors/style/background') as any;
+const FontStyle = Quill.import('attributors/style/font') as any;
+const SizeStyle = Quill.import('attributors/style/size') as any;
+Quill.register(ColorStyle, true);
+Quill.register(BackgroundStyle, true);
+Quill.register(FontStyle, true);
+Quill.register(SizeStyle, true);
 
 const quillModules = {
     toolbar: [

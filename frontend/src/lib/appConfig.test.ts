@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -68,6 +68,31 @@ describe('appConfig', () => {
             setConfig({ emailSubjectFormat: '[{courseName}] Invitation for {date}' });
             const result = buildEmailSubject('React Native', 'Nov 5');
             expect(result).toBe('[React Native] Invitation for Nov 5');
+        });
+    });
+
+    describe('convertRgbToHex', () => {
+        it('converts rgb colors to hex format', () => {
+            const html = '<span style="color: rgb(230, 0, 0);">text</span>';
+            const expected = '<span style="color: #e60000;">text</span>';
+            expect(convertRgbToHex(html)).toBe(expected);
+        });
+
+        it('converts rgba colors to hex format (ignoring alpha)', () => {
+            const html = '<span style="background-color: rgba(0, 128, 255, 0.5);">text</span>';
+            const expected = '<span style="background-color: #0080ff;">text</span>';
+            expect(convertRgbToHex(html)).toBe(expected);
+        });
+
+        it('handles spaces within rgb declaration', () => {
+            const html = 'rgb(  15,200 ,  80  )';
+            const expected = '#0fc850';
+            expect(convertRgbToHex(html)).toBe(expected);
+        });
+
+        it('ignores standard hex colors', () => {
+            const html = 'color: #123456;';
+            expect(convertRgbToHex(html)).toBe(html);
         });
     });
 });

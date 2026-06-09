@@ -127,6 +127,22 @@ export function resetConfig(): AppConfig {
     return { ...DEFAULT_CONFIG };
 }
 
+/**
+ * Converts rgb(...) and rgba(...) color values in HTML string to hex format (#RRGGBB).
+ * This ensures Outlook compatibility, as Outlook ignores rgb() colors in inline styles.
+ */
+export function convertRgbToHex(html: string): string {
+    return html.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/gi, (_match, rStr, gStr, bStr) => {
+        const r = parseInt(rStr, 10);
+        const g = parseInt(gStr, 10);
+        const b = parseInt(bStr, 10);
+        
+        const clamp = (val: number) => Math.max(0, Math.min(255, val));
+        const hex = ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
+        return `#${hex}`;
+    });
+}
+
 function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogos: boolean) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
@@ -148,7 +164,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
               </td>
             </tr>` : '';
     
-    return `<!DOCTYPE html>
+    const htmlWrapper = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -192,6 +208,8 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
   </div>
 </body>
 </html>`;
+
+    return convertRgbToHex(htmlWrapper);
 }
 
 /** Build the email body HTML by replacing placeholders. */

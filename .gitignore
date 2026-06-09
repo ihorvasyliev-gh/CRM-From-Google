@@ -16,3 +16,10 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+
+# Backups (ignore database dumps but keep scripts)
+backups/*
+!backups/README.md
+!backups/backup.ps1
+!backups/dump_data.cjs
+
