@@ -1,6 +1,11 @@
 -- ============================================================
 -- Migration 32: Configure Storage Policies for Templates Bucket
 -- ============================================================
+-- NOTE: storage.objects is owned by supabase_storage_admin,
+-- so we must assume that role to CREATE/DROP policies on it.
+
+-- Switch to the storage owner role
+SET ROLE supabase_storage_admin;
 
 -- 1. Ensure the 'templates' bucket exists
 INSERT INTO storage.buckets (id, name, public)
@@ -56,3 +61,6 @@ CREATE POLICY "Allow authenticated users to view templates" ON storage.objects
     USING (
         bucket_id = 'templates'
     );
+
+-- Reset back to the default role
+RESET ROLE;
