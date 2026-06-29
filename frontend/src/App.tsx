@@ -8,7 +8,8 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
-import { isNotificationSupported, requestNotificationPermission, getNotificationPermission } from './lib/notifications';
+import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
+import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
 
 import { TooltipProvider } from './components/ui/Tooltip';
@@ -55,11 +56,17 @@ function App() {
     useConfirmationNotifier();
     useGlobalRealtimeSync();
 
-    // Show notification permission banner once if not yet decided
+    // Show notification permission banner once if not yet decided/subscribed
     useEffect(() => {
-        if (isNotificationSupported() && getNotificationPermission() === 'default') {
-            setShowNotifBanner(true);
-        }
+        const checkPushSubscription = async () => {
+            if (isNotificationSupported() && getNotificationPermission() === 'default') {
+                const isSubscribed = await isUserSubscribed();
+                if (!isSubscribed) {
+                    setShowNotifBanner(true);
+                }
+            }
+        };
+        checkPushSubscription();
     }, []);
 
     const location = useLocation();
@@ -480,7 +487,9 @@ function App() {
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                     onClick={async () => {
-                                        await requestNotificationPermission();
+                                        if (user) {
+                                            await subscribeUserToPush(user.id);
+                                        }
                                         setShowNotifBanner(false);
                                     }}
                                     className="px-3 py-1 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
