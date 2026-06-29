@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
     ResponsiveContainer, 
     BarChart, 
@@ -264,7 +264,7 @@ export default function OverviewTab({ enrollments, onDrillDown }: OverviewTabPro
     }, [conductedCourses, searchQuery]);
 
     // Reset current page when query changes
-    useMemo(() => {
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery]);
 
