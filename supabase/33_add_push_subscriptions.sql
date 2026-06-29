@@ -35,27 +35,39 @@ CREATE POLICY "Users can manage their own subscriptions"
 CREATE OR REPLACE FUNCTION public.handle_enrollment_confirmed_push()
 RETURNS TRIGGER AS $$
 DECLARE
-    project_url TEXT;
-    anon_key TEXT;
+    v_headers JSONB;
+    v_auth_header TEXT;
+    v_req_headers_text TEXT;
 BEGIN
     -- Only trigger if the enrollment status changed to 'confirmed'
     IF (NEW.status = 'confirmed' AND (OLD.status IS NULL OR OLD.status <> 'confirmed')) THEN
-        
-        -- In Supabase, we can retrieve the project URL and API key from vault or configuration if set.
-        -- For a generic migration, we check if there are custom settings or fallback to localhost/Kong.
-        -- We will use the internal Kong gateway which is accessible within the Supabase infrastructure:
-        -- http://kong:8000/functions/v1/send-push-notification
-        
-        PERFORM net.http_post(
-            url := 'http://kong:8000/functions/v1/send-push-notification',
-            headers := jsonb_build_object(
-                'Content-Type', 'application/json',
-                'Authorization', 'Bearer ' || current_setting('request.headers', true)::json->>'authorization'
-            ),
-            body := jsonb_build_object(
-                'enrollment_id', NEW.id
-            )
-        );
+        BEGIN
+            -- Default headers
+            v_headers := jsonb_build_object('Content-Type', 'application/json');
+            
+            -- Retrieve request headers safely
+            v_req_headers_text := current_setting('request.headers', true);
+            
+            IF v_req_headers_text IS NOT NULL AND v_req_headers_text <> '' THEN
+                -- Extract authorization header
+                v_auth_header := v_req_headers_text::json->>'authorization';
+                IF v_auth_header IS NOT NULL THEN
+                    v_headers := v_headers || jsonb_build_object('Authorization', v_auth_header);
+                END IF;
+            END IF;
+            
+            -- Perform the async Net HTTP POST (wrapped in exception block to prevent blocking the UPDATE)
+            PERFORM net.http_post(
+                url := 'http://kong:8000/functions/v1/send-push-notification',
+                headers := v_headers,
+                body := jsonb_build_object(
+                    'enrollment_id', NEW.id
+                )
+            );
+        EXCEPTION WHEN OTHERS THEN
+            -- Log warning but allow the primary transaction to complete successfully
+            RAISE WARNING 'Failed to trigger send-push-notification Edge Function: %', SQLERRM;
+        END;
     END IF;
     RETURN NEW;
 END;
