@@ -43,7 +43,8 @@ export async function isUserSubscribed(): Promise<boolean> {
         return false;
     }
     try {
-        const registration = await navigator.serviceWorker.ready;
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) return false;
         const subscription = await registration.pushManager.getSubscription();
         return !!subscription;
     } catch (err) {
@@ -115,7 +116,8 @@ export async function unsubscribeUserFromPush(_userId: string): Promise<boolean>
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             return true;
         }
-        const registration = await navigator.serviceWorker.ready;
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) return true;
         const subscription = await registration.pushManager.getSubscription();
         if (!subscription) return true;
 
