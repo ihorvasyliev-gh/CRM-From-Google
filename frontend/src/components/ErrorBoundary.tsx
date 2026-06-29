@@ -38,22 +38,33 @@ export default class ErrorBoundary extends Component<Props, State> {
             if (!isRecent) {
                 console.warn('Chunk load error detected. Attempting automatic page reload to fetch latest version...');
                 sessionStorage.setItem('chunk_load_error_time', now.toString());
-                window.location.reload();
+                this.reloadWithCacheBuster();
             }
         }
     }
 
+    private reloadWithCacheBuster = () => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('t', Date.now().toString());
+            window.location.href = url.toString();
+        } catch (e) {
+            window.location.reload();
+        }
+    };
+
     private handleReload = () => {
         // Clear the error time trigger when manually reloading to allow another attempt
         sessionStorage.removeItem('chunk_load_error_time');
-        window.location.reload();
+        this.reloadWithCacheBuster();
     };
 
     public render() {
         if (this.state.hasError) {
             const errorMessage = this.state.error?.message || this.state.error?.toString() || '';
             const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') || 
-                                   errorMessage.includes('Importing a module script failed');
+                                   errorMessage.includes('Importing a module script failed') ||
+                                   errorMessage.includes('error loading dynamically imported module');
 
             return (
                 <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 space-y-4">
