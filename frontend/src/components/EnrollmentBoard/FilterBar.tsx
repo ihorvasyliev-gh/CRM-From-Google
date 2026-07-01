@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GraduationCap, Search, X, UserPlus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
+import { GraduationCap, Search, X, UserPlus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface FilterBarProps {
@@ -173,19 +173,8 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Row 3: Actions + Advanced Toggle */}
+            {/* Row 3: Actions */}
             <div className="flex flex-wrap gap-1.5 items-center">
-                <button
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className={`flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs font-medium transition-colors px-2 py-1 md:px-2.5 md:py-1.5 rounded-xl border active:scale-95 ${
-                        showAdvanced 
-                            ? 'bg-brand-500/10 text-brand-600 border-brand-500/30' 
-                            : 'bg-surface-elevated text-muted hover:text-primary border-border-strong'
-                    }`}
-                >
-                    <SlidersHorizontal size={13} />
-                    Advanced Filters
-                </button>
                 {hasFilters && (
                     <button
                         onClick={() => {
@@ -200,22 +189,6 @@ export default function FilterBar({
                         Clear
                     </button>
                 )}
-                <div className="h-4 w-px bg-border-strong mx-0.5 hidden sm:block"></div>
-                <button
-                    onClick={() => {
-                        setSortOrder(prev => prev === 'date-asc' ? 'date-desc' : prev === 'date-desc' ? 'name' : 'date-asc');
-                    }}
-                    className="flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs font-medium text-muted hover:text-primary transition-colors bg-surface-elevated px-2 py-1 md:px-2.5 md:py-1.5 rounded-xl border border-border-strong active:scale-95"
-                    title="Toggle Sort Order"
-                >
-                    <ArrowUpDown size={13} />
-                    <span className="hidden sm:inline">
-                        {sortOrder === 'date-asc' ? 'Oldest first' : sortOrder === 'date-desc' ? 'Newest first' : 'By Name'}
-                    </span>
-                    <span className="sm:hidden">
-                        {sortOrder === 'date-asc' ? 'Oldest' : sortOrder === 'date-desc' ? 'Newest' : 'Name'}
-                    </span>
-                </button>
                 {/* п.15: counter — only shown when no active search filtering (to avoid duplication) */}
                 {!searchIsFiltering && (
                     <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
@@ -227,8 +200,37 @@ export default function FilterBar({
             {/* Advanced Filters Panel */}
             {showAdvanced && (
                 <div className="p-3 bg-surface-elevated border border-border-strong rounded-xl animate-slideDown flex flex-wrap gap-3 items-center">
+                    {/* Sort pills */}
+                    <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1 text-muted mr-0.5">
+                            <ArrowDownUp size={13} />
+                            <span className="text-xs font-medium uppercase tracking-wider">Sort:</span>
+                        </div>
+                        {([
+                            { value: 'date-asc', label: 'Oldest first', icon: <Clock size={11} /> },
+                            { value: 'date-desc', label: 'Newest first', icon: <ArrowUpDown size={11} /> },
+                            { value: 'name', label: 'By Name', icon: <CaseSensitive size={11} /> },
+                        ] as const).map(opt => (
+                            <button
+                                key={opt.value}
+                                onClick={() => setSortOrder(opt.value)}
+                                className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all active:scale-95 ${
+                                    sortOrder === opt.value
+                                        ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                        : 'bg-surface text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
+                                }`}
+                            >
+                                {opt.icon}
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="h-4 w-px bg-border-strong hidden sm:block" />
+
+                    {/* Date range */}
                     <div className="flex items-center gap-1.5 text-muted">
-                        <Filter size={14} />
+                        <Filter size={13} />
                         <span className="text-xs font-medium uppercase tracking-wider">Date:</span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1">
@@ -256,8 +258,26 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Row 4: Status Summary Bar — п.9: clickable badges */}
-            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            {/* Row 4: Advanced Filters toggle + Status Summary Bar — п.9: clickable badges */}
+            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+                {/* Advanced Filters toggle lives here */}
+                <button
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className={`flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
+                        showAdvanced
+                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
+                    }`}
+                >
+                    <SlidersHorizontal size={12} />
+                    <span>Advanced Filters</span>
+                    {(dateFrom || dateTo) && (
+                        <span className="font-mono bg-brand-500/20 text-brand-600 dark:text-brand-400 px-1 py-0.5 rounded ml-0.5 text-[9px]">ON</span>
+                    )}
+                </button>
+
+                <div className="h-4 w-px bg-border-strong mx-0.5" />
+
                 {ALL_STATUSES.map(status => {
                     const cfg = STATUS_CONFIG[status];
                     const count = statusCounts[status] || 0;
