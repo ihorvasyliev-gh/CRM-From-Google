@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { GraduationCap, Search, X, UserPlus, Globe, Filter, Calendar, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive } from 'lucide-react';
+import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
+import DateCalendarPicker from './DateCalendarPicker';
+import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
 interface FilterBarProps {
+    enrollments: EnrollmentRow[];
     enrollmentCount: number;
     filteredCount: number;
     searchQuery: string;
@@ -26,6 +29,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({
+    enrollments,
     enrollmentCount,
     filteredCount,
     searchQuery,
@@ -135,7 +139,7 @@ export default function FilterBar({
                 </div>
             </div>
 
-            {/* Row 2: Course chips + language chips inline */}
+            {/* Row 2: Course chips */}
             <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
                 <button
                     onClick={() => setSelectedCourse('all')}
@@ -162,38 +166,40 @@ export default function FilterBar({
                         {c.name}
                     </button>
                 ))}
-
-                {/* Language chips inline, separated by a divider */}
-                {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                    <>
-                        <div className="h-4 w-px bg-border-strong flex-shrink-0 mx-0.5" />
-                        <Globe size={12} className="text-muted flex-shrink-0" />
-                        {uniqueVariants.length > 1 && (
-                            <button
-                                onClick={() => setSelectedVariant('all')}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
-                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                    }`}
-                            >
-                                All
-                            </button>
-                        )}
-                        {uniqueVariants.map(v => (
-                            <button
-                                key={v}
-                                onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
-                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                    }`}
-                            >
-                                {v}
-                            </button>
-                        ))}
-                    </>
-                )}
             </div>
+
+            {/* Row 2.5: Language chips below courses */}
+            {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
+                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
+                    <div className="flex items-center gap-1 text-muted mr-1.5">
+                        <Globe size={12} className="text-muted flex-shrink-0" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider">Languages:</span>
+                    </div>
+                    {uniqueVariants.length > 1 && (
+                        <button
+                            onClick={() => setSelectedVariant('all')}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
+                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                }`}
+                        >
+                            All
+                        </button>
+                    )}
+                    {uniqueVariants.map(v => (
+                        <button
+                            key={v}
+                            onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
+                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                }`}
+                        >
+                            {v}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Advanced Filters Panel */}
             {showAdvanced && (
@@ -231,26 +237,27 @@ export default function FilterBar({
                         <Filter size={12} />
                         <span className="text-[10px] font-medium uppercase tracking-wider">Date:</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1">
-                        <Calendar size={12} className="text-muted" />
-                        <input
-                            type="datetime-local"
-                            id="date-from"
-                            name="dateFrom"
-                            className="bg-transparent text-xs outline-none py-0.5 text-primary"
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <DateCalendarPicker
+                            label="From"
                             value={dateFrom}
-                            onChange={e => setDateFrom(e.target.value)}
-                            title="From date and time"
+                            onChange={setDateFrom}
+                            placeholder="Select start date"
+                            enrollments={enrollments}
+                            selectedCourse={selectedCourse}
+                            limitDate={dateTo}
+                            isEndDate={false}
                         />
-                        <span className="text-muted/50 text-xs">—</span>
-                        <input
-                            type="datetime-local"
-                            id="date-to"
-                            name="dateTo"
-                            className="bg-transparent text-xs outline-none py-0.5 text-primary"
+                        <span className="text-muted/45 text-xs hidden sm:inline">—</span>
+                        <DateCalendarPicker
+                            label="To"
                             value={dateTo}
-                            onChange={e => setDateTo(e.target.value)}
-                            title="To date and time"
+                            onChange={setDateTo}
+                            placeholder="Select end date"
+                            enrollments={enrollments}
+                            selectedCourse={selectedCourse}
+                            limitDate={dateFrom}
+                            isEndDate={true}
                         />
                     </div>
                 </div>

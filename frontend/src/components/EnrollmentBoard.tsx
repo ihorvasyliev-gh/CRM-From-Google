@@ -387,6 +387,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     return (
         <div className="flex-1 min-h-0 flex flex-col gap-2 md:gap-4 overflow-hidden">
             <FilterBar
+                enrollments={enrollments}
                 enrollmentCount={enrollments.length}
                 filteredCount={filteredEnrollments.length}
                 searchQuery={searchQuery}
