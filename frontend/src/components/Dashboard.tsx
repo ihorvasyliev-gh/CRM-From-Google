@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, Copy, Check, ExternalLink } from 'lucide-react';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { cleanVariant } from '../lib/types';
 
@@ -163,6 +163,52 @@ function BentoCard({
     );
 }
 
+
+const GOOGLE_FORM_URL = 'https://forms.gle/9U4DsSe5UYnsakJZ8';
+
+function GoogleFormButton() {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(GOOGLE_FORM_URL).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    return (
+        <div className="mt-1 rounded-xl border border-brand-500/20 bg-brand-500/5 overflow-hidden">
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <div className="p-1.5 bg-brand-500/15 text-brand-500 dark:text-brand-400 rounded-lg flex-shrink-0">
+                    <ExternalLink size={13} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <span className="block text-[11px] font-semibold text-brand-600 dark:text-brand-400 leading-tight">Registration Form</span>
+                    <span className="block text-[10px] text-muted font-mono truncate">forms.gle/9U4DsSe5UYnsakJZ8</span>
+                </div>
+            </div>
+            <div className="flex border-t border-brand-500/15">
+                <button
+                    onClick={handleCopy}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold transition-all duration-300 ${copied ? 'text-emerald-500 bg-emerald-500/10' : 'text-brand-500 hover:bg-brand-500/10'}`}
+                >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                    {copied ? 'Copied!' : 'Copy Link'}
+                </button>
+                <div className="w-px bg-brand-500/15" />
+                <a
+                    href={GOOGLE_FORM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-all duration-300"
+                >
+                    <ExternalLink size={12} />
+                    Open
+                </a>
+            </div>
+        </div>
+    );
+}
 
 
 type ActivityFilter = 'all' | 'requested' | 'invited' | 'confirmed' | 'completed';
@@ -700,6 +746,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover/action:opacity-100 group-hover/action:translate-x-0.5 group-hover/action:-translate-y-0.5 transition-all duration-500 ease-spring" />
                             </button>
                         </div>
+
+                        {/* Google Form Link */}
+                        <GoogleFormButton />
                     </div>
                 </BentoCard>
 
