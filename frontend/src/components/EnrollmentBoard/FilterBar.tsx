@@ -52,25 +52,31 @@ export default function FilterBar({
     // п.15: search is "active" when it filters results
     const searchIsFiltering = !!searchQuery && filteredCount < enrollmentCount;
 
+    const clearAll = () => {
+        setSearchQuery('');
+        setSelectedCourse('all');
+        setSelectedVariant('all');
+        setDateFrom('');
+        setDateTo('');
+    };
+
     return (
-        <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-1.5 md:space-y-3">
+        <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
             {/* Row 1: Title + Search + Add */}
             <div className="flex flex-col sm:flex-row gap-1.5 md:gap-3 items-start sm:items-center justify-between">
                 <div className="hidden md:flex items-center gap-3">
                     <div className="p-2 bg-brand-500/10 rounded-xl text-brand-500 dark:text-brand-400">
                         <GraduationCap size={20} />
                     </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-bold text-primary tracking-tight">Enrollments</h2>
-                            <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
-                                {enrollmentCount}
-                            </span>
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-bold text-primary tracking-tight">Enrollments</h2>
+                        <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
+                            {enrollmentCount}
+                        </span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto">
-                    {/* п.15: Search with active-filter highlight */}
+                    {/* Search with active-filter highlight + Clear × inside */}
                     <div className="relative flex-1 sm:w-72">
                         <Search
                             className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchIsFiltering ? 'text-brand-500' : 'text-muted'}`}
@@ -84,7 +90,9 @@ export default function FilterBar({
                             className={`w-full pl-8 py-1.5 md:py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
                                 searchIsFiltering
                                     ? 'border-brand-400 pr-24'
-                                    : 'border-border-strong pr-8'
+                                    : searchQuery
+                                        ? 'border-border-strong pr-8'
+                                        : 'border-border-strong pr-3'
                             }`}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
@@ -104,6 +112,19 @@ export default function FilterBar({
                             </button>
                         )}
                     </div>
+
+                    {/* Clear all filters × button — only when non-search filters active */}
+                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo) && (
+                        <button
+                            onClick={clearAll}
+                            title="Clear all filters"
+                            className="flex items-center gap-1 text-[11px] font-medium text-danger hover:text-danger/80 bg-danger/10 hover:bg-danger/15 px-2 py-1.5 rounded-xl transition-all active:scale-95 whitespace-nowrap"
+                        >
+                            <X size={12} />
+                            <span className="hidden sm:inline">Clear</span>
+                        </button>
+                    )}
+
                     <button
                         onClick={() => setEnrollModalOpen(true)}
                         className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
@@ -114,11 +135,11 @@ export default function FilterBar({
                 </div>
             </div>
 
-            {/* Row 2: Course chips */}
-            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-3 px-3 sm:mx-0 sm:px-0">
+            {/* Row 2: Course chips + language chips inline */}
+            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
                 <button
                     onClick={() => setSelectedCourse('all')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedCourse === 'all'
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === 'all'
                         ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                         : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                         }`}
@@ -133,7 +154,7 @@ export default function FilterBar({
                             setSelectedCourse(newCourse);
                             setSelectedVariant('all');
                         }}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedCourse === c.id
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === c.id
                             ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                             : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                             }`}
@@ -141,59 +162,36 @@ export default function FilterBar({
                         {c.name}
                     </button>
                 ))}
-            </div>
 
-            {/* Row 2b: Language chips */}
-            {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-3 px-3 sm:mx-0 sm:px-0">
-                    <Globe size={13} className="text-muted mr-0.5 flex-shrink-0" />
-                    {uniqueVariants.length > 1 && (
-                        <button
-                            onClick={() => setSelectedVariant('all')}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedVariant === 'all'
-                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                }`}
-                        >
-                            All Languages
-                        </button>
-                    )}
-                    {uniqueVariants.map(v => (
-                        <button
-                            key={v}
-                            onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all md:w-auto md:h-auto md:flex-initial md:px-3 md:py-1.5 md:text-xs md:rounded-full md:leading-normal md:whitespace-nowrap ${selectedVariant === v
-                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                }`}
-                        >
-                            {v}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Row 3: Actions */}
-            <div className="flex flex-wrap gap-1.5 items-center">
-                {hasFilters && (
-                    <button
-                        onClick={() => {
-                            setSearchQuery('');
-                            setSelectedCourse('all');
-                            setSelectedVariant('all');
-                            setDateFrom('');
-                            setDateTo('');
-                        }}
-                        className="text-[11px] md:text-xs font-medium text-danger hover:text-danger/80 bg-danger/10 px-2 py-1 md:px-3 md:py-1.5 rounded-xl transition-all"
-                    >
-                        Clear
-                    </button>
-                )}
-                {/* п.15: counter — only shown when no active search filtering (to avoid duplication) */}
-                {!searchIsFiltering && (
-                    <span className="text-xs font-mono text-muted ml-auto font-medium tracking-wide">
-                        {filteredCount} <span className="opacity-50">/</span> {enrollmentCount} enrollments
-                    </span>
+                {/* Language chips inline, separated by a divider */}
+                {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
+                    <>
+                        <div className="h-4 w-px bg-border-strong flex-shrink-0 mx-0.5" />
+                        <Globe size={12} className="text-muted flex-shrink-0" />
+                        {uniqueVariants.length > 1 && (
+                            <button
+                                onClick={() => setSelectedVariant('all')}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                    }`}
+                            >
+                                All
+                            </button>
+                        )}
+                        {uniqueVariants.map(v => (
+                            <button
+                                key={v}
+                                onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                    }`}
+                            >
+                                {v}
+                            </button>
+                        ))}
+                    </>
                 )}
             </div>
 
@@ -203,13 +201,13 @@ export default function FilterBar({
                     {/* Sort pills */}
                     <div className="flex items-center gap-1.5">
                         <div className="flex items-center gap-1 text-muted mr-0.5">
-                            <ArrowDownUp size={13} />
-                            <span className="text-xs font-medium uppercase tracking-wider">Sort:</span>
+                            <ArrowDownUp size={12} />
+                            <span className="text-[10px] font-medium uppercase tracking-wider">Sort:</span>
                         </div>
                         {([
-                            { value: 'date-asc', label: 'Oldest first', icon: <Clock size={11} /> },
-                            { value: 'date-desc', label: 'Newest first', icon: <ArrowUpDown size={11} /> },
-                            { value: 'name', label: 'By Name', icon: <CaseSensitive size={11} /> },
+                            { value: 'date-asc', label: 'Oldest first', icon: <Clock size={10} /> },
+                            { value: 'date-desc', label: 'Newest first', icon: <ArrowUpDown size={10} /> },
+                            { value: 'name', label: 'By Name', icon: <CaseSensitive size={10} /> },
                         ] as const).map(opt => (
                             <button
                                 key={opt.value}
@@ -230,16 +228,16 @@ export default function FilterBar({
 
                     {/* Date range */}
                     <div className="flex items-center gap-1.5 text-muted">
-                        <Filter size={13} />
-                        <span className="text-xs font-medium uppercase tracking-wider">Date:</span>
+                        <Filter size={12} />
+                        <span className="text-[10px] font-medium uppercase tracking-wider">Date:</span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-surface border border-border-subtle rounded-xl px-2.5 py-1">
-                        <Calendar size={13} className="text-muted" />
+                        <Calendar size={12} className="text-muted" />
                         <input
                             type="datetime-local"
                             id="date-from"
                             name="dateFrom"
-                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
+                            className="bg-transparent text-xs outline-none py-0.5 text-primary"
                             value={dateFrom}
                             onChange={e => setDateFrom(e.target.value)}
                             title="From date and time"
@@ -249,7 +247,7 @@ export default function FilterBar({
                             type="datetime-local"
                             id="date-to"
                             name="dateTo"
-                            className="bg-transparent text-sm outline-none py-0.5 text-primary"
+                            className="bg-transparent text-xs outline-none py-0.5 text-primary"
                             value={dateTo}
                             onChange={e => setDateTo(e.target.value)}
                             title="To date and time"
@@ -258,25 +256,35 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Row 4: Advanced Filters toggle + Status Summary Bar — п.9: clickable badges */}
-            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-                {/* Advanced Filters toggle lives here */}
+            {/* Row 3 (bottom): Advanced Filters icon + Status Summary Bar — п.9: clickable badges */}
+            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+                {/* п.15: counter */}
+                {!searchIsFiltering && (
+                    <span className="text-[10px] font-mono text-muted font-medium tracking-wide mr-1">
+                        {filteredCount}<span className="opacity-40">/</span>{enrollmentCount}
+                    </span>
+                )}
+
+                <div className="h-3.5 w-px bg-border-strong" />
+
+                {/* Advanced Filters — compact icon pill matching status badges */}
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className={`flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
+                    title="Advanced Filters"
+                    className={`inline-flex items-center gap-1 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
                         showAdvanced
                             ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
                             : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                     }`}
                 >
-                    <SlidersHorizontal size={12} />
-                    <span>Advanced Filters</span>
+                    <SlidersHorizontal size={11} />
+                    <span>Filters</span>
                     {(dateFrom || dateTo) && (
-                        <span className="font-mono bg-brand-500/20 text-brand-600 dark:text-brand-400 px-1 py-0.5 rounded ml-0.5 text-[9px]">ON</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
                     )}
                 </button>
 
-                <div className="h-4 w-px bg-border-strong mx-0.5" />
+                <div className="h-3.5 w-px bg-border-strong" />
 
                 {ALL_STATUSES.map(status => {
                     const cfg = STATUS_CONFIG[status];
