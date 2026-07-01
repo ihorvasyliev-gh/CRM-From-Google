@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap, RefreshCw } from 'lucide-react';
 
-type PageState = 'loading' | 'form' | 'success' | 'invalid';
+type PageState = 'loading' | 'form' | 'success' | 'invalid' | 'error';
 
 export default function ConfirmationPage() {
     const [state, setState] = useState<PageState>('loading');
@@ -14,27 +14,59 @@ export default function ConfirmationPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [inlineError, setInlineError] = useState('');
 
+    // BUG-5 FIX: useRef guard against double-click race condition
+    const submittingRef = useRef(false);
+
+    // Store URL info for retry capability
+    const urlInfoRef = useRef<{ type: 'token'; value: string } | { type: 'courseId'; value: string; date?: string } | null>(null);
+
     const resolveToken = useCallback(async (token: string) => {
-        const { data, error } = await supabase.rpc('resolve_confirmation_token', { p_token: token });
-        if (error || !data || data.length === 0) {
-            setState('invalid');
-            return;
+        try {
+            const { data, error } = await supabase.rpc('resolve_confirmation_token', { p_token: token });
+            if (error) {
+                // BUG-3 FIX: Network/server error — show error state with retry, not invalid
+                console.error('Token resolve error:', error);
+                setState('error');
+                return;
+            }
+            if (!data || data.length === 0) {
+                // Genuinely invalid/expired token
+                setState('invalid');
+                return;
+            }
+            const row = data[0];
+            setCourseId(row.course_id);
+            setCourseName(row.course_name);
+            if (row.course_date) setCourseDate(row.course_date);
+            setState('form');
+        } catch (err) {
+            // BUG-3 FIX: Network failure (no connection, DNS, etc.)
+            console.error('Token resolve exception:', err);
+            setState('error');
         }
-        const row = data[0];
-        setCourseId(row.course_id);
-        setCourseName(row.course_name);
-        if (row.course_date) setCourseDate(row.course_date);
-        setState('form');
     }, []);
 
     const fetchCourseInfo = useCallback(async (id: string) => {
-        const { data, error } = await supabase.rpc('get_public_course_info', { p_course_id: id });
-        if (error || !data || data.length === 0) {
-            setState('invalid');
-            return;
+        try {
+            const { data, error } = await supabase.rpc('get_public_course_info', { p_course_id: id });
+            if (error) {
+                // BUG-3 FIX: Network/server error — show error state with retry
+                console.error('Course info error:', error);
+                setState('error');
+                return;
+            }
+            if (!data || data.length === 0) {
+                // Genuinely invalid course ID
+                setState('invalid');
+                return;
+            }
+            setCourseName(data[0].course_name);
+            setState('form');
+        } catch (err) {
+            // BUG-3 FIX: Network failure
+            console.error('Course info exception:', err);
+            setState('error');
         }
-        setCourseName(data[0].course_name);
-        setState('form');
     }, []);
 
     // Read course_id from URL on mount — supports both /c/:token and /confirm?course_id=...
@@ -45,6 +77,7 @@ export default function ConfirmationPage() {
         if (path.startsWith('/c/')) {
             const token = path.split('/c/')[1];
             if (!token) { setState('invalid'); return; }
+            urlInfoRef.current = { type: 'token', value: token };
             resolveToken(token);
             return;
         }
@@ -59,31 +92,71 @@ export default function ConfirmationPage() {
         }
         setCourseId(id);
         if (date) setCourseDate(date);
+        urlInfoRef.current = { type: 'courseId', value: id, date: date || undefined };
         fetchCourseInfo(id);
     }, [resolveToken, fetchCourseInfo]);
 
+    // BUG-3 FIX: Retry handler for network errors
+    function handleRetry() {
+        setState('loading');
+        const info = urlInfoRef.current;
+        if (!info) { setState('invalid'); return; }
+        if (info.type === 'token') {
+            resolveToken(info.value);
+        } else {
+            fetchCourseInfo(info.value);
+        }
+    }
+
+    // BUG-7 FIX: Safe date formatting that works in Safari
+    function formatCourseDate(dateStr: string): string {
+        try {
+            return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        } catch {
+            return dateStr; // Fallback to raw date string
+        }
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!email.trim() || isSubmitting) return;
-        setIsSubmitting(true);
-        setInlineError('');
 
-        const { data, error } = await supabase.rpc('public_confirm_enrollment', {
-            p_email: email.trim(),
-            p_course_id: courseId,
-        });
-
-        setIsSubmitting(false);
-        if (error) {
-            setInlineError('Something went wrong. Please try again later.');
+        // BUG-6 FIX: Validate email format before sending RPC
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail || !trimmedEmail.includes('@')) {
+            setInlineError('Please enter a valid email address.');
             return;
         }
 
-        if (data.success) {
-            setResultMessage(data.message);
-            setState('success');
-        } else {
-            setInlineError(data.message || 'Confirmation failed.');
+        // BUG-5 FIX: Immediate ref guard against double-click
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+        setIsSubmitting(true);
+        setInlineError('');
+
+        // BUG-4 FIX: try/catch/finally ensures isSubmitting is always reset
+        try {
+            const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                p_email: trimmedEmail,
+                p_course_id: courseId,
+            });
+
+            if (error) {
+                setInlineError('Something went wrong. Please try again.');
+                return;
+            }
+
+            if (data.success) {
+                setResultMessage(data.message);
+                setState('success');
+            } else {
+                setInlineError(data.message || 'Confirmation failed.');
+            }
+        } catch (err) {
+            console.error('Submit error:', err);
+            setInlineError('Network error. Please check your connection and try again.');
+        } finally {
+            setIsSubmitting(false);
+            submittingRef.current = false;
         }
     }
 
@@ -120,6 +193,26 @@ export default function ConfirmationPage() {
                         </div>
                     )}
 
+                    {/* ─── Network Error (BUG-3 FIX) ─── */}
+                    {state === 'error' && (
+                        <div className="p-12 flex flex-col items-center gap-4 text-center">
+                            <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                                <AlertCircle size={28} className="text-amber-400" />
+                            </div>
+                            <h2 className="text-xl font-bold">Connection Error</h2>
+                            <p className="text-zinc-400 text-sm leading-relaxed">
+                                Could not load course information. Please check your internet connection and try again.
+                            </p>
+                            <button
+                                onClick={handleRetry}
+                                className="mt-2 flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all active:scale-[0.98]"
+                            >
+                                <RefreshCw size={18} />
+                                Try Again
+                            </button>
+                        </div>
+                    )}
+
                     {/* ─── Invalid Link ─── */}
                     {state === 'invalid' && (
                         <div className="p-12 flex flex-col items-center gap-4 text-center">
@@ -148,7 +241,7 @@ export default function ConfirmationPage() {
                                         <h2 className="text-lg font-bold text-white">{courseName}</h2>
                                         {courseDate && (
                                             <p className="text-sm text-indigo-400 font-medium mt-0.5">
-                                                📅 {new Date(courseDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                📅 {formatCourseDate(courseDate)}
                                             </p>
                                         )}
                                     </div>
@@ -220,7 +313,7 @@ export default function ConfirmationPage() {
                                 <p className="text-xs text-emerald-400 font-medium">{courseName}</p>
                                 {courseDate && (
                                     <p className="text-xs text-emerald-300 mt-1">
-                                        Confirmed for {new Date(courseDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                        Confirmed for {formatCourseDate(courseDate)}
                                     </p>
                                 )}
                             </div>

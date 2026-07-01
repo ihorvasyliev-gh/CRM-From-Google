@@ -241,36 +241,23 @@ CREATE TRIGGER update_enrollments_updated_at
 -- public_confirm_enrollment
 -- Called by students via the confirmation link. Validates expiry using
 -- per-enrollment response_days. Records confirmed_at timestamp.
+-- Fixed in migration 34: removed early expired check that blocked all variants,
+-- added trim() to email lookup.
 CREATE OR REPLACE FUNCTION public_confirm_enrollment(p_email TEXT, p_course_id UUID)
 RETURNS JSONB AS $$
 DECLARE
     v_student_id UUID;
     v_updated_count INT;
-    v_has_expired BOOLEAN;
 BEGIN
+    -- Find student by email (case-insensitive + trim whitespace)
     SELECT id INTO v_student_id
-    FROM students WHERE lower(email) = lower(p_email);
+    FROM students WHERE lower(trim(email)) = lower(trim(p_email));
 
     IF v_student_id IS NULL THEN
         RETURN jsonb_build_object('success', false, 'message', 'No student found with this email address.');
     END IF;
 
-    SELECT EXISTS (
-        SELECT 1 FROM enrollments
-        WHERE student_id = v_student_id
-          AND course_id = p_course_id
-          AND status = 'invited'
-          AND invited_at IS NOT NULL
-          AND invited_at + (COALESCE(response_days, 7) || ' days')::INTERVAL < now()
-    ) INTO v_has_expired;
-
-    IF v_has_expired THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'message', 'Your invitation has expired. The confirmation window has passed. Please contact the organizer for a new invitation.'
-        );
-    END IF;
-
+    -- Update enrollments that are in 'invited' status AND not expired
     UPDATE enrollments
     SET status         = 'confirmed',
         confirmed_date = invited_date,
@@ -282,17 +269,31 @@ BEGIN
 
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
 
-    IF v_updated_count = 0 THEN
-        IF EXISTS (
-            SELECT 1 FROM enrollments
-            WHERE student_id = v_student_id AND course_id = p_course_id AND status = 'confirmed'
-        ) THEN
-            RETURN jsonb_build_object('success', true, 'message', 'Your attendance has already been confirmed.');
-        END IF;
-        RETURN jsonb_build_object('success', false, 'message', 'No pending invitation found for this course. Please contact the organizer.');
+    IF v_updated_count > 0 THEN
+        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has been confirmed! We look forward to seeing you.');
     END IF;
 
-    RETURN jsonb_build_object('success', true, 'message', 'Your attendance has been confirmed! We look forward to seeing you.');
+    -- Nothing updated — determine why
+    IF EXISTS (
+        SELECT 1 FROM enrollments
+        WHERE student_id = v_student_id AND course_id = p_course_id AND status = 'confirmed'
+    ) THEN
+        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has already been confirmed.');
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM enrollments
+        WHERE student_id = v_student_id AND course_id = p_course_id AND status = 'invited'
+          AND invited_at IS NOT NULL
+          AND invited_at + (COALESCE(response_days, 7) || ' days')::INTERVAL < now()
+    ) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Your invitation has expired. The confirmation window has passed. Please contact the organizer for a new invitation.'
+        );
+    END IF;
+
+    RETURN jsonb_build_object('success', false, 'message', 'No pending invitation found for this course. Please contact the organizer.');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

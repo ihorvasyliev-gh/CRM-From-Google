@@ -37,7 +37,10 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_headers JSONB;
     v_auth_header TEXT;
+    v_apikey TEXT;
     v_req_headers_text TEXT;
+    v_host TEXT;
+    v_url TEXT;
 BEGIN
     -- Only trigger if the enrollment status changed to 'confirmed'
     IF (NEW.status = 'confirmed' AND (OLD.status IS NULL OR OLD.status <> 'confirmed')) THEN
@@ -45,20 +48,53 @@ BEGIN
             -- Default headers
             v_headers := jsonb_build_object('Content-Type', 'application/json');
             
+            -- Default URL to local Kong container
+            v_url := 'http://kong:8000/functions/v1/send-push-notification';
+            
             -- Retrieve request headers safely
             v_req_headers_text := current_setting('request.headers', true);
             
             IF v_req_headers_text IS NOT NULL AND v_req_headers_text <> '' THEN
+                -- Extract host or x-forwarded-host (Kong proxy uses x-forwarded-host for the external domain)
+                v_host := v_req_headers_text::json->>'x-forwarded-host';
+                IF v_host IS NULL THEN
+                    v_host := v_req_headers_text::json->>'host';
+                END IF;
+                
                 -- Extract authorization header
                 v_auth_header := v_req_headers_text::json->>'authorization';
+                IF v_auth_header IS NULL THEN
+                    v_auth_header := v_req_headers_text::json->>'Authorization';
+                END IF;
+                
+                -- Extract apikey header
+                v_apikey := v_req_headers_text::json->>'apikey';
+                IF v_apikey IS NULL THEN
+                    v_apikey := v_req_headers_text::json->>'ApiKey';
+                END IF;
+                
+                -- Build headers dynamically
                 IF v_auth_header IS NOT NULL THEN
                     v_headers := v_headers || jsonb_build_object('Authorization', v_auth_header);
+                END IF;
+                
+                IF v_apikey IS NOT NULL THEN
+                    v_headers := v_headers || jsonb_build_object('apikey', v_apikey);
+                    -- If Authorization header was missing (typical for anonymous requests), use apikey as Bearer token
+                    IF v_auth_header IS NULL THEN
+                        v_headers := v_headers || jsonb_build_object('Authorization', 'Bearer ' || v_apikey);
+                    END IF;
+                END IF;
+                
+                -- If host matches Supabase cloud domain, rewrite URL to HTTPS external URL
+                IF v_host IS NOT NULL AND v_host LIKE '%.supabase.co%' THEN
+                    v_url := 'https://' || v_host || '/functions/v1/send-push-notification';
                 END IF;
             END IF;
             
             -- Perform the async Net HTTP POST (wrapped in exception block to prevent blocking the UPDATE)
             PERFORM net.http_post(
-                url := 'http://kong:8000/functions/v1/send-push-notification',
+                url := v_url,
                 headers := v_headers,
                 body := jsonb_build_object(
                     'enrollment_id', NEW.id
