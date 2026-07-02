@@ -171,9 +171,8 @@ export default function FilterBar({
             {/* Row 2.5: Language chips below courses */}
             {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                 <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
-                    <div className="flex items-center gap-1 text-muted mr-1.5">
-                        <Globe size={12} className="text-muted flex-shrink-0" />
-                        <span className="text-[10px] font-semibold uppercase tracking-wider">Languages:</span>
+                    <div className="flex items-center text-muted mr-1 flex-shrink-0" title="Language filter">
+                        <Globe size={14} className="text-muted/70 flex-shrink-0" />
                     </div>
                     {uniqueVariants.length > 1 && (
                         <button
