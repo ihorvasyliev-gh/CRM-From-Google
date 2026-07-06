@@ -21,8 +21,6 @@ interface FilterBarProps {
     setDateFrom: (d: string) => void;
     dateTo: string;
     setDateTo: (d: string) => void;
-    hidePastDates: boolean;
-    setHidePastDates: (val: boolean) => void;
     courseDateFrom: string;
     setCourseDateFrom: (d: string) => void;
     courseDateTo: string;
@@ -51,8 +49,6 @@ export default function FilterBar({
     setDateFrom,
     dateTo,
     setDateTo,
-    hidePastDates,
-    setHidePastDates,
     courseDateFrom,
     setCourseDateFrom,
     courseDateTo,
@@ -62,7 +58,7 @@ export default function FilterBar({
     statusCounts,
     onStatusBadgeClick,
 }: FilterBarProps) {
-    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || !hidePastDates || courseDateFrom || courseDateTo;
+    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo;
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // п.15: search is "active" when it filters results
@@ -74,7 +70,6 @@ export default function FilterBar({
         setSelectedVariant('all');
         setDateFrom('');
         setDateTo('');
-        setHidePastDates(true);
         setCourseDateFrom('');
         setCourseDateTo('');
     };
@@ -133,7 +128,7 @@ export default function FilterBar({
                     </div>
 
                     {/* Clear all filters × button — only when non-search filters active */}
-                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || !hidePastDates || courseDateFrom || courseDateTo) && (
+                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo) && (
                         <button
                             onClick={clearAll}
                             title="Clear all filters"
@@ -337,25 +332,6 @@ export default function FilterBar({
                     <span>Filters</span>
                     {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
                         <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
-                    )}
-                </button>
-
-                {/* Hide Past Course Dates Quick Toggle */}
-                <button
-                    onClick={() => setHidePastDates(!hidePastDates)}
-                    title={hidePastDates ? "Showing upcoming course dates only. Click to show all dates including past." : "Showing all dates. Click to hide past course dates."}
-                    className={`inline-flex items-center gap-1 md:gap-1.5 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
-                        hidePastDates
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
-                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                    }`}
-                >
-                    <Calendar size={11} />
-                    <span>{hidePastDates ? 'Upcoming dates' : 'All dates'}</span>
-                    {hidePastDates && (
-                        <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1 rounded">
-                            ON
-                        </span>
                     )}
                 </button>
 

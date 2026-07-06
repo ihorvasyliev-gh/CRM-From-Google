@@ -71,7 +71,6 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [hidePastDates, setHidePastDates] = useState(true);
     const [courseDateFrom, setCourseDateFrom] = useState('');
     const [courseDateTo, setCourseDateTo] = useState('');
     const [showSecondary, setShowSecondary] = useState(false);
@@ -146,19 +145,6 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             to.setSeconds(59, 999);
             result = result.filter(e => new Date(e.created_at) <= to);
         }
-        if (hidePastDates) {
-            const todayStr = todayISO();
-            result = result.filter(e => {
-                // Do not hide historical statuses (completed, withdrawn, rejected) with default "hide past dates" toggle
-                if (e.status === 'completed' || e.status === 'withdrawn' || e.status === 'rejected') {
-                    return true;
-                }
-                const rawDate = e.confirmed_date || e.invited_date;
-                if (!rawDate) return true;
-                const cDateStr = rawDate.split('T')[0];
-                return cDateStr >= todayStr;
-            });
-        }
         if (courseDateFrom) {
             const cFromStr = courseDateFrom.split('T')[0];
             result = result.filter(e => {
@@ -178,7 +164,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             });
         }
         return result;
-    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo, hidePastDates, courseDateFrom, courseDateTo]);
+    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {
@@ -440,8 +426,6 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 setDateFrom={setDateFrom}
                 dateTo={dateTo}
                 setDateTo={setDateTo}
-                hidePastDates={hidePastDates}
-                setHidePastDates={setHidePastDates}
                 courseDateFrom={courseDateFrom}
                 setCourseDateFrom={setCourseDateFrom}
                 courseDateTo={courseDateTo}
