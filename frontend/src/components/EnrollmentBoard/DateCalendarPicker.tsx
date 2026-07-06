@@ -78,7 +78,7 @@ export default function DateCalendarPicker({
             if (selectedCourse !== 'all' && e.course_id !== selectedCourse) {
                 return;
             }
-            const dateVal = dateField === 'confirmed_date' ? e.confirmed_date : e.created_at;
+            const dateVal = dateField === 'confirmed_date' ? (e.confirmed_date || e.invited_date || e.completed_date) : e.created_at;
             if (!dateVal) return;
             // Parse to local date key: YYYY-MM-DD
             const d = new Date(dateVal);

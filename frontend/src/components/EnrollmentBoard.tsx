@@ -149,24 +149,27 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (hidePastDates) {
             const todayStr = todayISO();
             result = result.filter(e => {
-                if (!e.confirmed_date) return true;
-                const cDateStr = e.confirmed_date.split('T')[0];
+                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
+                if (!rawDate) return true;
+                const cDateStr = rawDate.split('T')[0];
                 return cDateStr >= todayStr;
             });
         }
         if (courseDateFrom) {
             const cFromStr = courseDateFrom.split('T')[0];
             result = result.filter(e => {
-                if (!e.confirmed_date) return false;
-                const cDateStr = e.confirmed_date.split('T')[0];
+                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
+                if (!rawDate) return false;
+                const cDateStr = rawDate.split('T')[0];
                 return cDateStr >= cFromStr;
             });
         }
         if (courseDateTo) {
             const cToStr = courseDateTo.split('T')[0];
             result = result.filter(e => {
-                if (!e.confirmed_date) return false;
-                const cDateStr = e.confirmed_date.split('T')[0];
+                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
+                if (!rawDate) return false;
+                const cDateStr = rawDate.split('T')[0];
                 return cDateStr <= cToStr;
             });
         }
