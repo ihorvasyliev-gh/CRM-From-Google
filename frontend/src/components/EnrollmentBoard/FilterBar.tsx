@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive } from 'lucide-react';
+import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive, Calendar } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
 import DateCalendarPicker from './DateCalendarPicker';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -21,6 +21,12 @@ interface FilterBarProps {
     setDateFrom: (d: string) => void;
     dateTo: string;
     setDateTo: (d: string) => void;
+    hidePastDates: boolean;
+    setHidePastDates: (val: boolean) => void;
+    courseDateFrom: string;
+    setCourseDateFrom: (d: string) => void;
+    courseDateTo: string;
+    setCourseDateTo: (d: string) => void;
     sortOrder: 'date-asc' | 'date-desc' | 'name';
     setSortOrder: React.Dispatch<React.SetStateAction<'date-asc' | 'date-desc' | 'name'>>;
     statusCounts: Record<string, number>;
@@ -45,12 +51,18 @@ export default function FilterBar({
     setDateFrom,
     dateTo,
     setDateTo,
+    hidePastDates,
+    setHidePastDates,
+    courseDateFrom,
+    setCourseDateFrom,
+    courseDateTo,
+    setCourseDateTo,
     sortOrder,
     setSortOrder,
     statusCounts,
     onStatusBadgeClick,
 }: FilterBarProps) {
-    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo;
+    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || !hidePastDates || courseDateFrom || courseDateTo;
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // п.15: search is "active" when it filters results
@@ -62,6 +74,9 @@ export default function FilterBar({
         setSelectedVariant('all');
         setDateFrom('');
         setDateTo('');
+        setHidePastDates(true);
+        setCourseDateFrom('');
+        setCourseDateTo('');
     };
 
     return (
@@ -118,7 +133,7 @@ export default function FilterBar({
                     </div>
 
                     {/* Clear all filters × button — only when non-search filters active */}
-                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo) && (
+                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || dateFrom || dateTo || !hidePastDates || courseDateFrom || courseDateTo) && (
                         <button
                             onClick={clearAll}
                             title="Clear all filters"
@@ -231,10 +246,10 @@ export default function FilterBar({
 
                     <div className="h-4 w-px bg-border-strong hidden sm:block" />
 
-                    {/* Date range */}
+                    {/* Created Date range */}
                     <div className="flex items-center gap-1.5 text-muted">
                         <Filter size={12} />
-                        <span className="text-[10px] font-medium uppercase tracking-wider">Date:</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider">Created:</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <DateCalendarPicker
@@ -246,6 +261,7 @@ export default function FilterBar({
                             selectedCourse={selectedCourse}
                             limitDate={dateTo}
                             isEndDate={false}
+                            dateField="created_at"
                         />
                         <span className="text-muted/45 text-xs hidden sm:inline">—</span>
                         <DateCalendarPicker
@@ -257,14 +273,48 @@ export default function FilterBar({
                             selectedCourse={selectedCourse}
                             limitDate={dateFrom}
                             isEndDate={true}
+                            dateField="created_at"
+                        />
+                    </div>
+
+                    <div className="h-4 w-px bg-border-strong hidden sm:block" />
+
+                    {/* Course Date range */}
+                    <div className="flex items-center gap-1.5 text-muted">
+                        <Calendar size={12} />
+                        <span className="text-[10px] font-medium uppercase tracking-wider">Course Date:</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <DateCalendarPicker
+                            label="From"
+                            value={courseDateFrom}
+                            onChange={setCourseDateFrom}
+                            placeholder="Course start date"
+                            enrollments={enrollments}
+                            selectedCourse={selectedCourse}
+                            limitDate={courseDateTo}
+                            isEndDate={false}
+                            dateField="confirmed_date"
+                        />
+                        <span className="text-muted/45 text-xs hidden sm:inline">—</span>
+                        <DateCalendarPicker
+                            label="To"
+                            value={courseDateTo}
+                            onChange={setCourseDateTo}
+                            placeholder="Course end date"
+                            enrollments={enrollments}
+                            selectedCourse={selectedCourse}
+                            limitDate={courseDateFrom}
+                            isEndDate={true}
+                            dateField="confirmed_date"
                         />
                     </div>
                 </div>
             )}
 
-            {/* Row 3 (bottom): Advanced Filters icon + Status Summary Bar — п.9: clickable badges */}
+            {/* Row 3 (bottom): Advanced Filters icon + Hide Past toggle + Status Summary Bar */}
             <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-                {/* п.15: counter */}
+                {/* counter */}
                 {!searchIsFiltering && (
                     <span className="text-[10px] font-mono text-muted font-medium tracking-wide mr-1">
                         {filteredCount}<span className="opacity-40">/</span>{enrollmentCount}
@@ -285,8 +335,27 @@ export default function FilterBar({
                 >
                     <SlidersHorizontal size={11} />
                     <span>Filters</span>
-                    {(dateFrom || dateTo) && (
+                    {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
                         <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
+                    )}
+                </button>
+
+                {/* Hide Past Course Dates Quick Toggle */}
+                <button
+                    onClick={() => setHidePastDates(!hidePastDates)}
+                    title={hidePastDates ? "Showing upcoming course dates only. Click to show all dates including past." : "Showing all dates. Click to hide past course dates."}
+                    className={`inline-flex items-center gap-1 md:gap-1.5 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
+                        hidePastDates
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
+                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
+                    }`}
+                >
+                    <Calendar size={11} />
+                    <span>{hidePastDates ? 'Upcoming dates' : 'All dates'}</span>
+                    {hidePastDates && (
+                        <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1 rounded">
+                            ON
+                        </span>
                     )}
                 </button>
 

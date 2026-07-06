@@ -11,6 +11,7 @@ interface DateCalendarPickerProps {
     selectedCourse: string;
     limitDate?: string; // "YYYY-MM-DDT00:00" or empty
     isEndDate?: boolean;
+    dateField?: 'created_at' | 'confirmed_date';
 }
 
 export default function DateCalendarPicker({
@@ -22,6 +23,7 @@ export default function DateCalendarPicker({
     selectedCourse,
     limitDate,
     isEndDate = false,
+    dateField = 'created_at',
 }: DateCalendarPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -76,14 +78,15 @@ export default function DateCalendarPicker({
             if (selectedCourse !== 'all' && e.course_id !== selectedCourse) {
                 return;
             }
-            if (!e.created_at) return;
+            const dateVal = dateField === 'confirmed_date' ? e.confirmed_date : e.created_at;
+            if (!dateVal) return;
             // Parse to local date key: YYYY-MM-DD
-            const d = new Date(e.created_at);
+            const d = new Date(dateVal);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             counts[key] = (counts[key] || 0) + 1;
         });
         return counts;
-    }, [enrollments, selectedCourse]);
+    }, [enrollments, selectedCourse, dateField]);
 
     // Calendar grid calculations
     const calendarDays = useMemo(() => {

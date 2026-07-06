@@ -71,6 +71,9 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [hidePastDates, setHidePastDates] = useState(true);
+    const [courseDateFrom, setCourseDateFrom] = useState('');
+    const [courseDateTo, setCourseDateTo] = useState('');
     const [showSecondary, setShowSecondary] = useState(false);
     const [sortOrder, setSortOrder] = useState<'date-asc' | 'date-desc' | 'name'>('date-asc');
 
@@ -143,8 +146,32 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             to.setSeconds(59, 999);
             result = result.filter(e => new Date(e.created_at) <= to);
         }
+        if (hidePastDates) {
+            const todayStr = todayISO();
+            result = result.filter(e => {
+                if (!e.confirmed_date) return true;
+                const cDateStr = e.confirmed_date.split('T')[0];
+                return cDateStr >= todayStr;
+            });
+        }
+        if (courseDateFrom) {
+            const cFromStr = courseDateFrom.split('T')[0];
+            result = result.filter(e => {
+                if (!e.confirmed_date) return false;
+                const cDateStr = e.confirmed_date.split('T')[0];
+                return cDateStr >= cFromStr;
+            });
+        }
+        if (courseDateTo) {
+            const cToStr = courseDateTo.split('T')[0];
+            result = result.filter(e => {
+                if (!e.confirmed_date) return false;
+                const cDateStr = e.confirmed_date.split('T')[0];
+                return cDateStr <= cToStr;
+            });
+        }
         return result;
-    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo]);
+    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo, hidePastDates, courseDateFrom, courseDateTo]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {
@@ -406,6 +433,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 setDateFrom={setDateFrom}
                 dateTo={dateTo}
                 setDateTo={setDateTo}
+                hidePastDates={hidePastDates}
+                setHidePastDates={setHidePastDates}
+                courseDateFrom={courseDateFrom}
+                setCourseDateFrom={setCourseDateFrom}
+                courseDateTo={courseDateTo}
+                setCourseDateTo={setCourseDateTo}
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 statusCounts={statusCounts}
