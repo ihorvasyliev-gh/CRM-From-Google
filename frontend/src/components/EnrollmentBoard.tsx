@@ -149,7 +149,11 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (hidePastDates) {
             const todayStr = todayISO();
             result = result.filter(e => {
-                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
+                // Do not hide historical statuses (completed, withdrawn, rejected) with default "hide past dates" toggle
+                if (e.status === 'completed' || e.status === 'withdrawn' || e.status === 'rejected') {
+                    return true;
+                }
+                const rawDate = e.confirmed_date || e.invited_date;
                 if (!rawDate) return true;
                 const cDateStr = rawDate.split('T')[0];
                 return cDateStr >= todayStr;
