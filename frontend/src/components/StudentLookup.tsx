@@ -596,6 +596,39 @@ export default function StudentLookup() {
                                                                 </div>
                                                             )}
 
+                                                            {/* Scheduled Course Date Highlight */}
+                                                            {(() => {
+                                                                const courseDate = en.status === 'completed'
+                                                                    ? en.completed_date
+                                                                    : (en.status === 'confirmed' ? (en.confirmed_date || en.invited_date) : en.invited_date);
+                                                                if (!courseDate) return null;
+                                                                
+                                                                const isConfirmed = en.status === 'confirmed';
+                                                                const isCompleted = en.status === 'completed';
+                                                                
+                                                                let badgeStyles = '';
+                                                                let labelText = '';
+                                                                if (isCompleted) {
+                                                                    badgeStyles = 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20';
+                                                                    labelText = 'Course completed date:';
+                                                                } else if (isConfirmed) {
+                                                                    badgeStyles = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 ring-2 ring-emerald-500/20';
+                                                                    labelText = 'Confirmed course date:';
+                                                                } else {
+                                                                    badgeStyles = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 ring-2 ring-blue-500/20';
+                                                                    labelText = 'Scheduled course date:';
+                                                                }
+
+                                                                return (
+                                                                    <div className={`mt-2.5 mb-1 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-xl border shadow-sm ${badgeStyles}`}>
+                                                                        <Calendar size={13} className="flex-shrink-0 animate-pulse" />
+                                                                        <span>
+                                                                            {labelText} <span className="font-extrabold underline">{formatDate(courseDate)}</span>
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
+
                                                             {/* Enrollment Dates */}
                                                             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2.5 pt-2.5 border-t border-border-subtle/40 text-[10px] text-muted">
                                                                 <div>
