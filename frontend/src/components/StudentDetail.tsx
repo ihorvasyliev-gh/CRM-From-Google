@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
 import MergeModal from './MergeModal';
+import Toast, { ToastData } from './Toast';
 
 interface Enrollment {
     id: string;
@@ -39,24 +40,33 @@ const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
 // ─── Inline Editable Field ──────────────────────────────────
 function InlineEditField({
     value,
+    displayValue,
     field,
     studentId,
     type = 'text',
     icon,
     label,
     onSaved,
+    onCopy,
 }: {
     value: string;
+    displayValue?: string;
     field: string;
     studentId: string;
     type?: string;
     icon: JSX.Element;
     label: string;
     onSaved: (field: string, value: string) => void;
+    onCopy: (value: string, label: string) => void;
 }) {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(value);
     const [saving, setSaving] = useState(false);
+
+    // Keep state in sync with external value prop changes
+    useEffect(() => {
+        setEditValue(value);
+    }, [value]);
 
     async function handleSave() {
         if (editValue === value) {
@@ -64,12 +74,53 @@ function InlineEditField({
             return;
         }
         setSaving(true);
+
+        let cleanValue = editValue;
+        if (field === 'phone') {
+            let formattedPhone = editValue.replace(/[^\d+]/g, '');
+            if (formattedPhone) {
+                if (formattedPhone.startsWith('00')) {
+                    formattedPhone = '+' + formattedPhone.substring(2);
+                } else if (!formattedPhone.startsWith('+')) {
+                    if (formattedPhone.startsWith('353') || formattedPhone.startsWith('380') || formattedPhone.startsWith('44')) {
+                        formattedPhone = '+' + formattedPhone;
+                    } else if (formattedPhone.startsWith('8') && formattedPhone.length === 9) {
+                        formattedPhone = '+353' + formattedPhone;
+                    } else if (formattedPhone.startsWith('08')) {
+                        formattedPhone = '+353' + formattedPhone.substring(1);
+                    } else if (formattedPhone.startsWith('07') && formattedPhone.length === 11) {
+                        formattedPhone = '+44' + formattedPhone.substring(1);
+                    } else {
+                        const uaCodes = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
+                        let isUa = false;
+                        for (const code of uaCodes) {
+                            if (formattedPhone.startsWith(code) && formattedPhone.length === 10) {
+                                formattedPhone = '+38' + formattedPhone;
+                                isUa = true;
+                                break;
+                            }
+                        }
+                        if (!isUa) {
+                            if (formattedPhone.startsWith('0')) {
+                                formattedPhone = '+353' + formattedPhone.substring(1);
+                            } else if (formattedPhone.length >= 10) {
+                                formattedPhone = '+' + formattedPhone;
+                            }
+                        }
+                    }
+                }
+                cleanValue = formattedPhone;
+            }
+        } else if (field === 'email') {
+            cleanValue = editValue.trim().toLowerCase();
+        }
+
         const { error } = await supabase
             .from('students')
-            .update({ [field]: editValue || null })
+            .update({ [field]: cleanValue || null })
             .eq('id', studentId);
         if (!error) {
-            onSaved(field, editValue);
+            onSaved(field, cleanValue);
         }
         setSaving(false);
         setEditing(false);
@@ -117,38 +168,68 @@ function InlineEditField({
         <div
             className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all cursor-pointer group"
             onClick={() => {
-                setEditValue(value);
-                setEditing(true);
+                if (value) {
+                    onCopy(value, label);
+                }
             }}
+            title="Click to copy to clipboard"
         >
             <span className="text-muted">{icon}</span>
             <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted font-medium">{label}</p>
-                <p className="text-sm text-primary">{value || <span className="text-muted/50 italic">Not set</span>}</p>
+                <p className="text-sm text-primary">{displayValue || value || <span className="text-muted/50 italic">Not set</span>}</p>
             </div>
-            <Edit2 size={12} className="text-muted/0 group-hover:text-muted/60 transition-all flex-shrink-0" />
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setEditValue(value);
+                    setEditing(true);
+                }}
+                className="p-1.5 text-muted/30 group-hover:text-muted/70 hover:text-brand-500 dark:hover:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all flex-shrink-0"
+                title={`Edit ${label}`}
+            >
+                <Edit2 size={12} />
+            </button>
         </div>
     );
 }
 
-// ─── Read-only Info Field ────────────────────────────────────
-function InfoField({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
-    return (
-        <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all">
-            <span className="text-muted">{icon}</span>
-            <div>
-                <p className="text-[10px] text-muted font-medium">{label}</p>
-                <p className="text-sm text-primary">{value}</p>
-            </div>
-        </div>
-    );
-}
 
 export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const queryClient = useQueryClient();
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
+    const [toast, setToast] = useState<ToastData | null>(null);
+
+    const handleCopyField = (value: string, label: string) => {
+        if (!value) return;
+        let textToCopy = value;
+        if (label.toLowerCase() === 'phone') {
+            let clean = value.trim();
+            if (clean.startsWith('+353')) {
+                clean = '0' + clean.slice(4);
+            } else if (clean.startsWith('353')) {
+                clean = '0' + clean.slice(3);
+            }
+            textToCopy = clean.replace(/[\s-]/g, '');
+        }
+        
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                setToast({
+                    message: `${label} copied to clipboard!`,
+                    type: 'success'
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy text:', err);
+                setToast({
+                    message: `Failed to copy ${label.toLowerCase()}`,
+                    type: 'error'
+                });
+            });
+    };
 
     const fetchEnrollments = useCallback(async () => {
         const { data } = await supabase
@@ -299,9 +380,16 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                     <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Contact Info</h3>
                         <div className="space-y-1.5">
-                            {student.email && (
-                                <InfoField icon={<Mail size={14} />} label="Email" value={student.email} />
-                            )}
+                            <InlineEditField
+                                icon={<Mail size={14} />}
+                                label="Email"
+                                value={student.email || ''}
+                                field="email"
+                                type="email"
+                                studentId={student.id}
+                                onSaved={handleFieldSaved}
+                                onCopy={handleCopyField}
+                            />
                             <InlineEditField
                                 icon={<Phone size={14} />}
                                 label="Phone"
@@ -310,6 +398,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 type="tel"
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
+                                onCopy={handleCopyField}
                             />
                             <InlineEditField
                                 icon={<MapPin size={14} />}
@@ -318,6 +407,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 field="address"
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
+                                onCopy={handleCopyField}
                             />
                             <InlineEditField
                                 icon={<MapPin size={14} />}
@@ -326,14 +416,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 field="eircode"
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
+                                onCopy={handleCopyField}
                             />
-                            {student.dob && (
-                                <InfoField
-                                    icon={<Calendar size={14} />}
-                                    label="Date of Birth"
-                                    value={new Date(student.dob).toLocaleDateString('en-IE')}
-                                />
-                            )}
+                            <InlineEditField
+                                icon={<Calendar size={14} />}
+                                label="Date of Birth"
+                                value={student.dob || ''}
+                                displayValue={student.dob ? new Date(student.dob).toLocaleDateString('en-IE') : ''}
+                                field="dob"
+                                type="date"
+                                studentId={student.id}
+                                onSaved={handleFieldSaved}
+                                onCopy={handleCopyField}
+                            />
                         </div>
                     </div>
 
@@ -426,6 +521,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 onClose={() => setMergeModalOpen(false)}
                 onSuccess={onClose}
             />
+            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }
