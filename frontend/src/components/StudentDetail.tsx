@@ -169,7 +169,7 @@ function InlineEditField({
             className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-all cursor-pointer group"
             onClick={() => {
                 if (value) {
-                    onCopy(value, label);
+                    onCopy(displayValue || value, label);
                 }
             }}
             title="Click to copy to clipboard"
