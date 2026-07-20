@@ -264,6 +264,24 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     const loading = statsLoading || enrollmentsLoading;
 
+function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
+    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+    if (!dateStr) {
+        const now = new Date();
+        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        const now = new Date();
+        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+    }
+    return {
+        dateKey: d.toISOString().slice(0, 10),
+        dateLabel: d.toLocaleDateString('en-IE', dateOpts),
+        time: d.getTime()
+    };
+}
+
     // Build flat list of enrollments based on filter
     const filteredRecent = useMemo(() => {
         const mappedEnrollments = allEnrollments.map(en => ({
@@ -279,18 +297,17 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
         if (activityFilter === 'all') {
             return mappedEnrollments
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                .sort((a, b) => parseSafeDate(b.created_at).time - parseSafeDate(a.created_at).time);
         }
 
         return mappedEnrollments
             .filter(en => en.status === activityFilter)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            .sort((a, b) => parseSafeDate(b.created_at).time - parseSafeDate(a.created_at).time);
     }, [allEnrollments, activityFilter]);
 
     // Group enrollments by student + day
     const groupedActivity = useMemo((): GroupedActivity[] => {
         const source = filteredRecent;
-        const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
 
         // Build groups keyed by studentId + date
         const groupMap = new Map<string, GroupedActivity>();
@@ -298,9 +315,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         for (const en of source) {
             const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
             const studentId = en.student_id || en.id;
-            const dateObj = new Date(en.created_at);
-            const dateKey = dateObj.toISOString().slice(0, 10); // YYYY-MM-DD
-            const dateLabel = dateObj.toLocaleDateString('en-IE', dateOpts);
+            const { dateKey, dateLabel } = parseSafeDate(en.created_at);
             const groupKey = `${studentId}__${dateKey}`;
 
             if (!groupMap.has(groupKey)) {
@@ -331,7 +346,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             
             // Check if this is the student's first ever registration day in the system
             const hasPriorEnrollments = studentAllEn.some(en => {
-                const dateKey = new Date(en.created_at).toISOString().slice(0, 10);
+                const { dateKey } = parseSafeDate(en.created_at);
                 return dateKey < group.date;
             });
             group.isNew = !hasPriorEnrollments;
@@ -347,15 +362,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             }>();
 
             for (const en of studentAllEn) {
-                const dateObj = new Date(en.created_at);
-                const dateKey = dateObj.toISOString().slice(0, 10);
+                const { dateKey, dateLabel } = parseSafeDate(en.created_at);
                 if (dateKey === group.date) {
                     continue;
                 }
                 const courseName = en.courses?.name || 'Unknown Course';
                 if (!otherDaysMap.has(dateKey)) {
                     otherDaysMap.set(dateKey, {
-                        dateLabel: dateObj.toLocaleDateString('en-IE', dateOpts),
+                        dateLabel,
                         enrollments: []
                     });
                 }
@@ -367,6 +381,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     status: en.status
                 });
             }
+
 
             const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
             for (const dKey of sortedDates) {
