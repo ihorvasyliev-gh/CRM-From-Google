@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Mail, GraduationCap, RefreshCw, Users } from 'lucide-react';
 
-type PageState = 'loading' | 'form' | 'success' | 'invalid' | 'error';
+type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error';
+
+interface MatchedStudent {
+    student_id: string;
+    first_name: string;
+    last_name: string;
+}
 
 export default function ConfirmationPage() {
     const [state, setState] = useState<PageState>('loading');
@@ -13,6 +19,8 @@ export default function ConfirmationPage() {
     const [resultMessage, setResultMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [inlineError, setInlineError] = useState('');
+    const [matchedStudents, setMatchedStudents] = useState<MatchedStudent[]>([]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
     // BUG-5 FIX: useRef guard against double-click race condition
     const submittingRef = useRef(false);
@@ -135,24 +143,127 @@ export default function ConfirmationPage() {
 
         // BUG-4 FIX: try/catch/finally ensures isSubmitting is always reset
         try {
-            const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+            // Step 1: Find all students matching this email for this course
+            const { data: students, error: findError } = await supabase.rpc('find_students_by_email', {
                 p_email: trimmedEmail,
                 p_course_id: courseId,
             });
 
-            if (error) {
+            if (findError) {
                 setInlineError('Something went wrong. Please try again.');
                 return;
             }
 
-            if (data.success) {
-                setResultMessage(data.message);
-                setState('success');
-            } else {
-                setInlineError(data.message || 'Confirmation failed.');
+            if (!students || students.length === 0) {
+                // No pending invitations — fall through to legacy confirm for proper error message
+                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                });
+                if (error) {
+                    setInlineError('Something went wrong. Please try again.');
+                    return;
+                }
+                if (data.success) {
+                    setResultMessage(data.message);
+                    setState('success');
+                } else {
+                    setInlineError(data.message || 'Confirmation failed.');
+                }
+                return;
             }
+
+            if (students.length === 1) {
+                // Single match — confirm directly (no picker needed)
+                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                    p_student_id: students[0].student_id,
+                });
+                if (error) {
+                    setInlineError('Something went wrong. Please try again.');
+                    return;
+                }
+                if (data.success) {
+                    setResultMessage(data.message);
+                    setState('success');
+                } else {
+                    setInlineError(data.message || 'Confirmation failed.');
+                }
+                return;
+            }
+
+            // Multiple matches — show name picker
+            setMatchedStudents(students);
+            setSelectedStudentIds(new Set());
+            setState('pick');
         } catch (err) {
             console.error('Submit error:', err);
+            setInlineError('Network error. Please check your connection and try again.');
+        } finally {
+            setIsSubmitting(false);
+            submittingRef.current = false;
+        }
+    }
+
+    function toggleStudent(studentId: string) {
+        setSelectedStudentIds(prev => {
+            const next = new Set(prev);
+            if (next.has(studentId)) next.delete(studentId);
+            else next.add(studentId);
+            return next;
+        });
+    }
+
+    async function handleConfirmSelected() {
+        if (selectedStudentIds.size === 0) return;
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+        setIsSubmitting(true);
+        setInlineError('');
+
+        try {
+            const trimmedEmail = email.trim();
+            const ids = Array.from(selectedStudentIds);
+            const results: { id: string; success: boolean; message: string }[] = [];
+
+            for (const studentId of ids) {
+                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                    p_student_id: studentId,
+                });
+                if (error) {
+                    results.push({ id: studentId, success: false, message: 'Server error' });
+                } else {
+                    results.push({ id: studentId, success: data.success, message: data.message });
+                }
+            }
+
+            const allSuccess = results.every(r => r.success);
+            const anySuccess = results.some(r => r.success);
+
+            if (allSuccess) {
+                const names = matchedStudents
+                    .filter(s => selectedStudentIds.has(s.student_id))
+                    .map(s => `${s.first_name} ${s.last_name}`.trim())
+                    .join(', ');
+                setResultMessage(`Attendance confirmed for: ${names}. We look forward to seeing you!`);
+                setState('success');
+            } else if (anySuccess) {
+                const failedNames = results
+                    .filter(r => !r.success)
+                    .map(r => {
+                        const s = matchedStudents.find(ms => ms.student_id === r.id);
+                        return s ? `${s.first_name} ${s.last_name}`.trim() : 'Unknown';
+                    });
+                setResultMessage(`Some confirmations succeeded, but failed for: ${failedNames.join(', ')}. Please contact the organizer.`);
+                setState('success');
+            } else {
+                setInlineError(results[0]?.message || 'Confirmation failed.');
+            }
+        } catch (err) {
+            console.error('Confirm selected error:', err);
             setInlineError('Network error. Please check your connection and try again.');
         } finally {
             setIsSubmitting(false);
@@ -297,6 +408,90 @@ export default function ConfirmationPage() {
                                 </button>
                             </div>
                         </form>
+                    )}
+
+                    {/* ─── Name Picker (shared email) ─── */}
+                    {state === 'pick' && (
+                        <div>
+                            {/* Header */}
+                            <div className="p-6 pb-4 border-b border-zinc-800">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="p-2 bg-amber-500/10 rounded-xl">
+                                        <Users size={20} className="text-amber-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Multiple registrations found</p>
+                                        <h2 className="text-lg font-bold text-white">{courseName}</h2>
+                                        {courseDate && (
+                                            <p className="text-sm text-indigo-400 font-medium mt-0.5">
+                                                📅 {formatCourseDate(courseDate)}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <p className="text-sm text-zinc-400">
+                                    We found multiple people registered with <span className="text-white font-medium">{email.trim()}</span>. Please select who you are:
+                                </p>
+                            </div>
+
+                            {/* Student list */}
+                            <div className="p-6 space-y-3">
+                                {matchedStudents.map((student) => (
+                                    <label
+                                        key={student.student_id}
+                                        className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                                            selectedStudentIds.has(student.student_id)
+                                                ? 'border-indigo-500 bg-indigo-500/10'
+                                                : 'border-zinc-800 bg-[#09090B] hover:border-zinc-700'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedStudentIds.has(student.student_id)}
+                                            onChange={() => toggleStudent(student.student_id)}
+                                            className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0 cursor-pointer"
+                                        />
+                                        <span className="text-white font-medium">
+                                            {student.first_name} {student.last_name}
+                                        </span>
+                                    </label>
+                                ))}
+
+                                {inlineError && (
+                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
+                                        <AlertCircle size={16} className="shrink-0" />
+                                        <p>{inlineError}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmSelected}
+                                    disabled={isSubmitting || selectedStudentIds.size === 0}
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed mt-1"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 size={24} className="animate-spin text-white/70" />
+                                            <span>Confirming...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xl">✓</span>
+                                            <span>Confirm Selected ({selectedStudentIds.size})</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => { setState('form'); setInlineError(''); }}
+                                    className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+                                >
+                                    ← Back to email
+                                </button>
+                            </div>
+                        </div>
                     )}
 
                     {/* ─── Success ─── */}
