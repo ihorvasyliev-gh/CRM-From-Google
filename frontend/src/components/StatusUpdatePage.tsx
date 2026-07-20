@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, AlertCircle, Loader2, Mail, Briefcase, Clock, Building2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Mail, Briefcase, Clock, Building2, User } from 'lucide-react';
 
-type PageState = 'form' | 'success';
+type PageState = 'form' | 'picker' | 'success';
+
+interface StudentMatch {
+    student_id: string;
+    first_name: string;
+    last_name: string;
+}
 
 export default function StatusUpdatePage() {
     const [state, setState] = useState<PageState>('form');
@@ -15,13 +21,10 @@ export default function StatusUpdatePage() {
     const [inlineError, setInlineError] = useState('');
     const [resultMessage, setResultMessage] = useState('');
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        if (!email.trim() || isWorking === null || isSubmitting) return;
-        if (isWorking && !employmentType) {
-            setInlineError('Please select Full-time or Part-time.');
-            return;
-        }
+    const [matchingStudents, setMatchingStudents] = useState<StudentMatch[]>([]);
+    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+    async function executeSubmission(targetStudentId: string | null) {
         setIsSubmitting(true);
         setInlineError('');
 
@@ -31,6 +34,7 @@ export default function StatusUpdatePage() {
             p_started_month: isWorking ? startedMonth || null : null,
             p_field: isWorking ? fieldOfWork || null : null,
             p_employment_type: isWorking ? employmentType || null : null,
+            p_student_id: targetStudentId,
         });
 
         setIsSubmitting(false);
@@ -44,10 +48,45 @@ export default function StatusUpdatePage() {
             setState('success');
         } else {
             setInlineError(data.message || 'Submission failed.');
+            if (state === 'picker') setState('form');
         }
     }
 
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!email.trim() || isWorking === null || isSubmitting) return;
+        if (isWorking && !employmentType) {
+            setInlineError('Please select Full-time or Part-time.');
+            return;
+        }
+        setIsSubmitting(true);
+        setInlineError('');
 
+        if (selectedStudentId) {
+            await executeSubmission(selectedStudentId);
+            return;
+        }
+
+        // Check if multiple students share this email address
+        const { data: matches, error: findError } = await supabase.rpc('find_employment_students_by_email', {
+            p_email: email.trim(),
+        });
+
+        if (!findError && matches && matches.length > 1) {
+            setIsSubmitting(false);
+            setMatchingStudents(matches);
+            setState('picker');
+            return;
+        }
+
+        const singleId = matches && matches.length === 1 ? matches[0].student_id : null;
+        await executeSubmission(singleId);
+    }
+
+    async function handlePickStudent(studentId: string) {
+        setSelectedStudentId(studentId);
+        await executeSubmission(studentId);
+    }
 
     return (
         <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
@@ -106,7 +145,10 @@ export default function StatusUpdatePage() {
                                             required
                                             value={email}
                                             disabled={isSubmitting}
-                                            onChange={(e) => setEmail(e.target.value)}
+                                            onChange={(e) => {
+                                                setEmail(e.target.value);
+                                                setSelectedStudentId(null);
+                                            }}
                                             placeholder="Enter the email you registered with"
                                             className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
@@ -244,6 +286,61 @@ export default function StatusUpdatePage() {
                             </div>
                         </form>
                     )}
+
+                    {/* ─── Name Picker Step ─── */}
+                    {state === 'picker' && (
+                        <div className="p-6 space-y-6 animate-fadeIn">
+                            <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
+                                <div className="p-2 bg-violet-500/10 rounded-xl">
+                                    <User size={20} className="text-violet-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-white">Multiple profiles found</h2>
+                                    <p className="text-xs text-zinc-400">Please select your name from the list below:</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {matchingStudents.map((student) => (
+                                    <button
+                                        key={student.student_id}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => handlePickStudent(student.student_id)}
+                                        className="w-full text-left p-4 rounded-xl bg-[#09090B] hover:bg-violet-500/10 border border-zinc-800 hover:border-violet-500/40 transition-all flex items-center justify-between group"
+                                    >
+                                        <span className="font-semibold text-sm text-white group-hover:text-violet-300">
+                                            {student.first_name} {student.last_name}
+                                        </span>
+                                        {isSubmitting ? (
+                                            <Loader2 size={16} className="animate-spin text-violet-400" />
+                                        ) : (
+                                            <span className="text-xs text-zinc-500 group-hover:text-violet-400 font-medium">
+                                                Select →
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {inlineError && (
+                                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3">
+                                    <AlertCircle size={16} className="shrink-0" />
+                                    <p>{inlineError}</p>
+                                </div>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => setState('form')}
+                                disabled={isSubmitting}
+                                className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+                            >
+                                ← Back to form
+                            </button>
+                        </div>
+                    )}
+
 
                     {/* ─── Success ─── */}
                     {state === 'success' && (

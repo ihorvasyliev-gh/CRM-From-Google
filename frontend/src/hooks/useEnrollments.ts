@@ -1,20 +1,17 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import { todayISO } from '../lib/dateUtils';
 
 export type EnrollmentRow = EnrollmentWithRelations;
-
-function todayISO(): string {
-    return new Date().toISOString().split('T')[0];
-}
 
 interface UseEnrollmentsProps {
     showToast: (msg: string, type: 'success' | 'error') => void;
     openInviteModal: (ids: string[], bulk: boolean) => void;
     openConfirmModal: (id: string, defaultDate: string, courseId: string) => void;
 }
+
 
 export async function fetchAllEnrollments() {
     let allData: EnrollmentRow[] = [];
@@ -179,7 +176,11 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             }
         },
         onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+            if (context?.previousEnrollments) {
+                setEnrollments(context.previousEnrollments);
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            }
             showToast('Error updating status', 'error');
         }
     });

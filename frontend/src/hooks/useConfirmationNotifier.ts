@@ -61,9 +61,10 @@ export function useConfirmationNotifier() {
                         tag: `confirm-${id}`, // prevents duplicate system notifications
                     });
 
-                    // Keep the set from growing indefinitely
+                    // Keep the set from growing indefinitely using FIFO eviction
                     if (notifiedIds.current.size > 500) {
-                        notifiedIds.current.clear();
+                        const oldestId = notifiedIds.current.values().next().value;
+                        if (oldestId) notifiedIds.current.delete(oldestId);
                     }
                 }
             )

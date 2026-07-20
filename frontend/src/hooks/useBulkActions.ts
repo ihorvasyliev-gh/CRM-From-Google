@@ -4,10 +4,8 @@ import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { generateDocumentsArchive } from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
+import { todayISO } from '../lib/dateUtils';
 
-function todayISO(): string {
-    return new Date().toISOString().split('T')[0];
-}
 
 function collectEmails(enrollments: EnrollmentRow[]): string {
     const emails = enrollments
@@ -222,7 +220,11 @@ export function useBulkActions({
             showToast(`${ids.length} enrollment(s) deleted`, 'success');
         },
         onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+            if (context?.previousEnrollments) {
+                setEnrollments(context.previousEnrollments);
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            }
             showToast('Failed to delete enrollments', 'error');
         }
     });
@@ -235,8 +237,13 @@ export function useBulkActions({
     const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
         const emailStr = collectEmails(items);
         if (!emailStr) { showToast('No emails to copy', 'error'); return; }
-        await navigator.clipboard.writeText(emailStr);
-        showToast(`${label} emails copied!`, 'success');
+        try {
+            await navigator.clipboard.writeText(emailStr);
+            showToast(`${label} emails copied!`, 'success');
+        } catch (err) {
+            console.error('Clipboard copy failed:', err);
+            showToast('Failed to copy emails to clipboard', 'error');
+        }
     }, [showToast]);
 
     const handleCopySelectedEmails = useCallback(async (filteredEnrollments: EnrollmentRow[]) => {

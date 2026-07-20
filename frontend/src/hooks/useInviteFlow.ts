@@ -2,13 +2,9 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { formatDateLong } from '../lib/dateUtils';
+import { formatDateLong, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
 import { getCoursePill } from './useBulkActions';
-
-function todayISO(): string {
-    return new Date().toISOString().split('T')[0];
-}
 
 interface UseInviteFlowProps {
     enrollments: EnrollmentRow[];
@@ -88,7 +84,11 @@ export function useInviteFlow({
             showToast(`${data.ids.length} enrollment(s) → invited`, 'success');
         },
         onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+            if (context?.previousEnrollments) {
+                setEnrollments(context.previousEnrollments);
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            }
             showToast('Error updating status', 'error');
         }
     });
@@ -104,8 +104,13 @@ export function useInviteFlow({
         const ids = inviteDateTarget.ids;
         const selectedEnrollments = enrollments.filter(e => ids.includes(e.id));
 
-        // Fire and forget optimistic mutation
-        inviteMutation.mutate({ ids, date: inviteDate, days: responseDays });
+        // Await the database update so mailto navigation doesn't abort the HTTP request
+        try {
+            await inviteMutation.mutateAsync({ ids, date: inviteDate, days: responseDays });
+        } catch (err) {
+            console.error('Failed to complete invite mutation:', err);
+            return;
+        }
 
         const emails = selectedEnrollments
             .map(e => e.students?.email)
@@ -150,6 +155,7 @@ export function useInviteFlow({
         window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
         setInviteDateTarget(null);
     }
+
 
     return {
         inviteDateTarget,

@@ -11,7 +11,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
 import { cleanVariant, Student } from '../lib/types';
 import StudentDetail from './StudentDetail';
-import { formatDateLong } from '../lib/dateUtils';
+import { formatDateLong, todayISO } from '../lib/dateUtils';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
 
 import FilterBar from './EnrollmentBoard/FilterBar';
@@ -25,11 +25,6 @@ import { matchesSearch } from '../lib/searchUtils';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
-
-
-function todayISO(): string {
-    return new Date().toISOString().split('T')[0];
-}
 
 export default function EnrollmentBoard({ initialCourseFilter }: { initialCourseFilter?: string }) {
     const [toast, setToast] = useState<ToastData | null>(null);

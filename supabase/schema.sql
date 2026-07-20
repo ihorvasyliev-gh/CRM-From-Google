@@ -238,20 +238,48 @@ CREATE TRIGGER update_enrollments_updated_at
 -- FUNCTIONS (RPCs)
 -- ============================================================
 
+-- find_students_by_email
+-- Added in migration 35: Returns all students with a pending (invited, non-expired)
+-- enrollment for a given course to support shared email name picker.
+CREATE OR REPLACE FUNCTION find_students_by_email(p_email TEXT, p_course_id UUID)
+RETURNS TABLE(student_id UUID, first_name TEXT, last_name TEXT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT s.id, s.first_name, s.last_name
+    FROM students s
+    JOIN enrollments e ON e.student_id = s.id
+    WHERE lower(trim(s.email)) = lower(trim(p_email))
+      AND e.course_id = p_course_id
+      AND e.status = 'invited'
+      AND (e.invited_at IS NULL OR e.invited_at + (COALESCE(e.response_days, 7) || ' days')::INTERVAL >= now());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION public.find_students_by_email(TEXT, UUID) TO anon, authenticated;
+
 -- public_confirm_enrollment
 -- Called by students via the confirmation link. Validates expiry using
--- per-enrollment response_days. Records confirmed_at timestamp.
--- Fixed in migration 34: removed early expired check that blocked all variants,
--- added trim() to email lookup.
-CREATE OR REPLACE FUNCTION public_confirm_enrollment(p_email TEXT, p_course_id UUID)
+-- per-enrollment response_days. Supports p_student_id for shared email disambiguation.
+CREATE OR REPLACE FUNCTION public_confirm_enrollment(
+    p_email TEXT,
+    p_course_id UUID,
+    p_student_id UUID DEFAULT NULL
+)
 RETURNS JSONB AS $$
 DECLARE
     v_student_id UUID;
     v_updated_count INT;
 BEGIN
-    -- Find student by email (case-insensitive + trim whitespace)
-    SELECT id INTO v_student_id
-    FROM students WHERE lower(trim(email)) = lower(trim(p_email));
+    IF p_student_id IS NOT NULL THEN
+        SELECT id INTO v_student_id
+        FROM students
+        WHERE id = p_student_id
+          AND lower(trim(email)) = lower(trim(p_email));
+    ELSE
+        SELECT id INTO v_student_id
+        FROM students
+        WHERE lower(trim(email)) = lower(trim(p_email));
+    END IF;
 
     IF v_student_id IS NULL THEN
         RETURN jsonb_build_object('success', false, 'message', 'No student found with this email address.');
@@ -297,7 +325,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION public_confirm_enrollment(TEXT, UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public_confirm_enrollment(TEXT, UUID, UUID) TO anon, authenticated;
+
 
 -- ──────────────────────────────────────────────────────────────
 
@@ -323,6 +352,7 @@ DECLARE
     v_existing TEXT;
     v_chars    TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     v_i        INT;
+    v_attempts INT := 0;
 BEGIN
     SELECT token INTO v_existing
     FROM confirmation_tokens
@@ -332,6 +362,11 @@ BEGIN
     IF v_existing IS NOT NULL THEN RETURN v_existing; END IF;
 
     LOOP
+        v_attempts := v_attempts + 1;
+        IF v_attempts > 100 THEN
+            RAISE EXCEPTION 'Failed to generate a unique confirmation token after 100 attempts.';
+        END IF;
+
         v_token := '';
         FOR v_i IN 1..7 LOOP
             v_token := v_token || substr(v_chars, floor(random() * length(v_chars) + 1)::INT, 1);
@@ -345,6 +380,23 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION create_confirmation_token(UUID, DATE) TO authenticated;
+
+-- ──────────────────────────────────────────────────────────────
+
+-- cleanup_expired_confirmation_tokens
+-- Utility to purge expired tokens from the confirmation_tokens table.
+CREATE OR REPLACE FUNCTION cleanup_expired_confirmation_tokens()
+RETURNS INT AS $$
+DECLARE
+    v_deleted INT;
+BEGIN
+    DELETE FROM confirmation_tokens WHERE expires_at < now();
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+    RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION cleanup_expired_confirmation_tokens() TO authenticated;
 
 -- ──────────────────────────────────────────────────────────────
 
@@ -417,25 +469,50 @@ GRANT EXECUTE ON FUNCTION mark_students_outcomes_pending(UUID[]) TO authenticate
 
 -- ──────────────────────────────────────────────────────────────
 
+-- find_employment_students_by_email
+-- Returns all students with a matching email for employment disambiguation.
+CREATE OR REPLACE FUNCTION find_employment_students_by_email(p_email TEXT)
+RETURNS TABLE(student_id UUID, first_name TEXT, last_name TEXT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT s.id, s.first_name, s.last_name
+    FROM students s
+    WHERE lower(trim(s.email)) = lower(trim(p_email))
+    ORDER BY s.first_name, s.last_name;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION find_employment_students_by_email(TEXT) TO anon, authenticated;
+
 -- submit_employment_status
 -- Public (anon). Called from the graduate outcome form.
 -- Validates email, upserts employment_status, marks as responded.
+-- Supports optional p_student_id parameter when multiple students share an email.
 CREATE OR REPLACE FUNCTION submit_employment_status(
     p_email           TEXT,
     p_is_working      BOOLEAN,
     p_started_month   TEXT        DEFAULT NULL,
     p_field           TEXT        DEFAULT NULL,
     p_employment_type TEXT        DEFAULT NULL,
-    p_responded_at    TIMESTAMPTZ DEFAULT now()
+    p_responded_at    TIMESTAMPTZ DEFAULT now(),
+    p_student_id      UUID        DEFAULT NULL
 ) RETURNS JSONB AS $$
 DECLARE
     v_student_id    UUID;
     v_student_email TEXT;
 BEGIN
-    SELECT id, email INTO v_student_id, v_student_email
-    FROM students
-    WHERE lower(trim(email)) = lower(trim(p_email))
-    LIMIT 1;
+    IF p_student_id IS NOT NULL THEN
+        SELECT id, email INTO v_student_id, v_student_email
+        FROM students
+        WHERE id = p_student_id
+          AND lower(trim(email)) = lower(trim(p_email));
+    ELSE
+        SELECT id, email INTO v_student_id, v_student_email
+        FROM students
+        WHERE lower(trim(email)) = lower(trim(p_email))
+        ORDER BY created_at DESC
+        LIMIT 1;
+    END IF;
 
     IF v_student_id IS NULL THEN
         RETURN jsonb_build_object('success', false, 'message', 'This email address does not match any of our records. Please use the email you originally registered with.');
@@ -457,7 +534,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION submit_employment_status(TEXT, BOOLEAN, TEXT, TEXT, TEXT, TIMESTAMPTZ) TO anon;
+GRANT EXECUTE ON FUNCTION submit_employment_status(TEXT, BOOLEAN, TEXT, TEXT, TEXT, TIMESTAMPTZ, UUID) TO anon, authenticated;
+
 
 -- ============================================================
 -- REALTIME
