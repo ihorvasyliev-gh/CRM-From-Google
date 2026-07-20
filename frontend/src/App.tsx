@@ -56,6 +56,12 @@ function App() {
     useConfirmationNotifier();
     useGlobalRealtimeSync();
 
+    // Clear chunk reload flags on successful mount
+    useEffect(() => {
+        sessionStorage.removeItem('chunk_reload_done');
+        sessionStorage.removeItem('chunk_load_error_time');
+    }, []);
+
     // Show notification permission banner once if not yet decided/subscribed
     useEffect(() => {
         const checkPushSubscription = async () => {

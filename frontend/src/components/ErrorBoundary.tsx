@@ -31,13 +31,10 @@ export default class ErrorBoundary extends Component<Props, State> {
                                  errorMessage.includes('error loading dynamically imported module');
                                  
         if (isChunkLoadError) {
-            const lastReload = sessionStorage.getItem('chunk_load_error_time');
-            const now = Date.now();
-            const isRecent = lastReload && (now - parseInt(lastReload, 10)) < 10000; // Prevent infinite reload loops (10s threshold)
-
-            if (!isRecent) {
-                console.warn('Chunk load error detected. Attempting automatic page reload to fetch latest version...');
-                sessionStorage.setItem('chunk_load_error_time', now.toString());
+            const hasReloaded = sessionStorage.getItem('chunk_reload_done');
+            if (!hasReloaded) {
+                console.warn('Chunk load error detected. Reloading page for updated version...');
+                sessionStorage.setItem('chunk_reload_done', 'true');
                 this.reloadWithCacheBuster();
             }
         }
@@ -54,7 +51,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     };
 
     private handleReload = () => {
-        // Clear the error time trigger when manually reloading to allow another attempt
+        sessionStorage.removeItem('chunk_reload_done');
         sessionStorage.removeItem('chunk_load_error_time');
         this.reloadWithCacheBuster();
     };

@@ -3,8 +3,7 @@ import { lazy, ComponentType } from 'react';
 
 /**
  * A wrapper for React.lazy that attempts to reload the component if it fails to load.
- * This is particularly useful in production where a new deployment might have removed
- * old chunk files while the user still has an old version of index.html open.
+ * Handles production deployments where dynamic JS chunks are updated on the server.
  */
 export function lazyWithRetry(
     componentImport: () => Promise<{ default: ComponentType<any> }>,
@@ -19,14 +18,12 @@ export function lazyWithRetry(
                                      errorMessage.includes('Importing a module script failed') ||
                                      errorMessage.includes('error loading dynamically imported module');
 
-            const lastReload = sessionStorage.getItem('chunk_load_error_time');
-            const now = Date.now();
-            const isRecent = lastReload && (now - parseInt(lastReload, 10)) < 15000;
+            const hasReloaded = sessionStorage.getItem('chunk_reload_done');
 
-            if (isChunkLoadError && !isRecent) {
-                sessionStorage.setItem('chunk_load_error_time', now.toString());
+            if (isChunkLoadError && !hasReloaded) {
+                sessionStorage.setItem('chunk_reload_done', 'true');
                 window.location.reload();
-                return new Promise(() => {}); // prevent throwing while browser reloads
+                return new Promise(() => {}); // pause execution while browser reloads
             }
 
             for (let i = 0; i < retriesLeft; i++) {
@@ -41,4 +38,5 @@ export function lazyWithRetry(
         }
     });
 }
+
 
