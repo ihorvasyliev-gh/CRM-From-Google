@@ -124,15 +124,12 @@ function BentoCard({
     ...props
 }: BentoCardProps) {
     const cardRef = useRef<HTMLDivElement>(null);
-    const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!cardRef.current) return;
         const rect = cardRef.current.getBoundingClientRect();
-        setMouseCoords({
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
-        });
+        cardRef.current.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+        cardRef.current.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
     };
 
     return (
@@ -146,7 +143,7 @@ function BentoCard({
             <div
                 className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 style={{
-                    background: `radial-gradient(350px circle at ${mouseCoords.x}px ${mouseCoords.y}px, ${glowColor}, transparent 80%)`,
+                    background: `radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), ${glowColor}, transparent 80%)`,
                 }}
             />
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
@@ -6,6 +6,7 @@ import { Course, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface EnrollmentCount {
     course_id: string;
@@ -120,6 +121,7 @@ export default function CourseList() {
     });
 
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
@@ -159,9 +161,11 @@ export default function CourseList() {
         setDeleteTarget(null);
     }
 
-    const filtered = courses.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = useMemo(() => {
+        return courses.filter(c =>
+            c.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+        );
+    }, [courses, debouncedSearch]);
 
     return (
         <div className="space-y-4">
@@ -291,12 +295,14 @@ export default function CourseList() {
                 </div>
             )}
 
-            <CourseModal
-                open={modalOpen}
-                course={editingCourse}
-                onSave={handleSave}
-                onClose={() => setModalOpen(false)}
-            />
+            {modalOpen && (
+                <CourseModal
+                    open={true}
+                    course={editingCourse}
+                    onSave={handleSave}
+                    onClose={() => setModalOpen(false)}
+                />
+            )}
             <ConfirmDialog
                 open={!!deleteTarget}
                 title="Delete Course"

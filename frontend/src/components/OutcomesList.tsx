@@ -8,6 +8,7 @@ import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
 import OutcomeEditModal from './OutcomeEditModal';
+import { useDebounce } from '../hooks/useDebounce';
 
 export interface GraduateRow {
     student_id: string;
@@ -120,6 +121,7 @@ export default function OutcomesList() {
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [filterStatus, setFilterStatus] = useState<OutcomeFilter>('all');
     const [filterCourse, setFilterCourse] = useState('all');
     const [sending, setSending] = useState(false);
@@ -146,8 +148,8 @@ export default function OutcomesList() {
         if (filterCourse !== 'all') {
             result = result.filter(g => g.courses.includes(filterCourse));
         }
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
+        if (debouncedSearchQuery.trim()) {
+            const q = debouncedSearchQuery.toLowerCase();
             result = result.filter(g =>
                 g.first_name.toLowerCase().includes(q) ||
                 g.last_name.toLowerCase().includes(q) ||
@@ -156,7 +158,7 @@ export default function OutcomesList() {
             );
         }
         return result;
-    }, [graduates, filterStatus, filterCourse, searchQuery]);
+    }, [graduates, filterStatus, filterCourse, debouncedSearchQuery]);
 
     // Status counts
     const statusCounts = useMemo(() => {
@@ -546,15 +548,17 @@ export default function OutcomesList() {
                 </div>
             )}
 
-            <OutcomeEditModal
-                isOpen={!!editingGrad}
-                graduate={editingGrad}
-                onClose={() => setEditingGrad(null)}
-                onSaved={() => {
-                    fetchGraduates();
-                    showToast('Student status has been updated.', 'success');
-                }}
-            />
+            {editingGrad && (
+                <OutcomeEditModal
+                    isOpen={true}
+                    graduate={editingGrad}
+                    onClose={() => setEditingGrad(null)}
+                    onSaved={() => {
+                        fetchGraduates();
+                        showToast('Student status has been updated.', 'success');
+                    }}
+                />
+            )}
 
             <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>

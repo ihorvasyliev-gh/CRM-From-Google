@@ -27,11 +27,11 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'enrollments' },
                 (payload) => {
                     console.log('Realtime update: enrollments changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                    queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'] });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
-                    queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+                    queryClient.invalidateQueries({ queryKey: ['enrollments'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'], type: 'active' });
                 }
             )
             // ─── Students ───────────────────────────────────
@@ -40,8 +40,8 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'students' },
                 (payload) => {
                     console.log('Realtime update: students changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['students'] });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                    queryClient.invalidateQueries({ queryKey: ['students'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
                 }
             )
             // ─── Courses ────────────────────────────────────
@@ -50,9 +50,9 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'courses' },
                 (payload) => {
                     console.log('Realtime update: courses changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['courses'] });
-                    queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                    queryClient.invalidateQueries({ queryKey: ['courses'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['doc_courses'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
                 }
             )
             // ─── Employment Status ───────────────────────────
@@ -61,8 +61,8 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'employment_status' },
                 (payload) => {
                     console.log('Realtime update: employment_status changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
-                    queryClient.invalidateQueries({ queryKey: ['analytics_employment_statuses_v1'] });
+                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'], type: 'active' });
+                    queryClient.invalidateQueries({ queryKey: ['analytics_employment_statuses_v1'], type: 'active' });
                 }
             )
             .subscribe((status, err) => {

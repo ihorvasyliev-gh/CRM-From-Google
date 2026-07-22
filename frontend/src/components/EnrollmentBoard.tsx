@@ -782,19 +782,21 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 </div>
             )}
 
-            <EnrollmentModal
-                open={enrollModalOpen}
-                preselectedStudentId={enrollStudentId}
-                onSave={() => {
-                    enrollmentsHook.fetchEnrollments();
-                    showToast('Enrollment created', 'success');
-                    if (detailStudent) setDetailStudent({ ...detailStudent });
-                }}
-                onClose={() => {
-                    setEnrollModalOpen(false);
-                    setEnrollStudentId(undefined);
-                }}
-            />
+            {enrollModalOpen && (
+                <EnrollmentModal
+                    open={true}
+                    preselectedStudentId={enrollStudentId}
+                    onSave={() => {
+                        enrollmentsHook.fetchEnrollments();
+                        showToast('Enrollment created', 'success');
+                        if (detailStudent) setDetailStudent({ ...detailStudent });
+                    }}
+                    onClose={() => {
+                        setEnrollModalOpen(false);
+                        setEnrollStudentId(undefined);
+                    }}
+                />
+            )}
 
             <ConfirmDialog
                 open={!!deleteTarget}

@@ -13,8 +13,8 @@ import './index.css'
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
-            staleTime: Infinity, // Rely on real-time subscriptions for updates, no background polling
-            gcTime: 1000 * 60 * 2, // 2 minutes (lower from 5 mins to clear unused cache faster to save RAM)
+            staleTime: 1000 * 60 * 5, // 5 minutes fresh cache for instant tab switches
+            gcTime: 1000 * 60 * 30, // 30 minutes cache persistence across navigation
             refetchOnWindowFocus: false, // Prevent lag spikes/CPU drain when switching windows
         },
     },

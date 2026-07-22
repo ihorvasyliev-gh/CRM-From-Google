@@ -354,21 +354,25 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 />
             )}
 
-            <StudentModal
-                open={studentModalOpen}
-                student={editingStudent}
-                onSave={handleSaveStudent}
-                onClose={() => setStudentModalOpen(false)}
-            />
-            <EnrollmentModal
-                open={enrollModalOpen}
-                preselectedStudentId={enrollStudentId}
-                onSave={() => {
-                    setToast({ message: 'Enrollment created', type: 'success' });
-                    if (detailStudent) setDetailStudent({ ...detailStudent });
-                }}
-                onClose={() => setEnrollModalOpen(false)}
-            />
+            {studentModalOpen && (
+                <StudentModal
+                    open={true}
+                    student={editingStudent}
+                    onSave={handleSaveStudent}
+                    onClose={() => setStudentModalOpen(false)}
+                />
+            )}
+            {enrollModalOpen && (
+                <EnrollmentModal
+                    open={true}
+                    preselectedStudentId={enrollStudentId}
+                    onSave={() => {
+                        setToast({ message: 'Enrollment created', type: 'success' });
+                        if (detailStudent) setDetailStudent({ ...detailStudent });
+                    }}
+                    onClose={() => setEnrollModalOpen(false)}
+                />
+            )}
             <ConfirmDialog
                 open={!!deleteTarget}
                 title="Delete Student"
