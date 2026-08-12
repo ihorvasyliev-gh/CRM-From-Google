@@ -126,6 +126,9 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             queryClient.invalidateQueries({ queryKey: ['students'] });
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+            queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'] });
+            queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
 
             if (onSuccess) onSuccess();
             onClose();

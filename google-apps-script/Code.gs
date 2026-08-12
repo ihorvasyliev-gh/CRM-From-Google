@@ -275,20 +275,26 @@ function syncRowsRange(sheet, startRow, endRow) {
   }
 
   function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
-      var f1 = String(firstName1 || "").trim().toLowerCase();
-      var l1 = String(lastName1 || "").trim().toLowerCase();
-      var f2 = String(firstName2 || "").trim().toLowerCase();
-      var l2 = String(lastName2 || "").trim().toLowerCase();
+      var f1 = String(firstName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+      var l1 = String(lastName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+      var f2 = String(firstName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+      var l2 = String(lastName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
       
       if (!f1 || !l1 || !f2 || !l2) return false;
       
-      // First name matches or starts with the same initial
-      var firstNamesMatch = (f1 === f2) || (f1.substring(0, 1) === f2.substring(0, 1));
+      // Direct match
+      if (f1 === f2 && l1 === l2) return true;
       
-      // Last name matches or one is substring of another
-      var lastNamesMatch = (l1.indexOf(l2) !== -1) || (l2.indexOf(l1) !== -1);
+      // Swapped match (first name entered as last name or vice-versa)
+      if (f1 === l2 && l1 === f2) return true;
       
-      return firstNamesMatch && lastNamesMatch;
+      // Combined match
+      var full1 = f1 + l1;
+      var full2 = f2 + l2;
+      var full2Swap = l2 + f2;
+      if (full1 === full2 || full1 === full2Swap) return true;
+      
+      return false;
   }
 
   var keyToIdMap = {};
@@ -310,10 +316,10 @@ function syncRowsRange(sheet, startRow, endRow) {
       var compositeKey = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
       
       if (matchedStudent) {
-          // Enrich existing student record
+          // Enrich existing student record (ONLY missing fields, NEVER overwrite names)
           var patchPayload = {};
-          if (s.first_name.length > (matchedStudent.first_name || "").length) patchPayload.first_name = s.first_name;
-          if (s.last_name.length > (matchedStudent.last_name || "").length) patchPayload.last_name = s.last_name;
+          if (!matchedStudent.first_name && s.first_name) patchPayload.first_name = s.first_name;
+          if (!matchedStudent.last_name && s.last_name) patchPayload.last_name = s.last_name;
           if (!matchedStudent.phone && s.phone) patchPayload.phone = s.phone;
           if (!matchedStudent.address && s.address) patchPayload.address = s.address;
           if (!matchedStudent.eircode && s.eircode) patchPayload.eircode = s.eircode;
