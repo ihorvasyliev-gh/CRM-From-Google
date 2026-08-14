@@ -143,32 +143,40 @@ export default function ConfirmationPage() {
 
         // BUG-4 FIX: try/catch/finally ensures isSubmitting is always reset
         try {
-            // Step 1: Find all students matching this email for this course
-            const { data: students, error: findError } = await supabase.rpc('find_students_by_email', {
-                p_email: trimmedEmail,
-                p_course_id: courseId,
-            });
-
-            if (findError) {
-                setInlineError('Something went wrong. Please try again.');
-                return;
-            }
-
-            if (!students || students.length === 0) {
-                // No pending invitations — fall through to legacy confirm for proper error message
-                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+            // Step 1: Find all students matching this email for this course (invited status)
+            let students: MatchedStudent[] | null = null;
+            try {
+                const { data, error: findError } = await supabase.rpc('find_students_by_email', {
                     p_email: trimmedEmail,
                     p_course_id: courseId,
                 });
+                if (!findError && data) {
+                    students = data;
+                } else if (findError) {
+                    console.warn('find_students_by_email error, falling back:', findError);
+                }
+            } catch (findErr) {
+                console.warn('find_students_by_email exception:', findErr);
+            }
+
+            if (!students || students.length === 0) {
+                // No pending invitations found — call public_confirm_enrollment.
+                // It will check if already confirmed, completed, expired, etc. and return the proper response.
+                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                    p_student_id: null,
+                });
                 if (error) {
-                    setInlineError('Something went wrong. Please try again.');
+                    console.error('Confirmation error:', error);
+                    setInlineError(error.message || 'Something went wrong. Please try again.');
                     return;
                 }
-                if (data.success) {
-                    setResultMessage(data.message);
+                if (data && data.success) {
+                    setResultMessage(data.message || 'Your attendance has already been confirmed! We look forward to seeing you at the course.');
                     setState('success');
                 } else {
-                    setInlineError(data.message || 'Confirmation failed.');
+                    setInlineError(data?.message || 'Confirmation failed.');
                 }
                 return;
             }
@@ -181,14 +189,15 @@ export default function ConfirmationPage() {
                     p_student_id: students[0].student_id,
                 });
                 if (error) {
-                    setInlineError('Something went wrong. Please try again.');
+                    console.error('Confirmation error:', error);
+                    setInlineError(error.message || 'Something went wrong. Please try again.');
                     return;
                 }
-                if (data.success) {
-                    setResultMessage(data.message);
+                if (data && data.success) {
+                    setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you at the course.');
                     setState('success');
                 } else {
-                    setInlineError(data.message || 'Confirmation failed.');
+                    setInlineError(data?.message || 'Confirmation failed.');
                 }
                 return;
             }
@@ -234,9 +243,9 @@ export default function ConfirmationPage() {
                     p_student_id: studentId,
                 });
                 if (error) {
-                    results.push({ id: studentId, success: false, message: 'Server error' });
+                    results.push({ id: studentId, success: false, message: error.message || 'Server error' });
                 } else {
-                    results.push({ id: studentId, success: data.success, message: data.message });
+                    results.push({ id: studentId, success: data?.success ?? false, message: data?.message ?? '' });
                 }
             }
 

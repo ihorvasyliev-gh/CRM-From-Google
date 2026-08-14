@@ -270,6 +270,17 @@ DECLARE
     v_student_id UUID;
     v_updated_count INT;
 BEGIN
+    -- Validate email input
+    IF p_email IS NULL OR trim(p_email) = '' THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Please enter a valid email address.');
+    END IF;
+
+    -- Validate course input
+    IF p_course_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Invalid course identifier.');
+    END IF;
+
+    -- Locate student
     IF p_student_id IS NOT NULL THEN
         SELECT id INTO v_student_id
         FROM students
@@ -278,42 +289,84 @@ BEGIN
     ELSE
         SELECT id INTO v_student_id
         FROM students
-        WHERE lower(trim(email)) = lower(trim(p_email));
+        WHERE lower(trim(email)) = lower(trim(p_email))
+        ORDER BY created_at DESC
+        LIMIT 1;
     END IF;
 
     IF v_student_id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'message', 'No student found with this email address.');
+        IF NOT EXISTS (SELECT 1 FROM students WHERE lower(trim(email)) = lower(trim(p_email))) THEN
+            RETURN jsonb_build_object('success', false, 'message', 'No student found with this email address. Please check your email or contact the organizer.');
+        ELSE
+            RETURN jsonb_build_object('success', false, 'message', 'Student record not found. Please try again.');
+        END IF;
     END IF;
 
-    -- Update enrollments that are in 'invited' status AND not expired
-    UPDATE enrollments
-    SET status         = 'confirmed',
-        confirmed_date = invited_date,
-        confirmed_at   = now()
-    WHERE student_id = v_student_id
-      AND course_id  = p_course_id
-      AND status     = 'invited'
-      AND (invited_at IS NULL OR invited_at + (COALESCE(response_days, 7) || ' days')::INTERVAL >= now());
+    -- Update enrollments in 'invited' status and not expired
+    IF p_student_id IS NOT NULL THEN
+        UPDATE enrollments
+        SET status         = 'confirmed',
+            confirmed_date = invited_date,
+            confirmed_at   = now()
+        WHERE student_id = p_student_id
+          AND course_id  = p_course_id
+          AND status     = 'invited'
+          AND (invited_at IS NULL OR invited_at + (COALESCE(response_days, 7) || ' days')::INTERVAL >= now());
+    ELSE
+        UPDATE enrollments e
+        SET status         = 'confirmed',
+            confirmed_date = e.invited_date,
+            confirmed_at   = now()
+        FROM students s
+        WHERE e.student_id = s.id
+          AND lower(trim(s.email)) = lower(trim(p_email))
+          AND e.course_id  = p_course_id
+          AND e.status     = 'invited'
+          AND (e.invited_at IS NULL OR e.invited_at + (COALESCE(e.response_days, 7) || ' days')::INTERVAL >= now());
+    END IF;
 
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
 
     IF v_updated_count > 0 THEN
-        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has been confirmed! We look forward to seeing you.');
+        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has been confirmed! We look forward to seeing you at the course.');
     END IF;
 
-    -- Nothing updated — determine why
+    -- If nothing was updated, provide a helpful and precise reason:
+
+    -- 1. Already confirmed
     IF EXISTS (
-        SELECT 1 FROM enrollments
-        WHERE student_id = v_student_id AND course_id = p_course_id AND status = 'confirmed'
+        SELECT 1 FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE lower(trim(s.email)) = lower(trim(p_email))
+          AND e.course_id = p_course_id
+          AND e.status = 'confirmed'
+          AND (p_student_id IS NULL OR e.student_id = p_student_id)
     ) THEN
-        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has already been confirmed.');
+        RETURN jsonb_build_object('success', true, 'message', 'Your attendance has already been confirmed! We look forward to seeing you at the course.');
     END IF;
 
+    -- 2. Already completed
     IF EXISTS (
-        SELECT 1 FROM enrollments
-        WHERE student_id = v_student_id AND course_id = p_course_id AND status = 'invited'
-          AND invited_at IS NOT NULL
-          AND invited_at + (COALESCE(response_days, 7) || ' days')::INTERVAL < now()
+        SELECT 1 FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE lower(trim(s.email)) = lower(trim(p_email))
+          AND e.course_id = p_course_id
+          AND e.status = 'completed'
+          AND (p_student_id IS NULL OR e.student_id = p_student_id)
+    ) THEN
+        RETURN jsonb_build_object('success', true, 'message', 'You have already completed this course.');
+    END IF;
+
+    -- 3. Invitation expired
+    IF EXISTS (
+        SELECT 1 FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE lower(trim(s.email)) = lower(trim(p_email))
+          AND e.course_id = p_course_id
+          AND e.status = 'invited'
+          AND e.invited_at IS NOT NULL
+          AND e.invited_at + (COALESCE(e.response_days, 7) || ' days')::INTERVAL < now()
+          AND (p_student_id IS NULL OR e.student_id = p_student_id)
     ) THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -321,11 +374,31 @@ BEGIN
         );
     END IF;
 
-    RETURN jsonb_build_object('success', false, 'message', 'No pending invitation found for this course. Please contact the organizer.');
+    -- 4. Requested (waiting list)
+    IF EXISTS (
+        SELECT 1 FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE lower(trim(s.email)) = lower(trim(p_email))
+          AND e.course_id = p_course_id
+          AND e.status = 'requested'
+          AND (p_student_id IS NULL OR e.student_id = p_student_id)
+    ) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'message', 'Your application is on the waiting list, but an invitation has not been sent yet. Please wait for your invitation email.'
+        );
+    END IF;
+
+    -- 5. No enrollment for this course
+    RETURN jsonb_build_object(
+        'success', false,
+        'message', 'No pending invitation found for this course. Please contact the organizer.'
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION public_confirm_enrollment(TEXT, UUID, UUID) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.public_confirm_enrollment(TEXT, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_confirm_enrollment(TEXT, UUID, UUID) TO anon, authenticated;
 
 
 -- ──────────────────────────────────────────────────────────────
