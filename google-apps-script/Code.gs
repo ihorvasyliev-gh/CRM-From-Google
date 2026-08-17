@@ -33,7 +33,7 @@ var COURSE_CACHE = {};
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🔄 CRM Sync')
+    .createMenu('🔄 CRM Sync (v2.4)')
     .addItem('⬇️ Upload from Supabase to CRM Mirror', 'syncFromSupabase')
     .addSeparator()
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
@@ -61,7 +61,7 @@ function isNonCourseHeader_(header) {
   var h = String(header).trim().toLowerCase();
   if (!h) return true;
   
-  // If header looks like an email address itself
+  // If header looks like an email address or contains @
   if (h.indexOf('@') !== -1) return true;
 
   // Email variants (e.g. Email address, E-mail, Email, Your email address, etc.)
@@ -78,6 +78,14 @@ function isNonCourseHeader_(header) {
   if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) return true;
   if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) return true;
   if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) return true;
+
+  // Additional non-course fields
+  if (h.indexOf('consent') !== -1 || h.indexOf('gdpr') !== -1 || h.indexOf('agreement') !== -1 || h.indexOf('согласие') !== -1) return true;
+  if (h.indexOf('gender') !== -1 || h.indexOf('пол') !== -1) return true;
+  if (h.indexOf('age') !== -1 || h.indexOf('возраст') !== -1) return true;
+  if (h.indexOf('pps') !== -1 || h.indexOf('ppsn') !== -1) return true;
+  if (h.indexOf('comment') !== -1 || h.indexOf('notes') !== -1 || h.indexOf('комментар') !== -1 || h.indexOf('feedback') !== -1) return true;
+  if (h.indexOf('nationality') !== -1 || h.indexOf('гражданство') !== -1) return true;
 
   return false;
 }
@@ -174,7 +182,7 @@ function getSourceHeaderMap_(headers) {
  */
 function onFormSubmit(e) {
   try {
-    log_('onFormSubmit trigger started', 'INFO');
+    log_('onFormSubmit trigger started [v2.4]', 'INFO');
     if (!e || !e.range) {
       log_('onFormSubmit: Event object or range is missing', 'WARN');
       return;
@@ -494,10 +502,10 @@ function syncRowsRange(sheet, startRow, endRow) {
       var courseName = headers[col];
       var cellValue = rData[col];
       
-      if (courseName && !isNonCourseHeader_(courseName) && cellValue && String(cellValue).trim() !== "") {
+      if (courseName && !isNonCourseHeader_(courseName) && courseName.indexOf('@') === -1 && cellValue && String(cellValue).trim() !== "") {
         var strVal = String(cellValue).trim();
-        // Skip if cell value looks like an email address
-        if (strVal.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strVal)) {
+        // Skip if cell value looks like an email address or contains @
+        if (strVal.indexOf('@') !== -1 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strVal)) {
           continue;
         }
         var cId = getCourseId(courseName); 
@@ -506,8 +514,8 @@ function syncRowsRange(sheet, startRow, endRow) {
           for (var v = 0; v < variants.length; v++) {
             var varText = variants[v];
             if (!varText) continue;
-            // Skip variant if it looks like an email address
-            if (varText.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText)) {
+            // Skip variant if it looks like an email address or contains @
+            if (varText.indexOf('@') !== -1 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText)) {
               continue;
             }
             var uniqueKey = sId + "_" + cId + "_" + varText; 
@@ -599,7 +607,7 @@ function warmUpCourseCache() {
 function getCourseId(name) {
   var normalized = normalizeCourseName_(name);
   if (!normalized) return null;
-  if (isNonCourseHeader_(normalized)) {
+  if (normalized.indexOf('@') !== -1 || /email|e-mail|почта|username/i.test(normalized) || isNonCourseHeader_(normalized)) {
     Logger.log('Ignored non-course name in getCourseId: "' + normalized + '"');
     return null;
   }
@@ -671,7 +679,12 @@ function _fetch(endpoint, method, payload, extraHeaders) {
       var content = response.getContentText();
       
       if (code >= 200 && code < 300) {
-        return content ? JSON.parse(content) : null;
+        if (!content || String(content).trim() === '') return { success: true };
+        try {
+          return JSON.parse(content);
+        } catch (parseErr) {
+          return { success: true, raw: content };
+        }
       }
       
       if (code >= 400 && code < 500) {
@@ -1554,14 +1567,9 @@ function cleanUpBogusEmailCourses() {
   for (var i = 0; i < allCourses.length; i++) {
     var c = allCourses[i];
     var cName = (c.name || "").trim();
-    if (isNonCourseHeader_(cName)) {
+    if (cName.indexOf('@') !== -1 || /email|e-mail|почта|username/i.test(cName) || isNonCourseHeader_(cName)) {
       bogusCourses.push(c);
     }
-  }
-  
-  if (bogusCourses.length === 0) {
-    ss.toast("No bogus courses found! Database is clean.", "Cleanup ✅");
-    return;
   }
   
   var deletedCount = 0;
@@ -1575,7 +1583,7 @@ function cleanUpBogusEmailCourses() {
     _fetch('confirmation_tokens?course_id=eq.' + bc.id, 'delete');
     
     // Delete the course itself
-    var res = _fetch('courses?id=eq.' + bc.id, 'delete');
+    var res = _fetch('courses?id=eq.' + bc.id, 'delete', null, { 'Prefer': 'return=representation' });
     if (res !== null) {
       deletedCount++;
       delete COURSE_CACHE[bc.name];
@@ -1583,9 +1591,29 @@ function cleanUpBogusEmailCourses() {
     }
   }
   
+  // Also clean up any enrollments directly that have course_variant containing an email address or @
+  var allEnrollments = _fetchAll('enrollments', 'select=id,course_variant');
+  var deletedEnrollments = 0;
+  if (allEnrollments && allEnrollments.length > 0) {
+    for (var k = 0; k < allEnrollments.length; k++) {
+      var en = allEnrollments[k];
+      var cv = String(en.course_variant || '');
+      if (cv.indexOf('@') !== -1) {
+        _fetch('enrollments?id=eq.' + en.id, 'delete');
+        deletedEnrollments++;
+      }
+    }
+  }
+  
   // Re-warm cache
   COURSE_CACHE = {};
   warmUpCourseCache();
   
-  ss.toast("Cleaned up " + deletedCount + " bogus course(s) and their enrollments!", "Cleanup ✅");
+  if (deletedCount === 0 && deletedEnrollments === 0) {
+    ss.toast("No bogus courses or invalid enrollments found! Database is clean.", "Cleanup ✅");
+  } else {
+    var msg = "Cleaned up " + deletedCount + " bogus course(s)";
+    if (deletedEnrollments > 0) msg += " & " + deletedEnrollments + " invalid enrollment(s)";
+    ss.toast(msg + "!", "Cleanup ✅");
+  }
 }

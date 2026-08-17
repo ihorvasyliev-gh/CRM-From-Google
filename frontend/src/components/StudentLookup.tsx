@@ -222,22 +222,25 @@ export default function StudentLookup() {
         setSortBy('relevance');
     }, [debouncedSearch]);
 
-    // Compute uppercase letters that exist in results (first letter of first_name or last_name)
-    const availableLetters = useMemo(() => {
+    // Compute uppercase letters and counts that exist in results (first letter of first_name or last_name)
+    const { availableLetters, letterCounts } = useMemo(() => {
         const letters = new Set<string>();
-        if (!searchResults) return letters;
+        const counts = new Map<string, number>();
+        if (!searchResults) return { availableLetters: letters, letterCounts: counts };
         
         searchResults.forEach(student => {
             const firstLetter = (student.first_name || '').trim()[0]?.toUpperCase();
-            if (firstLetter && /[A-Z]/.test(firstLetter)) {
-                letters.add(firstLetter);
-            }
             const lastLetter = (student.last_name || '').trim()[0]?.toUpperCase();
-            if (lastLetter && /[A-Z]/.test(lastLetter)) {
-                letters.add(lastLetter);
-            }
+            const studentLetters = new Set<string>();
+            if (firstLetter && /[A-Z]/.test(firstLetter)) studentLetters.add(firstLetter);
+            if (lastLetter && /[A-Z]/.test(lastLetter)) studentLetters.add(lastLetter);
+            
+            studentLetters.forEach(l => {
+                letters.add(l);
+                counts.set(l, (counts.get(l) || 0) + 1);
+            });
         });
-        return letters;
+        return { availableLetters: letters, letterCounts: counts };
     }, [searchResults]);
 
     // Apply letter filtering and alphabetical sorting to the search results
@@ -305,11 +308,18 @@ export default function StudentLookup() {
                     {/* Alphabet Filter and Sort Bar */}
                     {search.trim().length >= 3 && !isSearching && !searchError && searchResults && searchResults.length > 0 && (
                         <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 mb-4 space-y-3 animate-fadeIn flex-shrink-0">
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
-                                    <Filter size={13} className="text-muted/80" />
-                                    Alphabet Filter
-                                </span>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-1.5">
+                                        <Filter size={13} className="text-muted/80" />
+                                        Alphabet Filter
+                                    </span>
+                                    <span className="text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                        <Users size={12} />
+                                        {selectedLetter ? `${processedResults.length} of ${searchResults.length}` : searchResults.length}{' '}
+                                        {searchResults.length === 1 ? 'student' : 'students'}
+                                    </span>
+                                </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[11px] text-muted font-bold uppercase tracking-wider">Sort:</span>
                                     <select
@@ -334,11 +344,12 @@ export default function StudentLookup() {
                                             : 'bg-surface-elevated hover:bg-surface text-primary border-border-subtle hover:border-border-strong'
                                     }`}
                                 >
-                                    All
+                                    All ({searchResults.length})
                                 </button>
                                 {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => {
                                     const isAvailable = availableLetters.has(letter);
                                     const isSelected = selectedLetter === letter;
+                                    const count = letterCounts.get(letter) || 0;
                                     
                                     return (
                                         <button
@@ -352,7 +363,7 @@ export default function StudentLookup() {
                                                     ? 'bg-surface-elevated hover:bg-surface text-primary border-border-subtle hover:border-border-strong cursor-pointer'
                                                     : 'bg-surface-elevated/40 text-muted/30 border-border-subtle/20 cursor-not-allowed opacity-40'
                                             }`}
-                                            title={isAvailable ? `Filter by name starting with ${letter}` : `No students starting with ${letter}`}
+                                            title={isAvailable ? `Filter by name starting with ${letter} (${count} student${count === 1 ? '' : 's'})` : `No students starting with ${letter}`}
                                         >
                                             {letter}
                                         </button>

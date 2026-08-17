@@ -81,9 +81,11 @@ describe('StudentLookup Component', () => {
         const searchInput = screen.getByPlaceholderText('Search by name, email, phone or eircode...');
         fireEvent.change(searchInput, { target: { value: 'Ihor' } });
 
-        // Wait for search result item
+        // Wait for search result item and count badges
         await waitFor(() => {
             expect(screen.getByText('Ihor Vasyliev')).toBeInTheDocument();
+            expect(screen.getByText('1 student')).toBeInTheDocument();
+            expect(screen.getByText('All (1)')).toBeInTheDocument();
         });
 
         // Click student to open details
@@ -119,4 +121,61 @@ describe('StudentLookup Component', () => {
         fireEvent.click(screen.getByText('t23y2y4'));
         expect(writeTextMock).toHaveBeenCalledWith('t23y2y4');
     });
+
+    it('displays multiple search match counts and updates count when alphabet filter is clicked', async () => {
+        const multipleResults = [
+            {
+                id: 'st-1',
+                first_name: 'Alice',
+                last_name: 'Smith',
+                email: 'alice@example.com',
+                phone: '123',
+                address: 'Cork',
+                eircode: 'T12ABC1',
+                dob: '1990-01-01',
+                created_at: '2026-01-01T00:00:00Z',
+            },
+            {
+                id: 'st-2',
+                first_name: 'Bob',
+                last_name: 'Johnson',
+                email: 'bob@example.com',
+                phone: '456',
+                address: 'Cork',
+                eircode: 'T12ABC2',
+                dob: '1991-01-01',
+                created_at: '2026-01-01T00:00:00Z',
+            },
+        ];
+
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'search_students_restricted') {
+                return Promise.resolve({ data: multipleResults, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<StudentLookup />);
+
+        const searchInput = screen.getByPlaceholderText('Search by name, email, phone or eircode...');
+        fireEvent.change(searchInput, { target: { value: 'Cork' } });
+
+        await waitFor(() => {
+            expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+            expect(screen.getByText('Bob Johnson')).toBeInTheDocument();
+            expect(screen.getByText('2 students')).toBeInTheDocument();
+            expect(screen.getByText('All (2)')).toBeInTheDocument();
+        });
+
+        // Click letter 'A'
+        const letterAButton = screen.getByRole('button', { name: 'A' });
+        fireEvent.click(letterAButton);
+
+        await waitFor(() => {
+            expect(screen.getByText('1 of 2 students')).toBeInTheDocument();
+            expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+            expect(screen.queryByText('Bob Johnson')).not.toBeInTheDocument();
+        });
+    });
 });
+
