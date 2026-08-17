@@ -45,7 +45,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             const url = new URL(window.location.href);
             url.searchParams.set('t', Date.now().toString());
             window.location.href = url.toString();
-        } catch (e) {
+        } catch (_e) {
             window.location.reload();
         }
     };

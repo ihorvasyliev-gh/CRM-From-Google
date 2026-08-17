@@ -118,7 +118,7 @@ function formatDate(dateStr: string | null | undefined) {
     if (!dateStr) return null;
     try {
         return new Date(dateStr).toLocaleDateString('en-IE');
-    } catch (e) {
+    } catch (_e) {
         return dateStr;
     }
 }

@@ -40,7 +40,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 // Helper to classify Cork regions from Address or Eircode
-export function classifyCorkRegion(address: string | null, eircode: string | null): string {
+function classifyCorkRegion(address: string | null, eircode: string | null): string {
     const addr = (address || '').toLowerCase().trim();
     const eir = (eircode || '').toUpperCase().replace(/\s+/g, '').trim();
 
