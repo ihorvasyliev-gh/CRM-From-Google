@@ -197,4 +197,42 @@ describe('ViewerCourses Component', () => {
         const studentNamesByName = screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent);
         expect(studentNamesByName).toEqual(['Alice Smith', 'Bob Adams', 'Charlie Brown']);
     });
+
+    it('copies student name, email, and phone to clipboard on click', async () => {
+        const writeTextMock = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: {
+                writeText: writeTextMock,
+            },
+        });
+
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({ data: mockCourses, error: null });
+            }
+            if (rpcName === 'get_viewer_course_roster') {
+                return Promise.resolve({ data: mockRoster, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => expect(screen.getByText('First Aid Training')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('First Aid Training'));
+
+        await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+
+        // 1. Click Name
+        fireEvent.click(screen.getByText('Alice Smith'));
+        expect(writeTextMock).toHaveBeenCalledWith('Alice Smith');
+
+        // 2. Click Email
+        fireEvent.click(screen.getByText('alice@example.com'));
+        expect(writeTextMock).toHaveBeenCalledWith('alice@example.com');
+
+        // 3. Click Phone
+        fireEvent.click(screen.getByText('• 111'));
+        expect(writeTextMock).toHaveBeenCalledWith('111');
+    });
 });

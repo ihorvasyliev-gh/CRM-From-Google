@@ -48,6 +48,24 @@ export default function ViewerCourses() {
     const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [toast, setToast] = useState<ToastData | null>(null);
 
+    const handleCopyField = (value: string | null | undefined, label: string) => {
+        if (!value) return;
+        navigator.clipboard.writeText(value)
+            .then(() => {
+                setToast({
+                    message: `${label} copied to clipboard!`,
+                    type: 'success',
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy text:', err);
+                setToast({
+                    message: `Failed to copy ${label.toLowerCase()}`,
+                    type: 'error',
+                });
+            });
+    };
+
     const requestCompletionMutation = useRequestCompletion();
 
     // 1. Query: List of courses
@@ -499,7 +517,14 @@ export default function ViewerCourses() {
 
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <h3 className="font-bold text-primary text-sm truncate">
+                                                <h3 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleCopyField(`${item.first_name} ${item.last_name}`, 'Name');
+                                                    }}
+                                                    className="font-bold text-primary text-sm truncate cursor-pointer hover:text-brand-500 transition-colors"
+                                                    title="Click to copy name to clipboard"
+                                                >
                                                     {item.first_name} {item.last_name}
                                                 </h3>
                                                 {item.is_priority && (
@@ -519,8 +544,28 @@ export default function ViewerCourses() {
                                             </div>
 
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted">
-                                                <span>{item.email}</span>
-                                                {item.phone && <span>• {item.phone}</span>}
+                                                <span 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleCopyField(item.email, 'Email');
+                                                    }}
+                                                    className="cursor-pointer hover:text-primary hover:underline decoration-dotted underline-offset-2 transition-colors"
+                                                    title="Click to copy email to clipboard"
+                                                >
+                                                    {item.email}
+                                                </span>
+                                                {item.phone && (
+                                                    <span 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleCopyField(item.phone, 'Phone');
+                                                        }}
+                                                        className="cursor-pointer hover:text-primary hover:underline decoration-dotted underline-offset-2 transition-colors"
+                                                        title="Click to copy phone to clipboard"
+                                                    >
+                                                        • {item.phone}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Dates Line */}

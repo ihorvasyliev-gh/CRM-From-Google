@@ -351,7 +351,13 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                             </div>
                             <div>
-                                <h2 className="font-bold text-primary">{student.first_name} {student.last_name}</h2>
+                                <h2 
+                                    onClick={() => handleCopyField(`${student.first_name} ${student.last_name}`, 'Name')}
+                                    className="font-bold text-primary cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+                                    title="Click to copy name to clipboard"
+                                >
+                                    {student.first_name} {student.last_name}
+                                </h2>
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>

@@ -9,7 +9,7 @@ import Toast, { ToastData } from './Toast';
 import { 
     Search, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
     Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info,
-    Star, AlertTriangle, MessageSquare, Filter
+    Star, AlertTriangle, MessageSquare, Filter, Copy
 } from 'lucide-react';
 
 interface StudentSearchResult {
@@ -102,14 +102,46 @@ const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string; label
     },
 };
 
-function InfoField({ icon, label, value }: { icon: JSX.Element; label: string; value: string | null }) {
+function InfoField({ 
+    icon, 
+    label, 
+    value, 
+    copyValue, 
+    onCopy 
+}: { 
+    icon: JSX.Element; 
+    label: string; 
+    value: string | null; 
+    copyValue?: string | null;
+    onCopy?: (value: string, label: string) => void;
+}) {
+    const isClickable = !!(copyValue ?? value) && !!onCopy;
     return (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-border-subtle shadow-sm hover:shadow transition-all">
-            <span className="text-muted flex-shrink-0">{icon}</span>
-            <div className="min-w-0">
+        <div 
+            onClick={() => {
+                if (isClickable && onCopy) {
+                    onCopy(copyValue ?? value!, label);
+                }
+            }}
+            className={`flex items-center gap-3 p-3 rounded-xl bg-surface border border-border-subtle shadow-sm transition-all group ${
+                isClickable 
+                    ? 'cursor-pointer hover:border-brand-500/40 hover:bg-brand-50/10 dark:hover:bg-brand-500/5 hover:shadow' 
+                    : ''
+            }`}
+            title={isClickable ? `Click to copy ${label} to clipboard` : undefined}
+        >
+            <span className="text-muted flex-shrink-0 group-hover:text-brand-500 transition-colors">{icon}</span>
+            <div className="min-w-0 flex-1">
                 <p className="text-[10px] text-muted font-bold uppercase tracking-wider">{label}</p>
-                <p className="text-sm text-primary font-medium truncate">{value || <span className="text-muted/50 italic font-normal">Not set</span>}</p>
+                <p className="text-sm text-primary font-medium truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                    {value || <span className="text-muted/50 italic font-normal">Not set</span>}
+                </p>
             </div>
+            {isClickable && (
+                <span className="text-muted/30 group-hover:text-brand-500 dark:group-hover:text-brand-400 transition-colors flex-shrink-0">
+                    <Copy size={13} />
+                </span>
+            )}
         </div>
     );
 }
@@ -150,6 +182,24 @@ export default function StudentLookup() {
     const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [toast, setToast] = useState<ToastData | null>(null);
     const requestCompletionMutation = useRequestCompletion();
+
+    const handleCopyField = (value: string | null | undefined, label: string) => {
+        if (!value) return;
+        navigator.clipboard.writeText(value)
+            .then(() => {
+                setToast({
+                    message: `${label} copied to clipboard!`,
+                    type: 'success',
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy text:', err);
+                setToast({
+                    message: `Failed to copy ${label.toLowerCase()}`,
+                    type: 'error',
+                });
+            });
+    };
 
     // React Query for student details + enrollments
     const { data: studentDetail, isLoading: isLoadingDetail, error: detailError, refetch: refetchStudentDetail } = useQuery<StudentDetailData | null>({
@@ -439,7 +489,11 @@ export default function StudentLookup() {
                                             {(studentDetail.first_name?.[0] || '').toUpperCase()}{(studentDetail.last_name?.[0] || '').toUpperCase()}
                                         </div>
                                         <div>
-                                            <h2 className="font-bold text-primary text-base leading-tight">
+                                            <h2 
+                                                onClick={() => handleCopyField(`${studentDetail.first_name} ${studentDetail.last_name}`, 'Name')}
+                                                className="font-bold text-primary text-base leading-tight cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
+                                                title="Click to copy name to clipboard"
+                                            >
                                                 {studentDetail.first_name} {studentDetail.last_name}
                                             </h2>
                                             <span className="text-[10px] text-muted font-semibold uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded">Read-only profile</span>
@@ -460,14 +514,36 @@ export default function StudentLookup() {
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Contact Information</h3>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <InfoField icon={<Mail size={16} />} label="Email Address" value={studentDetail.email} />
-                                            <InfoField icon={<Phone size={16} />} label="Phone Number" value={studentDetail.phone} />
-                                            <InfoField icon={<MapPin size={16} />} label="Address" value={studentDetail.address} />
-                                            <InfoField icon={<MapPin size={16} />} label="Eircode" value={studentDetail.eircode} />
+                                            <InfoField 
+                                                icon={<Mail size={16} />} 
+                                                label="Email Address" 
+                                                value={studentDetail.email} 
+                                                onCopy={handleCopyField} 
+                                            />
+                                            <InfoField 
+                                                icon={<Phone size={16} />} 
+                                                label="Phone Number" 
+                                                value={studentDetail.phone} 
+                                                onCopy={handleCopyField} 
+                                            />
+                                            <InfoField 
+                                                icon={<MapPin size={16} />} 
+                                                label="Address" 
+                                                value={studentDetail.address} 
+                                                onCopy={handleCopyField} 
+                                            />
+                                            <InfoField 
+                                                icon={<MapPin size={16} />} 
+                                                label="Eircode" 
+                                                value={studentDetail.eircode} 
+                                                onCopy={handleCopyField} 
+                                            />
                                             <InfoField 
                                                 icon={<Calendar size={16} />} 
                                                 label="Date of Birth" 
                                                 value={studentDetail.dob ? new Date(studentDetail.dob).toLocaleDateString('en-IE') : null} 
+                                                copyValue={studentDetail.dob ? new Date(studentDetail.dob).toLocaleDateString('en-IE') : null}
+                                                onCopy={handleCopyField} 
                                             />
                                         </div>
                                     </div>
