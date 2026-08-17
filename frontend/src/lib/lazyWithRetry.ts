@@ -17,10 +17,12 @@ export function lazyWithRetry(
                                      errorMessage.includes('Importing a module script failed') ||
                                      errorMessage.includes('error loading dynamically imported module');
 
-            const hasReloaded = sessionStorage.getItem('chunk_reload_done');
+            const now = Date.now();
+            const lastReload = parseInt(sessionStorage.getItem('chunk_reload_time') || '0', 10);
+            const canReload = isChunkLoadError && (!lastReload || (now - lastReload > 30000));
 
-            if (isChunkLoadError && !hasReloaded) {
-                sessionStorage.setItem('chunk_reload_done', 'true');
+            if (canReload) {
+                sessionStorage.setItem('chunk_reload_time', now.toString());
                 window.location.reload();
                 return new Promise(() => {}); // pause execution while browser reloads
             }
