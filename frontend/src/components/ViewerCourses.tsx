@@ -536,7 +536,7 @@ export default function ViewerCourses() {
                                                 )}
                                                 {item.invited_date && !item.confirmed_date && (
                                                     <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
-                                                        <Calendar size={11} /> Scheduled: {formatDate(item.invited_date)}
+                                                        <Calendar size={11} /> Invited: {formatDate(item.invited_date)}
                                                     </span>
                                                 )}
                                                 {item.completed_date && (
