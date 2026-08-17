@@ -8,7 +8,7 @@ import Toast, { ToastData } from './Toast';
 import {
     BookOpen, Search, ArrowLeft, Users, Clock, CheckCircle,
     GraduationCap, CheckSquare, Square, Calendar, Loader2,
-    AlertCircle, RefreshCw
+    AlertCircle, RefreshCw, Star, ArrowDownUp, ArrowUpDown, CaseSensitive
 } from 'lucide-react';
 
 const STATUS_TABS = [
@@ -36,6 +36,8 @@ export default function ViewerCourses() {
     const [rosterSearch, setRosterSearch] = useState('');
     const debouncedRosterSearch = useDebounce(rosterSearch, 250);
     const [selectedStatusTab, setSelectedStatusTab] = useState<string>('all');
+    const [sortOrder, setSortOrder] = useState<'queue' | 'date-desc' | 'name'>('queue');
+    const [selectedVariant, setSelectedVariant] = useState<string>('all');
 
     // Selection for bulk completion
     const [selectedEnrollmentIds, setSelectedEnrollmentIds] = useState<Set<string>>(new Set());
@@ -95,6 +97,83 @@ export default function ViewerCourses() {
         enabled: !!selectedCourse,
     });
 
+    // Extract unique course variants from the loaded roster
+    const availableVariants = useMemo(() => {
+        const variants = new Set<string>();
+        roster.forEach(r => {
+            if (r.course_variant && r.course_variant.trim()) {
+                variants.add(cleanVariant(selectedCourse?.name || '', r.course_variant));
+            }
+        });
+        return Array.from(variants);
+    }, [roster, selectedCourse]);
+
+    // Sorted and filtered roster
+    const sortedRoster = useMemo(() => {
+        let list = [...roster];
+
+        // Filter by variant if selected
+        if (selectedVariant !== 'all') {
+            list = list.filter(item => {
+                const cleaned = cleanVariant(selectedCourse?.name || '', item.course_variant);
+                return cleaned.toLowerCase() === selectedVariant.toLowerCase();
+            });
+        }
+
+        return list.sort((a, b) => {
+            // 1. Pending approvals always on top
+            if (a.completion_request_status === 'pending' && b.completion_request_status !== 'pending') return -1;
+            if (b.completion_request_status === 'pending' && a.completion_request_status !== 'pending') return 1;
+
+            // 2. Status hierarchy on 'all' tab
+            if (selectedStatusTab === 'all' && a.status !== b.status) {
+                const statusOrder: Record<string, number> = {
+                    confirmed: 1,
+                    invited: 2,
+                    requested: 3,
+                    completed: 4,
+                    rejected: 5,
+                };
+                const orderA = statusOrder[a.status] ?? 99;
+                const orderB = statusOrder[b.status] ?? 99;
+                if (orderA !== orderB) return orderA - orderB;
+            }
+
+            // 3. Priority: Star / Priority is always first (Admin principle)!
+            if (a.is_priority !== b.is_priority) {
+                return a.is_priority ? -1 : 1;
+            }
+
+            // 4. Sort order
+            if (sortOrder === 'queue') {
+                // If in requested status and both have queue_position, respect it
+                if (a.status === 'requested' && b.status === 'requested') {
+                    if (a.queue_position != null && b.queue_position != null && a.queue_position !== b.queue_position) {
+                        return a.queue_position - b.queue_position;
+                    }
+                }
+                const aDate = new Date(a.created_at).getTime();
+                const bDate = new Date(b.created_at).getTime();
+                if (aDate !== bDate) return aDate - bDate;
+                const aName = `${a.last_name || ''} ${a.first_name || ''}`.toLowerCase();
+                const bName = `${b.last_name || ''} ${b.first_name || ''}`.toLowerCase();
+                return aName.localeCompare(bName);
+            } else if (sortOrder === 'date-desc') {
+                const aDate = new Date(a.created_at).getTime();
+                const bDate = new Date(b.created_at).getTime();
+                if (aDate !== bDate) return bDate - aDate;
+                const aName = `${a.last_name || ''} ${a.first_name || ''}`.toLowerCase();
+                const bName = `${b.last_name || ''} ${b.first_name || ''}`.toLowerCase();
+                return aName.localeCompare(bName);
+            } else if (sortOrder === 'name') {
+                const aName = `${a.last_name || ''} ${a.first_name || ''}`.toLowerCase();
+                const bName = `${b.last_name || ''} ${b.first_name || ''}`.toLowerCase();
+                return aName.localeCompare(bName);
+            }
+            return 0;
+        });
+    }, [roster, sortOrder, selectedVariant, selectedStatusTab, selectedCourse]);
+
     // Filter courses for catalog search
     const filteredCourses = useMemo(() => {
         if (!debouncedCatalogSearch.trim()) return courses;
@@ -104,8 +183,8 @@ export default function ViewerCourses() {
 
     // Eligible enrollments in current roster view for batch completion (not already completed & not already pending)
     const eligibleRosterItems = useMemo(() => {
-        return roster.filter(item => item.status !== 'completed' && item.completion_request_status !== 'pending');
-    }, [roster]);
+        return sortedRoster.filter(item => item.status !== 'completed' && item.completion_request_status !== 'pending');
+    }, [sortedRoster]);
 
     const isAllSelected = eligibleRosterItems.length > 0 && eligibleRosterItems.every(item => selectedEnrollmentIds.has(item.enrollment_id));
 
@@ -181,6 +260,8 @@ export default function ViewerCourses() {
                                 setSelectedEnrollmentIds(new Set());
                                 setRosterSearch('');
                                 setSelectedStatusTab('all');
+                                setSelectedVariant('all');
+                                setSortOrder('queue');
                             }}
                             className="p-2 bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl text-muted hover:text-primary transition-all flex items-center gap-1.5 text-xs font-semibold"
                             title="Back to courses list"
@@ -271,6 +352,75 @@ export default function ViewerCourses() {
                         </div>
                     </div>
 
+                    {/* Sub-toolbar: Sort Controls + Variants (if any) + Refresh */}
+                    <div className="pt-2.5 border-t border-border-subtle/50 flex flex-wrap items-center justify-between gap-2.5">
+                        {/* Sort pills */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold">
+                                <ArrowDownUp size={13} />
+                                <span className="text-[11px] uppercase tracking-wider">Sort:</span>
+                            </div>
+                            {([
+                                { value: 'queue' as const, label: 'Queue Order (Oldest)', icon: <Clock size={12} /> },
+                                { value: 'date-desc' as const, label: 'Newest First', icon: <ArrowUpDown size={12} /> },
+                                { value: 'name' as const, label: 'By Name', icon: <CaseSensitive size={12} /> },
+                            ]).map(opt => (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => setSortOrder(opt.value)}
+                                    className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl border transition-all active:scale-95 ${
+                                        sortOrder === opt.value
+                                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                            : 'bg-surface-elevated hover:bg-surface text-muted hover:text-primary border-border-subtle'
+                                    }`}
+                                >
+                                    {opt.icon}
+                                    <span>{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Right: Variants Filter (if available) & Refresh */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {availableVariants.length > 1 && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setSelectedVariant('all')}
+                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-xl border transition-all ${
+                                            selectedVariant === 'all'
+                                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                                : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
+                                        }`}
+                                    >
+                                        All Streams
+                                    </button>
+                                    {availableVariants.map(v => (
+                                        <button
+                                            key={v}
+                                            onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-xl border transition-all ${
+                                                selectedVariant === v
+                                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                                    : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
+                                            }`}
+                                        >
+                                            {v}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => refetchRoster()}
+                                className="flex items-center gap-1 text-muted hover:text-primary transition-colors text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle"
+                                title="Refresh roster"
+                            >
+                                <RefreshCw size={12} />
+                                <span>Refresh</span>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Batch Selection Row if applicable */}
                     {eligibleRosterItems.length > 0 && (
                         <div className="pt-2 border-t border-border-subtle/50 flex items-center justify-between text-xs text-muted">
@@ -281,14 +431,9 @@ export default function ViewerCourses() {
                                 {isAllSelected ? <CheckSquare size={16} className="text-brand-500" /> : <Square size={16} />}
                                 <span>{isAllSelected ? 'Deselect All' : `Select All Non-Completed (${eligibleRosterItems.length})`}</span>
                             </button>
-                            <button
-                                onClick={() => refetchRoster()}
-                                className="flex items-center gap-1 text-muted hover:text-primary transition-colors text-xs"
-                                title="Refresh roster"
-                            >
-                                <RefreshCw size={13} />
-                                <span>Refresh</span>
-                            </button>
+                            <span className="text-[11px] text-muted">
+                                Showing {sortedRoster.length} student{sortedRoster.length !== 1 ? 's' : ''}
+                            </span>
                         </div>
                     )}
                 </div>
@@ -306,14 +451,14 @@ export default function ViewerCourses() {
                             <p className="text-sm font-bold text-red-500">Failed to load roster</p>
                             <p className="text-xs text-muted mt-1">Please try refreshing or check your connection.</p>
                         </div>
-                    ) : roster.length === 0 ? (
+                    ) : sortedRoster.length === 0 ? (
                         <div className="p-12 text-center bg-surface rounded-2xl border border-border-subtle">
                             <Users size={32} className="text-muted mx-auto mb-2 opacity-50" />
                             <p className="text-sm font-bold text-primary">No students in this list</p>
                             <p className="text-xs text-muted mt-1">Try switching tabs or adjusting search query.</p>
                         </div>
                     ) : (
-                        roster.map(item => {
+                        sortedRoster.map(item => {
                             const isSelected = selectedEnrollmentIds.has(item.enrollment_id);
                             const isPending = item.completion_request_status === 'pending';
                             const isRejected = item.completion_request_status === 'rejected';
@@ -357,6 +502,15 @@ export default function ViewerCourses() {
                                                 <h3 className="font-bold text-primary text-sm truncate">
                                                     {item.first_name} {item.last_name}
                                                 </h3>
+                                                {item.is_priority && (
+                                                    <span 
+                                                        className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg shadow-sm"
+                                                        title="Priority student"
+                                                    >
+                                                        <Star size={12} className="fill-amber-500 text-amber-500" />
+                                                        <span>Priority</span>
+                                                    </span>
+                                                )}
                                                 {item.course_variant && (
                                                     <span className="text-[10px] bg-surface-elevated border border-border-subtle px-1.5 py-0.2 rounded text-muted">
                                                         {cleanVariant(selectedCourse.name, item.course_variant)}
@@ -370,20 +524,24 @@ export default function ViewerCourses() {
                                             </div>
 
                                             {/* Dates Line */}
-                                            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px]">
+                                            <div className="flex flex-wrap items-center gap-2.5 mt-1.5 text-[11px]">
+                                                {/* Registration Date (Queue order basis) */}
+                                                <span className="text-muted font-medium flex items-center gap-1" title="Registration Date">
+                                                    <Clock size={11} /> Registered: {formatDate(item.created_at)}
+                                                </span>
                                                 {item.confirmed_date && (
                                                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                        <Calendar size={12} /> Confirmed: {formatDate(item.confirmed_date)}
+                                                        <Calendar size={11} /> Confirmed: {formatDate(item.confirmed_date)}
                                                     </span>
                                                 )}
                                                 {item.invited_date && !item.confirmed_date && (
                                                     <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
-                                                        <Calendar size={12} /> Scheduled: {formatDate(item.invited_date)}
+                                                        <Calendar size={11} /> Scheduled: {formatDate(item.invited_date)}
                                                     </span>
                                                 )}
                                                 {item.completed_date && (
                                                     <span className="text-teal-600 dark:text-teal-400 font-semibold flex items-center gap-1">
-                                                        <GraduationCap size={12} /> Completed: {formatDate(item.completed_date)}
+                                                        <GraduationCap size={11} /> Completed: {formatDate(item.completed_date)}
                                                     </span>
                                                 )}
                                             </div>
@@ -411,10 +569,19 @@ export default function ViewerCourses() {
                                                     <CheckCircle size={13} />
                                                     <span>Completed</span>
                                                 </span>
+                                            ) : item.status === 'requested' ? (
+                                                <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5">
+                                                    <Clock size={13} />
+                                                    <span>Queue</span>
+                                                    {item.queue_position != null && (
+                                                        <span className="bg-amber-500/25 text-amber-900 dark:text-amber-200 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                                                            #{item.queue_position}
+                                                        </span>
+                                                    )}
+                                                </span>
                                             ) : (
                                                 <span className="px-2.5 py-1 text-xs font-semibold text-muted bg-surface-elevated border border-border-subtle rounded-xl capitalize">
                                                     {item.status}
-                                                    {item.status === 'requested' && item.queue_position ? ` (#${item.queue_position})` : ''}
                                                 </span>
                                             )}
                                         </div>
