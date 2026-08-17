@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -24,6 +24,9 @@ const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const StudentLookup = lazyWithRetry(() => import('./components/StudentLookup'));
+const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
+const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
+import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
@@ -78,7 +81,10 @@ function App() {
     const location = useLocation();
     const navigateFn = useNavigate();
     const isViewer = user?.app_metadata?.role === 'viewer';
-    const activeTab = isViewer ? 'lookup' : (location.pathname.split('/')[1] || 'dashboard');
+    const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'lookup';
+    const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
+    const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
+    const { count: pendingApprovalsCount } = usePendingApprovalsCount(!isViewer);
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -511,6 +517,78 @@ function App() {
                             </div>
                         </div>
                     )}
+                    {/* Viewer Top Header (Glassmorphism) */}
+                    {isViewer && (
+                        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 py-3 flex items-center justify-between transition-colors">
+                            <div className="flex items-center gap-3 sm:gap-6">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 flex-shrink-0 animate-glow">
+                                        C
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h1 className="text-sm font-bold text-primary tracking-tight truncate">
+                                            Course CRM
+                                        </h1>
+                                        <p className="text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer Portal</p>
+                                    </div>
+                                </div>
+
+                                {/* Viewer Navigation Switcher */}
+                                <div className="flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
+                                    <button
+                                        onClick={() => navigate('lookup')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                            activeTab === 'lookup'
+                                                ? 'bg-brand-500 text-white shadow-sm'
+                                                : 'text-muted hover:text-primary hover:bg-surface'
+                                        }`}
+                                    >
+                                        <Users size={14} />
+                                        <span>Students Lookup</span>
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('courses')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                            activeTab === 'courses'
+                                                ? 'bg-brand-500 text-white shadow-sm'
+                                                : 'text-muted hover:text-primary hover:bg-surface'
+                                        }`}
+                                    >
+                                        <BookOpen size={14} />
+                                        <span>Courses Catalog</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                <button
+                                    onClick={toggleDarkMode}
+                                    className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
+                                    title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                                >
+                                    {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+                                </button>
+
+                                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-surface-elevated rounded-xl border border-border-subtle/50">
+                                    <div className="w-6 h-6 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-background shadow-sm">
+                                        {(user?.email?.[0] || 'V').toUpperCase()}
+                                    </div>
+                                    <span className="text-xs font-semibold text-primary/80 truncate max-w-[120px]">{user?.email}</span>
+                                    <span className="text-[9px] bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold px-1.5 py-0.5 rounded uppercase">Viewer</span>
+                                </div>
+
+                                <button
+                                    onClick={signOut}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all shadow-sm"
+                                    title="Sign Out"
+                                >
+                                    <LogOut size={14} />
+                                    <span className="hidden sm:inline">Sign Out</span>
+                                </button>
+                            </div>
+                        </header>
+                    )}
+
                     {/* Mobile Header (Glassmorphism) */}
                     {!isViewer && (
                         <header className="lg:hidden h-12 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
@@ -526,7 +604,20 @@ function App() {
                                 </div>
                                 <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
                             </div>
-                            <div className="w-8" />
+                            <div>
+                                {pendingApprovalsCount > 0 ? (
+                                    <button
+                                        onClick={() => setApprovalsModalOpen(true)}
+                                        className="p-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold flex items-center gap-1 animate-pulse"
+                                        title="Pending Approvals"
+                                    >
+                                        <Clock size={13} />
+                                        <span>{pendingApprovalsCount}</span>
+                                    </button>
+                                ) : (
+                                    <div className="w-8" />
+                                )}
+                            </div>
                         </header>
                     )}
 
@@ -549,6 +640,20 @@ function App() {
                                         {activeTab === 'analytics' && 'Course and enrollment statistics'}
                                         {activeTab === 'settings' && 'Configure email templates and preferences'}
                                     </p>
+                                </div>
+
+                                {/* Header Right Controls: Approvals & Notifications */}
+                                <div className="flex items-center gap-3">
+                                    {pendingApprovalsCount > 0 && (
+                                        <button
+                                            onClick={() => setApprovalsModalOpen(true)}
+                                            className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all shadow-sm animate-pulse active:scale-95 cursor-pointer"
+                                            title="Review pending course completion requests"
+                                        >
+                                            <Clock size={14} className="animate-spin-slow" />
+                                            <span>{pendingApprovalsCount} Pending Approval{pendingApprovalsCount > 1 ? 's' : ''}</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </header>
@@ -574,6 +679,7 @@ function App() {
                                 {isViewer ? (
                                     <>
                                         <Route path="/lookup" element={<StudentLookup />} />
+                                        <Route path="/courses" element={<ViewerCourses />} />
                                         <Route path="*" element={<Navigate to="/lookup" replace />} />
                                     </>
                                 ) : (
@@ -595,6 +701,12 @@ function App() {
                     </main>
                 </div>
             </div>
+
+            {/* Admin Approvals Modal */}
+            <PendingApprovalsModal
+                open={approvalsModalOpen}
+                onClose={() => setApprovalsModalOpen(false)}
+            />
         </TooltipProvider>
     );
 }

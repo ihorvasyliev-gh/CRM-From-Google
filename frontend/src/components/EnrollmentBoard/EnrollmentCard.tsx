@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
@@ -353,6 +353,17 @@ const EnrollmentCard = function EnrollmentCard({
                             );
                         })()}
                     </div>
+
+                    {/* Pending Completion Approval Highlight */}
+                    {enrollment.completion_request_status === 'pending' && (
+                        <div className="mt-1.5 flex items-center gap-1.5 p-1.5 bg-amber-500/15 border border-amber-500/30 rounded-lg text-amber-700 dark:text-amber-300 text-[11px] font-semibold animate-pulse shadow-sm">
+                            <Clock size={isMobile ? 11 : 12} className="flex-shrink-0" />
+                            <span className="truncate">
+                                Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
+                                {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Notes */}
                     {enrollment.notes && (

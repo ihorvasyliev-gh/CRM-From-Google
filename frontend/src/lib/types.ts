@@ -34,8 +34,67 @@ export interface Enrollment {
     completed_at: string | null;
     is_priority: boolean;
     response_days: number | null;
+    pending_completion_date?: string | null;
+    completion_requested_at?: string | null;
+    completion_requested_by?: string | null;
+    completion_request_status?: 'none' | 'pending' | 'approved' | 'rejected' | null;
+    completion_rejection_reason?: string | null;
     created_at: string;
     updated_at: string;
+}
+
+export interface ViewerCourse {
+    id: string;
+    name: string;
+    created_at: string;
+    total_count: number;
+    requested_count: number;
+    invited_count: number;
+    confirmed_count: number;
+    completed_count: number;
+    rejected_count: number;
+    pending_approval_count: number;
+}
+
+export interface ViewerCourseRosterItem {
+    enrollment_id: string;
+    student_id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string | null;
+    status: string;
+    course_variant: string | null;
+    notes: string | null;
+    is_priority: boolean;
+    queue_position: number | null;
+    invited_date: string | null;
+    invited_at: string | null;
+    confirmed_date: string | null;
+    confirmed_at: string | null;
+    completed_date: string | null;
+    completed_at: string | null;
+    pending_completion_date: string | null;
+    completion_request_status: 'none' | 'pending' | 'approved' | 'rejected';
+    completion_requested_at: string | null;
+    completion_requested_by: string | null;
+    completion_rejection_reason: string | null;
+    created_at: string;
+}
+
+export interface PendingCompletionRequest {
+    enrollment_id: string;
+    student_id: string;
+    student_name: string;
+    student_email: string;
+    student_phone: string | null;
+    course_id: string;
+    course_name: string;
+    course_variant: string | null;
+    confirmed_date: string | null;
+    pending_completion_date: string | null;
+    completion_requested_at: string;
+    completion_requested_by: string | null;
 }
 
 /** Form data for creating/editing a student. */

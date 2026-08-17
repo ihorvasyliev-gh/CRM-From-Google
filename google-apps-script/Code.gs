@@ -39,6 +39,7 @@ function onOpen() {
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
     .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
     .addSeparator()
+    .addItem('🧹 Clean Bogus Email Courses from DB', 'cleanUpBogusEmailCourses')
     .addItem('🛠 Migrate Registration Dates (One-time)', 'startMigrateRegistrationDates')
     .addItem('🛠 RESTORE: Recover Statuses from CRM Backup', 'restoreDataFromBackup')
     .addSeparator()
@@ -52,6 +53,36 @@ function onOpen() {
 // ==========================================
 
 /**
+ * Checks whether a header string corresponds to a standard student field
+ * or non-course metadata rather than an actual course.
+ */
+function isNonCourseHeader_(header) {
+  if (!header) return true;
+  var h = String(header).trim().toLowerCase();
+  if (!h) return true;
+  
+  // If header looks like an email address itself
+  if (h.indexOf('@') !== -1) return true;
+
+  // Email variants (e.g. Email address, E-mail, Email, Your email address, etc.)
+  if (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1 || h.indexOf('mail') !== -1 || h === 'username') return true;
+
+  // Timestamp & metadata
+  if (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1 || h.indexOf('submission') !== -1 || h.indexOf('score') !== -1 || h.indexOf('балл') !== -1) return true;
+
+  // Personal info
+  if (h.indexOf('first name') !== -1 || h.indexOf('first_name') !== -1 || h === 'имя' || h === 'firstname' || h === 'first-name') return true;
+  if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') return true;
+  if (h.indexOf('full name') !== -1 || h.indexOf('fullname') !== -1 || h === 'фио') return true;
+  if (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1 || h === 'tel' || h === 'cell') return true;
+  if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) return true;
+  if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) return true;
+  if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) return true;
+
+  return false;
+}
+
+/**
  * Helper to identify column indices dynamically by analyzing header names.
  */
 function getSourceHeaderMap_(headers) {
@@ -61,6 +92,7 @@ function getSourceHeaderMap_(headers) {
     lastName: -1,
     phone: -1,
     email: -1,
+    emailIndices: [],
     address: -1,
     eircode: -1,
     dob: -1,
@@ -73,56 +105,64 @@ function getSourceHeaderMap_(headers) {
     var h = String(headers[c] || "").trim().toLowerCase();
     if (!h) continue;
 
-    if (map.timestamp === -1 && (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1)) {
-      map.timestamp = c;
+    if (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1 || h.indexOf('mail') !== -1 || h === 'username') {
+      if (map.email === -1) map.email = c;
+      map.emailIndices.push(c);
       knownIndices[c] = true;
-    } else if (map.email === -1 && (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1)) {
-      map.email = c;
+    } else if (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1 || h.indexOf('submission') !== -1) {
+      if (map.timestamp === -1) map.timestamp = c;
       knownIndices[c] = true;
-    } else if (map.firstName === -1 && (h.indexOf('first name') !== -1 || h === 'имя' || h.indexOf('first_name') !== -1)) {
-      map.firstName = c;
+    } else if (h.indexOf('first name') !== -1 || h.indexOf('first_name') !== -1 || h === 'имя' || h === 'firstname' || h === 'first-name') {
+      if (map.firstName === -1) map.firstName = c;
       knownIndices[c] = true;
-    } else if (map.lastName === -1 && (h.indexOf('last name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h.indexOf('last_name') !== -1)) {
-      map.lastName = c;
+    } else if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') {
+      if (map.lastName === -1) map.lastName = c;
       knownIndices[c] = true;
-    } else if (map.phone === -1 && (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1)) {
-      map.phone = c;
+    } else if (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1 || h === 'tel' || h === 'cell') {
+      if (map.phone === -1) map.phone = c;
       knownIndices[c] = true;
-    } else if (map.dob === -1 && (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1)) {
-      map.dob = c;
+    } else if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) {
+      if (map.dob === -1) map.dob = c;
       knownIndices[c] = true;
-    } else if (map.eircode === -1 && (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1)) {
-      map.eircode = c;
+    } else if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) {
+      if (map.eircode === -1) map.eircode = c;
       knownIndices[c] = true;
-    } else if (map.address === -1 && (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1)) {
-      map.address = c;
+    } else if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) {
+      if (map.address === -1) map.address = c;
+      knownIndices[c] = true;
+    } else if (isNonCourseHeader_(h)) {
       knownIndices[c] = true;
     }
   }
 
   // Fallbacks for standard Form Layout (Timestamp, First, Last, Phone, Email, Address, Eircode, DOB)
-  if (map.timestamp === -1) map.timestamp = 0;
-  if (map.firstName === -1) map.firstName = 1;
-  if (map.lastName === -1) map.lastName = 2;
-  if (map.phone === -1) map.phone = 3;
-  if (map.email === -1) map.email = 4;
-  if (map.address === -1) map.address = 5;
-  if (map.eircode === -1) map.eircode = 6;
-  if (map.dob === -1) map.dob = 7;
+  if (map.timestamp === -1 && headers.length > 0) map.timestamp = 0;
+  if (map.firstName === -1 && headers.length > 1) map.firstName = 1;
+  if (map.lastName === -1 && headers.length > 2) map.lastName = 2;
+  if (map.phone === -1 && headers.length > 3) map.phone = 3;
+  if (map.email === -1 && headers.length > 4) {
+    map.email = 4;
+    map.emailIndices.push(4);
+  }
+  if (map.address === -1 && headers.length > 5) map.address = 5;
+  if (map.eircode === -1 && headers.length > 6) map.eircode = 6;
+  if (map.dob === -1 && headers.length > 7) map.dob = 7;
 
-  knownIndices[map.timestamp] = true;
-  knownIndices[map.firstName] = true;
-  knownIndices[map.lastName] = true;
-  knownIndices[map.phone] = true;
-  knownIndices[map.email] = true;
-  knownIndices[map.address] = true;
-  knownIndices[map.eircode] = true;
-  knownIndices[map.dob] = true;
+  if (map.timestamp !== -1) knownIndices[map.timestamp] = true;
+  if (map.firstName !== -1) knownIndices[map.firstName] = true;
+  if (map.lastName !== -1) knownIndices[map.lastName] = true;
+  if (map.phone !== -1) knownIndices[map.phone] = true;
+  if (map.email !== -1) knownIndices[map.email] = true;
+  if (map.address !== -1) knownIndices[map.address] = true;
+  if (map.eircode !== -1) knownIndices[map.eircode] = true;
+  if (map.dob !== -1) knownIndices[map.dob] = true;
 
-  // Remaining columns are course columns
+  // Remaining columns are course columns (as long as they are not marked non-course)
   for (var i = 0; i < headers.length; i++) {
     if (!knownIndices[i] && headers[i] && String(headers[i]).trim() !== "") {
-      map.courseIndices.push(i);
+      if (!isNonCourseHeader_(headers[i])) {
+        map.courseIndices.push(i);
+      }
     }
   }
 
@@ -292,7 +332,20 @@ function syncRowsRange(sheet, startRow, endRow) {
 
   for (var i = 0; i < rangeValues.length; i++) {
     var rowData = rangeValues[i];
-    var email = headerMap.email !== -1 ? rowData[headerMap.email] : "";
+    var email = "";
+    if (headerMap.email !== -1 && rowData[headerMap.email]) {
+      email = String(rowData[headerMap.email]).trim();
+    }
+    // Fallback to any other email column if primary is empty
+    if (!email && headerMap.emailIndices && headerMap.emailIndices.length > 0) {
+      for (var ei = 0; ei < headerMap.emailIndices.length; ei++) {
+        var altVal = rowData[headerMap.emailIndices[ei]];
+        if (altVal && String(altVal).trim()) {
+          email = String(altVal).trim();
+          break;
+        }
+      }
+    }
     
     if (!email || String(email).trim() === "") continue;
 
@@ -441,18 +494,28 @@ function syncRowsRange(sheet, startRow, endRow) {
       var courseName = headers[col];
       var cellValue = rData[col];
       
-      if (courseName && cellValue && String(cellValue).trim() !== "") {
+      if (courseName && !isNonCourseHeader_(courseName) && cellValue && String(cellValue).trim() !== "") {
+        var strVal = String(cellValue).trim();
+        // Skip if cell value looks like an email address
+        if (strVal.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strVal)) {
+          continue;
+        }
         var cId = getCourseId(courseName); 
         if (cId) {
-          var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
+          var variants = strVal.split(',').map(function(s) { return s.trim(); });
           for (var v = 0; v < variants.length; v++) {
-            if (!variants[v]) continue;
-            var uniqueKey = sId + "_" + cId + "_" + variants[v]; 
+            var varText = variants[v];
+            if (!varText) continue;
+            // Skip variant if it looks like an email address
+            if (varText.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText)) {
+              continue;
+            }
+            var uniqueKey = sId + "_" + cId + "_" + varText; 
             if (!enrollmentKeys[uniqueKey]) {
               enrollmentsToUpsert.push({
                 student_id: sId,
                 course_id: cId,
-                course_variant: variants[v],
+                course_variant: varText,
                 status: 'requested',
                 created_at: rowTimestampIso
               });
@@ -536,6 +599,10 @@ function warmUpCourseCache() {
 function getCourseId(name) {
   var normalized = normalizeCourseName_(name);
   if (!normalized) return null;
+  if (isNonCourseHeader_(normalized)) {
+    Logger.log('Ignored non-course name in getCourseId: "' + normalized + '"');
+    return null;
+  }
   
   if (COURSE_CACHE[normalized]) return COURSE_CACHE[normalized];
   
@@ -1209,7 +1276,19 @@ function migrateRegistrationDates() {
       if (!rawTimestamp) continue;
       var formCreatedAt = formatIsoDateTime(rawTimestamp);
 
-      var email = headerMap.email !== -1 ? String(rowData[headerMap.email] || "").trim().toLowerCase() : "";
+      var email = "";
+      if (headerMap.email !== -1 && rowData[headerMap.email]) {
+        email = String(rowData[headerMap.email]).trim().toLowerCase();
+      }
+      if (!email && headerMap.emailIndices && headerMap.emailIndices.length > 0) {
+        for (var ei = 0; ei < headerMap.emailIndices.length; ei++) {
+          var altVal = rowData[headerMap.emailIndices[ei]];
+          if (altVal && String(altVal).trim()) {
+            email = String(altVal).trim().toLowerCase();
+            break;
+          }
+        }
+      }
       if (!email) continue;
       
       var sId = studentCache[email];
@@ -1220,15 +1299,21 @@ function migrateRegistrationDates() {
         var courseName = headers[col];
         var cellValue = rowData[col];
         
-        if (courseName && cellValue && String(cellValue).trim() !== "") {
+        if (courseName && !isNonCourseHeader_(courseName) && cellValue && String(cellValue).trim() !== "") {
+          var strVal = String(cellValue).trim();
+          if (strVal.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strVal)) {
+            continue;
+          }
           var cId = COURSE_CACHE[courseName];
           if (cId) {
-            var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
+            var variants = strVal.split(',').map(function(s) { return s.trim(); });
             for (var v = 0; v < variants.length; v++) {
+              var varText = variants[v];
+              if (!varText || (varText.indexOf('@') !== -1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText))) continue;
               updates.push({
                 student_id: sId,
                 course_id: cId,
-                course_variant: variants[v],
+                course_variant: varText,
                 created_at: formCreatedAt
               });
             }
@@ -1449,4 +1534,58 @@ function log_(message, level) {
   } catch (e) {
     console.error('Failed to write log to SystemLogs sheet: ' + e);
   }
+}
+
+/**
+ * Cleans up bogus courses created from non-course columns (such as "Email address", "Email", etc.)
+ * and removes all associated enrollments from Supabase.
+ */
+function cleanUpBogusEmailCourses() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ss.toast("Checking for bogus courses in Supabase...", "Cleanup");
+  
+  var allCourses = _fetchAll('courses', 'select=id,name');
+  if (!allCourses || allCourses.length === 0) {
+    ss.toast("No courses found in database.", "Cleanup");
+    return;
+  }
+  
+  var bogusCourses = [];
+  for (var i = 0; i < allCourses.length; i++) {
+    var c = allCourses[i];
+    var cName = (c.name || "").trim();
+    if (isNonCourseHeader_(cName)) {
+      bogusCourses.push(c);
+    }
+  }
+  
+  if (bogusCourses.length === 0) {
+    ss.toast("No bogus courses found! Database is clean.", "Cleanup ✅");
+    return;
+  }
+  
+  var deletedCount = 0;
+  for (var j = 0; j < bogusCourses.length; j++) {
+    var bc = bogusCourses[j];
+    Logger.log('Deleting bogus course: "' + bc.name + '" (id: ' + bc.id + ')');
+    
+    // Explicitly delete enrollments, student_flags, confirmation_tokens for this course
+    _fetch('enrollments?course_id=eq.' + bc.id, 'delete');
+    _fetch('student_flags?course_id=eq.' + bc.id, 'delete');
+    _fetch('confirmation_tokens?course_id=eq.' + bc.id, 'delete');
+    
+    // Delete the course itself
+    var res = _fetch('courses?id=eq.' + bc.id, 'delete');
+    if (res !== null) {
+      deletedCount++;
+      delete COURSE_CACHE[bc.name];
+      delete COURSE_CACHE[normalizeCourseName_(bc.name)];
+    }
+  }
+  
+  // Re-warm cache
+  COURSE_CACHE = {};
+  warmUpCourseCache();
+  
+  ss.toast("Cleaned up " + deletedCount + " bogus course(s) and their enrollments!", "Cleanup ✅");
 }

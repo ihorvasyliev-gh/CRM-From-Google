@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
+import { useRequestCompletion } from '../hooks/useApprovals';
 import { getAvatarGradient } from '../lib/types';
 import { cleanVariant } from '../lib/types';
+import Toast, { ToastData } from './Toast';
 import { 
-    Search, LogOut, Sun, Moon, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
+    Search, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
     Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info,
     Star, AlertTriangle, MessageSquare, Filter
 } from 'lucide-react';
@@ -34,6 +35,11 @@ interface EnrollmentDetail {
     confirmed_date: string | null;
     completed_at: string | null;
     completed_date: string | null;
+    pending_completion_date?: string | null;
+    completion_request_status?: 'none' | 'pending' | 'approved' | 'rejected' | null;
+    completion_requested_at?: string | null;
+    completion_requested_by?: string | null;
+    completion_rejection_reason?: string | null;
     course_id: string;
     course_name: string;
     queue_position: number | null;
@@ -118,32 +124,11 @@ function formatDate(dateStr: string | null | undefined) {
 }
 
 export default function StudentLookup() {
-    const { user, signOut } = useAuth();
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<'relevance' | 'asc' | 'desc'>('relevance');
     const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
-
-    const [darkMode, setDarkMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return document.documentElement.classList.contains('dark');
-        }
-        return true;
-    });
-
-    const toggleDarkMode = () => {
-        const isDark = document.documentElement.classList.contains('dark');
-        if (isDark) {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-            setDarkMode(false);
-        } else {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-            setDarkMode(true);
-        }
-    };
 
     // React Query for student search
     const { data: searchResults, isLoading: isSearching, error: searchError } = useQuery<StudentSearchResult[]>({
@@ -159,8 +144,15 @@ export default function StudentLookup() {
         enabled: debouncedSearch.trim().length >= 3
     });
 
+    // Completion modal state for viewer
+    const [completionModalOpen, setCompletionModalOpen] = useState(false);
+    const [targetEnrollment, setTargetEnrollment] = useState<EnrollmentDetail | null>(null);
+    const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [toast, setToast] = useState<ToastData | null>(null);
+    const requestCompletionMutation = useRequestCompletion();
+
     // React Query for student details + enrollments
-    const { data: studentDetail, isLoading: isLoadingDetail, error: detailError } = useQuery<StudentDetailData | null>({
+    const { data: studentDetail, isLoading: isLoadingDetail, error: detailError, refetch: refetchStudentDetail } = useQuery<StudentDetailData | null>({
         queryKey: ['restricted_student_detail', selectedStudentId],
         queryFn: async () => {
             if (!selectedStudentId) return null;
@@ -232,48 +224,6 @@ export default function StudentLookup() {
 
     return (
         <div className="flex-1 flex flex-col min-h-0 bg-background text-primary transition-colors duration-300">
-            {/* Lookup Header */}
-            <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25 flex-shrink-0 animate-glow">
-                        C
-                    </div>
-                    <div className="min-w-0">
-                        <h1 className="text-sm font-bold text-primary tracking-tight truncate">
-                            Course CRM
-                        </h1>
-                        <p className="text-[9px] text-muted font-semibold tracking-wide uppercase">Student Lookup Portal</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2 sm:gap-4">
-                    <button
-                        onClick={toggleDarkMode}
-                        className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
-                        title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                    >
-                        {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
-
-                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-surface-elevated rounded-xl border border-border-subtle/50">
-                        <div className="w-6 h-6 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-background shadow-sm">
-                            {(user?.email?.[0] || 'V').toUpperCase()}
-                        </div>
-                        <span className="text-xs font-semibold text-primary/80 truncate max-w-[120px]">{user?.email}</span>
-                        <span className="text-[9px] bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold px-1.5 py-0.5 rounded uppercase">Viewer</span>
-                    </div>
-
-                    <button
-                        onClick={signOut}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all shadow-sm"
-                        title="Sign Out"
-                    >
-                        <LogOut size={14} />
-                        <span className="hidden sm:inline">Sign Out</span>
-                    </button>
-                </div>
-            </header>
-
             {/* Main Content Split Area */}
             <div className="flex-1 flex flex-col md:flex-row min-h-0 relative overflow-hidden">
                 
@@ -654,9 +604,16 @@ export default function StudentLookup() {
                                                                     </div>
                                                                 )}
                                                             </div>
+
+                                                            {/* Rejection notice if previously rejected */}
+                                                            {en.completion_request_status === 'rejected' && (
+                                                                <div className="mt-2 text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">
+                                                                    <strong>Completion Request Rejected:</strong> {en.completion_rejection_reason || 'No reason provided by admin'}.
+                                                                </div>
+                                                            )}
                                                         </div>
 
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
                                                             {/* Queue position badge for requested state */}
                                                             {en.status === 'requested' && en.queue_position !== null && (
                                                                 <div 
@@ -670,12 +627,35 @@ export default function StudentLookup() {
                                                                 </div>
                                                             )}
 
-                                                            <span className={`text-[10px] px-2.5 py-1 rounded-xl flex items-center gap-1.5 border font-semibold ${
-                                                                STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'
-                                                            }`}>
-                                                                {STATUS_BADGE[en.status]?.icon}
-                                                                {STATUS_BADGE[en.status]?.label || en.status}
-                                                            </span>
+                                                            {/* Pending Approval Badge */}
+                                                            {en.completion_request_status === 'pending' ? (
+                                                                <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5 animate-pulse">
+                                                                    <Clock size={12} />
+                                                                    <span>Pending Admin Approval ({formatDate(en.pending_completion_date)})</span>
+                                                                </span>
+                                                            ) : (
+                                                                <span className={`text-[10px] px-2.5 py-1 rounded-xl flex items-center gap-1.5 border font-semibold ${
+                                                                    STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'
+                                                                }`}>
+                                                                    {STATUS_BADGE[en.status]?.icon}
+                                                                    {STATUS_BADGE[en.status]?.label || en.status}
+                                                                </span>
+                                                            )}
+
+                                                            {/* Mark Completed Button */}
+                                                            {en.status !== 'completed' && en.completion_request_status !== 'pending' && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTargetEnrollment(en);
+                                                                        setSelectedCompletionDate(en.confirmed_date || en.invited_date || new Date().toISOString().split('T')[0]);
+                                                                        setCompletionModalOpen(true);
+                                                                    }}
+                                                                    className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                                                                >
+                                                                    <GraduationCap size={13} />
+                                                                    <span>{en.completion_request_status === 'rejected' ? 'Re-submit Completion' : 'Mark Completed'}</span>
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -698,6 +678,78 @@ export default function StudentLookup() {
                     )}
                 </div>
             </div>
+
+            {/* Date Confirmation Modal for Viewer Completion Request */}
+            {completionModalOpen && targetEnrollment && (
+                <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+                    <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-md w-full p-6 space-y-4 animate-scaleUp">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                                <GraduationCap size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-base text-primary">Mark Course Completion</h3>
+                                <p className="text-xs text-muted">
+                                    {targetEnrollment.course_name}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-3.5 bg-surface-elevated rounded-2xl border border-border-subtle space-y-2">
+                            <label className="text-xs font-bold text-muted uppercase tracking-wider block">
+                                Completion Date
+                            </label>
+                            <input
+                                type="date"
+                                value={selectedCompletionDate}
+                                onChange={e => setSelectedCompletionDate(e.target.value)}
+                                className="w-full px-3 py-2 bg-surface border border-border-strong rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                            />
+                            <p className="text-[11px] text-muted">
+                                This will submit a completion request to the admin for verification.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <button
+                                onClick={() => setCompletionModalOpen(false)}
+                                className="px-4 py-2 text-xs font-semibold text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
+                                disabled={requestCompletionMutation.isPending}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await requestCompletionMutation.mutateAsync({
+                                            enrollmentIds: [targetEnrollment.id],
+                                            completedDate: selectedCompletionDate,
+                                        });
+                                        setToast({
+                                            message: `Completion request submitted for ${targetEnrollment.course_name}. Awaiting admin approval.`,
+                                            type: 'success',
+                                        });
+                                        setCompletionModalOpen(false);
+                                        refetchStudentDetail();
+                                    } catch (err: any) {
+                                        setToast({
+                                            message: err.message || 'Failed to submit request',
+                                            type: 'error',
+                                        });
+                                    }
+                                }}
+                                disabled={requestCompletionMutation.isPending || !selectedCompletionDate}
+                                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                                {requestCompletionMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+                                <span>Submit Request</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

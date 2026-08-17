@@ -23,3 +23,9 @@ backups/*
 !backups/backup.ps1
 !backups/dump_data.cjs
 
+# Python & Local temporary files
+__pycache__/
+*.pyc
+*.xlsx
+
+

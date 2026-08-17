@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
 import MergeModal from './MergeModal';
@@ -13,7 +14,13 @@ interface Enrollment {
     created_at: string;
     confirmed_date: string | null;
     confirmed_at?: string | null;
+    completed_date?: string | null;
     completed_at?: string | null;
+    pending_completion_date?: string | null;
+    completion_request_status?: string | null;
+    completion_requested_at?: string | null;
+    completion_requested_by?: string | null;
+    completion_rejection_reason?: string | null;
     course_id: string;
     courses: { name: string } | null;
 }
@@ -231,10 +238,13 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             });
     };
 
+    const approveMutation = useApproveCompletion();
+    const rejectMutation = useRejectCompletion();
+
     const fetchEnrollments = useCallback(async () => {
         const { data } = await supabase
             .from('enrollments')
-            .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_at, courses(name)')
+            .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_date, completed_at, pending_completion_date, completion_request_status, completion_requested_at, completion_requested_by, completion_rejection_reason, courses(name)')
             .eq('student_id', student.id)
             .order('created_at', { ascending: false });
         if (data) setEnrollments(data as unknown as Enrollment[]);
@@ -461,6 +471,49 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                 {STATUS_BADGE[en.status]?.icon} {en.status}
                                             </span>
                                         </div>
+
+                                        {/* Pending Completion Approval Banner */}
+                                        {en.completion_request_status === 'pending' && (
+                                            <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-2 text-xs animate-pulse">
+                                                <span className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
+                                                    <Clock size={12} />
+                                                    Completion requested for <strong>{en.pending_completion_date ? new Date(en.pending_completion_date).toLocaleDateString('en-IE') : 'Today'}</strong>
+                                                    {en.completion_requested_by ? ` (${en.completion_requested_by})` : ''}
+                                                </span>
+                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await approveMutation.mutateAsync({ enrollmentIds: [en.id] });
+                                                                fetchEnrollments();
+                                                                setToast({ message: 'Approved completion', type: 'success' });
+                                                            } catch (err: any) {
+                                                                setToast({ message: err.message || 'Failed to approve', type: 'error' });
+                                                            }
+                                                        }}
+                                                        disabled={approveMutation.isPending}
+                                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-sm"
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await rejectMutation.mutateAsync({ enrollmentIds: [en.id] });
+                                                                fetchEnrollments();
+                                                                setToast({ message: 'Rejected completion request', type: 'info' });
+                                                            } catch (err: any) {
+                                                                setToast({ message: err.message || 'Failed to reject', type: 'error' });
+                                                            }
+                                                        }}
+                                                        disabled={rejectMutation.isPending}
+                                                        className="px-2 py-0.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-semibold"
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
                                             {/* Actions */}
