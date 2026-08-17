@@ -4,6 +4,8 @@
 // Project Settings → Script Properties → Add:
 //   SUPABASE_URL = https://your-project.supabase.co
 //   SUPABASE_KEY = your-service-role-key
+// ==========================================
+
 function getConfig_() {
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty('SUPABASE_URL') || '';
@@ -15,8 +17,6 @@ function getConfig_() {
 }
 
 var BATCH_SIZE = 50; 
-var FIXED_COL_COUNT = 8; // Индекс, с которого начинаются колонки курсов (индекс 8 = 9-я колонка)
-
 var SOURCE_SHEET_NAME = 'Form responses 1'; // Откуда берем данные для Supabase
 var MIRROR_SHEET_NAME = 'CRM Mirror';       // Куда выгружаем данные из Supabase
 
@@ -34,14 +34,13 @@ var COURSE_CACHE = {};
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🔄 CRM Sync')
-    .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
-    .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
-    .addSeparator()
     .addItem('⬇️ Upload from Supabase to CRM Mirror', 'syncFromSupabase')
     .addSeparator()
-    .addItem('🛠 RESTORE: Recover Statuses from CRM Backup', 'restoreDataFromBackup')
+    .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
+    .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
     .addSeparator()
     .addItem('🛠 Migrate Registration Dates (One-time)', 'startMigrateRegistrationDates')
+    .addItem('🛠 RESTORE: Recover Statuses from CRM Backup', 'restoreDataFromBackup')
     .addSeparator()
     .addItem('🛠 Settings: Triggers (Automation)', 'setupTriggers')
     .addItem('🛠 Configuration: Formatting CRM Mirror', 'setupMirrorSheetFormatting')
@@ -51,6 +50,84 @@ function onOpen() {
 // ==========================================
 // FORM → SUPABASE (Upload)
 // ==========================================
+
+/**
+ * Helper to identify column indices dynamically by analyzing header names.
+ */
+function getSourceHeaderMap_(headers) {
+  var map = {
+    timestamp: -1,
+    firstName: -1,
+    lastName: -1,
+    phone: -1,
+    email: -1,
+    address: -1,
+    eircode: -1,
+    dob: -1,
+    courseIndices: []
+  };
+
+  var knownIndices = {};
+
+  for (var c = 0; c < headers.length; c++) {
+    var h = String(headers[c] || "").trim().toLowerCase();
+    if (!h) continue;
+
+    if (map.timestamp === -1 && (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1)) {
+      map.timestamp = c;
+      knownIndices[c] = true;
+    } else if (map.email === -1 && (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1)) {
+      map.email = c;
+      knownIndices[c] = true;
+    } else if (map.firstName === -1 && (h.indexOf('first name') !== -1 || h === 'имя' || h.indexOf('first_name') !== -1)) {
+      map.firstName = c;
+      knownIndices[c] = true;
+    } else if (map.lastName === -1 && (h.indexOf('last name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h.indexOf('last_name') !== -1)) {
+      map.lastName = c;
+      knownIndices[c] = true;
+    } else if (map.phone === -1 && (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1)) {
+      map.phone = c;
+      knownIndices[c] = true;
+    } else if (map.dob === -1 && (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1)) {
+      map.dob = c;
+      knownIndices[c] = true;
+    } else if (map.eircode === -1 && (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1)) {
+      map.eircode = c;
+      knownIndices[c] = true;
+    } else if (map.address === -1 && (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1)) {
+      map.address = c;
+      knownIndices[c] = true;
+    }
+  }
+
+  // Fallbacks for standard Form Layout (Timestamp, First, Last, Phone, Email, Address, Eircode, DOB)
+  if (map.timestamp === -1) map.timestamp = 0;
+  if (map.firstName === -1) map.firstName = 1;
+  if (map.lastName === -1) map.lastName = 2;
+  if (map.phone === -1) map.phone = 3;
+  if (map.email === -1) map.email = 4;
+  if (map.address === -1) map.address = 5;
+  if (map.eircode === -1) map.eircode = 6;
+  if (map.dob === -1) map.dob = 7;
+
+  knownIndices[map.timestamp] = true;
+  knownIndices[map.firstName] = true;
+  knownIndices[map.lastName] = true;
+  knownIndices[map.phone] = true;
+  knownIndices[map.email] = true;
+  knownIndices[map.address] = true;
+  knownIndices[map.eircode] = true;
+  knownIndices[map.dob] = true;
+
+  // Remaining columns are course columns
+  for (var i = 0; i < headers.length; i++) {
+    if (!knownIndices[i] && headers[i] && String(headers[i]).trim() !== "") {
+      map.courseIndices.push(i);
+    }
+  }
+
+  return map;
+}
 
 /**
  * Triggered on Form Submit. Syncs just the new row.
@@ -66,13 +143,11 @@ function onFormSubmit(e) {
     var sheetName = sheet.getName();
     log_('onFormSubmit: Form submitted to sheet "' + sheetName + '"', 'INFO');
     
-    // Строго проверяем, что форма отправилась на правильный лист
     if (sheetName !== SOURCE_SHEET_NAME) {
       log_('onFormSubmit: Sheet name "' + sheetName + '" does not match expected source sheet "' + SOURCE_SHEET_NAME + '". Skipping.', 'INFO');
       return;
     }
     
-    // Pre-load course cache to avoid duplicate creation on API failures
     warmUpCourseCache();
     
     var row = e.range.getRow();
@@ -85,7 +160,7 @@ function onFormSubmit(e) {
 }
 
 /**
- * Triggers periodically. Syncs recent entries.
+ * Triggers periodically or manually. Syncs recent entries.
  */
 function syncAllRecent() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -99,7 +174,7 @@ function syncAllRecent() {
   if (lastRow < 2) return;
   var startRow = Math.max(2, lastRow - 20); 
   syncRowsRange(sheet, startRow, lastRow);
-  ss.toast('The last lines have been uploaded!', 'CRM Sync');
+  ss.toast('The last rows have been uploaded to Supabase!', 'CRM Sync');
 }
 
 /**
@@ -114,7 +189,6 @@ function startFullSync() {
  * Resume function for the time-based trigger.
  */
 function resumeSyncAllRowsBatched(e) {
-  // Clean up the trigger that launched us
   if (e && e.triggerUid) {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
@@ -160,7 +234,6 @@ function syncAllRowsBatched() {
   var MAX_CONSECUTIVE_FAILURES = 3;
 
   for (var r = startRow; r <= lastRow; r += BATCH_SIZE) {
-    // 1. CHECK TIME LIMIT
     if (Date.now() - START_TIME > MAX_EXECUTION_TIME) {
       scriptProps.setProperty('SYNC_START_ROW', r.toString());
       
@@ -177,19 +250,18 @@ function syncAllRowsBatched() {
     try {
       syncRowsRange(sheet, r, endRow);
       ss.toast('Lines ' + r + ' – ' + endRow + ' of ' + lastRow, 'CRM Sync');
-      failedBatches = 0; // reset on success
+      failedBatches = 0;
       Utilities.sleep(500); 
     } catch (err) {
       failedBatches++;
       Logger.log("Error syncing batch " + r + "-" + endRow + ": " + err);
       ss.toast('Error on line ' + r + ': ' + String(err).substring(0, 80), 'CRM Sync Error');
       
-      // If too many consecutive failures, pause and resume later
       if (failedBatches >= MAX_CONSECUTIVE_FAILURES) {
         scriptProps.setProperty('SYNC_START_ROW', r.toString());
         ScriptApp.newTrigger('resumeSyncAllRowsBatched')
           .timeBased()
-          .after(2 * 60 * 1000) // Wait 2 minutes before retrying
+          .after(2 * 60 * 1000)
           .create();
         ss.toast('Too many errors. Pausing at line ' + r + ', will retry in 2 min.', 'CRM Sync Error');
         return;
@@ -202,45 +274,54 @@ function syncAllRowsBatched() {
 }
 
 /**
- * Core Logic: Syncs a range of rows using Batch Upserts
+ * Core Logic: Syncs a range of rows using Batch Upserts with dynamic headers.
  */
 function syncRowsRange(sheet, startRow, endRow) {
   if (startRow > endRow) return;
   
   var numRows = endRow - startRow + 1;
   var numCols = sheet.getLastColumn();
-  if (numCols < FIXED_COL_COUNT) return;
+  if (numCols < 3) return;
 
   var rangeValues = sheet.getRange(startRow, 1, numRows, numCols).getValues();
   var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
+  var headerMap = getSourceHeaderMap_(headers);
   
   var studentsToUpsert = [];
   var rowMap = []; 
 
   for (var i = 0; i < rangeValues.length; i++) {
     var rowData = rangeValues[i];
-    var email = rowData[4];
+    var email = headerMap.email !== -1 ? rowData[headerMap.email] : "";
     
     if (!email || String(email).trim() === "") continue;
 
-    var fName = String(rowData[1] || "").trim();
-    var lName = String(rowData[2] || "").trim();
+    var fName = headerMap.firstName !== -1 ? String(rowData[headerMap.firstName] || "").trim() : "";
+    var lName = headerMap.lastName !== -1 ? String(rowData[headerMap.lastName] || "").trim() : "";
     var eMail = String(email).trim().toLowerCase();
+    var rawPhone = headerMap.phone !== -1 ? rowData[headerMap.phone] : "";
+    var rawAddress = headerMap.address !== -1 ? rowData[headerMap.address] : "";
+    var rawEircode = headerMap.eircode !== -1 ? rowData[headerMap.eircode] : "";
+    var rawDob = headerMap.dob !== -1 ? rowData[headerMap.dob] : "";
+    var rawTimestamp = headerMap.timestamp !== -1 ? rowData[headerMap.timestamp] : "";
 
     studentsToUpsert.push({
       first_name: fName,
       last_name: lName,
-      phone: normalizePhone(rowData[3]),
+      phone: normalizePhone(rawPhone),
       email: eMail, 
-      address: rowData[5] || "",
-      eircode: rowData[6] || "",
-      dob: formatDate(rowData[7]),
+      address: rawAddress || "",
+      eircode: rawEircode || "",
+      dob: formatDate(rawDob),
       last_synced_at: new Date().toISOString(),
-      created_at: formatIsoDateTime(rowData[0])
+      created_at: formatIsoDateTime(rawTimestamp)
     });
     
-    // Use a composite key for the map instead of just email
-    rowMap.push({ key: fName.toLowerCase() + "|" + lName.toLowerCase() + "|" + eMail, rowData: rowData });
+    rowMap.push({ 
+      key: fName.toLowerCase() + "|" + lName.toLowerCase() + "|" + eMail, 
+      rowData: rowData,
+      rawTimestamp: rawTimestamp
+    });
   }
 
   if (studentsToUpsert.length === 0) return;
@@ -249,107 +330,98 @@ function syncRowsRange(sheet, startRow, endRow) {
   var uniqueStudents = [];
   var seenKeys = {};
   for (var k = 0; k < studentsToUpsert.length; k++) {
-      var s = studentsToUpsert[k];
-      var key = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
-      if (!seenKeys[key]) {
-          uniqueStudents.push(s);
-          seenKeys[key] = true;
-      }
+    var s = studentsToUpsert[k];
+    var key = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
+    if (!seenKeys[key]) {
+      uniqueStudents.push(s);
+      seenKeys[key] = true;
+    }
   }
 
   // Get list of emails in this batch to fetch existing records
   var batchEmails = uniqueStudents.map(function(s) { return s.email; });
   var existingStudents = [];
   if (batchEmails.length > 0) {
-      // Build URI query for checking matching emails
-      var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.(' + batchEmails.map(encodeURIComponent).join(',') + ')';
-      existingStudents = _fetch('students?' + queryParams, 'get') || [];
+    var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.(' + batchEmails.map(encodeURIComponent).join(',') + ')';
+    existingStudents = _fetch('students?' + queryParams, 'get') || [];
   }
 
   var existingByEmail = {};
   for (var j = 0; j < existingStudents.length; j++) {
-      var ext = existingStudents[j];
-      var emailKey = String(ext.email || "").trim().toLowerCase();
-      if (!existingByEmail[emailKey]) existingByEmail[emailKey] = [];
-      existingByEmail[emailKey].push(ext);
+    var ext = existingStudents[j];
+    var emailKey = String(ext.email || "").trim().toLowerCase();
+    if (!existingByEmail[emailKey]) existingByEmail[emailKey] = [];
+    existingByEmail[emailKey].push(ext);
   }
 
   function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
-      var f1 = String(firstName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-      var l1 = String(lastName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-      var f2 = String(firstName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-      var l2 = String(lastName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-      
-      if (!f1 || !l1 || !f2 || !l2) return false;
-      
-      // Direct match
-      if (f1 === f2 && l1 === l2) return true;
-      
-      // Swapped match (first name entered as last name or vice-versa)
-      if (f1 === l2 && l1 === f2) return true;
-      
-      // Combined match
-      var full1 = f1 + l1;
-      var full2 = f2 + l2;
-      var full2Swap = l2 + f2;
-      if (full1 === full2 || full1 === full2Swap) return true;
-      
-      return false;
+    var f1 = String(firstName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+    var l1 = String(lastName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+    var f2 = String(firstName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+    var l2 = String(lastName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+    
+    if (!f1 || !l1 || !f2 || !l2) return false;
+    if (f1 === f2 && l1 === l2) return true;
+    if (f1 === l2 && l1 === f2) return true;
+    
+    var full1 = f1 + l1;
+    var full2 = f2 + l2;
+    var full2Swap = l2 + f2;
+    if (full1 === full2 || full1 === full2Swap) return true;
+    
+    return false;
   }
 
   var keyToIdMap = {};
   var studentsToInsert = [];
 
   for (var k = 0; k < uniqueStudents.length; k++) {
-      var s = uniqueStudents[k];
-      var matches = existingByEmail[s.email] || [];
-      var matchedStudent = null;
+    var s = uniqueStudents[k];
+    var matches = existingByEmail[s.email] || [];
+    var matchedStudent = null;
+    
+    for (var m = 0; m < matches.length; m++) {
+      var ext = matches[m];
+      if (areNamesSimilar_(s.first_name, s.last_name, ext.first_name, ext.last_name)) {
+        matchedStudent = ext;
+        break;
+      }
+    }
+    
+    var compositeKey = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
+    
+    if (matchedStudent) {
+      var patchPayload = {};
+      if (!matchedStudent.first_name && s.first_name) patchPayload.first_name = s.first_name;
+      if (!matchedStudent.last_name && s.last_name) patchPayload.last_name = s.last_name;
+      if (!matchedStudent.phone && s.phone) patchPayload.phone = s.phone;
+      if (!matchedStudent.address && s.address) patchPayload.address = s.address;
+      if (!matchedStudent.eircode && s.eircode) patchPayload.eircode = s.eircode;
+      if (!matchedStudent.dob && s.dob) patchPayload.dob = s.dob;
       
-      for (var m = 0; m < matches.length; m++) {
-          var ext = matches[m];
-          if (areNamesSimilar_(s.first_name, s.last_name, ext.first_name, ext.last_name)) {
-              matchedStudent = ext;
-              break;
-          }
+      if (Object.keys(patchPayload).length > 0) {
+        patchPayload.last_synced_at = new Date().toISOString();
+        _fetch('students?id=eq.' + matchedStudent.id, 'patch', patchPayload);
+        for (var f in patchPayload) matchedStudent[f] = patchPayload[f];
       }
       
-      var compositeKey = s.first_name.toLowerCase() + "|" + s.last_name.toLowerCase() + "|" + s.email;
-      
-      if (matchedStudent) {
-          // Enrich existing student record (ONLY missing fields, NEVER overwrite names)
-          var patchPayload = {};
-          if (!matchedStudent.first_name && s.first_name) patchPayload.first_name = s.first_name;
-          if (!matchedStudent.last_name && s.last_name) patchPayload.last_name = s.last_name;
-          if (!matchedStudent.phone && s.phone) patchPayload.phone = s.phone;
-          if (!matchedStudent.address && s.address) patchPayload.address = s.address;
-          if (!matchedStudent.eircode && s.eircode) patchPayload.eircode = s.eircode;
-          if (!matchedStudent.dob && s.dob) patchPayload.dob = s.dob;
-          
-          if (Object.keys(patchPayload).length > 0) {
-              patchPayload.last_synced_at = new Date().toISOString();
-              _fetch('students?id=eq.' + matchedStudent.id, 'patch', patchPayload);
-              // Update in-memory object to keep cache updated
-              for (var f in patchPayload) matchedStudent[f] = patchPayload[f];
-          }
-          
-          keyToIdMap[compositeKey] = matchedStudent.id;
-      } else {
-          // No similarity match, add to list of students to insert
-          studentsToInsert.push(s);
-      }
+      keyToIdMap[compositeKey] = matchedStudent.id;
+    } else {
+      studentsToInsert.push(s);
+    }
   }
 
   if (studentsToInsert.length > 0) {
-      var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', studentsToInsert, { 
-        'Prefer': 'return=representation' 
-      });
-      if (!upsertedStudents) throw new Error("Failed to insert new students.");
-      
-      for (var k = 0; k < upsertedStudents.length; k++) {
-          var s = upsertedStudents[k];
-          var compositeKey = String(s.first_name || "").toLowerCase() + "|" + String(s.last_name || "").toLowerCase() + "|" + String(s.email || "").toLowerCase();
-          keyToIdMap[compositeKey] = s.id;
-      }
+    var upsertedStudents = _fetch('students?on_conflict=first_name,last_name,email', 'post', studentsToInsert, { 
+      'Prefer': 'return=representation' 
+    });
+    if (!upsertedStudents) throw new Error("Failed to insert new students.");
+    
+    for (var k = 0; k < upsertedStudents.length; k++) {
+      var s = upsertedStudents[k];
+      var compositeKey = String(s.first_name || "").toLowerCase() + "|" + String(s.last_name || "").toLowerCase() + "|" + String(s.email || "").toLowerCase();
+      keyToIdMap[compositeKey] = s.id;
+    }
   }
 
   // Build Enrollments
@@ -357,44 +429,46 @@ function syncRowsRange(sheet, startRow, endRow) {
   var enrollmentKeys = {};
   
   for (var m = 0; m < rowMap.length; m++) {
-      var mapItem = rowMap[m];
-      var sId = keyToIdMap[mapItem.key];
-      if (!sId) continue; 
+    var mapItem = rowMap[m];
+    var sId = keyToIdMap[mapItem.key];
+    if (!sId) continue; 
 
-      var rData = mapItem.rowData;
+    var rData = mapItem.rowData;
+    var rowTimestampIso = formatIsoDateTime(mapItem.rawTimestamp);
 
-      for (var col = FIXED_COL_COUNT; col < headers.length; col++) {
-          var courseName = headers[col];
-          var cellValue = rData[col];
-          
-          if (courseName && cellValue && String(cellValue).trim() !== "") {
-              var cId = getCourseId(courseName); 
-              if (cId) {
-                  var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
-                  for (var v = 0; v < variants.length; v++) {
-                       if (!variants[v]) continue; // skip empty variants
-                       var uniqueKey = sId + "_" + cId + "_" + variants[v]; 
-                       if (!enrollmentKeys[uniqueKey]) {
-                           enrollmentsToUpsert.push({
-                               student_id: sId,
-                               course_id: cId,
-                               course_variant: variants[v],
-                               status: 'requested',
-                               created_at: formatIsoDateTime(rData[0])
-                           });
-                           enrollmentKeys[uniqueKey] = true;
-                       }
-                  }
-              }
+    for (var cIdx = 0; cIdx < headerMap.courseIndices.length; cIdx++) {
+      var col = headerMap.courseIndices[cIdx];
+      var courseName = headers[col];
+      var cellValue = rData[col];
+      
+      if (courseName && cellValue && String(cellValue).trim() !== "") {
+        var cId = getCourseId(courseName); 
+        if (cId) {
+          var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
+          for (var v = 0; v < variants.length; v++) {
+            if (!variants[v]) continue;
+            var uniqueKey = sId + "_" + cId + "_" + variants[v]; 
+            if (!enrollmentKeys[uniqueKey]) {
+              enrollmentsToUpsert.push({
+                student_id: sId,
+                course_id: cId,
+                course_variant: variants[v],
+                status: 'requested',
+                created_at: rowTimestampIso
+              });
+              enrollmentKeys[uniqueKey] = true;
+            }
           }
+        }
       }
+    }
   }
 
   // Upsert Enrollments (ignores duplicates to keep existing statuses intact)
   if (enrollmentsToUpsert.length > 0) {
-      _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
-        'Prefer': 'resolution=ignore-duplicates' 
-      });
+    _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
+      'Prefer': 'resolution=ignore-duplicates' 
+    });
   }
 }
 
@@ -427,7 +501,6 @@ function _fetchAll(endpoint, selectQuery) {
       if (res.length < limit) hasMore = false;
     } else {
       emptyPages++;
-      // Protect against infinite loop on API issues
       if (emptyPages >= 2) hasMore = false;
       else hasMore = false;
     }
@@ -437,16 +510,12 @@ function _fetchAll(endpoint, selectQuery) {
 
 /**
  * Aggressively normalizes a course name to prevent duplicates.
- * - Converts to string
- * - Replaces ALL whitespace types (\n, \r, \t, non-breaking space U+00A0, zero-width chars) with regular space
- * - Collapses multiple spaces into one
- * - Trims leading/trailing whitespace
  */
 function normalizeCourseName_(raw) {
   if (!raw) return '';
   return String(raw)
-    .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF\r\n\t]+/g, ' ')  // all whitespace → single space
-    .replace(/ {2,}/g, ' ')                                        // collapse multiples
+    .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF\r\n\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
     .trim();
 }
 
@@ -454,59 +523,45 @@ function warmUpCourseCache() {
   var allCourses = _fetchAll('courses', 'select=id,name');
   if (allCourses) {
     for (var i = 0; i < allCourses.length; i++) {
-        var normalized = normalizeCourseName_(allCourses[i].name);
-        // Store by both the normalized AND original name for maximum hit rate
-        COURSE_CACHE[normalized] = allCourses[i].id;
-        COURSE_CACHE[allCourses[i].name] = allCourses[i].id;
+      var normalized = normalizeCourseName_(allCourses[i].name);
+      COURSE_CACHE[normalized] = allCourses[i].id;
+      COURSE_CACHE[allCourses[i].name] = allCourses[i].id;
     }
   }
 }
 
 /**
- * Gets a course ID by name. Lookup order:
- * 1. In-memory cache (normalized key)
- * 2. Supabase exact match
- * 3. Supabase case-insensitive search (ilike)
- * 4. Creates new course ONLY if search returned [] (confirmed empty), NEVER on null (API error)
- *
- * CRITICAL: _fetch returns [] for "no results" and null for "API error".
- * We must NEVER create a new course when searches errored out — that causes duplicates.
+ * Gets a course ID by name.
  */
 function getCourseId(name) {
   var normalized = normalizeCourseName_(name);
   if (!normalized) return null;
   
-  // 1. Check cache (fastest path — no API call needed)
   if (COURSE_CACHE[normalized]) return COURSE_CACHE[normalized];
   
-  // 2. Exact match in Supabase
   var res = _fetch('courses?name=eq.' + encodeURIComponent(normalized), 'get');
   if (res && res.length > 0) {
-      COURSE_CACHE[normalized] = res[0].id;
-      return res[0].id;
+    COURSE_CACHE[normalized] = res[0].id;
+    return res[0].id;
   }
   
-  // If res is null → API error. Do NOT proceed to create.
   if (res === null) {
     Logger.log('ERROR: API failed looking up course "' + normalized + '". Refusing to create to prevent duplicates.');
     return null;
   }
   
-  // 3. Fuzzy match: case-insensitive search (catches case differences)
   var fuzzyRes = _fetch('courses?name=ilike.' + encodeURIComponent(normalized), 'get');
   if (fuzzyRes && fuzzyRes.length > 0) {
-      COURSE_CACHE[normalized] = fuzzyRes[0].id;
-      Logger.log('Fuzzy-matched course "' + normalized + '" → existing "' + fuzzyRes[0].name + '" (id: ' + fuzzyRes[0].id + ')');
-      return fuzzyRes[0].id;
+    COURSE_CACHE[normalized] = fuzzyRes[0].id;
+    Logger.log('Fuzzy-matched course "' + normalized + '" → existing "' + fuzzyRes[0].name + '" (id: ' + fuzzyRes[0].id + ')');
+    return fuzzyRes[0].id;
   }
   
-  // If fuzzyRes is null → API error. Do NOT proceed to create.
   if (fuzzyRes === null) {
     Logger.log('ERROR: API failed on ilike lookup for course "' + normalized + '". Refusing to create to prevent duplicates.');
     return null;
   }
   
-  // 4. Both searches returned [] (confirmed no match) — safe to create
   Logger.log('Creating NEW course: "' + normalized + '" (no existing match found)');
   var newCourse = _fetch('courses', 'post', { name: normalized }, { 'Prefer': 'return=representation' });
   var id = newCourse && newCourse.length > 0 ? newCourse[0].id : null;
@@ -518,19 +573,18 @@ function getCourseId(name) {
 
 /**
  * Core HTTP helper with exponential backoff retry.
- * Retries on 5xx errors and network failures, NOT on 4xx client errors.
  */
 function _fetch(endpoint, method, payload, extraHeaders) {
   var config = getConfig_();
   var url = config.url + '/rest/v1/' + endpoint;
   var headers = {
-      'apikey': config.key,
-      'Authorization': 'Bearer ' + config.key,
-      'Content-Type': 'application/json'
+    'apikey': config.key,
+    'Authorization': 'Bearer ' + config.key,
+    'Content-Type': 'application/json'
   };
   
   if (extraHeaders) {
-      for (var k in extraHeaders) headers[k] = extraHeaders[k];
+    for (var k in extraHeaders) headers[k] = extraHeaders[k];
   }
   
   var options = {
@@ -553,13 +607,11 @@ function _fetch(endpoint, method, payload, extraHeaders) {
         return content ? JSON.parse(content) : null;
       }
       
-      // 4xx errors — don't retry, it's a client error
       if (code >= 400 && code < 500) {
         Logger.log("Supabase Client Error [" + method.toUpperCase() + " " + endpoint + "] (" + code + "): " + content);
         return null;
       }
       
-      // 5xx errors — retry after delay
       lastError = "HTTP " + code + ": " + content;
       Logger.log("Supabase Server Error (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ") [" + method.toUpperCase() + " " + endpoint + "] (" + code + "): " + content.substring(0, 200));
       
@@ -568,7 +620,6 @@ function _fetch(endpoint, method, payload, extraHeaders) {
       Logger.log("Network Error (attempt " + (attempt + 1) + "/" + MAX_RETRIES + ") [" + method.toUpperCase() + " " + endpoint + "]: " + lastError.substring(0, 200));
     }
     
-    // Exponential backoff: 1s, 2s, 4s
     if (attempt < MAX_RETRIES - 1) {
       Utilities.sleep(RETRY_BASE_DELAY_MS * Math.pow(2, attempt));
     }
@@ -579,57 +630,139 @@ function _fetch(endpoint, method, payload, extraHeaders) {
 }
 
 // ==========================================
-// DATA FORMATTERS
+// DATA FORMATTERS (Robust Date & Phone Parsers)
 // ==========================================
 
+/**
+ * Formats Date of Birth (DOB) safely as 'yyyy-MM-dd' for Supabase.
+ * Corrects 2-digit birth years (e.g. 75 -> 1975, 94 -> 1994, 36 -> 1936, 02 -> 2002).
+ */
 function formatDate(dateObj) {
   if (!dateObj || String(dateObj).trim() === "") return null;
-  if (typeof dateObj === 'string') {
-    // Validate it looks like a date
-    var d = new Date(dateObj);
-    if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
-    return dateObj;
-  }
-  try {
+  
+  if (dateObj instanceof Date) {
+    if (isNaN(dateObj.getTime())) return null;
     return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy-MM-dd");
-  } catch (e) {
-    return null;
   }
+
+  var str = String(dateObj).trim();
+  
+  // Check ISO format YYYY-MM-DD
+  var isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return isoMatch[1] + "-" + isoMatch[2] + "-" + isoMatch[3];
+
+  // Check DD/MM/YYYY or DD.MM.YYYY or DD-MM-YYYY
+  var dmyMatch = str.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
+  if (dmyMatch) {
+    var day = parseInt(dmyMatch[1], 10);
+    var month = parseInt(dmyMatch[2], 10);
+    var year = parseInt(dmyMatch[3], 10);
+
+    // If 2-digit birth year: 00..25 -> 2000..2025; 26..99 -> 1926..1999
+    if (year < 100) {
+      year = (year > 25) ? 1900 + year : 2000 + year;
+    }
+
+    var mStr = month < 10 ? "0" + month : "" + month;
+    var dStr = day < 10 ? "0" + day : "" + day;
+    return year + "-" + mStr + "-" + dStr;
+  }
+
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    }
+  } catch (e) {}
+
+  return null;
 }
 
 /**
- * Helper to convert Google Sheets date to ISO String for Supabase.
- * Falls back to current time if the value can't be parsed.
+ * Converts Google Sheets Timestamp to ISO String for Supabase.
+ * Handles Date instances and European/Irish DD/MM/YYYY HH:mm:ss strings accurately.
  */
 function formatIsoDateTime(dateObj) {
   if (!dateObj || String(dateObj).trim() === "") return new Date().toISOString();
   
-  try {
-    if (dateObj instanceof Date) {
-      if (!isNaN(dateObj.getTime())) return dateObj.toISOString();
-      return new Date().toISOString();
-    }
-    var d = new Date(dateObj);
-    if (!isNaN(d.getTime())) return d.toISOString();
-  } catch (e) {
-    Logger.log("Error formatting ISO date: " + e);
+  if (dateObj instanceof Date) {
+    if (!isNaN(dateObj.getTime())) return dateObj.toISOString();
+    return new Date().toISOString();
   }
+
+  var str = String(dateObj).trim();
+
+  // Check if string is DD/MM/YYYY HH:mm:ss
+  var dmyMatch = str.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    var day = parseInt(dmyMatch[1], 10);
+    var month = parseInt(dmyMatch[2], 10) - 1; // 0-based
+    var year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+
+    var hours = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    var minutes = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    var seconds = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+
+    var parsedDate = new Date(year, month, day, hours, minutes, seconds);
+    if (!isNaN(parsedDate.getTime())) return parsedDate.toISOString();
+  }
+
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  } catch (e) {}
   
   return new Date().toISOString();
 }
 
 /**
- * Formats a date/datetime string for Sheet output (dd/MM/yyyy).
+ * Formats a date/datetime value for CRM Mirror Sheet display (dd/MM/yyyy).
+ * Bulletproof against timezone day-shifts for ISO strings.
  */
-function formatDateForSheet(dateString) {
-  if (!dateString || String(dateString).trim() === "") return "";
-  try {
-    var d = new Date(dateString);
-    if (isNaN(d.getTime())) return String(dateString);
-    return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
-  } catch (e) {
-    return String(dateString);
+function formatDateForSheet(dateVal) {
+  if (!dateVal || String(dateVal).trim() === "") return "";
+  
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return "";
+    return Utilities.formatDate(dateVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
   }
+  
+  var str = String(dateVal).trim();
+  
+  // Direct parse for YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+  var isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    // If date-only (like DOB), avoid timezone shifts entirely:
+    if (str.length === 10) {
+      return isoMatch[3] + "/" + isoMatch[2] + "/" + isoMatch[1];
+    }
+    var dIso = new Date(str);
+    if (!isNaN(dIso.getTime())) {
+      return Utilities.formatDate(dIso, Session.getScriptTimeZone(), "dd/MM/yyyy");
+    }
+  }
+
+  // Direct parse for DD/MM/YYYY
+  var dmyMatch = str.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
+  if (dmyMatch) {
+    var day = parseInt(dmyMatch[1], 10);
+    var month = parseInt(dmyMatch[2], 10);
+    var year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+    var dStr = day < 10 ? "0" + day : "" + day;
+    var mStr = month < 10 ? "0" + month : "" + month;
+    return dStr + "/" + mStr + "/" + year;
+  }
+  
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
+    }
+  } catch (e) {}
+
+  return str;
 }
 
 function normalizePhone(phone) {
@@ -693,9 +826,8 @@ function syncFromSupabase() {
     return;
   }
   
-  // Fetch student flags with course names for display
   var studentFlags = _fetchAll('student_flags', 'select=*,courses(name)');
-  if (!studentFlags) studentFlags = []; // Non-critical, continue without flags
+  if (!studentFlags) studentFlags = [];
   
   ss.toast("Processing " + students.length + " students, " + enrollments.length + " enrollments, " + studentFlags.length + " flags...", "CRM Mirror Sync");
   
@@ -706,7 +838,6 @@ function syncFromSupabase() {
     studentMap[students[i].id] = students[i];
   }
   
-  // Build student_id → flags[] map
   var flagsByStudent = {};
   for (var f = 0; f < studentFlags.length; f++) {
     var flag = studentFlags[f];
@@ -722,7 +853,7 @@ function syncFromSupabase() {
     'Student ID',         // C (hidden)
     'Status',             // D
     'Priority',           // E
-    'Flags',              // F  ← NEW: student flags summary
+    'Flags',              // F
     'First Name',         // G
     'Last Name',          // H
     'Email',              // I
@@ -734,7 +865,7 @@ function syncFromSupabase() {
     'Variant / Language', // O
     'Invited Date',       // P
     'Confirmed Date',     // Q
-    'Completed Date',     // R ← NEW
+    'Completed Date',     // R
     'Created At',         // S
     'Notes'               // T
   ];
@@ -756,8 +887,6 @@ function syncFromSupabase() {
     var cName = (e.course && e.course.name) ? e.course.name : "Unknown Course";
     
     enrolledStudentIds[e.student_id] = true;
-    
-    // Build flags summary string for this student
     var flagsSummary = buildFlagsSummary_(flagsByStudent[e.student_id]);
     
     outputRows.push([
@@ -818,20 +947,19 @@ function syncFromSupabase() {
   // ── 7. Write to sheet ─────────────────────────────────────────
   ss.toast("Writing " + outputRows.length + " rows to sheet...", "CRM Mirror Sync");
   
-  // Clear old data (row 2+) while preserving header row
   var lastRowCurrent = sheet.getLastRow();
   var lastColCurrent = sheet.getLastColumn();
   if (lastRowCurrent > 1 && lastColCurrent > 0) {
     sheet.getRange(2, 1, lastRowCurrent - 1, Math.max(lastColCurrent, headers.length)).clearContent();
   }
   
-  // Write Headers with premium styling
+  // Write Headers
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setValues([headers])
     .setFontWeight("bold")
     .setFontSize(10)
     .setFontColor("#ffffff")
-    .setBackground("#1a237e")          // Deep indigo header
+    .setBackground("#1a237e")
     .setHorizontalAlignment("center")
     .setVerticalAlignment("middle")
     .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
@@ -854,8 +982,6 @@ function syncFromSupabase() {
 
 /**
  * Builds a human-readable flags summary for a student.
- * @param {Array} flags - Array of student_flag objects, or undefined.
- * @returns {string} e.g. "⚠ SNA Course (didn't pass); Basic English"
  */
 function buildFlagsSummary_(flags) {
   if (!flags || flags.length === 0) return "";
@@ -876,11 +1002,6 @@ function buildFlagsSummary_(flags) {
  * to the CRM Mirror sheet. Called automatically after each sync.
  */
 function applyMirrorFormatting_(sheet, numCols, numDataRows) {
-  // ── Column widths (pixels) ────────────────────────────────────
-  // A=SystemID, B=EnrID, C=StuID (hidden, keep narrow)
-  // D=Status, E=Priority, F=Flags, G=FirstName, H=LastName, I=Email
-  // J=Mobile, K=Address, L=Eircode, M=DOB, N=Course, O=Variant
-  // P=Invited, Q=Confirmed, R=Completed, S=Created, T=Notes
   try {
     var colWidths = {
        1: 60,    // A: System ID (hidden)
@@ -911,7 +1032,6 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     Logger.log("Column width error (non-critical): " + cwErr);
   }
   
-  // ── Date column formats ───────────────────────────────────────
   if (numDataRows > 0) {
     sheet.getRange("M2:M").setNumberFormat("dd/MM/yyyy"); // DOB
     sheet.getRange("P2:P").setNumberFormat("dd/MM/yyyy"); // Invited Date
@@ -920,27 +1040,21 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     sheet.getRange("S2:S").setNumberFormat("dd/MM/yyyy"); // Created At
   }
   
-  // ── Text alignment ────────────────────────────────────────────
   if (numDataRows > 0) {
-    // Center-align: Status, Priority, DOB, Dates, Eircode
     var centerCols = ['D', 'E', 'L', 'M', 'P', 'Q', 'R', 'S'];
     for (var ci = 0; ci < centerCols.length; ci++) {
       sheet.getRange(centerCols[ci] + "2:" + centerCols[ci]).setHorizontalAlignment("center");
     }
     
-    // Bold names for readability
     sheet.getRange("G2:G").setFontWeight("bold"); // First Name
     sheet.getRange("H2:H").setFontWeight("bold"); // Last Name
     
-    // Wrap text for Flags, Notes, Address (they can be long)
     sheet.getRange("F2:F").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
     sheet.getRange("K2:K").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
     sheet.getRange("T2:T").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
   }
   
-  // ── Alternating row banding ───────────────────────────────────
   try {
-    // Remove existing bandings to avoid stacking
     var bandings = sheet.getBandings();
     for (var b = 0; b < bandings.length; b++) {
       bandings[b].remove();
@@ -949,7 +1063,6 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     if (numDataRows > 0) {
       var bandRange = sheet.getRange(1, 1, numDataRows + 1, numCols);
       bandRange.applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false);
-      // Override banding colors for a cleaner look
       var banding = sheet.getBandings()[0];
       if (banding) {
         banding.setFirstRowColor("#ffffff")
@@ -962,15 +1075,12 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     Logger.log("Banding error (non-critical): " + bandErr);
   }
   
-  // ── Frozen header ─────────────────────────────────────────────
   sheet.setFrozenRows(1);
   
-  // ── Hide system ID columns (A, B, C) ─────────────────────────
   sheet.hideColumns(1); // System ID
   sheet.hideColumns(2); // Enrollment ID 
   sheet.hideColumns(3); // Student ID
   
-  // ── Auto-Filter ───────────────────────────────────────────────
   try {
     if (sheet.getFilter() !== null) {
       sheet.getFilter().remove();
@@ -980,7 +1090,6 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     Logger.log("Filter error (non-critical): " + filterErr);
   }
   
-  // ── Conditional Formatting ────────────────────────────────────
   try {
     sheet.clearConditionalFormatRules();
     
@@ -990,7 +1099,6 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
     
     var rules = [];
     
-    // Status column (D) — color-coded badges
     rules.push(SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo('CONFIRMED').setBackground('#c8e6c9').setFontColor('#1b5e20').setBold(true)
       .setRanges([statusRange]).build());
@@ -1010,12 +1118,10 @@ function applyMirrorFormatting_(sheet, numCols, numDataRows) {
       .whenTextEqualTo('NO ENROLLMENTS').setBackground('#fafafa').setFontColor('#9e9e9e').setItalic(true)
       .setRanges([statusRange]).build());
     
-    // Flags column (F) — orange highlight for flagged students
     rules.push(SpreadsheetApp.newConditionalFormatRule()
       .whenTextStartsWith('⚠').setBackground('#fff3e0').setFontColor('#e65100').setBold(true)
       .setRanges([flagsRange]).build());
     
-    // Priority column (E) — gold for ⭐ High
     rules.push(SpreadsheetApp.newConditionalFormatRule()
       .whenTextContains('⭐').setBackground('#fff8e1').setFontColor('#ff8f00').setBold(true)
       .setRanges([priorityRange]).build());
@@ -1039,9 +1145,9 @@ function resumeMigrateRegistrationDates(e) {
   if (e && e.triggerUid) {
     var triggers = ScriptApp.getProjectTriggers();
     for (var i = 0; i < triggers.length; i++) {
-        if (triggers[i].getHandlerFunction() === 'resumeMigrateRegistrationDates') {
-            ScriptApp.deleteTrigger(triggers[i]);
-        }
+      if (triggers[i].getHandlerFunction() === 'resumeMigrateRegistrationDates') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
     }
   }
   migrateRegistrationDates();
@@ -1059,7 +1165,7 @@ function migrateRegistrationDates() {
   var studentCache = {};
   if (allStudents) {
     for (var i = 0; i < allStudents.length; i++) {
-      if (allStudents[i].email) studentCache[allStudents[i].email] = allStudents[i].id;
+      if (allStudents[i].email) studentCache[allStudents[i].email.toLowerCase().trim()] = allStudents[i].id;
     }
   }
 
@@ -1093,48 +1199,51 @@ function migrateRegistrationDates() {
     var numCols = sheet.getLastColumn();
     var rangeValues = sheet.getRange(r, 1, numRows, numCols).getValues();
     var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
+    var headerMap = getSourceHeaderMap_(headers);
 
     var updates = [];
 
     for (var i = 0; i < rangeValues.length; i++) {
-       var rowData = rangeValues[i];
-       if (!rowData[0]) continue;
-       var formCreatedAt = formatIsoDateTime(rowData[0]);
+      var rowData = rangeValues[i];
+      var rawTimestamp = headerMap.timestamp !== -1 ? rowData[headerMap.timestamp] : "";
+      if (!rawTimestamp) continue;
+      var formCreatedAt = formatIsoDateTime(rawTimestamp);
 
-       var email = String(rowData[4] || "").trim().toLowerCase();
-       if (!email) continue;
-       
-       var sId = studentCache[email];
-       if (!sId) continue;
+      var email = headerMap.email !== -1 ? String(rowData[headerMap.email] || "").trim().toLowerCase() : "";
+      if (!email) continue;
+      
+      var sId = studentCache[email];
+      if (!sId) continue;
 
-       for (var col = FIXED_COL_COUNT; col < headers.length; col++) {
-           var courseName = headers[col];
-           var cellValue = rowData[col];
-           
-           if (courseName && cellValue && String(cellValue).trim() !== "") {
-               var cId = COURSE_CACHE[courseName];
-               if (cId) {
-                   var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
-                   for (var v = 0; v < variants.length; v++) {
-                       updates.push({
-                           student_id: sId,
-                           course_id: cId,
-                           course_variant: variants[v],
-                           created_at: formCreatedAt
-                       });
-                   }
-               }
-           }
-       }
+      for (var cIdx = 0; cIdx < headerMap.courseIndices.length; cIdx++) {
+        var col = headerMap.courseIndices[cIdx];
+        var courseName = headers[col];
+        var cellValue = rowData[col];
+        
+        if (courseName && cellValue && String(cellValue).trim() !== "") {
+          var cId = COURSE_CACHE[courseName];
+          if (cId) {
+            var variants = String(cellValue).split(',').map(function(s) { return s.trim(); });
+            for (var v = 0; v < variants.length; v++) {
+              updates.push({
+                student_id: sId,
+                course_id: cId,
+                course_variant: variants[v],
+                created_at: formCreatedAt
+              });
+            }
+          }
+        }
+      }
     }
 
     if (updates.length > 0) {
-       var resp = _fetch('rpc/bulk_update_registration_dates', 'post', { updates: updates });
-       if (resp === null) {
-           ss.toast("Error hitting rpc for lines " + r + " to " + endRow, "CRM Sync Error");
-       } else {
-           Logger.log("Successfully migrated dates for row block " + r + "-" + endRow);
-       }
+      var resp = _fetch('rpc/bulk_update_registration_dates', 'post', { updates: updates });
+      if (resp === null) {
+        ss.toast("Error hitting rpc for lines " + r + " to " + endRow, "CRM Sync Error");
+      } else {
+        Logger.log("Successfully migrated dates for row block " + r + "-" + endRow);
+      }
     }
   }
 
@@ -1226,7 +1335,6 @@ function restoreDataFromBackup() {
   var confDateIdx = headers.indexOf('Confirmed Date');
   var notesIdx = headers.indexOf('Notes');
 
-  // Validate required columns exist
   if (fNameIdx === -1 || lNameIdx === -1 || emailIdx === -1) {
     ss.toast("CRM Backup is missing required columns (First Name, Last Name, Email).", "Error");
     return;
@@ -1244,7 +1352,6 @@ function restoreDataFromBackup() {
     var currentS = studentDict[skey];
     if (!currentS) continue;
     
-    // 1. Restore Student metadata if empty in current db but present in backup
     var sPayload = {};
     if (!currentS.phone && mobileIdx !== -1 && row[mobileIdx]) sPayload.phone = normalizePhone(row[mobileIdx]);
     if (!currentS.address && addressIdx !== -1 && row[addressIdx]) sPayload.address = row[addressIdx];
@@ -1254,15 +1361,14 @@ function restoreDataFromBackup() {
     if (Object.keys(sPayload).length > 0) {
       var sRes = _fetch('students?id=eq.' + currentS.id, 'patch', sPayload, { 'Prefer': 'return=representation' });
       if (sRes) {
-          if (sPayload.phone) currentS.phone = sPayload.phone;
-          if (sPayload.address) currentS.address = sPayload.address;
-          if (sPayload.eircode) currentS.eircode = sPayload.eircode;
-          if (sPayload.dob) currentS.dob = sPayload.dob;
-          restoredStuCount++;
+        if (sPayload.phone) currentS.phone = sPayload.phone;
+        if (sPayload.address) currentS.address = sPayload.address;
+        if (sPayload.eircode) currentS.eircode = sPayload.eircode;
+        if (sPayload.dob) currentS.dob = sPayload.dob;
+        restoredStuCount++;
       }
     }
 
-    // 2. Restore Enrollment metadata
     var courseStr = courseIdx !== -1 ? String(row[courseIdx] || "").trim() : "";
     var variantStr = variantIdx !== -1 ? String(row[variantIdx] || "").trim() : "";
     
@@ -1275,34 +1381,33 @@ function restoreDataFromBackup() {
     var currentE = enrollmentDict[ekey];
     
     if (currentE) {
-       var statusBk = statusIdx !== -1 ? String(row[statusIdx] || "").toLowerCase() : "";
-       var isPrioBk = prioIdx !== -1 ? (String(row[prioIdx]).indexOf('High') !== -1) : false;
-       var notesBk = notesIdx !== -1 ? row[notesIdx] : "";
-       var invDateBk = invDateIdx !== -1 ? formatDate(row[invDateIdx]) : null;
-       var confDateBk = confDateIdx !== -1 ? formatDate(row[confDateIdx]) : null;
-       
-       var ePayload = {};
-       
-       // Compare backup data with current data. If backup is "better", use it.
-       if (statusBk && statusBk !== 'requested' && statusBk !== 'no enrollments' && currentE.status === 'requested') {
-         ePayload.status = statusBk;
-       }
-       if (isPrioBk && !currentE.is_priority) ePayload.is_priority = true;
-       if (notesBk && !currentE.notes) ePayload.notes = notesBk;
-       if (invDateBk && !currentE.invited_date) ePayload.invited_date = invDateBk;
-       if (confDateBk && !currentE.confirmed_date) ePayload.confirmed_date = confDateBk;
-       
-       if (Object.keys(ePayload).length > 0) {
-         var eRes = _fetch('enrollments?id=eq.' + currentE.id, 'patch', ePayload, { 'Prefer': 'return=representation' });
-         if (eRes) {
-             if (ePayload.status) currentE.status = ePayload.status;
-             if (ePayload.is_priority) currentE.is_priority = true;
-             if (ePayload.notes) currentE.notes = ePayload.notes;
-             if (ePayload.invited_date) currentE.invited_date = ePayload.invited_date;
-             if (ePayload.confirmed_date) currentE.confirmed_date = ePayload.confirmed_date;
-             restoredEnrCount++;
-         }
-       }
+      var statusBk = statusIdx !== -1 ? String(row[statusIdx] || "").toLowerCase() : "";
+      var isPrioBk = prioIdx !== -1 ? (String(row[prioIdx]).indexOf('High') !== -1) : false;
+      var notesBk = notesIdx !== -1 ? row[notesIdx] : "";
+      var invDateBk = invDateIdx !== -1 ? formatDate(row[invDateIdx]) : null;
+      var confDateBk = confDateIdx !== -1 ? formatDate(row[confDateIdx]) : null;
+      
+      var ePayload = {};
+      
+      if (statusBk && statusBk !== 'requested' && statusBk !== 'no enrollments' && currentE.status === 'requested') {
+        ePayload.status = statusBk;
+      }
+      if (isPrioBk && !currentE.is_priority) ePayload.is_priority = true;
+      if (notesBk && !currentE.notes) ePayload.notes = notesBk;
+      if (invDateBk && !currentE.invited_date) ePayload.invited_date = invDateBk;
+      if (confDateBk && !currentE.confirmed_date) ePayload.confirmed_date = confDateBk;
+      
+      if (Object.keys(ePayload).length > 0) {
+        var eRes = _fetch('enrollments?id=eq.' + currentE.id, 'patch', ePayload, { 'Prefer': 'return=representation' });
+        if (eRes) {
+          if (ePayload.status) currentE.status = ePayload.status;
+          if (ePayload.is_priority) currentE.is_priority = true;
+          if (ePayload.notes) currentE.notes = ePayload.notes;
+          if (ePayload.invited_date) currentE.invited_date = ePayload.invited_date;
+          if (ePayload.confirmed_date) currentE.confirmed_date = ePayload.confirmed_date;
+          restoredEnrCount++;
+        }
+      }
     }
   }
   
@@ -1311,14 +1416,11 @@ function restoreDataFromBackup() {
 
 /**
  * Logs a message to the Google Sheet (SystemLogs) and standard Logger.
- * @param {string} message
- * @param {string} level - 'INFO', 'ERROR', 'WARN'
  */
 function log_(message, level) {
   level = level || 'INFO';
   var timestamp = new Date();
   
-  // Also log to built-in Logger & console for standard debuggers
   var formattedMsg = '[' + level + '] ' + message;
   if (level === 'ERROR') {
     console.error(formattedMsg);
@@ -1338,10 +1440,8 @@ function log_(message, level) {
       sheet.setFrozenRows(1);
     }
     
-    // Append the log row
     sheet.appendRow([timestamp, level, message]);
     
-    // Keep logs to maximum of 1000 entries to prevent bloating the sheet
     var lastRow = sheet.getLastRow();
     if (lastRow > 1000) {
       sheet.deleteRows(2, lastRow - 1000);

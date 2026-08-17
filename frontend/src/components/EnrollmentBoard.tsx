@@ -75,13 +75,30 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         if (initialCourseFilter) setSelectedCourse(initialCourseFilter);
     }, [initialCourseFilter]);
 
-    const inviteFlowRef = useRef<{ openInviteModal: (ids: string[], bulk: boolean) => void } | null>(null);
+    const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
+    const enrollmentsRef = useRef<EnrollmentRow[]>([]);
+
     const openInviteModalProxy = useCallback((ids: string[], bulk: boolean) => {
         inviteFlowRef.current?.openInviteModal(ids, bulk);
     }, []);
 
-    const openConfirmModalSingle = useCallback((id: string, defDate: string) => { setConfirmDateTarget({ ids: [id], bulk: false }); setConfirmDate(defDate); }, []);
-    const openConfirmModalBulk = useCallback((ids: string[], defDate: string) => { setConfirmDateTarget({ ids, bulk: true }); setConfirmDate(defDate); }, []);
+    const openConfirmModalSingle = useCallback((id: string, defDate: string) => {
+        setConfirmDateTarget({ ids: [id], bulk: false });
+        setConfirmDate(defDate);
+        const first = enrollmentsRef.current.find(e => e.id === id);
+        if (first?.course_id) {
+            inviteFlowRef.current?.fetchCourseDates(first.course_id);
+        }
+    }, []);
+
+    const openConfirmModalBulk = useCallback((ids: string[], defDate: string) => {
+        setConfirmDateTarget({ ids, bulk: true });
+        setConfirmDate(defDate);
+        const first = enrollmentsRef.current.find(e => ids.includes(e.id));
+        if (first?.course_id) {
+            inviteFlowRef.current?.fetchCourseDates(first.course_id);
+        }
+    }, []);
 
     const enrollmentsHook = useEnrollments({
         showToast,
@@ -111,6 +128,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     const studentFlagsHook = useStudentFlags(showToast);
 
     const enrollments = enrollmentsHook.enrollments;
+
+    useEffect(() => {
+        enrollmentsRef.current = enrollments;
+    }, [enrollments]);
 
     // Filters derivation
     const filteredEnrollments = useMemo(() => {
@@ -614,7 +635,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             {inviteFlow.inviteDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => inviteFlow.setInviteDateTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -635,19 +656,40 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         {inviteFlow.savedInviteDates.length > 0 && (
                             <div className="mb-4">
                                 <label className="block text-xs font-medium text-muted mb-2">Saved dates</label>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {inviteFlow.savedInviteDates.map(d => (
-                                        <button
-                                            key={d}
-                                            onClick={() => inviteFlow.setInviteDate(d)}
-                                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${inviteFlow.inviteDate === d
-                                                ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-blue-300 hover:text-blue-600'
+                                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    {inviteFlow.savedInviteDates.map(d => {
+                                        const stats = inviteFlow.getDateStats(d);
+                                        const isSelected = inviteFlow.inviteDate === d;
+                                        return (
+                                            <button
+                                                key={d}
+                                                type="button"
+                                                onClick={() => inviteFlow.setInviteDate(d)}
+                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
+                                                    isSelected
+                                                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                                                        : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-100/70'
                                                 }`}
-                                        >
-                                            {formatDateLong(d)}
-                                        </button>
-                                    ))}
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
+                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-primary'}`}>
+                                                        {formatDateLong(d)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50" title="Confirmed students on this date">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                        {stats.confirmed} confirmed
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                        {stats.pending} pending
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -664,6 +706,20 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                             onChange={e => inviteFlow.setInviteDate(e.target.value)}
                             className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
                         />
+                        {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
+                            <div className="flex items-center gap-2 mt-1.5 px-1">
+                                <span className="text-[11px] text-muted">On this date:</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed} confirmed
+                                </span>
+                                <span className="text-border-subtle">•</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
+                                </span>
+                            </div>
+                        )}
 
                         <div className="mt-4">
                             <label className="block text-sm font-medium text-primary mb-1.5">
@@ -714,7 +770,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             {confirmDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setConfirmDateTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -735,19 +791,40 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         {inviteFlow.savedInviteDates.length > 0 && (
                             <div className="mb-4">
                                 <label className="block text-xs font-medium text-muted mb-2">Saved Course Dates</label>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {inviteFlow.savedInviteDates.map(d => (
-                                        <button
-                                            key={d}
-                                            onClick={() => setConfirmDate(d)}
-                                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${confirmDate === d
-                                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-emerald-300 hover:text-emerald-600'
+                                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                    {inviteFlow.savedInviteDates.map(d => {
+                                        const stats = inviteFlow.getDateStats(d);
+                                        const isSelected = confirmDate === d;
+                                        return (
+                                            <button
+                                                key={d}
+                                                type="button"
+                                                onClick={() => setConfirmDate(d)}
+                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
+                                                    isSelected
+                                                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
+                                                        : 'bg-surface border-border-subtle hover:border-emerald-300 hover:bg-surface-100/70'
                                                 }`}
-                                        >
-                                            {formatDateLong(d)}
-                                        </button>
-                                    ))}
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-emerald-500' : 'bg-transparent border border-border-subtle'}`} />
+                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-primary'}`}>
+                                                        {formatDateLong(d)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50" title="Confirmed students on this date">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                        {stats.confirmed} confirmed
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                        {stats.pending} pending
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -763,6 +840,20 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                             onChange={e => setConfirmDate(e.target.value)}
                             className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface"
                         />
+                        {confirmDate && !inviteFlow.savedInviteDates.includes(confirmDate) && (
+                            <div className="flex items-center gap-2 mt-1.5 px-1">
+                                <span className="text-[11px] text-muted">On this date:</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    {inviteFlow.getDateStats(confirmDate).confirmed} confirmed
+                                </span>
+                                <span className="text-border-subtle">•</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                    {inviteFlow.getDateStats(confirmDate).pending} pending
+                                </span>
+                            </div>
+                        )}
 
                         <div className="flex gap-3 mt-6">
                             <button

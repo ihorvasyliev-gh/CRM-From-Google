@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { formatDateLong, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
 import { getCoursePill } from './useBulkActions';
+
+export interface DateStats {
+    pending: number;
+    confirmed: number;
+}
 
 interface UseInviteFlowProps {
     enrollments: EnrollmentRow[];
@@ -24,8 +29,10 @@ export function useInviteFlow({
     const [inviteDate, setInviteDate] = useState(todayISO());
     const [responseDays, setResponseDays] = useState(7);
     const [savedInviteDates, setSavedInviteDates] = useState<string[]>([]);
+    const [targetCourseId, setTargetCourseId] = useState<string | null>(null);
 
     async function fetchCourseDates(courseId: string) {
+        setTargetCourseId(courseId);
         const today = todayISO();
         const { data } = await supabase
             .from('invite_dates')
@@ -43,8 +50,48 @@ export function useInviteFlow({
         const first = enrollments.find(e => ids.includes(e.id));
         if (first && first.course_id) {
             fetchCourseDates(first.course_id);
+        } else {
+            setTargetCourseId(null);
+            setSavedInviteDates([]);
         }
     }
+
+    const getDateStats = useCallback((dateStr: string, courseIdOverride?: string | null): DateStats => {
+        if (!dateStr) return { pending: 0, confirmed: 0 };
+        const cleanDate = dateStr.split('T')[0];
+        const effectiveCourseId = courseIdOverride !== undefined ? courseIdOverride : targetCourseId;
+        const now = Date.now();
+
+        let pending = 0;
+        let confirmed = 0;
+
+        for (const e of enrollments) {
+            if (effectiveCourseId && e.course_id !== effectiveCourseId) continue;
+
+            const invitedD = e.invited_date ? e.invited_date.split('T')[0] : null;
+            const confirmedD = e.confirmed_date ? e.confirmed_date.split('T')[0] : null;
+
+            // Pending: status 'invited', invited_date matches, and deadline not expired
+            if (e.status === 'invited' && invitedD === cleanDate) {
+                const days = e.response_days ?? 7;
+                const isExpired = e.invited_at
+                    ? new Date(e.invited_at).getTime() + days * 24 * 60 * 60 * 1000 < now
+                    : false;
+                if (!isExpired) {
+                    pending++;
+                }
+            }
+
+            // Confirmed: status 'confirmed' and matching date
+            if (e.status === 'confirmed') {
+                if (confirmedD === cleanDate || (!confirmedD && invitedD === cleanDate)) {
+                    confirmed++;
+                }
+            }
+        }
+
+        return { pending, confirmed };
+    }, [enrollments, targetCourseId]);
 
     const inviteMutation = useMutation({
         mutationFn: async ({ ids, date, days }: { ids: string[], date: string, days: number }) => {
@@ -156,7 +203,6 @@ export function useInviteFlow({
         setInviteDateTarget(null);
     }
 
-
     return {
         inviteDateTarget,
         setInviteDateTarget,
@@ -165,6 +211,9 @@ export function useInviteFlow({
         responseDays,
         setResponseDays,
         savedInviteDates,
+        targetCourseId,
+        fetchCourseDates,
+        getDateStats,
         openInviteModal,
         handleInviteWithDate,
         handleInviteAndEmail
