@@ -36,6 +36,7 @@ function onOpen() {
     .createMenu('🔄 CRM Sync (v2.4)')
     .addItem('⬇️ Upload from Supabase to CRM Mirror', 'syncFromSupabase')
     .addSeparator()
+    .addItem('📞 Sync Missing Phone Numbers', 'syncMissingPhoneNumbers')
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
     .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
     .addSeparator()
@@ -51,6 +52,50 @@ function onOpen() {
 // ==========================================
 // FORM → SUPABASE (Upload)
 // ==========================================
+
+/**
+ * Helper to identify phone/mobile header names in English, Russian, Ukrainian, etc.
+ */
+function isPhoneHeader_(h) {
+  if (!h) return false;
+  var s = String(h).trim().toLowerCase();
+  if (s.indexOf('pps') !== -1 || s.indexOf('ppsn') !== -1 || s.indexOf('eircode') !== -1 || s.indexOf('score') !== -1) {
+    return false;
+  }
+  return (
+    s.indexOf('phone') !== -1 ||
+    s.indexOf('mobile') !== -1 ||
+    s.indexOf('телефон') !== -1 ||
+    s.indexOf('номер') !== -1 ||
+    s.indexOf('тел') !== -1 ||
+    s.indexOf('tel') !== -1 ||
+    s.indexOf('cell') !== -1 ||
+    s.indexOf('contact') !== -1 ||
+    s.indexOf('whatsapp') !== -1 ||
+    s.indexOf('number') !== -1
+  );
+}
+
+/**
+ * Helper to compare first/last names flexibly (ignoring punctuation, case, order).
+ */
+function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
+  var f1 = String(firstName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+  var l1 = String(lastName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+  var f2 = String(firstName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+  var l2 = String(lastName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
+  
+  if (!f1 || !l1 || !f2 || !l2) return false;
+  if (f1 === f2 && l1 === l2) return true;
+  if (f1 === l2 && l1 === f2) return true;
+  
+  var full1 = f1 + l1;
+  var full2 = f2 + l2;
+  var full2Swap = l2 + f2;
+  if (full1 === full2 || full1 === full2Swap) return true;
+  
+  return false;
+}
 
 /**
  * Checks whether a header string corresponds to a standard student field
@@ -74,7 +119,7 @@ function isNonCourseHeader_(header) {
   if (h.indexOf('first name') !== -1 || h.indexOf('first_name') !== -1 || h === 'имя' || h === 'firstname' || h === 'first-name') return true;
   if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') return true;
   if (h.indexOf('full name') !== -1 || h.indexOf('fullname') !== -1 || h === 'фио') return true;
-  if (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1 || h === 'tel' || h === 'cell') return true;
+  if (isPhoneHeader_(h)) return true;
   if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) return true;
   if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) return true;
   if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) return true;
@@ -126,7 +171,7 @@ function getSourceHeaderMap_(headers) {
     } else if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') {
       if (map.lastName === -1) map.lastName = c;
       knownIndices[c] = true;
-    } else if (h.indexOf('phone') !== -1 || h.indexOf('mobile') !== -1 || h.indexOf('телефон') !== -1 || h.indexOf('номер') !== -1 || h === 'tel' || h === 'cell') {
+    } else if (isPhoneHeader_(h)) {
       if (map.phone === -1) map.phone = c;
       knownIndices[c] = true;
     } else if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) {
@@ -143,18 +188,18 @@ function getSourceHeaderMap_(headers) {
     }
   }
 
-  // Fallbacks for standard Form Layout (Timestamp, First, Last, Phone, Email, Address, Eircode, DOB)
-  if (map.timestamp === -1 && headers.length > 0) map.timestamp = 0;
-  if (map.firstName === -1 && headers.length > 1) map.firstName = 1;
-  if (map.lastName === -1 && headers.length > 2) map.lastName = 2;
-  if (map.phone === -1 && headers.length > 3) map.phone = 3;
-  if (map.email === -1 && headers.length > 4) {
+  // Safe fallbacks only for columns not explicitly identified and not colliding with already identified columns
+  if (map.timestamp === -1 && headers.length > 0 && !knownIndices[0]) map.timestamp = 0;
+  if (map.firstName === -1 && headers.length > 1 && !knownIndices[1]) map.firstName = 1;
+  if (map.lastName === -1 && headers.length > 2 && !knownIndices[2]) map.lastName = 2;
+  if (map.phone === -1 && headers.length > 3 && !knownIndices[3]) map.phone = 3;
+  if (map.email === -1 && headers.length > 4 && !knownIndices[4]) {
     map.email = 4;
     map.emailIndices.push(4);
   }
-  if (map.address === -1 && headers.length > 5) map.address = 5;
-  if (map.eircode === -1 && headers.length > 6) map.eircode = 6;
-  if (map.dob === -1 && headers.length > 7) map.dob = 7;
+  if (map.address === -1 && headers.length > 5 && !knownIndices[5]) map.address = 5;
+  if (map.eircode === -1 && headers.length > 6 && !knownIndices[6]) map.eircode = 6;
+  if (map.dob === -1 && headers.length > 7 && !knownIndices[7]) map.dob = 7;
 
   if (map.timestamp !== -1) knownIndices[map.timestamp] = true;
   if (map.firstName !== -1) knownIndices[map.firstName] = true;
@@ -415,24 +460,6 @@ function syncRowsRange(sheet, startRow, endRow) {
     existingByEmail[emailKey].push(ext);
   }
 
-  function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
-    var f1 = String(firstName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-    var l1 = String(lastName1 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-    var f2 = String(firstName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-    var l2 = String(lastName2 || "").trim().toLowerCase().replace(/[^a-z0-9\u0400-\u04FF]/g, '');
-    
-    if (!f1 || !l1 || !f2 || !l2) return false;
-    if (f1 === f2 && l1 === l2) return true;
-    if (f1 === l2 && l1 === f2) return true;
-    
-    var full1 = f1 + l1;
-    var full2 = f2 + l2;
-    var full2Swap = l2 + f2;
-    if (full1 === full2 || full1 === full2Swap) return true;
-    
-    return false;
-  }
-
   var keyToIdMap = {};
   var studentsToInsert = [];
 
@@ -455,7 +482,7 @@ function syncRowsRange(sheet, startRow, endRow) {
       var patchPayload = {};
       if (!matchedStudent.first_name && s.first_name) patchPayload.first_name = s.first_name;
       if (!matchedStudent.last_name && s.last_name) patchPayload.last_name = s.last_name;
-      if (!matchedStudent.phone && s.phone) patchPayload.phone = s.phone;
+      if ((!matchedStudent.phone || String(matchedStudent.phone).trim() === '' || matchedStudent.phone === '+0000000') && s.phone) patchPayload.phone = s.phone;
       if (!matchedStudent.address && s.address) patchPayload.address = s.address;
       if (!matchedStudent.eircode && s.eircode) patchPayload.eircode = s.eircode;
       if (!matchedStudent.dob && s.dob) patchPayload.dob = s.dob;
@@ -1616,4 +1643,132 @@ function cleanUpBogusEmailCourses() {
     if (deletedEnrollments > 0) msg += " & " + deletedEnrollments + " invalid enrollment(s)";
     ss.toast(msg + "!", "Cleanup ✅");
   }
+}
+
+// ==========================================
+// PHONE NUMBERS SYNC
+// ==========================================
+
+/**
+ * Fast dedicated function to scan all rows in the Google Sheet,
+ * find students whose phone number is missing in Supabase, and update them.
+ */
+function syncMissingPhoneNumbers() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
+  if (!sheet) {
+    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
+    return;
+  }
+
+  var lastRow = sheet.getLastRow();
+  var numCols = sheet.getLastColumn();
+  if (lastRow < 2 || numCols < 3) {
+    ss.toast('No data in ' + SOURCE_SHEET_NAME, 'CRM Sync');
+    return;
+  }
+
+  ss.toast('Fetching students from Supabase...', 'Phone Sync');
+  var allStudents = _fetchAll('students', 'select=id,first_name,last_name,email,phone');
+  if (!allStudents || allStudents.length === 0) {
+    ss.toast('No students found in Supabase.', 'Error');
+    return;
+  }
+
+  var studentsByEmail = {};
+  var studentsByName = {};
+  for (var i = 0; i < allStudents.length; i++) {
+    var st = allStudents[i];
+    if (st.email) {
+      var emKey = String(st.email).trim().toLowerCase();
+      if (!studentsByEmail[emKey]) studentsByEmail[emKey] = [];
+      studentsByEmail[emKey].push(st);
+    }
+    var nameKey = (String(st.first_name || '').trim().toLowerCase() + '|' + String(st.last_name || '').trim().toLowerCase()).replace(/\s+/g, '');
+    if (nameKey !== '|') {
+      studentsByName[nameKey] = st;
+    }
+  }
+
+  var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
+  var headerMap = getSourceHeaderMap_(headers);
+
+  if (headerMap.phone === -1) {
+    ss.toast('Could not detect Phone column in ' + SOURCE_SHEET_NAME + '. Check column headers.', 'Error');
+    return;
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+  var updatedCount = 0;
+  var alreadySetCount = 0;
+  var notFoundCount = 0;
+
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var rawPhone = row[headerMap.phone];
+    var normalizedPhone = normalizePhone(rawPhone);
+    if (!normalizedPhone) continue;
+
+    var email = '';
+    if (headerMap.email !== -1 && row[headerMap.email]) {
+      email = String(row[headerMap.email]).trim().toLowerCase();
+    }
+    if (!email && headerMap.emailIndices && headerMap.emailIndices.length > 0) {
+      for (var ei = 0; ei < headerMap.emailIndices.length; ei++) {
+        var altVal = row[headerMap.emailIndices[ei]];
+        if (altVal && String(altVal).trim()) {
+          email = String(altVal).trim().toLowerCase();
+          break;
+        }
+      }
+    }
+
+    var fName = headerMap.firstName !== -1 ? String(row[headerMap.firstName] || '').trim() : '';
+    var lName = headerMap.lastName !== -1 ? String(row[headerMap.lastName] || '').trim() : '';
+
+    var targetStudent = null;
+    if (email && studentsByEmail[email]) {
+      var candidates = studentsByEmail[email];
+      for (var c = 0; c < candidates.length; c++) {
+        if (areNamesSimilar_(fName, lName, candidates[c].first_name, candidates[c].last_name)) {
+          targetStudent = candidates[c];
+          break;
+        }
+      }
+      if (!targetStudent && candidates.length === 1) {
+        targetStudent = candidates[0];
+      }
+    }
+
+    if (!targetStudent) {
+      var nKey = (fName.toLowerCase() + '|' + lName.toLowerCase()).replace(/\s+/g, '');
+      if (studentsByName[nKey]) {
+        targetStudent = studentsByName[nKey];
+      }
+    }
+
+    if (!targetStudent) {
+      notFoundCount++;
+      continue;
+    }
+
+    var currPhone = targetStudent.phone ? String(targetStudent.phone).trim() : '';
+    if (!currPhone || currPhone === '' || currPhone === '+0000000') {
+      var res = _fetch('students?id=eq.' + targetStudent.id, 'patch', { 
+        phone: normalizedPhone,
+        last_synced_at: new Date().toISOString()
+      });
+      if (res !== null) {
+        targetStudent.phone = normalizedPhone;
+        updatedCount++;
+        Logger.log('Updated phone for ' + targetStudent.first_name + ' ' + targetStudent.last_name + ' (' + targetStudent.email + ') -> ' + normalizedPhone);
+      }
+    } else {
+      alreadySetCount++;
+    }
+  }
+
+  var summary = '✅ Done! Updated ' + updatedCount + ' phone numbers.';
+  if (alreadySetCount > 0) summary += ' (' + alreadySetCount + ' already set)';
+  ss.toast(summary, 'Phone Sync Complete');
 }
