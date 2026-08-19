@@ -2,13 +2,16 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerCourse, ViewerCourseRosterItem, getAvatarGradient, cleanVariant } from '../lib/types';
+import { formatDateDMY } from '../lib/dateUtils';
+import { exportViewerRosterToExcel } from '../lib/excelExport';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRequestCompletion } from '../hooks/useApprovals';
 import Toast, { ToastData } from './Toast';
 import {
     BookOpen, Search, ArrowLeft, Users, Clock, CheckCircle,
     GraduationCap, CheckSquare, Square, Calendar, Loader2,
-    AlertCircle, RefreshCw, Star, ArrowDownUp, ArrowUpDown, CaseSensitive
+    AlertCircle, RefreshCw, Star, ArrowDownUp, ArrowUpDown, CaseSensitive,
+    Download, FileSpreadsheet
 } from 'lucide-react';
 
 const STATUS_TABS = [
@@ -21,11 +24,7 @@ const STATUS_TABS = [
 
 function formatDate(dateStr: string | null | undefined) {
     if (!dateStr) return null;
-    try {
-        return new Date(dateStr).toLocaleDateString('en-IE');
-    } catch {
-        return dateStr;
-    }
+    return formatDateDMY(dateStr);
 }
 
 export default function ViewerCourses() {
@@ -38,9 +37,11 @@ export default function ViewerCourses() {
     const [selectedStatusTab, setSelectedStatusTab] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<'queue' | 'date-desc' | 'name'>('queue');
     const [selectedVariant, setSelectedVariant] = useState<string>('all');
+    const [selectedDateFilter, setSelectedDateFilter] = useState<string>('all');
 
-    // Selection for bulk completion
+    // Selection for bulk completion & export
     const [selectedEnrollmentIds, setSelectedEnrollmentIds] = useState<Set<string>>(new Set());
+    const [isExporting, setIsExporting] = useState(false);
 
     // Date Modal state
     const [dateModalOpen, setDateModalOpen] = useState(false);
@@ -126,6 +127,33 @@ export default function ViewerCourses() {
         return Array.from(variants);
     }, [roster, selectedCourse]);
 
+    // Extract unique dates with student counts for confirmed / invited tabs
+    const availableDates = useMemo(() => {
+        if (selectedStatusTab !== 'confirmed' && selectedStatusTab !== 'invited') {
+            return [];
+        }
+
+        const dateMap = new Map<string, number>();
+
+        roster.forEach(item => {
+            // If variant filter is active, respect it
+            if (selectedVariant !== 'all') {
+                const cleaned = cleanVariant(selectedCourse?.name || '', item.course_variant);
+                if (cleaned.toLowerCase() !== selectedVariant.toLowerCase()) return;
+            }
+
+            if (selectedStatusTab === 'confirmed' && item.confirmed_date) {
+                dateMap.set(item.confirmed_date, (dateMap.get(item.confirmed_date) || 0) + 1);
+            } else if (selectedStatusTab === 'invited' && item.invited_date) {
+                dateMap.set(item.invited_date, (dateMap.get(item.invited_date) || 0) + 1);
+            }
+        });
+
+        return Array.from(dateMap.entries())
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [roster, selectedStatusTab, selectedVariant, selectedCourse]);
+
     // Sorted and filtered roster
     const sortedRoster = useMemo(() => {
         let list = [...roster];
@@ -136,6 +164,15 @@ export default function ViewerCourses() {
                 const cleaned = cleanVariant(selectedCourse?.name || '', item.course_variant);
                 return cleaned.toLowerCase() === selectedVariant.toLowerCase();
             });
+        }
+
+        // Filter by date if selected
+        if (selectedDateFilter !== 'all') {
+            if (selectedStatusTab === 'confirmed') {
+                list = list.filter(item => item.confirmed_date === selectedDateFilter);
+            } else if (selectedStatusTab === 'invited') {
+                list = list.filter(item => item.invited_date === selectedDateFilter);
+            }
         }
 
         return list.sort((a, b) => {
@@ -190,7 +227,7 @@ export default function ViewerCourses() {
             }
             return 0;
         });
-    }, [roster, sortOrder, selectedVariant, selectedStatusTab, selectedCourse]);
+    }, [roster, sortOrder, selectedVariant, selectedDateFilter, selectedStatusTab, selectedCourse]);
 
     // Filter courses for catalog search
     const filteredCourses = useMemo(() => {
@@ -263,6 +300,63 @@ export default function ViewerCourses() {
         }
     };
 
+    const handleExportSelected = async () => {
+        if (selectedEnrollmentIds.size === 0 || !selectedCourse) return;
+        const selectedItems = sortedRoster.filter(item => selectedEnrollmentIds.has(item.enrollment_id));
+        if (selectedItems.length === 0) return;
+
+        try {
+            setIsExporting(true);
+            const filterLabel = `${selectedStatusTab}_selected_${selectedItems.length}`;
+            await exportViewerRosterToExcel({
+                items: selectedItems,
+                courseName: selectedCourse.name,
+                filterLabel,
+            });
+            setToast({
+                message: `Exported ${selectedItems.length} student(s) to Excel!`,
+                type: 'success',
+            });
+        } catch (err: any) {
+            console.error('Failed to export to Excel:', err);
+            setToast({
+                message: err.message || 'Failed to export to Excel',
+                type: 'error',
+            });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleExportFullRoster = async () => {
+        if (!selectedCourse || sortedRoster.length === 0) return;
+
+        try {
+            setIsExporting(true);
+            let filterLabel = selectedStatusTab;
+            if (selectedDateFilter !== 'all') {
+                filterLabel += `_${selectedDateFilter}`;
+            }
+            await exportViewerRosterToExcel({
+                items: sortedRoster,
+                courseName: selectedCourse.name,
+                filterLabel,
+            });
+            setToast({
+                message: `Exported ${sortedRoster.length} student(s) to Excel!`,
+                type: 'success',
+            });
+        } catch (err: any) {
+            console.error('Failed to export to Excel:', err);
+            setToast({
+                message: err.message || 'Failed to export to Excel',
+                type: 'error',
+            });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     // ─────────────────────────────────────────────────────────
     // RENDER: ROSTER VIEW
     // ─────────────────────────────────────────────────────────
@@ -279,6 +373,7 @@ export default function ViewerCourses() {
                                 setRosterSearch('');
                                 setSelectedStatusTab('all');
                                 setSelectedVariant('all');
+                                setSelectedDateFilter('all');
                                 setSortOrder('queue');
                             }}
                             className="p-2 bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl text-muted hover:text-primary transition-all flex items-center gap-1.5 text-xs font-semibold"
@@ -305,13 +400,22 @@ export default function ViewerCourses() {
 
                     {/* Quick batch action button */}
                     {selectedEnrollmentIds.size > 0 && (
-                        <div className="flex items-center gap-2 animate-fadeIn">
+                        <div className="flex items-center gap-2 animate-fadeIn flex-wrap">
                             <span className="text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-1.5 rounded-xl border border-brand-500/20">
                                 {selectedEnrollmentIds.size} selected
                             </span>
                             <button
+                                onClick={handleExportSelected}
+                                disabled={isExporting}
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-surface-elevated hover:bg-surface border border-border-strong rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                title="Download Excel file for selected students"
+                            >
+                                {isExporting ? <Loader2 size={15} className="animate-spin text-brand-500" /> : <FileSpreadsheet size={15} className="text-emerald-500" />}
+                                <span>Export Excel ({selectedEnrollmentIds.size})</span>
+                            </button>
+                            <button
                                 onClick={openBatchCompletionModal}
-                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm active:scale-95"
                             >
                                 <GraduationCap size={15} />
                                 <span>Mark Selected as Completed</span>
@@ -338,6 +442,7 @@ export default function ViewerCourses() {
                                         key={tab.key}
                                         onClick={() => {
                                             setSelectedStatusTab(tab.key);
+                                            setSelectedDateFilter('all');
                                             setSelectedEnrollmentIds(new Set());
                                         }}
                                         className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex-shrink-0 flex items-center gap-1.5 border ${
@@ -370,7 +475,63 @@ export default function ViewerCourses() {
                         </div>
                     </div>
 
-                    {/* Sub-toolbar: Sort Controls + Variants (if any) + Refresh */}
+                    {/* Date Filter Chips (for Confirmed and Invited tabs) */}
+                    {availableDates.length > 0 && (
+                        <div className="pt-2.5 border-t border-border-subtle/50 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none animate-fadeIn">
+                            <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
+                                <Calendar size={13} className="text-brand-500" />
+                                <span className="text-[11px] uppercase tracking-wider">
+                                    {selectedStatusTab === 'confirmed' ? 'Course Dates:' : 'Invited Dates:'}
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setSelectedDateFilter('all');
+                                    setSelectedEnrollmentIds(new Set());
+                                }}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all ${
+                                    selectedDateFilter === 'all'
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                        : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
+                                }`}
+                            >
+                                <span>All Dates</span>
+                                <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
+                                    selectedDateFilter === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                                }`}>
+                                    {availableDates.reduce((sum, d) => sum + d.count, 0)}
+                                </span>
+                            </button>
+
+                            {availableDates.map(({ date, count }) => {
+                                const isActive = selectedDateFilter === date;
+                                return (
+                                    <button
+                                        key={date}
+                                        onClick={() => {
+                                            setSelectedDateFilter(isActive ? 'all' : date);
+                                            setSelectedEnrollmentIds(new Set());
+                                        }}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
+                                            isActive
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-emerald-500/50 hover:text-primary'
+                                        }`}
+                                    >
+                                        <span>{formatDateDMY(date)}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                            isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Sub-toolbar: Sort Controls + Variants (if any) + Export Roster + Refresh */}
                     <div className="pt-2.5 border-t border-border-subtle/50 flex flex-wrap items-center justify-between gap-2.5">
                         {/* Sort pills */}
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -398,7 +559,7 @@ export default function ViewerCourses() {
                             ))}
                         </div>
 
-                        {/* Right: Variants Filter (if available) & Refresh */}
+                        {/* Right: Variants Filter (if available) & Export Roster & Refresh */}
                         <div className="flex items-center gap-2 flex-wrap">
                             {availableVariants.length > 1 && (
                                 <div className="flex items-center gap-1">
@@ -427,6 +588,16 @@ export default function ViewerCourses() {
                                     ))}
                                 </div>
                             )}
+
+                            <button
+                                onClick={handleExportFullRoster}
+                                disabled={isExporting || sortedRoster.length === 0}
+                                className="flex items-center gap-1 text-muted hover:text-primary transition-colors text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-emerald-500/50 disabled:opacity-50 active:scale-95"
+                                title="Export current roster to Excel"
+                            >
+                                {isExporting ? <Loader2 size={12} className="animate-spin text-brand-500" /> : <Download size={12} className="text-emerald-500" />}
+                                <span>Export Roster</span>
+                            </button>
 
                             <button
                                 onClick={() => refetchRoster()}

@@ -4,11 +4,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ViewerCourses from './ViewerCourses';
 import { supabase } from '../lib/supabase';
+import { exportViewerRosterToExcel } from '../lib/excelExport';
 
 vi.mock('../lib/supabase', () => ({
     supabase: {
         rpc: vi.fn(),
     },
+}));
+
+vi.mock('../lib/excelExport', () => ({
+    exportViewerRosterToExcel: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderWithClient(ui: React.ReactElement) {
@@ -234,5 +239,235 @@ describe('ViewerCourses Component', () => {
         // 3. Click Phone
         fireEvent.click(screen.getByText('• 111'));
         expect(writeTextMock).toHaveBeenCalledWith('111');
+    });
+
+    it('renders date filter chips and filters students by confirmed_date', async () => {
+        const confirmedRoster = [
+            {
+                enrollment_id: 'en-c1',
+                student_id: 'st-c1',
+                first_name: 'David',
+                last_name: 'Miller',
+                email: 'david@example.com',
+                phone: '444',
+                status: 'confirmed',
+                course_variant: null,
+                notes: null,
+                is_priority: false,
+                queue_position: null,
+                invited_date: '2026-08-20',
+                invited_at: null,
+                confirmed_date: '2026-08-28',
+                confirmed_at: null,
+                completed_date: null,
+                completed_at: null,
+                pending_completion_date: null,
+                completion_request_status: 'none',
+                completion_requested_at: null,
+                completion_requested_by: null,
+                completion_rejection_reason: null,
+                created_at: '2026-01-01T00:00:00Z',
+            },
+            {
+                enrollment_id: 'en-c2',
+                student_id: 'st-c2',
+                first_name: 'Emma',
+                last_name: 'Watson',
+                email: 'emma@example.com',
+                phone: '555',
+                status: 'confirmed',
+                course_variant: null,
+                notes: null,
+                is_priority: false,
+                queue_position: null,
+                invited_date: '2026-08-20',
+                invited_at: null,
+                confirmed_date: '2026-08-28',
+                confirmed_at: null,
+                completed_date: null,
+                completed_at: null,
+                pending_completion_date: null,
+                completion_request_status: 'none',
+                completion_requested_at: null,
+                completion_requested_by: null,
+                completion_rejection_reason: null,
+                created_at: '2026-01-02T00:00:00Z',
+            },
+            {
+                enrollment_id: 'en-c3',
+                student_id: 'st-c3',
+                first_name: 'Frank',
+                last_name: 'Sinatra',
+                email: 'frank@example.com',
+                phone: '666',
+                status: 'confirmed',
+                course_variant: null,
+                notes: null,
+                is_priority: false,
+                queue_position: null,
+                invited_date: '2026-08-20',
+                invited_at: null,
+                confirmed_date: '2026-08-29',
+                confirmed_at: null,
+                completed_date: null,
+                completed_at: null,
+                pending_completion_date: null,
+                completion_request_status: 'none',
+                completion_requested_at: null,
+                completion_requested_by: null,
+                completion_rejection_reason: null,
+                created_at: '2026-01-03T00:00:00Z',
+            },
+        ];
+
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({
+                    data: [{
+                        id: 'course-1',
+                        name: 'Patient moving and handling',
+                        created_at: '2026-01-01T00:00:00Z',
+                        total_count: 3,
+                        requested_count: 0,
+                        invited_count: 0,
+                        confirmed_count: 3,
+                        completed_count: 0,
+                        rejected_count: 0,
+                        pending_approval_count: 0,
+                    }],
+                    error: null
+                });
+            }
+            if (rpcName === 'get_viewer_course_roster') {
+                return Promise.resolve({ data: confirmedRoster, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => expect(screen.getByText('Patient moving and handling')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('Patient moving and handling'));
+
+        // Switch to Confirmed tab
+        await waitFor(() => expect(screen.getByRole('button', { name: /Confirmed/i })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: /Confirmed/i }));
+
+        // Check that date filter chips appear
+        await waitFor(() => {
+            expect(screen.getByText(/Course Dates:/i)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /All Dates/i })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /28\/08\/2026/i })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /29\/08\/2026/i })).toBeInTheDocument();
+        });
+
+        // Initially shows all 3 confirmed students
+        expect(screen.getByText('David Miller')).toBeInTheDocument();
+        expect(screen.getByText('Emma Watson')).toBeInTheDocument();
+        expect(screen.getByText('Frank Sinatra')).toBeInTheDocument();
+
+        // Click on 28/08/2026 chip (has 2 students)
+        fireEvent.click(screen.getByRole('button', { name: /28\/08\/2026/i }));
+
+        // Now Frank Sinatra (29/08/2026) should NOT be shown
+        expect(screen.getByText('David Miller')).toBeInTheDocument();
+        expect(screen.getByText('Emma Watson')).toBeInTheDocument();
+        expect(screen.queryByText('Frank Sinatra')).not.toBeInTheDocument();
+
+        // Click on 29/08/2026 chip
+        fireEvent.click(screen.getByRole('button', { name: /29\/08\/2026/i }));
+        expect(screen.queryByText('David Miller')).not.toBeInTheDocument();
+        expect(screen.queryByText('Emma Watson')).not.toBeInTheDocument();
+        expect(screen.getByText('Frank Sinatra')).toBeInTheDocument();
+    });
+
+    it('handles batch selection and triggers Excel export', async () => {
+        const confirmedRoster = [
+            {
+                enrollment_id: 'en-c1',
+                student_id: 'st-c1',
+                first_name: 'David',
+                last_name: 'Miller',
+                email: 'david@example.com',
+                phone: '444',
+                status: 'confirmed',
+                course_variant: 'Manual Handling',
+                notes: null,
+                is_priority: false,
+                queue_position: null,
+                invited_date: '2026-08-20',
+                invited_at: null,
+                confirmed_date: '2026-08-28',
+                confirmed_at: null,
+                completed_date: null,
+                completed_at: null,
+                pending_completion_date: null,
+                completion_request_status: 'none',
+                completion_requested_at: null,
+                completion_requested_by: null,
+                completion_rejection_reason: null,
+                created_at: '2026-01-01T00:00:00Z',
+            },
+        ];
+
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({
+                    data: [{
+                        id: 'course-1',
+                        name: 'First Aid Training',
+                        created_at: '2026-01-01T00:00:00Z',
+                        total_count: 1,
+                        requested_count: 0,
+                        invited_count: 0,
+                        confirmed_count: 1,
+                        completed_count: 0,
+                        rejected_count: 0,
+                        pending_approval_count: 0,
+                    }],
+                    error: null
+                });
+            }
+            if (rpcName === 'get_viewer_course_roster') {
+                return Promise.resolve({ data: confirmedRoster, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => expect(screen.getByText('First Aid Training')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('First Aid Training'));
+
+        await waitFor(() => expect(screen.getByText('David Miller')).toBeInTheDocument());
+
+        // Test Export Roster button
+        const exportRosterBtn = screen.getByRole('button', { name: /Export Roster/i });
+        fireEvent.click(exportRosterBtn);
+
+        await waitFor(() => {
+            expect(exportViewerRosterToExcel).toHaveBeenCalledWith(expect.objectContaining({
+                courseName: 'First Aid Training',
+                items: expect.arrayContaining([expect.objectContaining({ first_name: 'David' })]),
+            }));
+        });
+
+        // Test Select All and batch Export Excel button
+        const selectAllBtn = screen.getByText(/Select All Non-Completed/i);
+        fireEvent.click(selectAllBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('1 selected')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Export Excel \(1\)/i })).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /Export Excel \(1\)/i }));
+
+        await waitFor(() => {
+            expect(exportViewerRosterToExcel).toHaveBeenCalledWith(expect.objectContaining({
+                courseName: 'First Aid Training',
+                filterLabel: expect.stringContaining('selected_1'),
+            }));
+        });
     });
 });
