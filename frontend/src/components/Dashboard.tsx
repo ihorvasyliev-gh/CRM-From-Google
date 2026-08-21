@@ -384,15 +384,18 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
             for (const dKey of sortedDates) {
                 const dayData = otherDaysMap.get(dKey)!;
                 
-                // Group by courseName on this other day
+                // Group by courseName + status on this other day
                 const otherCourseGroups = new Map<string, typeof dayData.enrollments>();
                 for (const en of dayData.enrollments) {
-                    const existing = otherCourseGroups.get(en.courseName) || [];
+                    const groupKey = `${en.courseName}:::${en.status}`;
+                    const existing = otherCourseGroups.get(groupKey) || [];
                     existing.push(en);
-                    otherCourseGroups.set(en.courseName, existing);
+                    otherCourseGroups.set(groupKey, existing);
                 }
 
-                const groupedOtherEnrollments = Array.from(otherCourseGroups.entries()).map(([courseName, ens]) => {
+                const groupedOtherEnrollments = Array.from(otherCourseGroups.entries()).map(([_, ens]) => {
+                    const courseName = ens[0].courseName;
+                    const status = ens[0].status;
                     const variants = ens
                         .map(en => cleanVariant(courseName, en.courseVariant))
                         .filter((v, idx, self) => v && self.indexOf(v) === idx);
@@ -401,8 +404,21 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
                         id: first.id,
                         courseName,
                         courseVariant: variants.length > 0 ? variants.join(', ') : null,
-                        status: first.status,
+                        status,
                     };
+                }).sort((a, b) => {
+                    const STATUS_PRIORITY: Record<string, number> = {
+                        confirmed: 1,
+                        invited: 2,
+                        completed: 3,
+                        requested: 4,
+                        withdrawn: 5,
+                        rejected: 6,
+                    };
+                    const pA = STATUS_PRIORITY[a.status] || 99;
+                    const pB = STATUS_PRIORITY[b.status] || 99;
+                    if (pA !== pB) return pA - pB;
+                    return a.courseName.localeCompare(b.courseName);
                 });
 
                 for (const en of groupedOtherEnrollments) {
@@ -416,15 +432,18 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
                 }
             }
 
-            // Combine enrollments of the same course name on this day
+            // Combine enrollments of the same course name + status on this day
             const courseGroups = new Map<string, typeof group.enrollments>();
             for (const en of group.enrollments) {
-                const existing = courseGroups.get(en.courseName) || [];
+                const groupKey = `${en.courseName}:::${en.status}`;
+                const existing = courseGroups.get(groupKey) || [];
                 existing.push(en);
-                courseGroups.set(en.courseName, existing);
+                courseGroups.set(groupKey, existing);
             }
 
-            group.enrollments = Array.from(courseGroups.entries()).map(([courseName, ens]) => {
+            group.enrollments = Array.from(courseGroups.entries()).map(([_, ens]) => {
+                const courseName = ens[0].courseName;
+                const status = ens[0].status;
                 // Clean and extract all unique variants
                 const variants = ens
                     .map(en => cleanVariant(courseName, en.courseVariant))
@@ -435,16 +454,29 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
                     id: first.id,
                     courseName,
                     courseVariant: variants.length > 0 ? variants.join(', ') : null,
-                    status: first.status,
+                    status,
                 };
+            }).sort((a, b) => {
+                const STATUS_PRIORITY: Record<string, number> = {
+                    confirmed: 1,
+                    invited: 2,
+                    completed: 3,
+                    requested: 4,
+                    withdrawn: 5,
+                    rejected: 6,
+                };
+                const pA = STATUS_PRIORITY[a.status] || 99;
+                const pB = STATUS_PRIORITY[b.status] || 99;
+                if (pA !== pB) return pA - pB;
+                return a.courseName.localeCompare(b.courseName);
             });
         }
 
         // Sort by date descending
         let sorted = allGroupsList.sort((a, b) => b.date.localeCompare(a.date));
 
-        // Apply status filter at group level (for non-invited/confirmed filters)
-        if (activityFilter !== 'all' && activityFilter !== 'invited' && activityFilter !== 'confirmed') {
+        // Apply status filter at group level
+        if (activityFilter !== 'all') {
             sorted = sorted.filter(g => g.enrollments.some(en => en.status === activityFilter));
         }
 
