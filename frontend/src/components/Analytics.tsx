@@ -1,16 +1,28 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, Users, Calendar, Download, Briefcase } from 'lucide-react';
+import { 
+    LayoutDashboard, 
+    BookOpen, 
+    Users, 
+    Briefcase, 
+    FileSpreadsheet, 
+    Download
+} from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import type { Student } from '../lib/types';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { cleanVariant } from '../lib/types';
 
+import GlobalFilterBar, { AnalyticsFilterState } from './Analytics/GlobalFilterBar';
 import OverviewTab from './Analytics/OverviewTab';
+import CoursePerformanceTab from './Analytics/CoursePerformanceTab';
 import DemographicsTab from './Analytics/DemographicsTab';
 import OutcomesTab from './Analytics/OutcomesTab';
+import ReportsTab from './Analytics/ReportsTab';
 import DrillDownModal from './Analytics/DrillDownModal';
-
-
+import StudentDetail from './StudentDetail';
+import { exportExecutiveExcelReport } from './Analytics/analyticsUtils';
 
 // Helper to fetch employment statuses
 async function fetchEmploymentStatuses() {
@@ -31,17 +43,37 @@ async function fetchEmploymentStatuses() {
     return allData;
 }
 
+type TabType = 'overview' | 'courses' | 'demographics' | 'outcomes' | 'reports';
+
 export default function Analytics() {
-    const [activeTab, setActiveTab] = useState<'overview' | 'demographics' | 'outcomes'>('overview');
-    const [dateFilter, setDateFilter] = useState<'all' | '30' | '90' | '365'>('all');
+    const [activeTab, setActiveTab] = useState<TabType>('overview');
+
+    // Global Filter State
+    const [filters, setFilters] = useState<AnalyticsFilterState>({
+        datePreset: 'all',
+        customStartDate: '',
+        customEndDate: '',
+        courseId: 'all',
+        variant: 'all',
+        priorityOnly: false
+    });
     
     // DrillDown Modal State
-    const [modalData, setModalData] = useState<{isOpen: boolean, title: string, data: EnrollmentWithRelations[]}>({
+    const [modalData, setModalData] = useState<{
+        isOpen: boolean;
+        title: string;
+        data: EnrollmentWithRelations[];
+    }>({
         isOpen: false,
         title: '',
         data: []
     });
 
+    // Student Detail Side-over State
+    const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [isExportingQuickReport, setIsExportingQuickReport] = useState(false);
+
+    // Queries
     const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
         queryKey: ['analytics_enrollments_v2'],
         queryFn: fetchAllEnrollments,
@@ -56,52 +88,84 @@ export default function Analytics() {
 
     const isLoading = enrollmentsLoading || outcomesLoading;
 
+    // Apply Global Filters
     const filteredEnrollments = useMemo(() => {
-        if (dateFilter === 'all') return enrollments;
-        
-        const now = new Date().getTime();
-        const days = parseInt(dateFilter);
-        const cutoff = now - (days * 24 * 60 * 60 * 1000);
-
         return enrollments.filter(e => {
-            const created = new Date(e.created_at).getTime();
-            return created >= cutoff;
+            // 1. Course Filter
+            if (filters.courseId !== 'all' && e.course_id !== filters.courseId) {
+                return false;
+            }
+
+            // 2. Variant Filter
+            if (filters.variant !== 'all') {
+                const cleanV = cleanVariant(e.courses?.name || '', e.course_variant);
+                if (cleanV !== filters.variant) return false;
+            }
+
+            // 3. Priority Filter
+            if (filters.priorityOnly && !e.is_priority) {
+                return false;
+            }
+
+            // 4. Date Preset / Custom Range Filter
+            if (filters.datePreset === 'all') return true;
+
+            const createdTime = new Date(e.created_at).getTime();
+
+            if (filters.datePreset === 'custom') {
+                if (filters.customStartDate) {
+                    const startTime = new Date(filters.customStartDate).getTime();
+                    if (createdTime < startTime) return false;
+                }
+                if (filters.customEndDate) {
+                    const endTime = new Date(filters.customEndDate).getTime() + 86400000; // end of day
+                    if (createdTime > endTime) return false;
+                }
+                return true;
+            }
+
+            const now = Date.now();
+            const days = parseInt(filters.datePreset, 10);
+            if (isNaN(days)) return true;
+            const cutoff = now - (days * 86400000);
+            return createdTime >= cutoff;
         });
-    }, [enrollments, dateFilter]);
+    }, [enrollments, filters]);
+
+    const activeFilterLabel = useMemo(() => {
+        if (filters.datePreset === '30') return 'Last 30 Days';
+        if (filters.datePreset === '90') return 'Last 90 Days';
+        if (filters.datePreset === '180') return 'Last 6 Months';
+        if (filters.datePreset === '365') return 'Last 12 Months';
+        if (filters.datePreset === 'custom') {
+            return `${filters.customStartDate || 'Start'} to ${filters.customEndDate || 'End'}`;
+        }
+        return 'All Time';
+    }, [filters]);
 
     const handleDrillDown = (title: string, data: EnrollmentWithRelations[]) => {
         setModalData({ isOpen: true, title, data });
     };
 
-    const handleExport = () => {
-        if (filteredEnrollments.length === 0) return;
-        
-        const headers = ['Student Name', 'Email', 'Course', 'Status', 'Date Registered'];
-        const csvRows = [headers.join(',')];
-        
-        filteredEnrollments.forEach(e => {
-            const name = `${e.students?.first_name || ''} ${e.students?.last_name || ''}`.replace(/,/g, ' ');
-            const email = e.students?.email || '';
-            const course = (e.courses?.name || '').replace(/,/g, ' ');
-            const status = e.status;
-            const date = new Date(e.created_at).toLocaleDateString();
-            
-            csvRows.push(`${name},${email},${course},${status},${date}`);
-        });
-        
-        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `analytics_export_${new Date().toISOString().slice(0,10)}.csv`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+    const handleSelectStudentFromDrillDown = (student: Student) => {
+        setSelectedStudent(student);
+    };
+
+    const handleQuickExecutiveExport = async () => {
+        try {
+            setIsExportingQuickReport(true);
+            await exportExecutiveExcelReport(filteredEnrollments, employmentStatuses, activeFilterLabel);
+        } catch (err) {
+            console.error('Failed to export report:', err);
+        } finally {
+            setIsExportingQuickReport(false);
+        }
     };
 
     if (isLoading) {
         return (
             <div className="flex-1 flex flex-col gap-6 p-1 animate-fadeIn">
-                <div className="h-14 w-full sm:w-2/3 lg:w-1/2 skeleton rounded-2xl"></div>
+                <div className="h-14 w-full skeleton rounded-2xl"></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[1, 2, 3, 4].map(i => <div key={i} className="h-[120px] skeleton rounded-2xl"></div>)}
                 </div>
@@ -114,81 +178,120 @@ export default function Analytics() {
     }
 
     return (
-        <div className="space-y-6 pb-8 animate-fadeIn">
-            {/* Toolbar */}
+        <div className="space-y-6 pb-10 animate-fadeIn">
+            {/* Top Bar: Tabs & Quick Action */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border-subtle p-2 rounded-2xl shadow-sm">
                 
-                {/* Tabs */}
+                {/* 5 Modular Tabs Switcher */}
                 <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl overflow-x-auto hide-scrollbar">
                     <button
                         onClick={() => setActiveTab('overview')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                             activeTab === 'overview' 
-                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
                             : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
                         }`}
                     >
-                        <LayoutDashboard size={16} /> Overview
+                        <LayoutDashboard size={15} /> Overview & Pipeline
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('courses')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                            activeTab === 'courses' 
+                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
+                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                        }`}
+                    >
+                        <BookOpen size={15} /> Course Performance
                     </button>
                     <button
                         onClick={() => setActiveTab('demographics')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                             activeTab === 'demographics' 
-                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
                             : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
                         }`}
                     >
-                        <Users size={16} /> Demographics
+                        <Users size={15} /> Demographics & Geography
                     </button>
                     <button
                         onClick={() => setActiveTab('outcomes')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                             activeTab === 'outcomes' 
-                            ? 'bg-surface-elevated text-primary shadow-sm border border-border-subtle' 
+                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
                             : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
                         }`}
                     >
-                        <Briefcase size={16} /> Outcomes
+                        <Briefcase size={15} /> Outcomes & Employment
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('reports')}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                            activeTab === 'reports' 
+                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
+                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
+                        }`}
+                    >
+                        <FileSpreadsheet size={15} /> Reports & Data Explorer
                     </button>
                 </div>
 
-                {/* Filters & Actions */}
-                <div className="flex items-center gap-3 px-2 sm:px-3">
-                    <div className="flex items-center gap-2 text-sm">
-                        <Calendar size={16} className="text-muted" />
-                        <select 
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value as any)}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none"
-                        >
-                            <option value="all">All Time</option>
-                            <option value="365">Last 12 Months</option>
-                            <option value="90">Last 90 Days</option>
-                            <option value="30">Last 30 Days</option>
-                        </select>
-                    </div>
-
-                    <div className="w-px h-6 bg-border-subtle mx-1" />
-
+                {/* Right Action Button */}
+                <div className="flex items-center gap-2 px-2">
                     <button 
-                        onClick={handleExport}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 transition-colors"
+                        onClick={handleQuickExecutiveExport}
+                        disabled={isExportingQuickReport || filteredEnrollments.length === 0}
+                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 transition-all shadow-sm flex-shrink-0"
+                        title="Download formatted multi-sheet Excel report"
                     >
-                        <Download size={16} /> Export
+                        <Download size={14} />
+                        <span>{isExportingQuickReport ? 'Exporting...' : 'Executive Report'}</span>
                     </button>
                 </div>
             </div>
 
+            {/* Global Dynamic Filter Bar */}
+            <GlobalFilterBar
+                filters={filters}
+                onFiltersChange={setFilters}
+                allEnrollments={enrollments}
+                filteredEnrollments={filteredEnrollments}
+            />
+
             {/* Active Tab Content */}
-            <div className="mt-4 transition-all duration-300">
+            <div className="transition-all duration-300">
                 {activeTab === 'overview' && (
-                    <OverviewTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
+                    <OverviewTab
+                        enrollments={filteredEnrollments}
+                        onDrillDown={handleDrillDown}
+                    />
+                )}
+                {activeTab === 'courses' && (
+                    <CoursePerformanceTab
+                        enrollments={filteredEnrollments}
+                        onDrillDown={handleDrillDown}
+                    />
                 )}
                 {activeTab === 'demographics' && (
-                    <DemographicsTab enrollments={filteredEnrollments} onDrillDown={handleDrillDown} />
+                    <DemographicsTab
+                        enrollments={filteredEnrollments}
+                        onDrillDown={handleDrillDown}
+                    />
                 )}
                 {activeTab === 'outcomes' && (
-                    <OutcomesTab enrollments={filteredEnrollments} employmentStatuses={employmentStatuses} onDrillDown={handleDrillDown} />
+                    <OutcomesTab
+                        enrollments={filteredEnrollments}
+                        employmentStatuses={employmentStatuses}
+                        onDrillDown={handleDrillDown}
+                    />
+                )}
+                {activeTab === 'reports' && (
+                    <ReportsTab
+                        enrollments={filteredEnrollments}
+                        employmentStatuses={employmentStatuses}
+                        onSelectStudent={setSelectedStudent}
+                        activeFilterLabel={activeFilterLabel}
+                    />
                 )}
             </div>
 
@@ -198,7 +301,19 @@ export default function Analytics() {
                 onClose={() => setModalData({ ...modalData, isOpen: false })}
                 title={modalData.title}
                 data={modalData.data}
+                onSelectStudent={handleSelectStudentFromDrillDown}
             />
+
+            {/* Student Detail Slide-Over Modal */}
+            {selectedStudent && (
+                <StudentDetail
+                    student={selectedStudent}
+                    onClose={() => setSelectedStudent(null)}
+                    onStudentUpdated={(updatedStudent) => {
+                        setSelectedStudent(updatedStudent);
+                    }}
+                />
+            )}
         </div>
     );
 }

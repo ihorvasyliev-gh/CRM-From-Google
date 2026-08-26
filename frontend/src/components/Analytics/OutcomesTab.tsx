@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { 
     ResponsiveContainer, 
     PieChart, 
@@ -14,8 +14,9 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { Briefcase, Mail, TrendingUp, Users, Clock, HelpCircle } from 'lucide-react';
+import { Briefcase, Mail, TrendingUp, Users, Clock, HelpCircle, Check, Send } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import { copyEmailsToClipboard } from './analyticsUtils';
 
 interface OutcomesTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -42,19 +43,20 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDown }: OutcomesTabProps) {
-    // ─── Data Processing ──────────────────────────────────────────
+    const [copiedPending, setCopiedPending] = useState(false);
+    const [copiedNotContacted, setCopiedNotContacted] = useState(false);
 
     // 1. Identify graduates (students with 'completed' enrollments in this filtered list)
     const graduateData = useMemo(() => {
-        const uniqueGraduates = new Map<string, { student: any; enrollment: EnrollmentWithRelations }>();
+        const uniqueGraduates = new Map<string, { student: any; enrollment: EnrollmentWithRelations; allEnrollments: EnrollmentWithRelations[] }>();
         
         enrollments.forEach(e => {
             if (e.status === 'completed' && e.students) {
                 const sid = e.students.id;
-                // If student completed multiple courses, we keep the last one or just group them
                 if (!uniqueGraduates.has(sid)) {
-                    uniqueGraduates.set(sid, { student: e.students, enrollment: e });
+                    uniqueGraduates.set(sid, { student: e.students, enrollment: e, allEnrollments: [] });
                 }
+                uniqueGraduates.get(sid)!.allEnrollments.push(e);
             }
         });
 
@@ -62,24 +64,41 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
         const totalGraduatesCount = gradsList.length;
 
         // Map status responses to these graduates
-        const responded: any[] = [];
-        const pending: any[] = [];
-        const notContacted: any[] = [];
+        const responded: EnrollmentWithRelations[] = [];
+        const pending: EnrollmentWithRelations[] = [];
+        const notContacted: EnrollmentWithRelations[] = [];
+        const workingList: EnrollmentWithRelations[] = [];
+        
         let workingCount = 0;
         let fullTimeCount = 0;
         let partTimeCount = 0;
         
         const fieldCounts: Record<string, { count: number, enrollments: EnrollmentWithRelations[] }> = {};
         const startedTimeline: Record<string, { count: number, timestamp: number, enrollments: EnrollmentWithRelations[] }> = {};
+        const courseOutcomesMap: Record<string, { totalGrads: number, workingCount: number, enrollments: EnrollmentWithRelations[] }> = {};
 
-        gradsList.forEach(({ student, enrollment }) => {
+        gradsList.forEach(({ student, enrollment, allEnrollments }) => {
             const emp = employmentStatuses.find(es => es.student_id === student.id);
             
+            // Track per-course employment
+            allEnrollments.forEach(en => {
+                const cName = en.courses?.name || 'Unknown Course';
+                if (!courseOutcomesMap[cName]) {
+                    courseOutcomesMap[cName] = { totalGrads: 0, workingCount: 0, enrollments: [] };
+                }
+                courseOutcomesMap[cName].totalGrads++;
+                courseOutcomesMap[cName].enrollments.push(en);
+                if (emp && emp.status === 'responded' && emp.is_working) {
+                    courseOutcomesMap[cName].workingCount++;
+                }
+            });
+
             if (emp) {
                 if (emp.status === 'responded') {
                     responded.push(enrollment);
                     if (emp.is_working) {
                         workingCount++;
+                        workingList.push(enrollment);
                         if (emp.employment_type === 'full_time') {
                             fullTimeCount++;
                         } else if (emp.employment_type === 'part_time') {
@@ -124,9 +143,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Employment Type breakdown
         const employmentTypeData = [
-            { name: 'Full-time', value: fullTimeCount, color: 'var(--color-fulltime)' },
-            { name: 'Part-time', value: partTimeCount, color: 'var(--color-parttime)' },
-            { name: 'Unspecified/Other', value: workingCount - (fullTimeCount + partTimeCount), color: 'var(--color-unspecified)' }
+            { name: 'Full-time', value: fullTimeCount, color: '#10b981' },
+            { name: 'Part-time', value: partTimeCount, color: '#6366f1' },
+            { name: 'Unspecified', value: Math.max(0, workingCount - (fullTimeCount + partTimeCount)), color: '#94a3b8' }
         ].filter(d => d.value > 0);
 
         // Top Fields of Work
@@ -146,10 +165,25 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Tracking funnel summary
         const funnelData = [
-            { name: 'Total Graduates', value: totalGraduatesCount, color: 'var(--color-totalgrads)', items: gradsList.map(g => g.enrollment) },
-            { name: 'Contacted', value: responded.length + pending.length, color: 'var(--color-contacted)', items: [...responded, ...pending] },
-            { name: 'Responded', value: responded.length, color: 'var(--color-responded)', items: responded }
+            { name: 'Total Graduates', value: totalGraduatesCount, color: '#6366f1', items: gradsList.map(g => g.enrollment) },
+            { name: 'Contacted', value: responded.length + pending.length, color: '#8b5cf6', items: [...responded, ...pending] },
+            { name: 'Responded', value: responded.length, color: '#10b981', items: responded }
         ];
+
+        // Course Outcomes Rating List
+        const courseOutcomesList = Object.entries(courseOutcomesMap)
+            .map(([courseName, data]) => {
+                const rate = data.totalGrads > 0 ? Math.round((data.workingCount / data.totalGrads) * 100) : 0;
+                return {
+                    courseName,
+                    totalGrads: data.totalGrads,
+                    workingCount: data.workingCount,
+                    employmentRate: rate,
+                    enrollments: data.enrollments
+                };
+            })
+            .sort((a, b) => b.totalGrads - a.totalGrads)
+            .slice(0, 6);
 
         return {
             totalGraduates: totalGraduatesCount,
@@ -161,16 +195,28 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
             fieldsData,
             timelineData,
             funnelData,
+            courseOutcomesList,
             gradsList: gradsList.map(g => g.enrollment),
             respondedList: responded,
             pendingList: pending,
             notContactedList: notContacted,
-            workingList: gradsList.filter(g => {
-                const emp = employmentStatuses.find(es => es.student_id === g.student.id);
-                return emp && emp.status === 'responded' && emp.is_working;
-            }).map(g => g.enrollment)
+            workingList
         };
     }, [enrollments, employmentStatuses]);
+
+    const handleCopyPendingEmails = () => {
+        const emails = graduateData.pendingList.map(e => e.students?.email || '').filter(Boolean);
+        copyEmailsToClipboard(emails);
+        setCopiedPending(true);
+        setTimeout(() => setCopiedPending(false), 2500);
+    };
+
+    const handleCopyNotContactedEmails = () => {
+        const emails = graduateData.notContactedList.map(e => e.students?.email || '').filter(Boolean);
+        copyEmailsToClipboard(emails);
+        setCopiedNotContacted(true);
+        setTimeout(() => setCopiedNotContacted(false), 2500);
+    };
 
     return (
         <div className="space-y-6 animate-fadeIn">
@@ -179,36 +225,36 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 {/* Total Graduates */}
                 <div 
                     onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
                 >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Total Graduates</p>
-                            <p className="text-3xl font-mono font-bold text-primary">{graduateData.totalGraduates}</p>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Total Graduates</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{graduateData.totalGraduates}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                            <Users size={20} />
+                        <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                            <Users size={18} />
                         </div>
                     </div>
                 </div>
 
                 {/* Response Rate */}
                 <div 
-                    onClick={() => onDrillDown('Graduates Responded', graduateData.respondedList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => onDrillDown('Graduates Who Responded', graduateData.respondedList)}
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
                 >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Response Rate</p>
-                            <p className="text-3xl font-mono font-bold text-primary">
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Response Rate</p>
+                            <p className="text-2xl font-mono font-bold text-primary">
                                 {graduateData.responseRate}% 
-                                <span className="text-xs text-muted font-sans font-normal ml-1">({graduateData.respondedCount} responses)</span>
+                                <span className="text-xs text-muted font-normal ml-1">({graduateData.respondedCount})</span>
                             </p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                            <Mail size={20} />
+                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                            <Mail size={18} />
                         </div>
                     </div>
                 </div>
@@ -216,52 +262,52 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 {/* Employment Rate */}
                 <div 
                     onClick={() => onDrillDown('Employed Graduates', graduateData.workingList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
                 >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Employment Rate</p>
-                            <p className="text-3xl font-mono font-bold text-primary">
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Employment Rate</p>
+                            <p className="text-2xl font-mono font-bold text-primary">
                                 {graduateData.employmentRate}%
-                                <span className="text-xs text-muted font-sans font-normal ml-1">({graduateData.workingCount} working)</span>
+                                <span className="text-xs text-muted font-normal ml-1">({graduateData.workingCount} working)</span>
                             </p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <Briefcase size={20} />
+                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <Briefcase size={18} />
                         </div>
                     </div>
                 </div>
 
                 {/* Pending Surveys */}
                 <div 
-                    onClick={() => onDrillDown('Pending Survey Responses', graduateData.pendingList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => onDrillDown('Pending Survey Follow-ups', graduateData.pendingList)}
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
                 >
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[11px] font-bold text-muted uppercase tracking-wider mb-1">Pending Responses</p>
-                            <p className="text-3xl font-mono font-bold text-primary">{graduateData.pendingList.length}</p>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Pending Responses</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{graduateData.pendingList.length}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                            <Clock size={20} />
+                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Clock size={18} />
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Charts Row 1 */}
+            {/* Charts Row 1: Types & Funnel */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Employment Type Donut Chart */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <Briefcase size={16} className="text-brand-500" /> Employment Type
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Briefcase size={16} className="text-brand-500" /> Employment Type Split
                     </h3>
                     {graduateData.employmentTypeData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-10 h-10 mb-2 opacity-50" />
-                            <p className="text-sm text-muted">No employment type data available.</p>
+                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
+                            <p className="text-xs text-muted">No employment type data reported yet.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full relative">
@@ -279,7 +325,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                         className="outline-none"
                                     >
                                         {graduateData.employmentTypeData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity outline-none" />
+                                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
                                         ))}
                                     </Pie>
                                     <RechartsTooltip content={<CustomTooltip />} />
@@ -298,10 +344,10 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                     )}
                 </div>
 
-                {/* Survey Response Funnel */}
+                {/* Survey Coverage Funnel */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <Mail size={16} className="text-brand-500" /> Survey Coverage Funnel
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Mail size={16} className="text-brand-500" /> Survey Reach & Response Funnel
                     </h3>
                     <div className="flex-1 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -316,17 +362,17 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     }
                                 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border)" />
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
                                 <XAxis type="number" hide />
                                 <YAxis 
                                     dataKey="name" 
                                     type="category" 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{ fill: 'var(--color-chart-text)', fontSize: 11, fontWeight: 500 }}
-                                    width={100}
+                                    tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11, fontWeight: 500 }}
+                                    width={110}
                                 />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
+                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border, #e2e8f0)', opacity: 0.2 }} />
                                 <Bar 
                                     dataKey="value" 
                                     radius={[0, 6, 6, 0]} 
@@ -343,17 +389,17 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 </div>
             </div>
 
-            {/* Charts Row 2 */}
+            {/* Charts Row 2: Fields & Timeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Top Fields of Work */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <TrendingUp size={16} className="text-brand-500" /> Top Fields of Employment
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <TrendingUp size={16} className="text-brand-500" /> Top Fields & Industries of Employment
                     </h3>
                     {graduateData.fieldsData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-10 h-10 mb-2 opacity-50" />
-                            <p className="text-sm text-muted">No industry data reported yet.</p>
+                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
+                            <p className="text-xs text-muted">No industry data reported yet.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full">
@@ -368,32 +414,26 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                         }
                                     }}
                                 >
-                                    <defs>
-                                        <linearGradient id="colorField" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="var(--color-field-start)" />
-                                            <stop offset="100%" stopColor="var(--color-field-end)" />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
                                     <XAxis 
                                         dataKey="name" 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
+                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }}
                                         dy={10}
                                     />
                                     <YAxis 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
+                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }}
                                     />
-                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.1 }} />
+                                    <RechartsTooltip content={<CustomTooltip />} />
                                     <Bar 
                                         dataKey="count" 
-                                        name="Graduates"
+                                        name="Graduates" 
+                                        fill="#10b981" 
                                         radius={[4, 4, 0, 0]} 
-                                        barSize={32}
-                                        fill="url(#colorField)"
+                                        barSize={32} 
                                         className="cursor-pointer"
                                     />
                                 </BarChart>
@@ -404,13 +444,13 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
                 {/* Job Starting Timeline */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-1">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                        <Clock size={16} className="text-brand-500" /> New Jobs Timeline
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Clock size={16} className="text-brand-500" /> New Jobs Started Timeline
                     </h3>
                     {graduateData.timelineData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-10 h-10 mb-2 opacity-50" />
-                            <p className="text-sm text-muted">No timeline data available.</p>
+                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
+                            <p className="text-xs text-muted">No timeline data available.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full">
@@ -427,28 +467,28 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 >
                                     <defs>
                                         <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-jobs-start)" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="var(--color-jobs-start)" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
                                     <XAxis 
                                         dataKey="name" 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
+                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
                                         dy={10}
                                     />
                                     <YAxis 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }} 
+                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
                                     />
                                     <RechartsTooltip content={<CustomTooltip />} />
                                     <Area 
                                         type="monotone" 
                                         dataKey="Started Work" 
-                                        stroke="var(--color-jobs-start)" 
+                                        stroke="#10b981" 
                                         strokeWidth={3}
                                         fillOpacity={1} 
                                         fill="url(#colorJobs)" 
@@ -458,6 +498,55 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             </ResponsiveContainer>
                         </div>
                     )}
+                </div>
+            </div>
+
+            {/* Targeted Follow-up Action Banners */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Pending Follow-up */}
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex-shrink-0">
+                            <Clock size={20} />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Pending Survey Inquiries</h4>
+                            <p className="text-xs text-muted mt-0.5">
+                                <span className="font-semibold text-primary">{graduateData.pendingList.length} graduates</span> received survey but have not responded yet
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleCopyPendingEmails}
+                        disabled={graduateData.pendingList.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
+                    >
+                        {copiedPending ? <Check size={14} /> : <Mail size={14} />}
+                        <span>{copiedPending ? 'Copied Emails!' : 'Copy Emails'}</span>
+                    </button>
+                </div>
+
+                {/* Not Contacted Follow-up */}
+                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl flex-shrink-0">
+                            <Send size={20} />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Not Yet Surveyed</h4>
+                            <p className="text-xs text-muted mt-0.5">
+                                <span className="font-semibold text-primary">{graduateData.notContactedList.length} graduates</span> are ready for initial outcome check-in
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleCopyNotContactedEmails}
+                        disabled={graduateData.notContactedList.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
+                    >
+                        {copiedNotContacted ? <Check size={14} /> : <Mail size={14} />}
+                        <span>{copiedNotContacted ? 'Copied Emails!' : 'Copy Emails'}</span>
+                    </button>
                 </div>
             </div>
         </div>

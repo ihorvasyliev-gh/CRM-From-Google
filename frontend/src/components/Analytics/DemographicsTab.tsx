@@ -8,13 +8,13 @@ import {
     CartesianGrid, 
     Tooltip as RechartsTooltip, 
     Cell,
-    PieChart,
-    Pie,
-    Legend
+    PieChart, 
+    Pie, 
+    Legend 
 } from 'recharts';
-import { BookOpen, Users, Tags, MapPin } from 'lucide-react';
+import { Users, MapPin, Repeat, ShieldCheck, CheckCircle } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
-import { cleanVariant } from '../../lib/types';
+import { classifyCorkRegion } from './analyticsUtils';
 
 interface DemographicsTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -39,284 +39,263 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-// Helper to classify Cork regions from Address or Eircode
-function classifyCorkRegion(address: string | null, eircode: string | null): string {
-    const addr = (address || '').toLowerCase().trim();
-    const eir = (eircode || '').toUpperCase().replace(/\s+/g, '').trim();
-
-    // 1. Check Eircode prefixes first
-    if (eir.startsWith('T12') || eir.startsWith('T23')) {
-        return 'Cork City';
-    }
-    if (eir.startsWith('P25')) {
-        return 'East Cork';
-    }
-    if (eir.startsWith('P75') || eir.startsWith('P85') || eir.startsWith('P24')) {
-        if (eir.startsWith('P75')) return 'West Cork';
-        if (eir.startsWith('P85')) return 'East Cork';
-    }
-    if (eir.startsWith('P51') || eir.startsWith('P61') || eir.startsWith('P81')) {
-        return 'North Cork';
-    }
-    if (eir.startsWith('P72') || eir.startsWith('P36') || eir.startsWith('P12')) {
-        return 'West Cork';
-    }
-    if (eir.startsWith('P31') || eir.startsWith('P32') || eir.startsWith('P43') || eir.startsWith('P47')) {
-        return 'South Cork';
-    }
-
-    // 2. Fallback to Address string matching
-    if (addr.includes('city') || addr.includes('centre') || addr.includes('douglas') || 
-        addr.includes('togher') || addr.includes('grange') || addr.includes('blackrock') || 
-        addr.includes('ballyvolane') || addr.includes('mayfield') || addr.includes('glanmire') ||
-        addr.includes('turners cross') || addr.includes('montenotte') || addr.includes('bishopstown') ||
-        addr.includes('wilton') || addr.includes('ballyphehane') || addr.includes('gurranabraher') ||
-        addr.includes('shandon')) {
-        return 'Cork City';
-    }
-    
-    if (addr.includes('midleton') || addr.includes('youghal') || addr.includes('cobh') || 
-        addr.includes('carrigtwohill') || addr.includes('killeagh') || addr.includes('castlemartyr') || 
-        addr.includes('rostellan') || addr.includes('cloyne') || addr.includes('east cork')) {
-        return 'East Cork';
-    }
-
-    if (addr.includes('bandon') || addr.includes('bantry') || addr.includes('kinsale') || 
-        addr.includes('clonakilty') || addr.includes('skibbereen') || addr.includes('dunmanway') || 
-        addr.includes('schull') || addr.includes('macroom') || addr.includes('coolea') || 
-        addr.includes('glengarriff') || addr.includes('castletownbere') || addr.includes('west cork')) {
-        return 'West Cork';
-    }
-
-    if (addr.includes('mallow') || addr.includes('fermoy') || addr.includes('mitchelstown') || 
-        addr.includes('charleville') || addr.includes('kanturk') || addr.includes('millstreet') || 
-        addr.includes('buttevant') || addr.includes('doneraile') || addr.includes('north cork')) {
-        return 'North Cork';
-    }
-
-    if (addr.includes('carrigaline') || addr.includes('ballincollig') || addr.includes('passage west') || 
-        addr.includes('ringaskiddy') || addr.includes('monkstown') || addr.includes('south cork')) {
-        return 'South Cork';
-    }
-
-    if (addr.includes('cork')) {
-        return 'Other Cork Area';
-    }
-
-    return 'Other / Unknown';
-}
-
 export default function DemographicsTab({ enrollments, onDrillDown }: DemographicsTabProps) {
-    // ─── Data Processing ──────────────────────────────────────────
+    // Unique students mapping
+    const uniqueStudentsData = useMemo(() => {
+        const studentMap = new Map<string, {
+            student: any;
+            enrollments: EnrollmentWithRelations[];
+        }>();
 
-    // 1. Course Popularity
-    const courseData = useMemo(() => {
-        const counts: Record<string, { count: number, items: any[] }> = {};
         enrollments.forEach(e => {
-            const name = e.courses?.name || 'Unknown Course';
-            if (!counts[name]) counts[name] = { count: 0, items: [] };
-            counts[name].count++;
-            counts[name].items.push(e);
+            const sid = e.student_id ?? e.students?.id;
+            if (!sid || !e.students) return;
+            if (!studentMap.has(sid)) {
+                studentMap.set(sid, { student: e.students, enrollments: [] });
+            }
+            studentMap.get(sid)!.enrollments.push(e);
         });
-        return Object.entries(counts)
-            .map(([name, data]) => ({ name, count: data.count, items: data.items }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 8); // Top 8
+
+        return Array.from(studentMap.values());
     }, [enrollments]);
 
-    // 2. Course Variants (e.g. Pre-intermediate)
-    const variantData = useMemo(() => {
-        const counts: Record<string, { count: number, items: any[] }> = {};
-        enrollments.forEach(e => {
-            const variant = cleanVariant(e.courses?.name || '', e.course_variant);
-            if (!counts[variant]) counts[variant] = { count: 0, items: [] };
-            counts[variant].count++;
-            counts[variant].items.push(e);
-        });
-        return Object.entries(counts)
-            .map(([name, data]) => ({ name, count: data.count, items: data.items }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 6);
-    }, [enrollments]);
-
-    // 3. Age Demographics (Deduplicated by student_id)
+    // 1. Age Demographics
     const ageData = useMemo(() => {
-        const groups = {
-            'Under 18': { count: 0, items: [] as any[] },
-            '18 - 25': { count: 0, items: [] as any[] },
-            '26 - 35': { count: 0, items: [] as any[] },
-            '36 - 50': { count: 0, items: [] as any[] },
-            '51+': { count: 0, items: [] as any[] },
-            'Unknown': { count: 0, items: [] as any[] }
+        const groups: Record<string, { count: number, enrollments: EnrollmentWithRelations[] }> = {
+            'Under 18': { count: 0, enrollments: [] },
+            '18 - 25': { count: 0, enrollments: [] },
+            '26 - 35': { count: 0, enrollments: [] },
+            '36 - 50': { count: 0, enrollments: [] },
+            '51+': { count: 0, enrollments: [] },
+            'Unknown': { count: 0, enrollments: [] }
         };
 
         const currentYear = new Date().getFullYear();
 
-        const seenStudents = new Set<string>();
-        const uniqueEnrollments = enrollments.filter(e => {
-            const sid = e.student_id ?? e.students?.id;
-            if (!sid || seenStudents.has(sid)) return false;
-            seenStudents.add(sid);
-            return true;
-        });
-
-        uniqueEnrollments.forEach(e => {
-            const dob = e.students?.dob;
+        uniqueStudentsData.forEach(({ student, enrollments }) => {
+            const dob = student.dob;
             if (!dob) {
                 groups['Unknown'].count++;
-                groups['Unknown'].items.push(e);
+                groups['Unknown'].enrollments.push(...enrollments);
                 return;
             }
             
             const birthYear = new Date(dob).getFullYear();
             if (isNaN(birthYear)) {
                 groups['Unknown'].count++;
-                groups['Unknown'].items.push(e);
+                groups['Unknown'].enrollments.push(...enrollments);
                 return;
             }
 
             const age = currentYear - birthYear;
-            
-            if (age < 18) { groups['Under 18'].count++; groups['Under 18'].items.push(e); }
-            else if (age <= 25) { groups['18 - 25'].count++; groups['18 - 25'].items.push(e); }
-            else if (age <= 35) { groups['26 - 35'].count++; groups['26 - 35'].items.push(e); }
-            else if (age <= 50) { groups['36 - 50'].count++; groups['36 - 50'].items.push(e); }
-            else { groups['51+'].count++; groups['51+'].items.push(e); }
+            if (age < 18) { groups['Under 18'].count++; groups['Under 18'].enrollments.push(...enrollments); }
+            else if (age <= 25) { groups['18 - 25'].count++; groups['18 - 25'].enrollments.push(...enrollments); }
+            else if (age <= 35) { groups['26 - 35'].count++; groups['26 - 35'].enrollments.push(...enrollments); }
+            else if (age <= 50) { groups['36 - 50'].count++; groups['36 - 50'].enrollments.push(...enrollments); }
+            else { groups['51+'].count++; groups['51+'].enrollments.push(...enrollments); }
         });
 
-        const colors = ['#818cf8', '#a78bfa', '#f472b6', '#fb7185', '#fb923c', '#94a3b8'];
-        
+        const colors = ['#818cf8', '#a78bfa', '#ec4899', '#f43f5e', '#fb923c', '#94a3b8'];
         return Object.entries(groups)
             .filter(([_, data]) => data.count > 0)
             .map(([name, data], idx) => ({
                 name,
                 value: data.count,
                 color: colors[idx % colors.length],
-                items: data.items
+                items: data.enrollments
             }));
-    }, [enrollments]);
+    }, [uniqueStudentsData]);
 
-    // 4. Regional Location Breakdown (Deduplicated by student_id)
+    // 2. Regional Distribution (Cork Areas)
     const locationData = useMemo(() => {
-        const counts: Record<string, { count: number, items: any[] }> = {
-            'Cork City': { count: 0, items: [] },
-            'South Cork': { count: 0, items: [] },
-            'East Cork': { count: 0, items: [] },
-            'West Cork': { count: 0, items: [] },
-            'North Cork': { count: 0, items: [] },
-            'Other Cork Area': { count: 0, items: [] },
-            'Other / Unknown': { count: 0, items: [] }
+        const counts: Record<string, { count: number, enrollments: EnrollmentWithRelations[] }> = {
+            'Cork City': { count: 0, enrollments: [] },
+            'South Cork': { count: 0, enrollments: [] },
+            'East Cork': { count: 0, enrollments: [] },
+            'West Cork': { count: 0, enrollments: [] },
+            'North Cork': { count: 0, enrollments: [] },
+            'Other Cork Area': { count: 0, enrollments: [] },
+            'Other / Unknown': { count: 0, enrollments: [] }
         };
 
-        const seenStudents = new Set<string>();
-        const uniqueEnrollments = enrollments.filter(e => {
-            const sid = e.student_id ?? e.students?.id;
-            if (!sid || seenStudents.has(sid)) return false;
-            seenStudents.add(sid);
-            return true;
-        });
-
-        uniqueEnrollments.forEach(e => {
-            const region = classifyCorkRegion(e.students?.address || null, e.students?.eircode || null);
+        uniqueStudentsData.forEach(({ student, enrollments }) => {
+            const region = classifyCorkRegion(student.address, student.eircode);
             counts[region].count++;
-            counts[region].items.push(e);
+            counts[region].enrollments.push(...enrollments);
         });
 
-        const colors = ['#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f472b6', '#2dd4bf', '#94a3b8'];
-
+        const colors = ['#6366f1', '#10b981', '#a855f7', '#f97316', '#ec4899', '#06b6d4', '#94a3b8'];
         return Object.entries(counts)
             .filter(([_, data]) => data.count > 0)
             .map(([name, data], idx) => ({
                 name,
                 value: data.count,
                 color: colors[idx % colors.length],
-                items: data.items
+                items: data.enrollments
             }))
             .sort((a, b) => b.value - a.value);
-    }, [enrollments]);
+    }, [uniqueStudentsData]);
+
+    // 3. Multi-course Students Analysis
+    const repeatLearnersData = useMemo(() => {
+        let singleCourse = 0;
+        let twoCourses = 0;
+        let threePlusCourses = 0;
+        const singleItems: EnrollmentWithRelations[] = [];
+        const multiItems: EnrollmentWithRelations[] = [];
+
+        uniqueStudentsData.forEach(({ enrollments }) => {
+            const count = enrollments.length;
+            if (count === 1) {
+                singleCourse++;
+                singleItems.push(...enrollments);
+            } else if (count === 2) {
+                twoCourses++;
+                multiItems.push(...enrollments);
+            } else {
+                threePlusCourses++;
+                multiItems.push(...enrollments);
+            }
+        });
+
+        const totalUnique = uniqueStudentsData.length;
+        const multiCount = twoCourses + threePlusCourses;
+        const repeatRate = totalUnique > 0 ? Math.round((multiCount / totalUnique) * 100) : 0;
+
+        const chartData = [
+            { name: '1 Course', value: singleCourse, color: '#3b82f6', items: singleItems },
+            { name: '2 Courses', value: twoCourses, color: '#8b5cf6', items: multiItems },
+            { name: '3+ Courses', value: threePlusCourses, color: '#10b981', items: multiItems },
+        ].filter(d => d.value > 0);
+
+        return {
+            totalUnique,
+            multiCount,
+            repeatRate,
+            chartData,
+            multiItems
+        };
+    }, [uniqueStudentsData]);
+
+    // 4. Contact Data Completeness Audit
+    const dataCompleteness = useMemo(() => {
+        const total = uniqueStudentsData.length;
+        if (total === 0) return { withEmail: 0, withPhone: 0, withAddress: 0, withEircode: 0, withDob: 0 };
+
+        let hasEmail = 0;
+        let hasPhone = 0;
+        let hasAddress = 0;
+        let hasEircode = 0;
+        let hasDob = 0;
+
+        uniqueStudentsData.forEach(({ student }) => {
+            if (student.email && student.email.trim()) hasEmail++;
+            if (student.phone && student.phone.trim()) hasPhone++;
+            if (student.address && student.address.trim()) hasAddress++;
+            if (student.eircode && student.eircode.trim()) hasEircode++;
+            if (student.dob) hasDob++;
+        });
+
+        return {
+            withEmail: Math.round((hasEmail / total) * 100),
+            withPhone: Math.round((hasPhone / total) * 100),
+            withAddress: Math.round((hasAddress / total) * 100),
+            withEircode: Math.round((hasEircode / total) * 100),
+            withDob: Math.round((hasDob / total) * 100),
+        };
+    }, [uniqueStudentsData]);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
-            
-            {/* Top Courses */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                    <BookOpen size={16} className="text-brand-500" /> Top Courses
-                </h3>
-                <div className="flex-1 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart 
-                            data={courseData} 
-                            layout="vertical" 
-                            margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
-                            onClick={(data: any) => {
-                                  if (data && data.activePayload && data.activePayload[0]) {
-                                      const payload = data.activePayload[0].payload;
-                                      onDrillDown(`Course: ${payload.name}`, payload.items);
-                                  }
-                            }}
-                        >
-                            <defs>
-                                <linearGradient id="colorCourse" x1="0" y1="0" x2="1" y2="0">
-                                    <stop offset="0%" stopColor="var(--color-course-start)" />
-                                    <stop offset="100%" stopColor="var(--color-course-end)" />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border)" />
-                            <XAxis type="number" hide />
-                            <YAxis 
-                                dataKey="name" 
-                                type="category" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11, fontWeight: 500 }}
-                                width={110}
-                            />
-                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
-                            <Bar 
-                                dataKey="count" 
-                                name="Enrollments"
-                                radius={[0, 4, 4, 0]} 
-                                barSize={24}
-                                fill="url(#colorCourse)"
-                                className="cursor-pointer"
-                            />
-                        </BarChart>
-                    </ResponsiveContainer>
+        <div className="space-y-6 animate-fadeIn">
+            {/* Top Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => onDrillDown('Unique Registered Students', enrollments)}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Unique Students</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{uniqueStudentsData.length}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                            <Users size={18} />
+                        </div>
+                    </div>
+                </div>
+
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => onDrillDown('Multi-Course Learners', repeatLearnersData.multiItems)}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Multi-Course Retention</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{repeatLearnersData.repeatRate}%</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                            <Repeat size={18} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Phone Reachability</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{dataCompleteness.withPhone}%</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <ShieldCheck size={18} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Eircode Coverage</p>
+                            <p className="text-2xl font-mono font-bold text-primary">{dataCompleteness.withEircode}%</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <MapPin size={18} />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Geographical Distribution */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                    <MapPin size={16} className="text-brand-500" /> Regional Distribution (Cork Areas)
-                </h3>
-                {locationData.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center text-muted text-sm">
-                        No address or Eircode data found.
-                    </div>
-                ) : (
+            {/* Charts Row 1: Age & Geography */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Age Demographics Donut */}
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[360px]">
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Users size={16} className="text-brand-500" /> Age Group Distribution
+                    </h3>
                     <div className="flex-1 w-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={locationData}
+                                    data={ageData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={70}
-                                    outerRadius={105}
-                                    paddingAngle={2}
+                                    innerRadius={65}
+                                    outerRadius={95}
+                                    paddingAngle={3}
                                     dataKey="value"
                                     stroke="none"
                                     onClick={(data: any) => {
                                         if (data && data.payload) {
-                                            onDrillDown(`Region: ${data.name}`, data.payload.items);
+                                            onDrillDown(`Age Group: ${data.name}`, data.payload.items);
                                         }
                                     }}
                                     className="cursor-pointer outline-none"
                                 >
-                                    {locationData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity outline-none" />
+                                    {ageData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
                                     ))}
                                 </Pie>
                                 <RechartsTooltip content={<CustomTooltip />} />
@@ -329,99 +308,151 @@ export default function DemographicsTab({ enrollments, onDrillDown }: Demographi
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                )}
+                </div>
+
+                {/* Regional Distribution Pie */}
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[360px]">
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <MapPin size={16} className="text-brand-500" /> Regional Cork Locations (Eircode Mapping)
+                    </h3>
+                    <div className="flex-1 w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={locationData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={65}
+                                    outerRadius={95}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    stroke="none"
+                                    onClick={(data: any) => {
+                                        if (data && data.payload) {
+                                            onDrillDown(`Region: ${data.name}`, data.payload.items);
+                                        }
+                                    }}
+                                    className="cursor-pointer outline-none"
+                                >
+                                    {locationData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
+                                    ))}
+                                </Pie>
+                                <RechartsTooltip content={<CustomTooltip />} />
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={40} 
+                                    iconType="circle"
+                                    formatter={(value: string) => <span className="text-[11px] text-primary font-medium mr-2">{value}</span>}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
             </div>
 
-            {/* Age Demographics */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                    <Users size={16} className="text-brand-500" /> Age Distribution
-                </h3>
-                <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={ageData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={70}
-                                outerRadius={105}
-                                paddingAngle={2}
-                                dataKey="value"
-                                stroke="none"
+            {/* Charts Row 2: Retention & Contact Health */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Multi-course retention */}
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[320px]">
+                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                        <Repeat size={16} className="text-brand-500" /> Course Enrollment Multiplicity
+                    </h3>
+                    <div className="flex-1 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart 
+                                data={repeatLearnersData.chartData} 
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                                 onClick={(data: any) => {
-                                    if (data && data.payload) {
-                                        onDrillDown(`Age Group: ${data.name}`, data.payload.items);
+                                    if (data && data.activePayload && data.activePayload[0]) {
+                                        const payload = data.activePayload[0].payload;
+                                        onDrillDown(`Enrollments: ${payload.name}`, payload.items);
                                     }
                                 }}
-                                className="cursor-pointer outline-none"
                             >
-                                {ageData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity outline-none" />
-                                ))}
-                            </Pie>
-                            <RechartsTooltip content={<CustomTooltip />} />
-                            <Legend 
-                                verticalAlign="bottom" 
-                                height={40} 
-                                iconType="circle"
-                                formatter={(value: string) => <span className="text-[11px] text-primary font-medium mr-2">{value}</span>}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} />
+                                <RechartsTooltip content={<CustomTooltip />} />
+                                <Bar dataKey="value" name="Students" radius={[6, 6, 0, 0]} barSize={36} className="cursor-pointer">
+                                    {repeatLearnersData.chartData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Database Health Card */}
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col justify-between">
+                    <div>
+                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
+                            <ShieldCheck size={16} className="text-brand-500" /> Contact Database Quality Audit
+                        </h3>
+                        <p className="text-xs text-muted mb-4">
+                            Completeness audit across <span className="font-semibold text-primary">{uniqueStudentsData.length}</span> unique student profiles
+                        </p>
+
+                        <div className="space-y-3">
+                            <div>
+                                <div className="flex justify-between text-xs font-medium mb-1">
+                                    <span className="text-primary">Email Address Completeness</span>
+                                    <span className="font-bold font-mono">{dataCompleteness.withEmail}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${dataCompleteness.withEmail}%` }} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs font-medium mb-1">
+                                    <span className="text-primary">Phone Number Coverage</span>
+                                    <span className="font-bold font-mono">{dataCompleteness.withPhone}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${dataCompleteness.withPhone}%` }} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs font-medium mb-1">
+                                    <span className="text-primary">Postal Address Record</span>
+                                    <span className="font-bold font-mono">{dataCompleteness.withAddress}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-sky-500 rounded-full" style={{ width: `${dataCompleteness.withAddress}%` }} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs font-medium mb-1">
+                                    <span className="text-primary">Eircode Geo Tagging</span>
+                                    <span className="font-bold font-mono">{dataCompleteness.withEircode}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${dataCompleteness.withEircode}%` }} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs font-medium mb-1">
+                                    <span className="text-primary">Date of Birth (Age Analysis)</span>
+                                    <span className="font-bold font-mono">{dataCompleteness.withDob}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-fuchsia-500 rounded-full" style={{ width: `${dataCompleteness.withDob}%` }} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-border-subtle flex items-center gap-2 text-xs text-muted">
+                        <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
+                        <span>High data completeness ensures accurate demographic & regional reporting.</span>
+                    </div>
                 </div>
             </div>
-
-            {/* Top Variants */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-6">
-                    <Tags size={16} className="text-brand-500" /> Top Variants (Levels / Modalities)
-                </h3>
-                <div className="flex-1 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart 
-                            data={variantData} 
-                            margin={{ top: 20, right: 0, left: -20, bottom: 0 }}
-                            onClick={(data: any) => {
-                                if (data && data.activePayload && data.activePayload[0]) {
-                                    const payload = data.activePayload[0].payload;
-                                    onDrillDown(`Variant: ${payload.name}`, payload.items);
-                                }
-                            }}
-                        >
-                            <defs>
-                                <linearGradient id="colorVariant" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="var(--color-variant-start)" />
-                                    <stop offset="100%" stopColor="var(--color-variant-end)" />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border)" />
-                            <XAxis 
-                                dataKey="name" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
-                                dy={10}
-                            />
-                            <YAxis 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: 'var(--color-chart-text)', fontSize: 11 }}
-                            />
-                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border)', opacity: 0.2 }} />
-                            <Bar 
-                                dataKey="count" 
-                                name="Enrollments"
-                                radius={[4, 4, 0, 0]} 
-                                barSize={32}
-                                fill="url(#colorVariant)"
-                                className="cursor-pointer"
-                            />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
         </div>
     );
 }
