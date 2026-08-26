@@ -78,5 +78,5 @@ export function useGlobalRealtimeSync() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [queryClient, user?.id]);
+    }, [queryClient, user]);
 }

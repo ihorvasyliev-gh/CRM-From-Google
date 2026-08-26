@@ -89,11 +89,11 @@ export default function StatusUpdatePage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
-            {/* Background glow */}
+        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background glow - optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[120px] opacity-60" />
-                <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-purple-500/8 rounded-full blur-[100px] opacity-40" />
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[60px] sm:blur-[100px] opacity-50" />
+                <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-purple-500/8 rounded-full blur-[50px] sm:blur-[80px] opacity-30" />
             </div>
 
             <div className="w-full max-w-md relative z-10">
@@ -150,7 +150,7 @@ export default function StatusUpdatePage() {
                                                 setSelectedStudentId(null);
                                             }}
                                             placeholder="Enter the email you registered with"
-                                            className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                                         />
                                     </div>
                                 </div>
@@ -165,7 +165,7 @@ export default function StatusUpdatePage() {
                                             type="button"
                                             disabled={isSubmitting}
                                             onClick={() => setIsWorking(true)}
-                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold border transition-all touch-manipulation ${
                                                 isWorking === true
                                                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
                                                     : 'bg-[#09090B] text-zinc-400 border-zinc-800 hover:border-zinc-600'
@@ -178,7 +178,7 @@ export default function StatusUpdatePage() {
                                             type="button"
                                             disabled={isSubmitting}
                                             onClick={() => setIsWorking(false)}
-                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold border transition-all touch-manipulation ${
                                                 isWorking === false
                                                     ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-sm'
                                                     : 'bg-[#09090B] text-zinc-400 border-zinc-800 hover:border-zinc-600'
@@ -204,7 +204,7 @@ export default function StatusUpdatePage() {
                                                 value={startedMonth}
                                                 onChange={(e) => setStartedMonth(e.target.value)}
                                                 disabled={isSubmitting}
-                                                className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 px-4 py-3 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer disabled:opacity-50 [color-scheme:dark]"
+                                                className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 px-4 py-3 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer disabled:opacity-50 [color-scheme:dark] touch-manipulation"
                                             />
                                         </div>
 
@@ -220,7 +220,7 @@ export default function StatusUpdatePage() {
                                                 onChange={(e) => setFieldOfWork(e.target.value)}
                                                 disabled={isSubmitting}
                                                 placeholder="e.g. IT, Hospitality, Retail..."
-                                                className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50"
+                                                className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all disabled:opacity-50 touch-manipulation"
                                             />
                                         </div>
 
@@ -234,7 +234,7 @@ export default function StatusUpdatePage() {
                                                     type="button"
                                                     disabled={isSubmitting}
                                                     onClick={() => setEmploymentType('full_time')}
-                                                    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                                    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all touch-manipulation ${
                                                         employmentType === 'full_time'
                                                             ? 'bg-violet-500/20 text-violet-400 border-violet-500/40 shadow-sm'
                                                             : 'bg-[#09090B] text-zinc-400 border-zinc-800 hover:border-zinc-600'
@@ -246,7 +246,7 @@ export default function StatusUpdatePage() {
                                                     type="button"
                                                     disabled={isSubmitting}
                                                     onClick={() => setEmploymentType('part_time')}
-                                                    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                                    className={`py-3 px-4 rounded-xl text-sm font-semibold border transition-all touch-manipulation ${
                                                         employmentType === 'part_time'
                                                             ? 'bg-violet-500/20 text-violet-400 border-violet-500/40 shadow-sm'
                                                             : 'bg-[#09090B] text-zinc-400 border-zinc-800 hover:border-zinc-600'
@@ -269,7 +269,7 @@ export default function StatusUpdatePage() {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || isWorking === null}
-                                    className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-violet-600/30 hover:shadow-violet-600/40 disabled:hover:shadow-violet-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed"
+                                    className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-violet-600/30 hover:shadow-violet-600/40 disabled:hover:shadow-violet-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed touch-manipulation"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -307,7 +307,7 @@ export default function StatusUpdatePage() {
                                         type="button"
                                         disabled={isSubmitting}
                                         onClick={() => handlePickStudent(student.student_id)}
-                                        className="w-full text-left p-4 rounded-xl bg-[#09090B] hover:bg-violet-500/10 border border-zinc-800 hover:border-violet-500/40 transition-all flex items-center justify-between group"
+                                        className="w-full text-left p-4 rounded-xl bg-[#09090B] hover:bg-violet-500/10 border border-zinc-800 hover:border-violet-500/40 transition-all flex items-center justify-between group touch-manipulation"
                                     >
                                         <span className="font-semibold text-sm text-white group-hover:text-violet-300">
                                             {student.first_name} {student.last_name}
@@ -334,7 +334,7 @@ export default function StatusUpdatePage() {
                                 type="button"
                                 onClick={() => setState('form')}
                                 disabled={isSubmitting}
-                                className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+                                className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-2 touch-manipulation"
                             >
                                 ← Back to form
                             </button>

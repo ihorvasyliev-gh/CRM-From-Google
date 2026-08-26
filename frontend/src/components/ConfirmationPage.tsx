@@ -283,11 +283,11 @@ export default function ConfirmationPage() {
     // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
-            {/* Background glow */}
+        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background glow - optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] opacity-60" />
-                <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-purple-500/8 rounded-full blur-[100px] opacity-40" />
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[60px] sm:blur-[100px] opacity-50" />
+                <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-purple-500/8 rounded-full blur-[50px] sm:blur-[80px] opacity-30" />
             </div>
 
             <div className="w-full max-w-md relative z-10">
@@ -305,11 +305,22 @@ export default function ConfirmationPage() {
                 {/* Card */}
                 <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden">
 
-                    {/* ─── Loading ─── */}
+                    {/* ─── Loading (with structured skeleton to accelerate visual readiness) ─── */}
                     {state === 'loading' && (
-                        <div className="p-12 flex flex-col items-center gap-4">
-                            <Loader2 size={32} className="animate-spin text-indigo-500" />
-                            <p className="text-zinc-400 text-sm">Loading course information...</p>
+                        <div className="p-6 space-y-6">
+                            <div className="flex items-center gap-3 pb-4 border-b border-zinc-800/80">
+                                <div className="p-2 bg-indigo-500/10 rounded-xl">
+                                    <GraduationCap size={20} className="text-indigo-400/60 animate-pulse" />
+                                </div>
+                                <div className="space-y-1.5 flex-1">
+                                    <div className="h-3 w-28 bg-zinc-800 rounded animate-pulse" />
+                                    <div className="h-5 w-48 bg-zinc-700/60 rounded animate-pulse" />
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-center justify-center py-6 gap-3">
+                                <Loader2 size={28} className="animate-spin text-indigo-500" />
+                                <p className="text-zinc-400 text-xs tracking-wide">Loading course details...</p>
+                            </div>
                         </div>
                     )}
 
@@ -325,7 +336,7 @@ export default function ConfirmationPage() {
                             </p>
                             <button
                                 onClick={handleRetry}
-                                className="mt-2 flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all active:scale-[0.98]"
+                                className="mt-2 flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation"
                             >
                                 <RefreshCw size={18} />
                                 Try Again
@@ -383,7 +394,7 @@ export default function ConfirmationPage() {
                                             disabled={isSubmitting}
                                             onChange={(e) => setEmail(e.target.value)}
                                             placeholder="Enter the email you registered with"
-                                            className="w-full bg-[#09090B] text-white text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                                         />
                                     </div>
                                     <p className="text-xs text-zinc-600 mt-2">
@@ -401,7 +412,7 @@ export default function ConfirmationPage() {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed"
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed touch-manipulation"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -448,9 +459,9 @@ export default function ConfirmationPage() {
                                 {matchedStudents.map((student) => (
                                     <label
                                         key={student.student_id}
-                                        className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                                        className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all touch-manipulation ${
                                             selectedStudentIds.has(student.student_id)
-                                                ? 'border-indigo-500 bg-indigo-500/10'
+                                                 ? 'border-indigo-500 bg-indigo-500/10'
                                                 : 'border-zinc-800 bg-[#09090B] hover:border-zinc-700'
                                         }`}
                                     >
@@ -458,7 +469,7 @@ export default function ConfirmationPage() {
                                             type="checkbox"
                                             checked={selectedStudentIds.has(student.student_id)}
                                             onChange={() => toggleStudent(student.student_id)}
-                                            className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0 cursor-pointer"
+                                            className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
                                         />
                                         <span className="text-white font-medium">
                                             {student.first_name} {student.last_name}
@@ -477,7 +488,7 @@ export default function ConfirmationPage() {
                                     type="button"
                                     onClick={handleConfirmSelected}
                                     disabled={isSubmitting || selectedStudentIds.size === 0}
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed mt-1"
+                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold text-lg py-4 px-8 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/40 disabled:hover:shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:active:scale-100 disabled:cursor-not-allowed mt-1 touch-manipulation"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -495,7 +506,7 @@ export default function ConfirmationPage() {
                                 <button
                                     type="button"
                                     onClick={() => { setState('form'); setInlineError(''); }}
-                                    className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+                                    className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition-colors py-2 touch-manipulation"
                                 >
                                     ← Back to email
                                 </button>

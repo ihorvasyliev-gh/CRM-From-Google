@@ -62,7 +62,7 @@ export function useStudentFlags(showToast: (msg: string, type: 'success' | 'erro
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [queryClient, user?.id]);
+    }, [queryClient, user]);
 
     // Add flag mutation
     const addFlagMutation = useMutation({

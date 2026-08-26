@@ -11,7 +11,8 @@ export default defineConfig(({ command }) => ({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    vendor: ['react', 'react-dom', 'lucide-react', 'react-router-dom'],
+                    vendor: ['react', 'react-dom', 'lucide-react', 'react-router-dom', '@tanstack/react-query'],
+                    'admin-libs': ['recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'react-quill-new'],
                     'doc-utils': ['docxtemplater', 'pizzip', 'jszip', 'exceljs', 'file-saver']
                 }
             }

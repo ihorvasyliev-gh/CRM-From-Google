@@ -80,5 +80,5 @@ export function useConfirmationNotifier() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id]);
+    }, [user]);
 }

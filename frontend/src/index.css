@@ -140,6 +140,15 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+button,
+[role="button"],
+input,
+select,
+textarea,
+a {
+    touch-action: manipulation;
+}
+
 ::selection {
     background: oklch(var(--accent-primary) / 0.15);
     color: oklch(var(--accent-primary));
