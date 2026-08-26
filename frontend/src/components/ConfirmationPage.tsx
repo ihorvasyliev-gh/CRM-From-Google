@@ -283,11 +283,11 @@ export default function ConfirmationPage() {
     // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4 relative overflow-hidden">
             {/* Background glow - optimized for mobile GPU */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[60px] sm:blur-[100px] opacity-50" />
-                <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-purple-500/8 rounded-full blur-[50px] sm:blur-[80px] opacity-30" />
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu">
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] bg-indigo-500/10 rounded-full blur-[40px] sm:blur-[100px] opacity-40 sm:opacity-50" />
+                <div className="absolute bottom-1/4 right-1/4 w-[280px] sm:w-[350px] h-[280px] sm:h-[350px] bg-purple-500/8 rounded-full blur-[30px] sm:blur-[80px] opacity-25 sm:opacity-30" />
             </div>
 
             <div className="w-full max-w-md relative z-10">
@@ -303,23 +303,32 @@ export default function ConfirmationPage() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden">
+                <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex flex-col justify-start">
 
-                    {/* ─── Loading (with structured skeleton to accelerate visual readiness) ─── */}
+                    {/* ─── Loading Skeleton (mirrors exact form height to prevent CLS) ─── */}
                     {state === 'loading' && (
-                        <div className="p-6 space-y-6">
-                            <div className="flex items-center gap-3 pb-4 border-b border-zinc-800/80">
-                                <div className="p-2 bg-indigo-500/10 rounded-xl">
-                                    <GraduationCap size={20} className="text-indigo-400/60 animate-pulse" />
-                                </div>
-                                <div className="space-y-1.5 flex-1">
-                                    <div className="h-3 w-28 bg-zinc-800 rounded animate-pulse" />
-                                    <div className="h-5 w-48 bg-zinc-700/60 rounded animate-pulse" />
+                        <div className="flex flex-col min-h-[440px]">
+                            <div className="p-6 pb-4 border-b border-zinc-800">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="p-2 bg-indigo-500/10 rounded-xl">
+                                        <GraduationCap size={20} className="text-indigo-400/60 animate-pulse" />
+                                    </div>
+                                    <div className="space-y-2 flex-1">
+                                        <div className="h-3 w-32 bg-zinc-800 rounded animate-pulse" />
+                                        <div className="h-6 w-48 bg-zinc-700/60 rounded animate-pulse" />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center justify-center py-6 gap-3">
-                                <Loader2 size={28} className="animate-spin text-indigo-500" />
-                                <p className="text-zinc-400 text-xs tracking-wide">Loading course details...</p>
+                            <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                    <div className="h-3 w-32 bg-zinc-800 rounded animate-pulse" />
+                                    <div className="h-12 w-full bg-zinc-800/50 rounded-xl border border-zinc-800/80 animate-pulse" />
+                                    <div className="h-3 w-60 bg-zinc-800/60 rounded animate-pulse mt-2" />
+                                </div>
+                                <div className="h-14 w-full bg-emerald-600/30 rounded-xl animate-pulse flex items-center justify-center gap-2 mt-4">
+                                    <Loader2 size={20} className="animate-spin text-emerald-400/60" />
+                                    <span className="text-sm font-medium text-emerald-400/60">Loading course details...</span>
+                                </div>
                             </div>
                         </div>
                     )}

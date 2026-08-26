@@ -125,11 +125,11 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-brand-50/30 to-background dark:via-brand-950/20 flex items-center justify-center px-4 relative overflow-hidden">
-            {/* Animated orbs */}
-            <div className="absolute top-20 left-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl animate-orb1" />
-            <div className="absolute bottom-20 right-20 w-96 h-96 bg-brand-400/10 rounded-full blur-3xl animate-orb2" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
+        <div className="min-h-screen bg-gradient-to-br from-background via-brand-50/30 to-background dark:via-brand-950/20 flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
+            {/* Animated orbs - optimized for GPU */}
+            <div className="hidden sm:block absolute top-20 left-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl animate-orb1 transform-gpu pointer-events-none" />
+            <div className="hidden sm:block absolute bottom-20 right-20 w-96 h-96 bg-brand-400/10 rounded-full blur-3xl animate-orb2 transform-gpu pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] bg-brand-600/5 rounded-full blur-2xl sm:blur-3xl transform-gpu pointer-events-none" />
 
             <div className="relative w-full max-w-md animate-scaleIn">
                 {/* Logo */}
@@ -142,7 +142,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-surface/60 dark:bg-white/5 backdrop-blur-2xl border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8">
+                <div className="bg-surface/60 dark:bg-white/5 backdrop-blur-2xl border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8 min-h-[380px] flex flex-col justify-start">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
                             <div className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">

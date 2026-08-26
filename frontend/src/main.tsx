@@ -44,8 +44,19 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <QueryClientProvider client={queryClient}>
                 <BrowserRouter>
                     <Suspense fallback={
-                        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] flex items-center justify-center p-4">
-                            <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4">
+                            <div className="flex items-center justify-center gap-3 mb-8">
+                                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/25">
+                                    C
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-bold tracking-tight">Course CRM</h1>
+                                    <p className="text-[10px] text-zinc-500 font-medium -mt-0.5 tracking-wide uppercase">Loading...</p>
+                                </div>
+                            </div>
+                            <div className="w-full max-w-md bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex items-center justify-center p-6">
+                                <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                            </div>
                         </div>
                     }>
                         <Routes>

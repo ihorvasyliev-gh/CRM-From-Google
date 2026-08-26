@@ -89,11 +89,11 @@ export default function StatusUpdatePage() {
     }
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4 relative overflow-hidden">
             {/* Background glow - optimized for mobile GPU */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-500/10 rounded-full blur-[60px] sm:blur-[100px] opacity-50" />
-                <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-purple-500/8 rounded-full blur-[50px] sm:blur-[80px] opacity-30" />
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu">
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] bg-violet-500/10 rounded-full blur-[40px] sm:blur-[100px] opacity-40 sm:opacity-50" />
+                <div className="absolute bottom-1/4 right-1/4 w-[280px] sm:w-[350px] h-[280px] sm:h-[350px] bg-purple-500/8 rounded-full blur-[30px] sm:blur-[80px] opacity-25 sm:opacity-30" />
             </div>
 
             <div className="w-full max-w-md relative z-10">
@@ -109,7 +109,7 @@ export default function StatusUpdatePage() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden">
+                <div className="bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden min-h-[460px] flex flex-col justify-start">
 
                     {/* ─── Form ─── */}
                     {state === 'form' && (

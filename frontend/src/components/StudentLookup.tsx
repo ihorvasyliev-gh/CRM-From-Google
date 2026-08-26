@@ -281,7 +281,7 @@ export default function StudentLookup() {
             <div className="flex-1 flex flex-col md:flex-row min-h-0 relative overflow-hidden">
                 
                 {/* Search column */}
-                <div className={`flex-1 flex flex-col min-h-0 p-4 sm:p-6 transition-all duration-300 ${selectedStudentId ? 'md:max-w-md xl:max-w-lg border-r border-border-subtle' : 'w-full'}`}>
+                <div className="w-full md:w-96 lg:w-[440px] md:shrink-0 flex flex-col min-h-0 p-4 sm:p-6 md:border-r border-border-subtle">
                     
                     {/* Search Input Box */}
                     <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 mb-4">
@@ -468,7 +468,7 @@ export default function StudentLookup() {
                 <div className={`
                     absolute md:relative inset-0 md:inset-auto md:flex-1 h-full md:h-auto z-30 md:z-10
                     bg-background p-4 sm:p-6 flex flex-col min-h-0 transition-transform duration-300 md:translate-x-0
-                    ${selectedStudentId ? 'translate-x-0' : 'translate-x-full'}
+                    ${selectedStudentId ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                 `}>
                     {selectedStudentId ? (
                         isLoadingDetail ? (
