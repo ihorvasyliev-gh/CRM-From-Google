@@ -41,7 +41,7 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Recor
         isInvited: enrollment.invited_date ? 'Yes' : 'No',
         invitedAt: formatDateLong(enrollment.invited_date),
         confirmedDate: formatDateLong(enrollment.confirmed_date),
-        courseDate: formatDateLong(enrollment.invited_date),
+        courseDate: formatDateLong(enrollment.confirmed_date || enrollment.invited_date || enrollment.completed_date),
         enrollmentStatus: enrollment.status?.charAt(0).toUpperCase() + enrollment.status?.slice(1) || '',
         enrollmentNotes: enrollment.notes || '',
     };
@@ -202,7 +202,7 @@ export async function generateDocumentsArchive(
                 // Get course info from the first enrollment
                 const firstC = enrollments[0]?.courses;
                 attData['courseTitle'] = firstC?.name || '';
-                attData['courseDate'] = formatDateLong(enrollments[0]?.invited_date) || '';
+                attData['courseDate'] = formatDateLong(enrollments[0]?.confirmed_date || enrollments[0]?.invited_date || enrollments[0]?.completed_date) || '';
                 attData['venue'] = ''; // Or add venue to course if needed
 
                 // Fill up to 34 variables

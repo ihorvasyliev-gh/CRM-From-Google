@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase';
 import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
 import { generateDocumentsArchive, type TemplateDescriptor } from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
-import { formatDateLong } from '../lib/dateUtils';
-import { DocumentTemplate, Course, TemplateVariable } from '../lib/types';
+import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
+import { DocumentTemplate, Course, TemplateVariable, cleanVariant } from '../lib/types';
 import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/appConfig';
 
 
@@ -439,7 +439,12 @@ export default function DocumentGenerator() {
         setGenerating(true);
         try {
             const courseName = selectedCourse?.name || 'Course';
-            const zipName = `${courseName.replace(/[^a-zA-Z0-9_.\-\s]/g, '').replace(/\s+/g, '_')}_Documents.zip`;
+            const firstEnr = confirmedForCourse[0];
+            const rawDate = firstEnr?.confirmed_date || firstEnr?.invited_date || firstEnr?.completed_date;
+            const dateStr = formatDateSpaces(rawDate) || formatDateSpaces(todayISO());
+            const variant = firstEnr ? cleanVariant(courseName, firstEnr.course_variant) : '';
+            const courseStr = variant ? `${courseName} (${variant})` : courseName;
+            const zipName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
 
             const tplDescriptors: TemplateDescriptor[] = activeTemplates.map(t => ({
                 name: t.name,

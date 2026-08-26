@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDateDMY, formatDateLong, formatShortDate } from './dateUtils';
+import { formatDateDMY, formatDateLong, formatShortDate, formatDateSpaces } from './dateUtils';
 
 describe('dateUtils', () => {
     describe('formatDateDMY', () => {
@@ -46,4 +46,18 @@ describe('dateUtils', () => {
             expect(formatShortDate(null)).toBe('');
         });
     });
+
+    describe('formatDateSpaces', () => {
+        it('formats a valid ISO date string with spaces (DD MM YYYY)', () => {
+            expect(formatDateSpaces('2026-08-27')).toBe('27 08 2026');
+            expect(formatDateSpaces('2026-08-27T10:00:00Z')).toBe('27 08 2026');
+        });
+
+        it('returns empty string for null, undefined, or invalid date', () => {
+            expect(formatDateSpaces(null)).toBe('');
+            expect(formatDateSpaces(undefined)).toBe('');
+            expect(formatDateSpaces('invalid')).toBe('');
+        });
+    });
 });
+

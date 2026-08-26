@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { generateDocumentsArchive } from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
-import { todayISO } from '../lib/dateUtils';
+import { todayISO, formatDateSpaces } from '../lib/dateUtils';
 
 
 function collectEmails(enrollments: EnrollmentRow[]): string {
@@ -286,8 +286,8 @@ export function useBulkActions({
             const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
             const firstSelected = selectedEnrollments[0];
             const courseStr = firstSelected ? getCoursePill(firstSelected) : 'Selected_Enrollments';
-            const d = new Date();
-            const dateStr = `${String(d.getDate()).padStart(2, '0')} ${String(d.getMonth() + 1).padStart(2, '0')} ${d.getFullYear()}`;
+            const rawDate = firstSelected?.confirmed_date || firstSelected?.invited_date || firstSelected?.completed_date;
+            const dateStr = formatDateSpaces(rawDate) || formatDateSpaces(todayISO());
             const archiveName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
 
             const { getConfig } = await import('../lib/appConfig');

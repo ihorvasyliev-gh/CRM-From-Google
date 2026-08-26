@@ -84,6 +84,26 @@ describe('buildPlaceholderData', () => {
         expect(data.invitedAt).toMatch(/15/);
     });
 
+    it('resolves courseDate hierarchy (confirmed_date > invited_date > completed_date)', () => {
+        const enr = makeFullEnrollment();
+        enr.confirmed_date = '2026-08-27';
+        enr.invited_date = '2026-08-20';
+        enr.completed_date = null;
+        expect(buildPlaceholderData(enr).courseDate).toMatch(/27\s+Aug\s+2026/i);
+
+        enr.confirmed_date = null;
+        enr.invited_date = '2026-08-20';
+        expect(buildPlaceholderData(enr).courseDate).toMatch(/20\s+Aug\s+2026/i);
+
+        enr.invited_date = null;
+        enr.completed_date = '2026-09-01';
+        expect(buildPlaceholderData(enr).courseDate).toMatch(/01\s+Sept?\s+2026/i);
+
+        enr.completed_date = null;
+        expect(buildPlaceholderData(enr).courseDate).toBe('');
+    });
+
+
     it('isCompleted is "No" for non-completed status', () => {
         const enr = makeFullEnrollment();
         enr.status = 'invited';
