@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Search, Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
@@ -7,6 +8,7 @@ import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { useDebounce } from '../hooks/useDebounce';
+import { fetchAllEnrollments } from '../hooks/useEnrollments';
 
 interface EnrollmentCount {
     course_id: string;
@@ -15,29 +17,13 @@ interface EnrollmentCount {
     invited: number;
     confirmed: number;
     completed: number;
+    withdrawn: number;
     rejected: number;
 }
 
 async function fetchCourses(): Promise<Course[]> {
     const { data } = await supabase.from('courses').select('*').order('name');
     return (data || []) as Course[];
-}
-
-async function fetchEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
-    const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
-    if (!enrollments) return {};
-    const counts: Record<string, EnrollmentCount> = {};
-    for (const e of enrollments) {
-        if (!counts[e.course_id]) {
-            counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, completed: 0, rejected: 0 };
-        }
-        counts[e.course_id].total++;
-        const stat = e.status as keyof EnrollmentCount;
-        if (stat in counts[e.course_id]) {
-            (counts[e.course_id][stat] as number)++;
-        }
-    }
-    return counts;
 }
 
 
@@ -49,6 +35,7 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
         { key: 'confirmed', color: '#06b6d4', count: counts?.confirmed ?? 0, label: 'Confirmed' },
         { key: 'invited', color: '#3b82f6', count: counts?.invited ?? 0, label: 'Invited' },
         { key: 'requested', color: '#f59e0b', count: counts?.requested ?? 0, label: 'Requested' },
+        { key: 'withdrawn', color: '#94a3b8', count: counts?.withdrawn ?? 0, label: 'Withdrawn' },
         { key: 'rejected', color: '#f87171', count: counts?.rejected ?? 0, label: 'Rejected' },
     ];
 
@@ -108,17 +95,44 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
 }
 
 export default function CourseList() {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
 
-    const { data: courses = [], isLoading: loading } = useQuery({
+    const { data: courses = [], isLoading: coursesLoading } = useQuery({
         queryKey: ['courses'],
         queryFn: fetchCourses,
     });
 
-    const { data: enrollmentCounts = {} } = useQuery({
-        queryKey: ['course_enrollment_counts'],
-        queryFn: fetchEnrollmentCounts,
+    const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
+        queryKey: ['enrollments'],
+        queryFn: fetchAllEnrollments,
     });
+
+    const loading = coursesLoading || enrollmentsLoading;
+
+    const enrollmentCounts = useMemo(() => {
+        const counts: Record<string, EnrollmentCount> = {};
+        for (const e of enrollments) {
+            if (!counts[e.course_id]) {
+                counts[e.course_id] = {
+                    course_id: e.course_id,
+                    total: 0,
+                    requested: 0,
+                    invited: 0,
+                    confirmed: 0,
+                    completed: 0,
+                    withdrawn: 0,
+                    rejected: 0,
+                };
+            }
+            counts[e.course_id].total++;
+            const stat = e.status as keyof EnrollmentCount;
+            if (stat in counts[e.course_id]) {
+                (counts[e.course_id][stat] as number)++;
+            }
+        }
+        return counts;
+    }, [enrollments]);
 
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
@@ -155,7 +169,6 @@ export default function CourseList() {
             setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course deleted', type: 'success' });
         }
         setDeleteTarget(null);
@@ -251,7 +264,11 @@ export default function CourseList() {
                         const counts = enrollmentCounts[course.id];
                         const gradient = getAvatarGradient(course.id);
                         return (
-                            <div key={course.id} className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group">
+                            <div 
+                                key={course.id} 
+                                onClick={() => navigate('/enrollments', { state: { courseId: course.id } })}
+                                className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group cursor-pointer"
+                            >
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
@@ -271,14 +288,14 @@ export default function CourseList() {
                                         </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                             <button
-                                                onClick={() => { setEditingCourse(course); setModalOpen(true); }}
+                                                onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                                 className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
                                                 title="Edit"
                                             >
                                                 <Edit2 size={14} />
                                             </button>
                                             <button
-                                                onClick={() => setDeleteTarget(course)}
+                                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(course); }}
                                                 className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
                                                 title="Delete"
                                             >

@@ -7,6 +7,7 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
+import { fetchAllEnrollments } from './hooks/useEnrollments';
 import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
@@ -160,23 +161,8 @@ function App() {
                     },
                 });
                 queryClient.prefetchQuery({
-                    queryKey: ['course_enrollment_counts'],
-                    queryFn: async () => {
-                        const { data: enrollments } = await supabase.from('enrollments').select('course_id, status');
-                        if (!enrollments) return {};
-                        const counts: Record<string, any> = {};
-                        for (const e of enrollments) {
-                            if (!counts[e.course_id]) {
-                                counts[e.course_id] = { course_id: e.course_id, total: 0, requested: 0, invited: 0, confirmed: 0, rejected: 0 };
-                            }
-                            counts[e.course_id].total++;
-                            const stat = e.status;
-                            if (stat in counts[e.course_id]) {
-                                counts[e.course_id][stat]++;
-                            }
-                        }
-                        return counts;
-                    },
+                    queryKey: ['enrollments'],
+                    queryFn: fetchAllEnrollments,
                 });
                 break;
             case 'analytics':
