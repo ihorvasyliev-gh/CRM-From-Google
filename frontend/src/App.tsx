@@ -382,32 +382,15 @@ function App() {
         }
     }, []);
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-background text-primary flex items-center justify-center transition-colors duration-300 ease-in-out">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
-                        <Sparkles size={24} className="text-white" />
-                    </div>
-                    <Loader2 size={20} className="animate-spin text-brand-500" />
-                </div>
-            </div>
-        );
-    }
-
-    if (!user) {
-        return <LoginPage />;
-    }
-
-    function navigate(tab: string) {
+    const navigate = useCallback((tab: string) => {
         setSidebarOpen(false);
         startTransition(() => {
             navigateFn(`/${tab}`);
         });
-    }
+    }, [navigateFn]);
 
     // Called from child components (e.g., StudentDetail) to navigate with filters
-    function handleNavigate(tab: string, filter?: { courseId?: string }) {
+    const handleNavigate = useCallback((tab: string, filter?: { courseId?: string }) => {
         setSidebarOpen(false);
         startTransition(() => {
             if (tab === 'enrollments' && filter?.courseId) {
@@ -416,10 +399,12 @@ function App() {
                 navigateFn(`/${tab}`);
             }
         });
-    }
+    }, [navigateFn]);
 
     // Global Keyboard Shortcuts Listener
     useEffect(() => {
+        if (!user) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
             const isInput = target && (
@@ -491,7 +476,7 @@ function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isViewer, toggleDarkMode, toggleDensity]);
+    }, [user, isViewer, toggleDarkMode, toggleDensity, navigate]);
 
     const handleSaveNewStudent = async (formData: StudentFormData) => {
         const { id, ...rest } = formData;
@@ -500,6 +485,23 @@ function App() {
         queryClient.invalidateQueries({ queryKey: ['students'] });
         setGlobalAddStudentOpen(false);
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background text-primary flex items-center justify-center transition-colors duration-300 ease-in-out">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
+                        <Sparkles size={24} className="text-white" />
+                    </div>
+                    <Loader2 size={20} className="animate-spin text-brand-500" />
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return <LoginPage />;
+    }
 
     return (
         <TooltipProvider delayDuration={100}>
