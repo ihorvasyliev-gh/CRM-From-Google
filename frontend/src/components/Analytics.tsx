@@ -2,12 +2,14 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { 
-    LayoutDashboard, 
-    BookOpen, 
     Users, 
-    Briefcase, 
-    FileSpreadsheet, 
-    Download
+    Clock, 
+    TrendingUp, 
+    GraduationCap, 
+    UserCheck, 
+    Zap, 
+    Download, 
+    FileText
 } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { Student } from '../lib/types';
@@ -15,14 +17,13 @@ import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { cleanVariant } from '../lib/types';
 
 import GlobalFilterBar, { AnalyticsFilterState } from './Analytics/GlobalFilterBar';
-import OverviewTab from './Analytics/OverviewTab';
-import CoursePerformanceTab from './Analytics/CoursePerformanceTab';
-import DemographicsTab from './Analytics/DemographicsTab';
-import OutcomesTab from './Analytics/OutcomesTab';
-import ReportsTab from './Analytics/ReportsTab';
+import PipelineFlowCard from './Analytics/PipelineFlowCard';
+import CourseMatrixCard from './Analytics/CourseMatrixCard';
+import AddressFunnelCard from './Analytics/AddressFunnelCard';
+import OutcomesTrackerCard from './Analytics/OutcomesTrackerCard';
 import DrillDownModal from './Analytics/DrillDownModal';
 import StudentDetail from './StudentDetail';
-import { exportExecutiveExcelReport } from './Analytics/analyticsUtils';
+import { exportExecutiveExcelReport, exportCustomCSV, calculateSpeedMetrics } from './Analytics/analyticsUtils';
 
 // Helper to fetch employment statuses
 async function fetchEmploymentStatuses() {
@@ -43,11 +44,7 @@ async function fetchEmploymentStatuses() {
     return allData;
 }
 
-type TabType = 'overview' | 'courses' | 'demographics' | 'outcomes' | 'reports';
-
 export default function Analytics() {
-    const [activeTab, setActiveTab] = useState<TabType>('overview');
-
     // Global Filter State
     const [filters, setFilters] = useState<AnalyticsFilterState>({
         datePreset: 'all',
@@ -118,7 +115,7 @@ export default function Analytics() {
                     if (createdTime < startTime) return false;
                 }
                 if (filters.customEndDate) {
-                    const endTime = new Date(filters.customEndDate).getTime() + 86400000; // end of day
+                    const endTime = new Date(filters.customEndDate).getTime() + 86400000;
                     if (createdTime > endTime) return false;
                 }
                 return true;
@@ -143,6 +140,27 @@ export default function Analytics() {
         return 'All Time';
     }, [filters]);
 
+    // Top Summary KPI Metrics
+    const kpis = useMemo(() => {
+        const total = filteredEnrollments.length;
+        const requested = filteredEnrollments.filter(e => e.status === 'requested').length;
+        const invited = filteredEnrollments.filter(e => e.status === 'invited').length;
+        const confirmed = filteredEnrollments.filter(e => e.status === 'confirmed').length;
+        const completed = filteredEnrollments.filter(e => e.status === 'completed').length;
+        const queue = requested + invited;
+        const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const speed = calculateSpeedMetrics(filteredEnrollments);
+
+        return {
+            total,
+            queue,
+            confirmed,
+            completed,
+            successRate,
+            avgCycleDays: speed.avgTotalCycleDays
+        };
+    }, [filteredEnrollments]);
+
     const handleDrillDown = (title: string, data: EnrollmentWithRelations[]) => {
         setModalData({ isOpen: true, title, data });
     };
@@ -162,90 +180,57 @@ export default function Analytics() {
         }
     };
 
+    const handleExportCSV = () => {
+        exportCustomCSV(filteredEnrollments, `crm_analytics_${new Date().toISOString().slice(0, 10)}.csv`);
+    };
+
     if (isLoading) {
         return (
-            <div className="flex-1 flex flex-col gap-6 p-1 animate-fadeIn">
-                <div className="h-14 w-full skeleton rounded-2xl"></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => <div key={i} className="h-[120px] skeleton rounded-2xl"></div>)}
+            <div className="flex-1 flex flex-col gap-6 p-2 animate-fadeIn">
+                <div className="h-16 w-full skeleton rounded-2xl"></div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-24 skeleton rounded-2xl"></div>)}
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="h-[350px] skeleton rounded-2xl"></div>
-                    <div className="h-[350px] skeleton rounded-2xl lg:col-span-2"></div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-96 skeleton rounded-2xl"></div>
+                    <div className="h-96 skeleton rounded-2xl"></div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 pb-10 animate-fadeIn">
-            {/* Top Bar: Tabs & Quick Action */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border-subtle p-2 rounded-2xl shadow-sm">
-                
-                {/* 5 Modular Tabs Switcher */}
-                <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl overflow-x-auto hide-scrollbar">
-                    <button
-                        onClick={() => setActiveTab('overview')}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                            activeTab === 'overview' 
-                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
-                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
-                        }`}
-                    >
-                        <LayoutDashboard size={15} /> Overview & Pipeline
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('courses')}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                            activeTab === 'courses' 
-                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
-                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
-                        }`}
-                    >
-                        <BookOpen size={15} /> Course Performance
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('demographics')}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                            activeTab === 'demographics' 
-                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
-                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
-                        }`}
-                    >
-                        <Users size={15} /> Demographics & Geography
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('outcomes')}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                            activeTab === 'outcomes' 
-                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
-                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
-                        }`}
-                    >
-                        <Briefcase size={15} /> Outcomes & Employment
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('reports')}
-                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
-                            activeTab === 'reports' 
-                            ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle' 
-                            : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 border border-transparent'
-                        }`}
-                    >
-                        <FileSpreadsheet size={15} /> Reports & Data Explorer
-                    </button>
+        <div className="space-y-6 pb-12 animate-fadeIn">
+            {/* Header & Export Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border-subtle p-4 sm:p-5 rounded-2xl shadow-sm">
+                <div>
+                    <h1 className="text-lg sm:text-xl font-bold text-primary flex items-center gap-2">
+                        Analytics & Operational Intelligence
+                    </h1>
+                    <p className="text-xs text-muted mt-0.5">
+                        Clean unified metrics on student pipeline, normalized Cork geography, courses, and graduate outcomes
+                    </p>
                 </div>
 
-                {/* Right Action Button */}
-                <div className="flex items-center gap-2 px-2">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                        onClick={handleExportCSV}
+                        disabled={filteredEnrollments.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-primary bg-surface-elevated hover:bg-black/5 dark:hover:bg-white/5 border border-border-subtle transition-all disabled:opacity-50 shadow-sm"
+                        title="Export current filtered view to CSV"
+                    >
+                        <FileText size={14} />
+                        <span>Export CSV</span>
+                    </button>
+
                     <button 
                         onClick={handleQuickExecutiveExport}
                         disabled={isExportingQuickReport || filteredEnrollments.length === 0}
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 transition-all shadow-sm flex-shrink-0"
-                        title="Download formatted multi-sheet Excel report"
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 transition-all shadow-sm flex-shrink-0"
+                        title="Download multi-sheet Executive Excel report"
                     >
                         <Download size={14} />
-                        <span>{isExportingQuickReport ? 'Exporting...' : 'Executive Report'}</span>
+                        <span>{isExportingQuickReport ? 'Exporting...' : 'Executive Excel'}</span>
                     </button>
                 </div>
             </div>
@@ -258,41 +243,136 @@ export default function Analytics() {
                 filteredEnrollments={filteredEnrollments}
             />
 
-            {/* Active Tab Content */}
-            <div className="transition-all duration-300">
-                {activeTab === 'overview' && (
-                    <OverviewTab
-                        enrollments={filteredEnrollments}
-                        onDrillDown={handleDrillDown}
-                    />
-                )}
-                {activeTab === 'courses' && (
-                    <CoursePerformanceTab
-                        enrollments={filteredEnrollments}
-                        onDrillDown={handleDrillDown}
-                    />
-                )}
-                {activeTab === 'demographics' && (
-                    <DemographicsTab
-                        enrollments={filteredEnrollments}
-                        onDrillDown={handleDrillDown}
-                    />
-                )}
-                {activeTab === 'outcomes' && (
-                    <OutcomesTab
-                        enrollments={filteredEnrollments}
-                        employmentStatuses={employmentStatuses}
-                        onDrillDown={handleDrillDown}
-                    />
-                )}
-                {activeTab === 'reports' && (
-                    <ReportsTab
-                        enrollments={filteredEnrollments}
-                        employmentStatuses={employmentStatuses}
-                        onSelectStudent={setSelectedStudent}
-                        activeFilterLabel={activeFilterLabel}
-                    />
-                )}
+            {/* Top 6 KPI Metric Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                {/* Total Pipeline */}
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => handleDrillDown('All Pipeline Applications', filteredEnrollments)}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Total Pipeline</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">{kpis.total}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                            <Users size={16} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Active Queue */}
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => handleDrillDown('Active Waiting Queue (Requested & Invited)', filteredEnrollments.filter(e => e.status === 'requested' || e.status === 'invited'))}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Active Queue</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">{kpis.queue}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Clock size={16} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Confirmed Students */}
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => handleDrillDown('Confirmed Students', filteredEnrollments.filter(e => e.status === 'confirmed'))}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Confirmed</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">{kpis.confirmed}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                            <UserCheck size={16} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Completed Graduates */}
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => handleDrillDown('Completed Graduates', filteredEnrollments.filter(e => e.status === 'completed'))}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-600" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Graduates</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">{kpis.completed}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                            <GraduationCap size={16} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Success Rate */}
+                <div 
+                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover cursor-pointer"
+                    onClick={() => handleDrillDown('Graduates vs Pipeline Applications', filteredEnrollments.filter(e => e.status === 'completed'))}
+                >
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Success Rate</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">{kpis.successRate}%</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <TrendingUp size={16} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Processing Velocity */}
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 relative overflow-hidden group card-hover">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-blue-500" />
+                    <div className="flex items-start justify-between relative z-10">
+                        <div>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5">Avg Cycle</p>
+                            <p className="text-xl sm:text-2xl font-mono font-bold text-primary">
+                                {kpis.avgCycleDays} <span className="text-xs font-normal text-muted">days</span>
+                            </p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                            <Zap size={16} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 4 Core Intelligence Blocks */}
+            <div className="space-y-6">
+                {/* 1. Pipeline & Velocity Flow */}
+                <PipelineFlowCard
+                    enrollments={filteredEnrollments}
+                    onDrillDown={handleDrillDown}
+                />
+
+                {/* 2. Granular Address Intelligence & Funnel */}
+                <AddressFunnelCard
+                    enrollments={filteredEnrollments}
+                    onDrillDown={handleDrillDown}
+                />
+
+                {/* 3. Course Matrix & Variants */}
+                <CourseMatrixCard
+                    enrollments={filteredEnrollments}
+                    onDrillDown={handleDrillDown}
+                />
+
+                {/* 4. Outcomes & Employment Tracker */}
+                <OutcomesTrackerCard
+                    enrollments={filteredEnrollments}
+                    employmentStatuses={employmentStatuses}
+                    onDrillDown={handleDrillDown}
+                />
             </div>
 
             {/* Drill Down Modal */}

@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { X, Search, Download, Mail, ChevronLeft, ChevronRight, Sparkles, User, ExternalLink, Check } from 'lucide-react';
+import { X, Search, Download, Mail, ChevronLeft, ChevronRight, Sparkles, User, ExternalLink, Check, MapPin } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { cleanVariant } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
-import { copyEmailsToClipboard, exportCustomCSV } from './analyticsUtils';
+import { copyEmailsToClipboard, exportCustomCSV, normalizeCorkAddress } from './analyticsUtils';
 
 interface DrillDownModalProps {
     isOpen: boolean;
@@ -29,10 +29,15 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
             const name = `${e.students?.first_name || ''} ${e.students?.last_name || ''}`.toLowerCase();
             const email = (e.students?.email || '').toLowerCase();
             const phone = (e.students?.phone || '').toLowerCase();
+            const addr = (e.students?.address || '').toLowerCase();
             const eircode = (e.students?.eircode || '').toLowerCase();
             const course = (e.courses?.name || '').toLowerCase();
             const status = (e.status || '').toLowerCase();
-            return name.includes(q) || email.includes(q) || phone.includes(q) || eircode.includes(q) || course.includes(q) || status.includes(q);
+            const norm = normalizeCorkAddress(e.students?.address || null, e.students?.eircode || null);
+            const district = norm.microDistrict.toLowerCase();
+            const macro = norm.macroRegion.toLowerCase();
+
+            return name.includes(q) || email.includes(q) || phone.includes(q) || addr.includes(q) || eircode.includes(q) || course.includes(q) || status.includes(q) || district.includes(q) || macro.includes(q);
         });
     }, [data, searchQuery]);
 
@@ -119,7 +124,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={15} />
                         <input
                             type="text"
-                            placeholder="Search by student name, email, phone, course..."
+                            placeholder="Search by student name, email, district, course..."
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
@@ -130,7 +135,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                     </div>
 
                     <div className="text-xs text-muted font-medium hidden sm:block">
-                        Showing {paginatedData.length} of {filteredData.length} matching entries
+                        Showing {paginatedData.length} of {filteredData.length} entries
                     </div>
                 </div>
 
@@ -147,6 +152,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                 <thead className="bg-surface-elevated text-xs font-bold uppercase tracking-wider text-muted border-b border-border-subtle">
                                     <tr>
                                         <th className="py-2.5 px-3 sm:px-4">Student</th>
+                                        <th className="py-2.5 px-3 sm:px-4">Location</th>
                                         <th className="py-2.5 px-3 sm:px-4">Course & Variant</th>
                                         <th className="py-2.5 px-3 sm:px-4">Status</th>
                                         <th className="py-2.5 px-3 sm:px-4">Date</th>
@@ -157,6 +163,8 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                     {paginatedData.map((e) => {
                                         const s = e.students;
                                         const statusCfg = STATUS_CONFIG[e.status];
+                                        const norm = normalizeCorkAddress(s?.address || null, s?.eircode || null);
+
                                         return (
                                             <tr 
                                                 key={e.id}
@@ -177,6 +185,16 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                                     <div className="text-[11px] text-muted flex items-center gap-2 mt-0.5">
                                                         <span>{s?.email || 'No email'}</span>
                                                         {s?.phone && <span className="font-mono">{s.phone}</span>}
+                                                    </div>
+                                                </td>
+
+                                                <td className="py-3 px-3 sm:px-4">
+                                                    <div className="flex items-center gap-1 font-medium text-primary text-xs">
+                                                        <MapPin size={12} className="text-brand-500 flex-shrink-0" />
+                                                        <span>{norm.microDistrict}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-muted ml-4">
+                                                        {norm.macroRegion}
                                                     </div>
                                                 </td>
 
