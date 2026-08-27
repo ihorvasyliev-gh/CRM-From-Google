@@ -312,6 +312,22 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
             .sort((a, b) => parseSafeDate(b.created_at).time - parseSafeDate(a.created_at).time);
     }, [allEnrollments, activityFilter]);
 
+    // Pre-index enrollments by student_id in O(N) time for instant O(1) history lookup
+    const enrollmentsByStudent = useMemo(() => {
+        const map = new Map<string, typeof allEnrollments>();
+        for (const e of allEnrollments) {
+            const sid = e.student_id;
+            if (!sid) continue;
+            let list = map.get(sid);
+            if (!list) {
+                list = [];
+                map.set(sid, list);
+            }
+            list.push(e);
+        }
+        return map;
+    }, [allEnrollments]);
+
     // Group enrollments by student + day
     const groupedActivity = useMemo((): GroupedActivity[] => {
         const source = filteredRecent;
@@ -346,10 +362,18 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
             });
         }
 
-        // For each group, find this student's enrollments on OTHER days as "previous" using allEnrollments
-        const allGroupsList = Array.from(groupMap.values());
-        for (const group of allGroupsList) {
-            const studentAllEn = allEnrollments.filter(e => e.student_id === group.studentId);
+        // Sort by date descending and take top 50 before heavy history resolution
+        let allGroupsList = Array.from(groupMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+        if (activityFilter !== 'all') {
+            allGroupsList = allGroupsList.filter(g => g.enrollments.some(en => en.status === activityFilter));
+        }
+
+        const visibleGroups = allGroupsList.slice(0, 50);
+
+        // For each visible group, resolve previous enrollments using O(1) student map
+        for (const group of visibleGroups) {
+            const studentAllEn = enrollmentsByStudent.get(group.studentId) || [];
             
             // Check if this is the student's first ever registration day in the system
             const hasPriorEnrollments = studentAllEn.some(en => {
@@ -388,7 +412,6 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
                     status: en.status
                 });
             }
-
 
             const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
             for (const dKey of sortedDates) {
@@ -482,21 +505,8 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
             });
         }
 
-        // Sort by date descending
-        let sorted = allGroupsList.sort((a, b) => b.date.localeCompare(a.date));
-
-        // Apply status filter at group level
-        if (activityFilter !== 'all') {
-            sorted = sorted.filter(g => g.enrollments.some(en => en.status === activityFilter));
-        }
-
-        // Limit the groups to 50 for 'all' and 'requested'
-        if (activityFilter === 'all' || activityFilter === 'requested') {
-            sorted = sorted.slice(0, 50);
-        }
-
-        return sorted;
-    }, [filteredRecent, activityFilter, allEnrollments]);
+        return visibleGroups;
+    }, [filteredRecent, activityFilter, enrollmentsByStudent]);
 
     // Counts per filter for pill badges
     const filterCounts = useMemo(() => {

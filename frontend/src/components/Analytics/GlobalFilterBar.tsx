@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Calendar, Filter, X, RotateCcw, Check, Sparkles, BookOpen, Layers } from 'lucide-react';
+import { Calendar, Filter, RotateCcw, Check, Sparkles, BookOpen, Layers, X } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
@@ -8,8 +8,8 @@ export interface AnalyticsFilterState {
     datePreset: 'all' | '30' | '90' | '180' | '365' | 'custom';
     customStartDate: string;
     customEndDate: string;
-    courseId: string; // 'all' or specific uuid
-    variant: string;  // 'all' or specific cleanVariant
+    courseId: string;
+    variant: string;
     priorityOnly: boolean;
 }
 
@@ -53,7 +53,7 @@ export default function GlobalFilterBar({
         return Array.from(set).sort((a, b) => a.localeCompare(b));
     }, [allEnrollments]);
 
-    // Check how many filters are active
+    // Check active filters count
     const activeFiltersCount = useMemo(() => {
         let count = 0;
         if (filters.datePreset !== 'all') count++;
@@ -115,7 +115,6 @@ export default function GlobalFilterBar({
         <div className="bg-surface border border-border-subtle rounded-2xl p-4 shadow-sm space-y-3.5">
             {/* Top row: Date Presets & Selectors */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-                
                 {/* Date Presets Group */}
                 <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl flex-wrap">
                     <button
@@ -136,7 +135,7 @@ export default function GlobalFilterBar({
                                 : 'text-muted hover:text-primary'
                         }`}
                     >
-                        30 Days
+                        Last 30 Days
                     </button>
                     <button
                         onClick={() => handlePresetClick('90')}
@@ -146,7 +145,7 @@ export default function GlobalFilterBar({
                                 : 'text-muted hover:text-primary'
                         }`}
                     >
-                        90 Days
+                        Last 90 Days
                     </button>
                     <button
                         onClick={() => handlePresetClick('180')}
@@ -156,7 +155,7 @@ export default function GlobalFilterBar({
                                 : 'text-muted hover:text-primary'
                         }`}
                     >
-                        6 Months
+                        Last 6 Months
                     </button>
                     <button
                         onClick={() => handlePresetClick('365')}
@@ -166,7 +165,7 @@ export default function GlobalFilterBar({
                                 : 'text-muted hover:text-primary'
                         }`}
                     >
-                        12 Months
+                        Last 12 Months
                     </button>
                     <button
                         onClick={() => handlePresetClick('custom')}
@@ -188,7 +187,7 @@ export default function GlobalFilterBar({
                 {/* Dropdowns Group */}
                 <div className="flex flex-wrap items-center gap-2.5">
                     {/* Course Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs">
+                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
                         <BookOpen size={13} className="text-muted flex-shrink-0" />
                         <select
                             value={filters.courseId}
@@ -203,7 +202,7 @@ export default function GlobalFilterBar({
                     </div>
 
                     {/* Variant Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs">
+                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
                         <Layers size={13} className="text-muted flex-shrink-0" />
                         <select
                             value={filters.variant}
@@ -220,14 +219,14 @@ export default function GlobalFilterBar({
                     {/* Priority Toggle */}
                     <button
                         onClick={() => onFiltersChange({ ...filters, priorityOnly: !filters.priorityOnly })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all shadow-sm ${
                             filters.priorityOnly
                                 ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                                 : 'bg-surface-elevated border-border-subtle text-muted hover:text-primary'
                         }`}
                     >
-                        <Sparkles size={13} />
-                        Priority Only
+                        <Sparkles size={13} className={filters.priorityOnly ? 'text-amber-500 fill-amber-500' : ''} />
+                        <span>Priority Only</span>
                     </button>
 
                     {/* Reset Button */}
@@ -235,10 +234,10 @@ export default function GlobalFilterBar({
                         <button
                             onClick={handleReset}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors"
-                            title="Reset all filters"
+                            title="Reset all active filters"
                         >
                             <RotateCcw size={13} />
-                            Reset ({activeFiltersCount})
+                            <span>Reset ({activeFiltersCount})</span>
                         </button>
                     )}
                 </div>
@@ -246,17 +245,17 @@ export default function GlobalFilterBar({
 
             {/* Bottom row: Slice summary banner */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-border-subtle/50 text-xs">
-                <div className="flex items-center gap-3 text-muted">
-                    <span className="flex items-center gap-1.5 font-medium">
+                <div className="flex items-center gap-3 text-muted flex-wrap">
+                    <span className="flex items-center gap-1.5 font-bold text-primary">
                         <Filter size={13} className="text-brand-500" />
                         Active Scope:
                     </span>
                     <span className="text-primary font-bold">{sliceStats.total} <span className="font-normal text-muted">enrollments</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong" />
+                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
                     <span className="text-primary font-semibold">{sliceStats.uniqueStudents} <span className="font-normal text-muted">students</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{sliceStats.completed} <span className="font-normal text-muted">completed</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong" />
+                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{sliceStats.completed} <span className="font-normal text-muted">graduates</span></span>
+                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
                     <span className="text-amber-600 dark:text-amber-400 font-semibold">{sliceStats.queue} <span className="font-normal text-muted">in queue</span></span>
                 </div>
                 

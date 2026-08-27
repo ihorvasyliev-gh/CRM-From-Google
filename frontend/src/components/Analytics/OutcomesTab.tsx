@@ -28,12 +28,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
             <div className="glass dark:glass-dark p-3 rounded-xl shadow-lg border border-border-subtle backdrop-blur-xl z-50">
-                <p className="text-sm font-semibold text-primary mb-1">{label || payload[0]?.payload?.name}</p>
+                <p className="text-xs font-semibold text-primary mb-1">{label || payload[0]?.payload?.name}</p>
                 {payload.map((entry: any, index: number) => (
                     <p key={`item-${index}`} className="text-xs font-medium flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
                         <span className="text-muted">{entry.name}:</span> 
-                        <span className="text-primary font-bold">{entry.value}</span>
+                        <span className="text-primary font-bold font-mono">{entry.value}</span>
                     </p>
                 ))}
             </div>
@@ -46,7 +46,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
     const [copiedPending, setCopiedPending] = useState(false);
     const [copiedNotContacted, setCopiedNotContacted] = useState(false);
 
-    // 1. Identify graduates (students with 'completed' enrollments in this filtered list)
+    // Identify graduates (students with 'completed' enrollments in this filtered list)
     const graduateData = useMemo(() => {
         const uniqueGraduates = new Map<string, { student: any; enrollment: EnrollmentWithRelations; allEnrollments: EnrollmentWithRelations[] }>();
         
@@ -75,24 +75,10 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
         
         const fieldCounts: Record<string, { count: number, enrollments: EnrollmentWithRelations[] }> = {};
         const startedTimeline: Record<string, { count: number, timestamp: number, enrollments: EnrollmentWithRelations[] }> = {};
-        const courseOutcomesMap: Record<string, { totalGrads: number, workingCount: number, enrollments: EnrollmentWithRelations[] }> = {};
 
-        gradsList.forEach(({ student, enrollment, allEnrollments }) => {
+        gradsList.forEach(({ student, enrollment }) => {
             const emp = employmentStatuses.find(es => es.student_id === student.id);
             
-            // Track per-course employment
-            allEnrollments.forEach(en => {
-                const cName = en.courses?.name || 'Unknown Course';
-                if (!courseOutcomesMap[cName]) {
-                    courseOutcomesMap[cName] = { totalGrads: 0, workingCount: 0, enrollments: [] };
-                }
-                courseOutcomesMap[cName].totalGrads++;
-                courseOutcomesMap[cName].enrollments.push(en);
-                if (emp && emp.status === 'responded' && emp.is_working) {
-                    courseOutcomesMap[cName].workingCount++;
-                }
-            });
-
             if (emp) {
                 if (emp.status === 'responded') {
                     responded.push(enrollment);
@@ -170,21 +156,6 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
             { name: 'Responded', value: responded.length, color: '#10b981', items: responded }
         ];
 
-        // Course Outcomes Rating List
-        const courseOutcomesList = Object.entries(courseOutcomesMap)
-            .map(([courseName, data]) => {
-                const rate = data.totalGrads > 0 ? Math.round((data.workingCount / data.totalGrads) * 100) : 0;
-                return {
-                    courseName,
-                    totalGrads: data.totalGrads,
-                    workingCount: data.workingCount,
-                    employmentRate: rate,
-                    enrollments: data.enrollments
-                };
-            })
-            .sort((a, b) => b.totalGrads - a.totalGrads)
-            .slice(0, 6);
-
         return {
             totalGraduates: totalGraduatesCount,
             respondedCount: responded.length,
@@ -195,7 +166,6 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
             fieldsData,
             timelineData,
             funnelData,
-            courseOutcomesList,
             gradsList: gradsList.map(g => g.enrollment),
             respondedList: responded,
             pendingList: pending,
@@ -220,8 +190,8 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
     return (
         <div className="space-y-6 animate-fadeIn">
-            {/* Header Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Header Metrics Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {/* Total Graduates */}
                 <div 
                     onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)}
@@ -233,7 +203,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Total Graduates</p>
                             <p className="text-2xl font-mono font-bold text-primary">{graduateData.totalGraduates}</p>
                         </div>
-                        <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
                             <Users size={18} />
                         </div>
                     </div>
@@ -247,13 +217,13 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
                     <div className="flex items-start justify-between relative z-10">
                         <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Response Rate</p>
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Survey Response Rate</p>
                             <p className="text-2xl font-mono font-bold text-primary">
                                 {graduateData.responseRate}% 
                                 <span className="text-xs text-muted font-normal ml-1">({graduateData.respondedCount})</span>
                             </p>
                         </div>
-                        <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
                             <Mail size={18} />
                         </div>
                     </div>
@@ -270,10 +240,10 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Employment Rate</p>
                             <p className="text-2xl font-mono font-bold text-primary">
                                 {graduateData.employmentRate}%
-                                <span className="text-xs text-muted font-normal ml-1">({graduateData.workingCount} working)</span>
+                                <span className="text-xs text-muted font-normal ml-1">({graduateData.workingCount} employed)</span>
                             </p>
                         </div>
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                             <Briefcase size={18} />
                         </div>
                     </div>
@@ -290,14 +260,14 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                             <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Pending Responses</p>
                             <p className="text-2xl font-mono font-bold text-primary">{graduateData.pendingList.length}</p>
                         </div>
-                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                             <Clock size={18} />
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Charts Row 1: Types & Funnel */}
+            {/* 2. Charts Row 1: Types & Funnel */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Employment Type Donut Chart */}
                 <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
@@ -307,7 +277,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                     {graduateData.employmentTypeData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
                             <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-muted">No employment type data reported yet.</p>
+                            <p className="text-xs text-muted">No employment type records reported yet.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full relative">
@@ -370,7 +340,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     axisLine={false} 
                                     tickLine={false} 
                                     tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11, fontWeight: 500 }}
-                                    width={110}
+                                    width={120}
                                 />
                                 <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border, #e2e8f0)', opacity: 0.2 }} />
                                 <Bar 
@@ -389,10 +359,10 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 </div>
             </div>
 
-            {/* Charts Row 2: Fields & Timeline */}
+            {/* 3. Charts Row 2: Fields & Timeline */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Top Fields of Work */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[340px] lg:col-span-2">
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
                         <TrendingUp size={16} className="text-brand-500" /> Top Fields & Industries of Employment
                     </h3>
@@ -425,7 +395,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     <YAxis 
                                         axisLine={false} 
                                         tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }}
+                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
                                     />
                                     <RechartsTooltip content={<CustomTooltip />} />
                                     <Bar 
@@ -443,14 +413,14 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 </div>
 
                 {/* Job Starting Timeline */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-1">
+                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[340px] lg:col-span-1">
                     <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
                         <Clock size={16} className="text-brand-500" /> New Jobs Started Timeline
                     </h3>
                     {graduateData.timelineData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center">
                             <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-muted">No timeline data available.</p>
+                            <p className="text-xs text-muted">No timeline records submitted.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full">
@@ -489,10 +459,10 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                         type="monotone" 
                                         dataKey="Started Work" 
                                         stroke="#10b981" 
-                                        strokeWidth={3}
+                                        strokeWidth={2.5}
                                         fillOpacity={1} 
                                         fill="url(#colorJobs)" 
-                                        activeDot={{ r: 6, strokeWidth: 0, className: "cursor-pointer" }}
+                                        activeDot={{ r: 5, strokeWidth: 0, className: "cursor-pointer" }}
                                     />
                                 </AreaChart>
                             </ResponsiveContainer>
@@ -501,18 +471,18 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                 </div>
             </div>
 
-            {/* Targeted Follow-up Action Banners */}
+            {/* 4. Targeted Follow-up Action Banners */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Pending Follow-up */}
                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex-shrink-0">
+                        <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex-shrink-0">
                             <Clock size={20} />
                         </div>
                         <div>
                             <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Pending Survey Inquiries</h4>
                             <p className="text-xs text-muted mt-0.5">
-                                <span className="font-semibold text-primary">{graduateData.pendingList.length} graduates</span> received survey but have not responded yet
+                                <span className="font-semibold text-primary font-mono">{graduateData.pendingList.length} graduates</span> received survey but have not responded yet
                             </p>
                         </div>
                     </div>
@@ -522,20 +492,20 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
                     >
                         {copiedPending ? <Check size={14} /> : <Mail size={14} />}
-                        <span>{copiedPending ? 'Copied Emails!' : 'Copy Emails'}</span>
+                        <span>{copiedPending ? 'Copied!' : 'Copy Emails'}</span>
                     </button>
                 </div>
 
                 {/* Not Contacted Follow-up */}
                 <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl flex-shrink-0">
+                        <div className="p-2.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl flex-shrink-0">
                             <Send size={20} />
                         </div>
                         <div>
                             <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Not Yet Surveyed</h4>
                             <p className="text-xs text-muted mt-0.5">
-                                <span className="font-semibold text-primary">{graduateData.notContactedList.length} graduates</span> are ready for initial outcome check-in
+                                <span className="font-semibold text-primary font-mono">{graduateData.notContactedList.length} graduates</span> are ready for initial outcome check-in
                             </p>
                         </div>
                     </div>
@@ -545,7 +515,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
                     >
                         {copiedNotContacted ? <Check size={14} /> : <Mail size={14} />}
-                        <span>{copiedNotContacted ? 'Copied Emails!' : 'Copy Emails'}</span>
+                        <span>{copiedNotContacted ? 'Copied!' : 'Copy Emails'}</span>
                     </button>
                 </div>
             </div>
