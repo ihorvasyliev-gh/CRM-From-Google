@@ -290,7 +290,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                         >
                                             <td className="px-5 py-3.5">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
+                                                    <div className={`table-avatar w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
                                                         {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                                                     </div>
                                                     <span className="font-semibold text-primary">{student.first_name} {student.last_name}</span>

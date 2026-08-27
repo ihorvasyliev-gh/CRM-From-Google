@@ -454,28 +454,28 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 onCopy={handleCopyField}
                                 extraActions={
                                     student.phone ? (
-                                        <>
+                                        <div className="flex items-center gap-1">
                                             {formatPhoneForWhatsApp(student.phone) && (
                                                 <a
                                                     href={formatPhoneForWhatsApp(student.phone)!}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                     title="Chat on WhatsApp"
                                                 >
-                                                    <MessageSquare size={13} />
+                                                    <MessageSquare size={14} />
                                                 </a>
                                             )}
                                             {formatPhoneForCall(student.phone) && (
                                                 <a
                                                     href={formatPhoneForCall(student.phone)!}
-                                                    className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                     title="Call Phone Number"
                                                 >
-                                                    <Phone size={13} />
+                                                    <Phone size={14} />
                                                 </a>
                                             )}
-                                        </>
+                                        </div>
                                     ) : undefined
                                 }
                             />

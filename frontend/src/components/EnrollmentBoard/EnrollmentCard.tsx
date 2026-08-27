@@ -119,7 +119,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
+            className={`group relative enrollment-card p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile
@@ -135,7 +135,7 @@ const EnrollmentCard = function EnrollmentCard({
         >
             <div className="flex items-start gap-2 md:gap-3">
                 {/* Left Actions Column */}
-                <div className="mt-0.5 flex flex-col items-center gap-1.5 md:gap-2 flex-shrink-0">
+                <div className="card-actions-col mt-0.5 flex flex-col items-center gap-1.5 md:gap-2 flex-shrink-0">
                     <div
                         className={`w-[16px] h-[16px] rounded flex items-center justify-center border transition-all ${isSelected
                             ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
@@ -183,19 +183,19 @@ const EnrollmentCard = function EnrollmentCard({
                 <div className="flex-1 min-w-0 flex flex-col pr-5 md:pr-6">
                     {/* Header: Name & Badges */}
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <p className="font-bold text-primary text-[14px] md:text-[16px] leading-tight">
+                            <p className="card-title font-bold text-primary text-[14px] md:text-[16px] leading-tight">
                                 {enrollment.students?.first_name} {enrollment.students?.last_name}
                             </p>
 
                             {/* Course Pill — inline with name */}
-                            <span className={`inline-block text-[10px] md:text-[12px] font-medium px-1.5 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
+                            <span className={`card-pill inline-block text-[10px] md:text-[12px] font-medium px-1.5 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
                                 {getCoursePill(enrollment)}
                             </span>
                             
                             {/* Queue Number */}
                             {status === 'requested' && queuePosition !== undefined && (
                                 <div title="Position in queue for this course">
-                                    <span className="inline-flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 font-mono text-[11px] font-bold rounded px-1.5 py-0.5 border border-violet-200 dark:border-violet-500/30">
+                                    <span className="card-pill inline-flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 font-mono text-[11px] font-bold rounded px-1.5 py-0.5 border border-violet-200 dark:border-violet-500/30">
                                         #{queuePosition}
                                     </span>
                                 </div>
@@ -207,7 +207,7 @@ const EnrollmentCard = function EnrollmentCard({
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                                         title="Click to view completed courses"
-                                        className="flex items-center justify-center gap-0.5 px-1 py-0.5 md:px-1.5 md:py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                                        className="card-pill flex items-center justify-center gap-0.5 px-1 py-0.5 md:px-1.5 md:py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
                                     >
                                         <Award size={isMobile ? 11 : 12} strokeWidth={2.5} />
                                         <span className="text-[10px] md:text-[11px] font-bold">{completedCourses.length}</span>
@@ -263,11 +263,20 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
 
                     {/* Contact Info */}
-                    <div className="mt-1 md:mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-[11px] md:text-[13px] text-primary/80 truncate">
+                    <div className="card-contact mt-1 md:mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-[11px] md:text-[13px] text-primary/80 truncate">
                         {enrollment.students?.email && (
                             <div className="flex items-center gap-1.5 truncate min-w-0">
-                                <Mail size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
-                                <span className="truncate">{enrollment.students.email}</span>
+                                <Mail size={12} className="flex-shrink-0 text-primary/60" />
+                                <a
+                                    href={`mailto:${enrollment.students.email}`}
+                                    onClick={e => e.stopPropagation()}
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onTouchStart={e => e.stopPropagation()}
+                                    className="truncate hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                                    title={`Send email to ${enrollment.students.email}`}
+                                >
+                                    {enrollment.students.email}
+                                </a>
                             </div>
                         )}
                         {enrollment.students?.phone && (() => {
@@ -275,29 +284,48 @@ const EnrollmentCard = function EnrollmentCard({
                             const telUrl = formatPhoneForCall(enrollment.students.phone);
                             return (
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <Phone size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
-                                        <span>{enrollment.students.phone}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 ml-0.5" onClick={e => e.stopPropagation()}>
+                                    {telUrl ? (
+                                        <a
+                                            href={telUrl}
+                                            onClick={e => e.stopPropagation()}
+                                            onPointerDown={e => e.stopPropagation()}
+                                            onTouchStart={e => e.stopPropagation()}
+                                            className="flex items-center gap-1 text-primary/80 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                            title="Click to call"
+                                        >
+                                            <Phone size={12} className="flex-shrink-0 text-primary/60" />
+                                            <span>{enrollment.students.phone}</span>
+                                        </a>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            <Phone size={12} className="flex-shrink-0 text-primary/60" />
+                                            <span>{enrollment.students.phone}</span>
+                                        </div>
+                                    )}
+                                    <div
+                                        className="flex items-center gap-1.5 ml-0.5"
+                                        onClick={e => e.stopPropagation()}
+                                        onPointerDown={e => e.stopPropagation()}
+                                        onTouchStart={e => e.stopPropagation()}
+                                    >
                                         {waUrl && (
                                             <a
                                                 href={waUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="p-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:bg-emerald-500/10 rounded transition-colors"
+                                                className="flex items-center justify-center min-w-[28px] h-[28px] md:min-w-[24px] md:h-[24px] px-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-md shadow-xs transition-all active:scale-95"
                                                 title="Chat on WhatsApp"
                                             >
-                                                <MessageSquare size={13} />
+                                                <MessageSquare size={14} />
                                             </a>
                                         )}
                                         {telUrl && (
                                             <a
                                                 href={telUrl}
-                                                className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
+                                                className="flex items-center justify-center min-w-[28px] h-[28px] md:min-w-[24px] md:h-[24px] px-1 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-md shadow-xs transition-all active:scale-95"
                                                 title="Call Phone Number"
                                             >
-                                                <Phone size={12} />
+                                                <Phone size={13} />
                                             </a>
                                         )}
                                     </div>
@@ -307,7 +335,7 @@ const EnrollmentCard = function EnrollmentCard({
                     </div>
 
                     {/* Info row */}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 md:gap-x-2 gap-y-1 text-[10px] md:text-[12px] text-primary/75">
+                    <div className="card-info mt-1 flex flex-wrap items-center gap-x-1.5 md:gap-x-2 gap-y-1 text-[10px] md:text-[12px] text-primary/75">
                         {/* п.7: Registration date with relative time */}
                         <span className="flex items-center gap-1">
                             {formatDateLong(enrollment.created_at)}
@@ -396,7 +424,7 @@ const EnrollmentCard = function EnrollmentCard({
 
                     {/* Notes */}
                     {enrollment.notes && (
-                        <div className="mt-1 md:mt-1.5 flex items-start gap-1 md:gap-1.5 text-[11px] md:text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-1.5 md:p-2 rounded-md shadow-sm">
+                        <div className="card-note mt-1 md:mt-1.5 flex items-start gap-1 md:gap-1.5 text-[11px] md:text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-1.5 md:p-2 rounded-md shadow-sm">
                             <Pencil size={isMobile ? 10 : 12} className="mt-0.5 flex-shrink-0 text-brand-500" />
                             <p className="italic leading-relaxed">{enrollment.notes}</p>
                         </div>

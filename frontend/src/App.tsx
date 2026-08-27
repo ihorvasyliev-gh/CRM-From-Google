@@ -130,8 +130,21 @@ function App() {
         }
     }, [density]);
 
+    useEffect(() => {
+        const handleDensityChange = (e: Event) => {
+            const customEvent = e as CustomEvent<'comfortable' | 'compact'>;
+            if (customEvent.detail && customEvent.detail !== density) {
+                setDensity(customEvent.detail);
+            }
+        };
+        window.addEventListener('densitychange', handleDensityChange);
+        return () => window.removeEventListener('densitychange', handleDensityChange);
+    }, [density]);
+
     const toggleDensity = () => {
-        setDensity(prev => prev === 'comfortable' ? 'compact' : 'comfortable');
+        const next = density === 'comfortable' ? 'compact' : 'comfortable';
+        setDensity(next);
+        window.dispatchEvent(new CustomEvent('densitychange', { detail: next }));
     };
 
     const queryClient = useQueryClient();

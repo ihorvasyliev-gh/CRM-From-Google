@@ -75,7 +75,7 @@ export default function FilterBar({
     };
 
     return (
-        <div className="bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
+        <div className="filter-bar-container bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
             {/* Row 1: Title + Search + Add */}
             <div className="flex flex-col sm:flex-row gap-1.5 md:gap-3 items-start sm:items-center justify-between">
                 <div className="hidden md:flex items-center gap-3">

@@ -272,10 +272,10 @@ export default function CourseList() {
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
-                                <div className="p-5" style={{ minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                <div className="course-card-body p-5" style={{ minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
+                                            <div className={`course-card-icon w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>

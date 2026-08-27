@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, Rows3 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -34,12 +34,27 @@ export default function Settings() {
     const [saved, setSaved] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
     const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
-        if (typeof window !== 'undefined') {
+        try {
             const saved = window.localStorage.getItem('view_density');
-            if (saved === 'compact' || saved === 'comfortable') return saved;
+            return (saved === 'compact' || saved === 'comfortable') ? saved : 'comfortable';
+        } catch {
+            return 'comfortable';
         }
-        return 'comfortable';
     });
+
+    useEffect(() => {
+        const handleDensityChange = (e: Event) => {
+            const customEvent = e as CustomEvent<'comfortable' | 'compact'>;
+            if (customEvent.detail) {
+                setDensity(customEvent.detail);
+            } else {
+                const saved = window.localStorage.getItem('view_density');
+                if (saved === 'compact' || saved === 'comfortable') setDensity(saved);
+            }
+        };
+        window.addEventListener('densitychange', handleDensityChange);
+        return () => window.removeEventListener('densitychange', handleDensityChange);
+    }, []);
 
     const isValidTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
     const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
@@ -713,6 +728,7 @@ export default function Settings() {
                                     document.documentElement.classList.remove('density-compact');
                                     window.localStorage.setItem('view_density', 'comfortable');
                                     setDensity('comfortable');
+                                    window.dispatchEvent(new CustomEvent('densitychange', { detail: 'comfortable' }));
                                 }}
                                 className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
                                     density === 'comfortable'
@@ -735,6 +751,7 @@ export default function Settings() {
                                     document.documentElement.classList.add('density-compact');
                                     window.localStorage.setItem('view_density', 'compact');
                                     setDensity('compact');
+                                    window.dispatchEvent(new CustomEvent('densitychange', { detail: 'compact' }));
                                 }}
                                 className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
                                     density === 'compact'

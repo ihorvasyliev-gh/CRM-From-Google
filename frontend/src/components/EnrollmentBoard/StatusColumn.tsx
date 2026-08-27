@@ -109,7 +109,7 @@ const StatusColumn = function StatusColumn({
         >
             <div className={`sticky top-0 z-10 border-b ${cfg.border} bg-surface-elevated md:bg-surface-elevated/95 md:backdrop-blur-sm`}>
                 <div className={`h-[3px] w-full bg-gradient-to-r ${cfg.gradient}`} />
-                <div className="px-2 py-2 md:px-3.5 md:py-2.5">
+                <div className="status-column-header px-2 py-2 md:px-3.5 md:py-2.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <span className={`${cfg.color} flex items-center flex-shrink-0 scale-90 md:scale-100`}>
@@ -163,7 +163,7 @@ const StatusColumn = function StatusColumn({
             <div className="flex-1 min-h-0 relative" style={{ minHeight: 0 }}>
                 <div 
                     ref={scrollContainerRef}
-                    className="p-2 overflow-y-auto space-y-1.5 bg-transparent md:bg-surface will-change-scroll"
+                    className="status-column-cards p-2 overflow-y-auto space-y-1.5 bg-transparent md:bg-surface will-change-scroll"
                     style={{ height: '100%' }}
                     onScroll={handleScroll}
                 >
