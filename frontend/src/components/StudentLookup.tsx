@@ -9,8 +9,9 @@ import Toast, { ToastData } from './Toast';
 import { 
     Search, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
     Calendar, Clock, Send, CheckCircle, GraduationCap, XCircle, X, Info,
-    Star, AlertTriangle, MessageSquare, Filter, Copy
+    Star, AlertTriangle, MessageSquare, Filter, Copy, Navigation
 } from 'lucide-react';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary } from '../lib/contactUtils';
 
 interface StudentSearchResult {
     id: string;
@@ -107,13 +108,15 @@ function InfoField({
     label, 
     value, 
     copyValue, 
-    onCopy 
+    onCopy,
+    extraActions
 }: { 
     icon: JSX.Element; 
     label: string; 
     value: string | null; 
     copyValue?: string | null;
     onCopy?: (value: string, label: string) => void;
+    extraActions?: React.ReactNode;
 }) {
     const isClickable = !!(copyValue ?? value) && !!onCopy;
     return (
@@ -137,6 +140,11 @@ function InfoField({
                     {value || <span className="text-muted/50 italic font-normal">Not set</span>}
                 </p>
             </div>
+            {extraActions && (
+                <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {extraActions}
+                </div>
+            )}
             {isClickable && (
                 <span className="text-muted/30 group-hover:text-brand-500 dark:group-hover:text-brand-400 transition-colors flex-shrink-0">
                     <Copy size={13} />
@@ -196,6 +204,25 @@ export default function StudentLookup() {
                 console.error('Failed to copy text:', err);
                 setToast({
                     message: `Failed to copy ${label.toLowerCase()}`,
+                    type: 'error',
+                });
+            });
+    };
+
+    const handleCopySummary = () => {
+        if (!studentDetail) return;
+        const summary = formatStudentContactSummary(studentDetail);
+        navigator.clipboard.writeText(summary)
+            .then(() => {
+                setToast({
+                    message: 'Contact summary copied to clipboard!',
+                    type: 'success',
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy contact summary:', err);
+                setToast({
+                    message: 'Failed to copy contact summary',
                     type: 'error',
                 });
             });
@@ -510,13 +537,23 @@ export default function StudentLookup() {
                                             <span className="text-[10px] text-muted font-semibold uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded">Read-only profile</span>
                                         </div>
                                     </div>
-                                    <button 
-                                        onClick={() => setSelectedStudentId(null)}
-                                        className="p-2 text-muted hover:text-primary hover:bg-surface rounded-xl border border-transparent hover:border-border-subtle transition-all"
-                                        title="Close details"
-                                    >
-                                        <X size={20} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleCopySummary}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
+                                            title="Copy full contact summary (Name, Email, Phone, Address, Eircode, DOB)"
+                                        >
+                                            <Copy size={13} className="text-brand-500" />
+                                            <span className="hidden sm:inline">Copy Summary</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => setSelectedStudentId(null)}
+                                            className="p-2 text-muted hover:text-primary hover:bg-surface rounded-xl border border-transparent hover:border-border-subtle transition-all"
+                                            title="Close details"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Details Body */}
@@ -535,19 +572,71 @@ export default function StudentLookup() {
                                                 icon={<Phone size={16} />} 
                                                 label="Phone Number" 
                                                 value={studentDetail.phone} 
-                                                onCopy={handleCopyField} 
+                                                onCopy={handleCopyField}
+                                                extraActions={
+                                                    studentDetail.phone ? (
+                                                        <>
+                                                            {formatPhoneForWhatsApp(studentDetail.phone) && (
+                                                                <a
+                                                                    href={formatPhoneForWhatsApp(studentDetail.phone)!}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"
+                                                                    title="Chat on WhatsApp"
+                                                                >
+                                                                    <MessageSquare size={13} />
+                                                                </a>
+                                                            )}
+                                                            {formatPhoneForCall(studentDetail.phone) && (
+                                                                <a
+                                                                    href={formatPhoneForCall(studentDetail.phone)!}
+                                                                    className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                                                                    title="Call Phone Number"
+                                                                >
+                                                                    <Phone size={13} />
+                                                                </a>
+                                                            )}
+                                                        </>
+                                                    ) : undefined
+                                                }
                                             />
                                             <InfoField 
                                                 icon={<MapPin size={16} />} 
                                                 label="Address" 
                                                 value={studentDetail.address} 
-                                                onCopy={handleCopyField} 
+                                                onCopy={handleCopyField}
+                                                extraActions={
+                                                    studentDetail.address && formatGoogleMapsUrl(studentDetail.address) ? (
+                                                        <a
+                                                            href={formatGoogleMapsUrl(studentDetail.address)!}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-1.5 text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all"
+                                                            title="Open Address in Google Maps"
+                                                        >
+                                                            <Navigation size={13} />
+                                                        </a>
+                                                    ) : undefined
+                                                }
                                             />
                                             <InfoField 
                                                 icon={<MapPin size={16} />} 
                                                 label="Eircode" 
                                                 value={studentDetail.eircode} 
-                                                onCopy={handleCopyField} 
+                                                onCopy={handleCopyField}
+                                                extraActions={
+                                                    studentDetail.eircode && formatGoogleMapsUrl(studentDetail.eircode) ? (
+                                                        <a
+                                                            href={formatGoogleMapsUrl(studentDetail.eircode)!}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="p-1.5 text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all"
+                                                            title="Open Eircode in Google Maps"
+                                                        >
+                                                            <Navigation size={13} />
+                                                        </a>
+                                                    ) : undefined
+                                                }
                                             />
                                             <InfoField 
                                                 icon={<Calendar size={16} />} 

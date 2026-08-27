@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check } from 'lucide-react';
+import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, Rows3 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
@@ -33,6 +33,13 @@ export default function Settings() {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
     const [saved, setSaved] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
+    const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = window.localStorage.getItem('view_density');
+            if (saved === 'compact' || saved === 'comfortable') return saved;
+        }
+        return 'comfortable';
+    });
 
     const isValidTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
     const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
@@ -675,7 +682,7 @@ export default function Settings() {
                         </div>
                     </div>
                 </div>
-                <div className="p-5">
+                <div className="p-5 space-y-6">
                     <div>
                         <label className="flex items-center gap-3 cursor-pointer group w-max">
                             <div className="relative flex items-center justify-center">
@@ -693,6 +700,57 @@ export default function Settings() {
                                 <p className="text-xs text-muted mt-0.5">Show the Cork City Partnership logo banner at the top of all emails.</p>
                             </div>
                         </label>
+                    </div>
+
+                    {/* Interface View Density Toggle */}
+                    <div className="pt-5 border-t border-border-subtle">
+                        <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-1.5">Interface View Density</label>
+                        <p className="text-xs text-muted mb-4">Choose the layout density that best fits your screen size and workflow preferences.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    document.documentElement.classList.remove('density-compact');
+                                    window.localStorage.setItem('view_density', 'comfortable');
+                                    setDensity('comfortable');
+                                }}
+                                className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
+                                    density === 'comfortable'
+                                        ? 'bg-brand-500/10 border-brand-500 text-brand-600 dark:text-brand-400 shadow-sm'
+                                        : 'bg-surface-elevated border-border-subtle text-primary hover:border-border-strong'
+                                }`}
+                            >
+                                <div className="p-2 rounded-lg bg-surface flex-shrink-0">
+                                    <Rows3 size={16} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold">Comfortable (Default)</p>
+                                    <p className="text-[11px] text-muted mt-0.5">Spacious cards and comfortable padding for standard displays.</p>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    document.documentElement.classList.add('density-compact');
+                                    window.localStorage.setItem('view_density', 'compact');
+                                    setDensity('compact');
+                                }}
+                                className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
+                                    density === 'compact'
+                                        ? 'bg-brand-500/10 border-brand-500 text-brand-600 dark:text-brand-400 shadow-sm'
+                                        : 'bg-surface-elevated border-border-subtle text-primary hover:border-border-strong'
+                                }`}
+                            >
+                                <div className="p-2 rounded-lg bg-surface flex-shrink-0">
+                                    <Rows3 size={16} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold">Compact Mode</p>
+                                    <p className="text-[11px] text-muted mt-0.5">Tighter rows and smaller padding to see more data on screen at once.</p>
+                                </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>

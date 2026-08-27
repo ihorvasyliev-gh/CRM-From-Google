@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge } from 'lucide-react';
+import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary } from '../lib/contactUtils';
 import MergeModal from './MergeModal';
 import Toast, { ToastData } from './Toast';
 
@@ -55,6 +56,7 @@ function InlineEditField({
     label,
     onSaved,
     onCopy,
+    extraActions,
 }: {
     value: string;
     displayValue?: string;
@@ -65,6 +67,7 @@ function InlineEditField({
     label: string;
     onSaved: (field: string, value: string) => void;
     onCopy: (value: string, label: string) => void;
+    extraActions?: React.ReactNode;
 }) {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(value);
@@ -186,6 +189,11 @@ function InlineEditField({
                 <p className="text-[10px] text-muted font-medium">{label}</p>
                 <p className="text-sm text-primary">{displayValue || value || <span className="text-muted/50 italic">Not set</span>}</p>
             </div>
+            {extraActions && (
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    {extraActions}
+                </div>
+            )}
             <button
                 onClick={(e) => {
                     e.stopPropagation();
@@ -233,6 +241,24 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 console.error('Failed to copy text:', err);
                 setToast({
                     message: `Failed to copy ${label.toLowerCase()}`,
+                    type: 'error'
+                });
+            });
+    };
+
+    const handleCopySummary = () => {
+        const summary = formatStudentContactSummary(student);
+        navigator.clipboard.writeText(summary)
+            .then(() => {
+                setToast({
+                    message: 'Contact summary copied to clipboard!',
+                    type: 'success'
+                });
+            })
+            .catch((err) => {
+                console.error('Failed to copy contact summary:', err);
+                setToast({
+                    message: 'Failed to copy contact summary',
                     type: 'error'
                 });
             });
@@ -369,28 +395,39 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
                 <div className="p-5 space-y-5">
                     {/* Actions */}
-                    {(onEdit || onEnroll || onDelete) && (
-                        <div className="flex gap-2">
-                            {onEdit && (
-                                <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
-                                    <Edit2 size={14} /> Edit
+                    {/* Actions */}
+                    <div className="space-y-2">
+                        {(onEdit || onEnroll || onDelete) && (
+                            <div className="flex gap-2">
+                                {onEdit && (
+                                    <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
+                                        <Edit2 size={14} /> Edit
+                                    </button>
+                                )}
+                                {onEnroll && (
+                                    <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
+                                        <UserPlus size={14} /> Enroll
+                                    </button>
+                                )}
+                                <button onClick={() => setMergeModalOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-xl transition-all" title="Merge student profiles">
+                                    <GitMerge size={14} /> Merge
                                 </button>
-                            )}
-                            {onEnroll && (
-                                <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
-                                    <UserPlus size={14} /> Enroll
-                                </button>
-                            )}
-                            <button onClick={() => setMergeModalOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-xl transition-all" title="Merge student profiles">
-                                <GitMerge size={14} /> Merge
-                            </button>
-                            {onDelete && (
-                                <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all">
-                                    <Trash2 size={14} />
-                                </button>
-                            )}
-                        </div>
-                    )}
+                                {onDelete && (
+                                    <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all" title="Delete student">
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        <button
+                            onClick={handleCopySummary}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
+                            title="Copy full contact card (Name, Email, Phone, Address, Eircode, DOB)"
+                        >
+                            <Copy size={13} className="text-brand-500" />
+                            <span>Copy Contact Summary</span>
+                        </button>
+                    </div>
 
                     {/* Contact Info — Inline Editable */}
                     <div className="space-y-2">
@@ -415,6 +452,32 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                extraActions={
+                                    student.phone ? (
+                                        <>
+                                            {formatPhoneForWhatsApp(student.phone) && (
+                                                <a
+                                                    href={formatPhoneForWhatsApp(student.phone)!}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"
+                                                    title="Chat on WhatsApp"
+                                                >
+                                                    <MessageSquare size={13} />
+                                                </a>
+                                            )}
+                                            {formatPhoneForCall(student.phone) && (
+                                                <a
+                                                    href={formatPhoneForCall(student.phone)!}
+                                                    className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                                                    title="Call Phone Number"
+                                                >
+                                                    <Phone size={13} />
+                                                </a>
+                                            )}
+                                        </>
+                                    ) : undefined
+                                }
                             />
                             <InlineEditField
                                 icon={<MapPin size={14} />}
@@ -424,6 +487,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                extraActions={
+                                    student.address && formatGoogleMapsUrl(student.address) ? (
+                                        <a
+                                            href={formatGoogleMapsUrl(student.address)!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all"
+                                            title="Open Address in Google Maps"
+                                        >
+                                            <Navigation size={13} />
+                                        </a>
+                                    ) : undefined
+                                }
                             />
                             <InlineEditField
                                 icon={<MapPin size={14} />}
@@ -433,6 +509,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                extraActions={
+                                    student.eircode && formatGoogleMapsUrl(student.eircode) ? (
+                                        <a
+                                            href={formatGoogleMapsUrl(student.eircode)!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all"
+                                            title="Open Eircode in Google Maps"
+                                        >
+                                            <Navigation size={13} />
+                                        </a>
+                                    ) : undefined
+                                }
                             />
                             <InlineEditField
                                 icon={<Calendar size={14} />}

@@ -27,5 +27,6 @@ backups/*
 __pycache__/
 *.pyc
 *.xlsx
+*.tsbuildinfo
 
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3 } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -13,6 +13,7 @@ import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
 
 import { TooltipProvider } from './components/ui/Tooltip';
+import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -109,6 +110,28 @@ function App() {
         } else {
             setDarkMode(prev => !prev);
         }
+    };
+
+    const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = window.localStorage.getItem('view_density');
+            if (saved === 'compact' || saved === 'comfortable') return saved;
+        }
+        return 'comfortable';
+    });
+
+    useEffect(() => {
+        if (density === 'compact') {
+            document.documentElement.classList.add('density-compact');
+            window.localStorage.setItem('view_density', 'compact');
+        } else {
+            document.documentElement.classList.remove('density-compact');
+            window.localStorage.setItem('view_density', 'comfortable');
+        }
+    }, [density]);
+
+    const toggleDensity = () => {
+        setDensity(prev => prev === 'comfortable' ? 'compact' : 'comfortable');
     };
 
     const queryClient = useQueryClient();
@@ -438,6 +461,18 @@ function App() {
                             <span className="text-xs text-muted flex-shrink-0">{darkMode ? 'Dark' : 'Light'}</span>
                         </button>
 
+                        {/* Density Toggle */}
+                        <button
+                            onClick={toggleDensity}
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
+                        >
+                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
+                                <Rows3 size={16} />
+                            </div>
+                            <span className="flex-1 text-left truncate">Density</span>
+                            <span className="text-xs text-muted flex-shrink-0 capitalize">{density}</span>
+                        </button>
+
                         <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-elevated rounded-lg border border-border-subtle/50">
                             <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm flex-shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
@@ -540,6 +575,16 @@ function App() {
                             </div>
 
                             <div className="flex items-center gap-2 sm:gap-3">
+                                <NetworkStatusIndicator />
+
+                                <button
+                                    onClick={toggleDensity}
+                                    className={`p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
+                                    title={density === 'compact' ? 'Switch to Comfortable View' : 'Switch to Compact View'}
+                                >
+                                    <Rows3 size={17} />
+                                </button>
+
                                 <button
                                     onClick={toggleDarkMode}
                                     className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
@@ -583,7 +628,8 @@ function App() {
                                 </div>
                                 <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
                             </div>
-                            <div>
+                            <div className="flex items-center gap-2">
+                                <NetworkStatusIndicator />
                                 {pendingApprovalsCount > 0 ? (
                                     <button
                                         onClick={() => setApprovalsModalOpen(true)}
@@ -593,9 +639,7 @@ function App() {
                                         <Clock size={13} />
                                         <span>{pendingApprovalsCount}</span>
                                     </button>
-                                ) : (
-                                    <div className="w-8" />
-                                )}
+                                ) : null}
                             </div>
                         </header>
                     )}
@@ -622,7 +666,17 @@ function App() {
                                 </div>
 
                                 {/* Header Right Controls: Approvals & Notifications */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5">
+                                    <NetworkStatusIndicator showLabel />
+
+                                    <button
+                                        onClick={toggleDensity}
+                                        className={`p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
+                                        title={density === 'compact' ? 'Switch to Comfortable View' : 'Switch to Compact View'}
+                                    >
+                                        <Rows3 size={17} />
+                                    </button>
+
                                     {pendingApprovalsCount > 0 && (
                                         <button
                                             onClick={() => setApprovalsModalOpen(true)}

@@ -1,11 +1,12 @@
 import { useMemo, memo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatDateLong } from '../../lib/dateUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface EnrollmentCardProps {
@@ -269,12 +270,40 @@ const EnrollmentCard = function EnrollmentCard({
                                 <span className="truncate">{enrollment.students.email}</span>
                             </div>
                         )}
-                        {enrollment.students?.phone && (
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <Phone size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
-                                <span>{enrollment.students.phone}</span>
-                            </div>
-                        )}
+                        {enrollment.students?.phone && (() => {
+                            const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
+                            const telUrl = formatPhoneForCall(enrollment.students.phone);
+                            return (
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <Phone size={isMobile ? 10 : 12} className="flex-shrink-0 text-primary/60" />
+                                        <span>{enrollment.students.phone}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-0.5" onClick={e => e.stopPropagation()}>
+                                        {waUrl && (
+                                            <a
+                                                href={waUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:bg-emerald-500/10 rounded transition-colors"
+                                                title="Chat on WhatsApp"
+                                            >
+                                                <MessageSquare size={13} />
+                                            </a>
+                                        )}
+                                        {telUrl && (
+                                            <a
+                                                href={telUrl}
+                                                className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-500 hover:bg-blue-500/10 rounded transition-colors"
+                                                title="Call Phone Number"
+                                            >
+                                                <Phone size={12} />
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Info row */}
