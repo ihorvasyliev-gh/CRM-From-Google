@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useTransition, useRef } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -73,8 +73,35 @@ function App() {
         checkPushSubscription();
     }, []);
 
+    // Prewarm heavy route component chunks during browser idle time so tab clicks have zero delay
+    useEffect(() => {
+        if (!user) return;
+        const prewarm = () => {
+            import('./components/Dashboard');
+            import('./components/StudentList');
+            import('./components/CourseList');
+            import('./components/EnrollmentBoard');
+            import('./components/OutcomesList');
+            import('./components/DocumentGenerator');
+            import('./components/Analytics');
+            import('./components/Settings');
+            import('./components/StudentLookup');
+            import('./components/ViewerCourses');
+        };
+        if (typeof window !== 'undefined') {
+            if ('requestIdleCallback' in window) {
+                const handle = (window as any).requestIdleCallback(prewarm, { timeout: 2000 });
+                return () => (window as any).cancelIdleCallback(handle);
+            } else {
+                const timer = setTimeout(prewarm, 1000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [user]);
+
     const location = useLocation();
     const navigateFn = useNavigate();
+    const [, startTransition] = useTransition();
     const isViewer = user?.app_metadata?.role === 'viewer';
     const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'lookup';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
@@ -148,6 +175,7 @@ function App() {
     };
 
     const queryClient = useQueryClient();
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Prefetch data for a tab on hover so it's ready when the user clicks
     const prefetchForTab = useCallback((tab: string) => {
@@ -163,6 +191,11 @@ function App() {
                         ]);
                         return { students: s.count || 0, courses: c.count || 0, enrollments: e.count || 0 };
                     },
+                    staleTime: 30_000,
+                });
+                queryClient.prefetchQuery({
+                    queryKey: ['enrollments'],
+                    queryFn: fetchAllEnrollments,
                     staleTime: 30_000,
                 });
                 break;
@@ -186,6 +219,7 @@ function App() {
                         };
                     },
                     initialPageParam: 0,
+                    staleTime: 30_000,
                 });
                 break;
             case 'courses':
@@ -195,76 +229,52 @@ function App() {
                         const { data } = await supabase.from('courses').select('*').order('name');
                         return data || [];
                     },
+                    staleTime: 30_000,
                 });
                 queryClient.prefetchQuery({
                     queryKey: ['enrollments'],
                     queryFn: fetchAllEnrollments,
+                    staleTime: 30_000,
                 });
                 break;
             case 'analytics':
                 queryClient.prefetchQuery({
-                    queryKey: ['analytics_enrollments_v2'],
-                    queryFn: async () => {
-                        let allData: any[] = [];
-                        let from = 0;
-                        const limit = 1000;
-                        while (true) {
-                            const { data, error } = await supabase
-                                .from('enrollments')
-                                .select('*, students(id, first_name, last_name, email, dob, address, eircode), courses(id, name)')
-                                .order('created_at', { ascending: true })
-                                .range(from, from + limit - 1);
-                            if (error) throw error;
-                            if (!data || data.length === 0) break;
-                            allData = [...allData, ...data];
-                            if (data.length < limit) break;
-                            from += limit;
-                        }
-                        return allData;
-                    },
-                    staleTime: 60_000,
+                    queryKey: ['enrollments'],
+                    queryFn: fetchAllEnrollments,
+                    staleTime: 30_000,
                 });
                 queryClient.prefetchQuery({
                     queryKey: ['analytics_employment_statuses_v1'],
                     queryFn: async () => {
-                        let allData: any[] = [];
-                        let from = 0;
-                        const limit = 1000;
-                        while (true) {
-                            const { data, error } = await supabase
-                                .from('employment_status')
-                                .select('*')
-                                .range(from, from + limit - 1);
-                            if (error) throw error;
-                            if (!data || data.length === 0) break;
-                            allData = [...allData, ...data];
-                            if (data.length < limit) break;
-                            from += limit;
-                        }
-                        return allData;
+                        const { data, error } = await supabase
+                            .from('employment_status')
+                            .select('*');
+                        if (error) throw error;
+                        return data || [];
                     },
                     staleTime: 60_000,
                 });
                 break;
             case 'enrollments':
-            case 'documents':
-                // Both share the ['enrollments'] cache
                 queryClient.prefetchQuery({
                     queryKey: ['enrollments'],
+                    queryFn: fetchAllEnrollments,
+                    staleTime: 30_000,
+                });
+                break;
+            case 'documents':
+                queryClient.prefetchQuery({
+                    queryKey: ['enrollments'],
+                    queryFn: fetchAllEnrollments,
+                    staleTime: 30_000,
+                });
+                queryClient.prefetchQuery({
+                    queryKey: ['doc_courses'],
                     queryFn: async () => {
-                        let all: any[] = []; let from = 0;
-                        while (true) {
-                            const { data, error } = await supabase
-                                .from('enrollments')
-                                .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
-                                .order('created_at', { ascending: false })
-                                .range(from, from + 999);
-                            if (error) throw error;
-                            if (!data || data.length === 0) break;
-                            all = [...all, ...data]; if (data.length < 1000) break; from += 1000;
-                        }
-                        return all;
+                        const { data } = await supabase.from('courses').select('*').order('name');
+                        return data || [];
                     },
+                    staleTime: 30_000,
                 });
                 break;
             case 'outcomes':
@@ -341,10 +351,25 @@ function App() {
                             (a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
                         );
                     },
+                    staleTime: 30_000,
                 });
                 break;
         }
     }, [queryClient]);
+
+    const handleTabMouseEnter = useCallback((tab: string) => {
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = setTimeout(() => {
+            prefetchForTab(tab);
+        }, 150); // 150ms debounce prevents hover-storm when cursor sweeps past tabs
+    }, [prefetchForTab]);
+
+    const handleTabMouseLeave = useCallback(() => {
+        if (hoverTimerRef.current) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+    }, []);
 
     if (loading) {
         return (
@@ -365,17 +390,21 @@ function App() {
 
     function navigate(tab: string) {
         setSidebarOpen(false);
-        navigateFn(`/${tab}`);
+        startTransition(() => {
+            navigateFn(`/${tab}`);
+        });
     }
 
     // Called from child components (e.g., StudentDetail) to navigate with filters
     function handleNavigate(tab: string, filter?: { courseId?: string }) {
         setSidebarOpen(false);
-        if (tab === 'enrollments' && filter?.courseId) {
-            navigateFn(`/${tab}`, { state: { courseId: filter.courseId } });
-        } else {
-            navigateFn(`/${tab}`);
-        }
+        startTransition(() => {
+            if (tab === 'enrollments' && filter?.courseId) {
+                navigateFn(`/${tab}`, { state: { courseId: filter.courseId } });
+            } else {
+                navigateFn(`/${tab}`);
+            }
+        });
     }
 
     return (
@@ -435,7 +464,8 @@ function App() {
                                 <button
                                     key={item.key}
                                     onClick={() => navigate(item.key)}
-                                    onMouseEnter={() => prefetchForTab(item.key)}
+                                    onMouseEnter={() => handleTabMouseEnter(item.key)}
+                                    onMouseLeave={handleTabMouseLeave}
                                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 group relative
                                         ${isActive
                                             ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400'
@@ -564,6 +594,8 @@ function App() {
                                 <div className="flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
                                     <button
                                         onClick={() => navigate('lookup')}
+                                        onMouseEnter={() => handleTabMouseEnter('students')}
+                                        onMouseLeave={handleTabMouseLeave}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                             activeTab === 'lookup'
                                                 ? 'bg-brand-500 text-white shadow-sm'
@@ -575,6 +607,8 @@ function App() {
                                     </button>
                                     <button
                                         onClick={() => navigate('courses')}
+                                        onMouseEnter={() => handleTabMouseEnter('courses')}
+                                        onMouseLeave={handleTabMouseLeave}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                             activeTab === 'courses'
                                                 ? 'bg-brand-500 text-white shadow-sm'
