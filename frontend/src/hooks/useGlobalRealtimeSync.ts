@@ -28,7 +28,6 @@ export function useGlobalRealtimeSync() {
                 (payload) => {
                     console.log('Realtime update: enrollments changed', payload);
                     queryClient.invalidateQueries({ queryKey: ['enrollments'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'], type: 'active' });
                     queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
                     queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'], type: 'active' });
                     queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'], type: 'active' });

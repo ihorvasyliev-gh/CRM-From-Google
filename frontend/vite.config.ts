@@ -12,11 +12,14 @@ export default defineConfig(({ command }) => ({
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom', 'lucide-react', 'react-router-dom', '@tanstack/react-query'],
-                    'admin-libs': ['recharts', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities', 'react-quill-new'],
-                    'doc-utils': ['docxtemplater', 'pizzip', 'jszip', 'exceljs', 'file-saver']
+                    charts: ['recharts'],
+                    dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+                    editor: ['react-quill-new'],
+                    'excel-export': ['exceljs', 'file-saver'],
+                    'docx-gen': ['docxtemplater', 'pizzip', 'jszip']
                 }
             }
         },
-        chunkSizeWarningLimit: 1600
+        chunkSizeWarningLimit: 1200
     }
 }))

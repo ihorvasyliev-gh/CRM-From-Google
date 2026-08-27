@@ -657,7 +657,7 @@ export default function ViewerCourses() {
                             return (
                                 <div
                                     key={item.enrollment_id}
-                                    className={`p-3.5 sm:p-4 rounded-2xl bg-surface border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                    className={`cv-auto-card p-3.5 sm:p-4 rounded-2xl bg-surface border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                                         isSelected
                                             ? 'border-brand-500 bg-brand-500/5 shadow-sm'
                                             : isPending

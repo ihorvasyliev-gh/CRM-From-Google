@@ -70,11 +70,10 @@ export default function Analytics() {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isExportingQuickReport, setIsExportingQuickReport] = useState(false);
 
-    // Queries
+    // Queries — Reuses global enrollments cache for instant page load & memory deduplication
     const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
-        queryKey: ['analytics_enrollments_v2'],
+        queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments,
-        staleTime: 60_000,
     });
 
     const { data: employmentStatuses = [], isLoading: outcomesLoading } = useQuery({

@@ -746,4 +746,22 @@ textarea {
 .density-compact .filter-bar-container {
     padding: 0.5rem 0.75rem !important;
     gap: 0.35rem !important;
-}
+}
+
+/* ===== Performance & Rendering Optimizations ===== */
+.cv-auto-row {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 52px;
+}
+
+.cv-auto-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 120px;
+}
+
+.hardware-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+

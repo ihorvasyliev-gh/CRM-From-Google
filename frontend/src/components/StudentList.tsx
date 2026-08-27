@@ -285,7 +285,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                 {displayedStudents.map(student => (
                                         <tr
                                             key={student.id}
-                                            className="hover:bg-brand-50/30 cursor-pointer transition-all group"
+                                            className="cv-auto-row hover:bg-brand-50/30 cursor-pointer transition-all group"
                                             onClick={() => setDetailStudent(student)}
                                         >
                                             <td className="px-5 py-3.5">

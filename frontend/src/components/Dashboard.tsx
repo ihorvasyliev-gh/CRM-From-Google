@@ -124,12 +124,22 @@ function BentoCard({
     ...props
 }: BentoCardProps) {
     const cardRef = useRef<HTMLDivElement>(null);
+    const rafIdRef = useRef<number | null>(null);
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!cardRef.current) return;
-        const rect = cardRef.current.getBoundingClientRect();
-        cardRef.current.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-        cardRef.current.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+        const clientX = e.clientX;
+        const clientY = e.clientY;
+        if (rafIdRef.current !== null) return;
+
+        rafIdRef.current = requestAnimationFrame(() => {
+            if (cardRef.current) {
+                const rect = cardRef.current.getBoundingClientRect();
+                cardRef.current.style.setProperty('--mouse-x', `${clientX - rect.left}px`);
+                cardRef.current.style.setProperty('--mouse-y', `${clientY - rect.top}px`);
+            }
+            rafIdRef.current = null;
+        });
     };
 
     return (

@@ -119,7 +119,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay ? {} : attributes)}
             {...(isOverlay ? {} : listeners)}
-            className={`group relative enrollment-card p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
+            className={`group relative enrollment-card cv-auto-card p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile

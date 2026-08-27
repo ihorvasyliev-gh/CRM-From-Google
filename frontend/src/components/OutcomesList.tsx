@@ -435,7 +435,7 @@ export default function OutcomesList() {
                                         <tr
                                             key={grad.student_id}
                                             onClick={() => toggleSelect(grad.student_id)}
-                                            className={`border-b border-border-subtle/50 transition-all cursor-pointer ${
+                                            className={`cv-auto-row border-b border-border-subtle/50 transition-all cursor-pointer ${
                                                 isSelected
                                                     ? 'bg-brand-500/5'
                                                     : 'hover:bg-surface-elevated/50'
