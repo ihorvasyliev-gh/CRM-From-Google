@@ -286,7 +286,7 @@ export default function CourseList() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                                 className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"

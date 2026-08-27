@@ -409,6 +409,32 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setConfirmMoveTarget(null);
     }, [confirmMoveTarget, enrollmentsHook]);
 
+    const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: string) => {
+        if (oldStatus === newStatus) return;
+        if (oldStatus === 'confirmed' && newStatus !== 'completed') {
+            setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
+            return;
+        }
+        if (newStatus === 'confirmed') {
+            openConfirmModalSingle(enrollmentId, todayISO());
+            return;
+        }
+        if (newStatus === 'invited') {
+            openInviteModalProxy([enrollmentId], false);
+            return;
+        }
+        enrollmentsHook.updateStatus(enrollmentId, newStatus);
+        if (newStatus === 'rejected' || newStatus === 'withdrawn') {
+            const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
+            const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+            setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
+            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
+        }
+    }, [enrollmentsHook, openConfirmModalSingle, openInviteModalProxy]);
+
+    const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
+
     const handleBulkUpdateStatus = useCallback((newStatus: string) => {
         const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
         const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
@@ -459,6 +485,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     // п.9: scroll-to-column handler
     const handleStatusBadgeClick = useCallback((status: string) => {
+        setActiveMobileColumn(status);
         const el = columnRefs.current[status];
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, []);
@@ -500,6 +527,30 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onStatusBadgeClick={handleStatusBadgeClick}
             />
 
+            {/* Mobile Column Quick Switcher Bar */}
+            <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 px-1 scrollbar-none flex-shrink-0">
+                {PIPELINE_STATUSES.map(s => {
+                    const c = STATUS_CONFIG[s];
+                    const count = byStatus[s]?.length || 0;
+                    const isActive = activeMobileColumn === s;
+                    return (
+                        <button
+                            key={s}
+                            onClick={() => handleStatusBadgeClick(s)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+                                isActive
+                                    ? `${c.pillBg} border-current shadow-xs scale-[1.02]`
+                                    : 'bg-surface border-border-subtle text-muted hover:text-primary hover:bg-surface-elevated'
+                            }`}
+                        >
+                            <span className={c.color}>{c.icon}</span>
+                            <span>{c.label}</span>
+                            <span className="text-[10px] font-mono opacity-80">({count})</span>
+                        </button>
+                    );
+                })}
+            </div>
+
             <DndContext 
                 sensors={sensors} 
                 collisionDetection={closestCenter} 
@@ -535,6 +586,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 emptyCompletedCourses={EMPTY_COMPLETED_COURSES}
                                 totalCount={totalPipelineCount}
                                 onShowDetail={handleShowDetail}
+                                onMoveStatus={handleCardMoveStatus}
                             />
                         </div>
                     ))}

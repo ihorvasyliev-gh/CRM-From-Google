@@ -143,11 +143,14 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
     const isEditing = !!student?.id;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-lg bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
+            <div className="relative w-full max-w-lg bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+                {/* Mobile pull handle */}
+                <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
+
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated">
+                <div className="px-6 py-3.5 sm:py-4 border-b border-border-subtle bg-surface-elevated flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
@@ -161,7 +164,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
                         <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}

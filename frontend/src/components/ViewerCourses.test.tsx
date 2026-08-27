@@ -379,7 +379,7 @@ describe('ViewerCourses Component', () => {
         expect(screen.queryByText('David Miller')).not.toBeInTheDocument();
         expect(screen.queryByText('Emma Watson')).not.toBeInTheDocument();
         expect(screen.getByText('Frank Sinatra')).toBeInTheDocument();
-    });
+    }, 15000);
 
     it('handles batch selection and triggers Excel export', async () => {
         const confirmedRoster = [

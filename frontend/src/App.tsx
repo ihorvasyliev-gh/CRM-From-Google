@@ -16,6 +16,9 @@ import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import StudentModal from './components/StudentModal';
 import StudentDetail from './components/StudentDetail';
+import EnrollmentModal from './components/EnrollmentModal';
+import MobileBottomNav from './components/MobileBottomNav';
+import MobileFloatingActions from './components/MobileFloatingActions';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
@@ -117,6 +120,7 @@ function App() {
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
     const [globalAddStudentOpen, setGlobalAddStudentOpen] = useState(false);
+    const [globalEnrollModalOpen, setGlobalEnrollModalOpen] = useState(false);
     const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
 
     const [darkMode, setDarkMode] = useState(() => {
@@ -909,8 +913,8 @@ function App() {
                     {/* Page Content */}
                     <main className={`flex-1 w-full flex flex-col min-h-0 ${
                         activeTab === 'enrollments'
-                            ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 overflow-hidden'
-                            : 'px-3 py-3 sm:px-6 lg:px-8 py-4'
+                            ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
+                            : 'px-3 py-3 sm:px-6 lg:px-8 py-4 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-4'
                     }`}>
                         <Suspense fallback={
                             <div className="w-full h-full flex items-center justify-center min-h-[50vh]">
@@ -949,6 +953,31 @@ function App() {
                 </div>
             </div>
 
+            {/* Mobile Bottom Navigation Dock */}
+            <MobileBottomNav
+                activeTab={activeTab}
+                onNavigate={navigate}
+                isViewer={isViewer}
+                pendingApprovalsCount={pendingApprovalsCount}
+                darkMode={darkMode}
+                toggleDarkMode={toggleDarkMode}
+                density={density}
+                toggleDensity={toggleDensity}
+                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                onOpenShortcuts={() => setShortcutsModalOpen(true)}
+                onOpenApprovals={() => setApprovalsModalOpen(true)}
+                onSignOut={signOut}
+                userEmail={user.email}
+            />
+
+            {/* Mobile Floating Actions (FAB) */}
+            <MobileFloatingActions
+                onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
+                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                onOpenEnrollment={isViewer ? undefined : () => setGlobalEnrollModalOpen(true)}
+                isViewer={isViewer}
+            />
+
             {/* Admin Approvals Modal */}
             <PendingApprovalsModal
                 open={approvalsModalOpen}
@@ -985,6 +1014,19 @@ function App() {
                     student={null}
                     onSave={handleSaveNewStudent}
                     onClose={() => setGlobalAddStudentOpen(false)}
+                />
+            )}
+
+            {/* Global New Enrollment Modal */}
+            {globalEnrollModalOpen && (
+                <EnrollmentModal
+                    open={true}
+                    onSave={() => {
+                        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                        queryClient.invalidateQueries({ queryKey: ['courses'] });
+                    }}
+                    onClose={() => setGlobalEnrollModalOpen(false)}
                 />
             )}
 

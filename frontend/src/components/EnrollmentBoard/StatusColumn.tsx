@@ -23,6 +23,7 @@ interface StatusColumnProps {
     emptyCompletedCourses: Array<{id: string, name: string}>;
     totalCount?: number;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
+    onMoveStatus?: (id: string, currentStatus: string, targetStatus: string) => void;
 }
 
 const StatusColumn = function StatusColumn({
@@ -42,6 +43,7 @@ const StatusColumn = function StatusColumn({
     emptyCompletedCourses,
     totalCount: _totalCount = 0,
     onShowDetail,
+    onMoveStatus,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -195,6 +197,7 @@ const StatusColumn = function StatusColumn({
                             completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
                             onFlagClick={onFlagClick}
                             onShowDetail={onShowDetail}
+                            onMoveStatus={onMoveStatus}
                         />
                     ))}
                     {/* Sentinel for IntersectionObserver lazy load */}
@@ -226,6 +229,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.onFlagClick !== next.onFlagClick) return false;
     if (prev.totalCount !== next.totalCount) return false;
     if (prev.onShowDetail !== next.onShowDetail) return false;
+    if (prev.onMoveStatus !== next.onMoveStatus) return false;
 
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 

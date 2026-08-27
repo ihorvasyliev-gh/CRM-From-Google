@@ -130,11 +130,14 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-surface-elevated rounded-2xl shadow-2xl w-full max-w-lg animate-scaleIn max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+                {/* Mobile pull handle */}
+                <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
+
                 {/* Header */}
-                <div className="sticky top-0 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-6 py-4 rounded-t-2xl z-10">
+                <div className="sticky top-0 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
@@ -148,7 +151,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
                         <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}

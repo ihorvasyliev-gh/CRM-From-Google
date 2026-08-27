@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
@@ -22,6 +22,7 @@ interface EnrollmentCardProps {
     onFlagClick?: (enrollment: EnrollmentRow) => void;
     isOverlay?: boolean;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
+    onMoveStatus?: (id: string, currentStatus: string, targetStatus: string) => void;
 }
 
 // --- п.7: Relative time helper ---
@@ -62,10 +63,12 @@ const EnrollmentCard = function EnrollmentCard({
     completedCourses = [],
     onFlagClick,
     isOverlay,
-    onShowDetail
+    onShowDetail,
+    onMoveStatus
 }: EnrollmentCardProps) {
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
+    const [showQuickMove, setShowQuickMove] = useState(false);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     
@@ -463,6 +466,54 @@ const EnrollmentCard = function EnrollmentCard({
                         </div>
                     )}
                 </div>
+
+                {/* ⇄ Quick Move Status Button */}
+                {onMoveStatus && (
+                    <div className="relative">
+                        <button
+                            title="Move status"
+                            onClick={e => { e.stopPropagation(); setShowQuickMove(prev => !prev); }}
+                            className={`p-1 rounded transition-colors border ${showQuickMove
+                                ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
+                                : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
+                            }`}
+                        >
+                            <ArrowRightLeft size={13} />
+                        </button>
+
+                        {showQuickMove && (
+                            <div
+                                className="fixed inset-x-4 bottom-24 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:bottom-auto sm:mt-1.5 z-[999] sm:w-44 bg-surface-elevated border border-border-subtle rounded-2xl sm:rounded-xl shadow-2xl p-2 sm:p-1.5 animate-slideUp sm:animate-scaleIn space-y-1"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
+                                    <span>Move to Status</span>
+                                    <button onClick={() => setShowQuickMove(false)} className="text-muted hover:text-primary p-0.5">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                                {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                    if (st === status) return null;
+                                    const stCfg = STATUS_CONFIG[st];
+                                    if (!stCfg) return null;
+                                    return (
+                                        <button
+                                            key={st}
+                                            onClick={() => {
+                                                setShowQuickMove(false);
+                                                onMoveStatus(enrollment.id, status, st);
+                                            }}
+                                            className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left"
+                                        >
+                                            <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
+                                            <span>{stCfg.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ℹ Student Info Button */}
                 <button

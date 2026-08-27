@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { Student, StudentFormData, getAvatarGradient } from '../lib/types';
 import { useDebounce } from '../hooks/useDebounce';
+import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
 
 const PAGE_SIZE = 30;
 
@@ -234,24 +235,43 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 </div>
             </div>
 
-            {/* Table */}
+            {/* Table & Mobile Cards */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 {loading ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
-                                <tr>
-                                    <th className="px-5 py-3.5">Name</th>
-                                    <th className="px-5 py-3.5">Email</th>
-                                    <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
-                                    <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
-                                    <th className="px-5 py-3.5 w-28">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border-subtle">
-                                {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
-                            </tbody>
-                        </table>
+                    <div>
+                        {/* Mobile Skeleton (< sm) */}
+                        <div className="sm:hidden divide-y divide-border-subtle p-2">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <div key={i} className="p-3.5 space-y-3 animate-pulse">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-surface-elevated" />
+                                        <div className="space-y-1.5 flex-1">
+                                            <div className="h-4 w-32 rounded bg-surface-elevated" />
+                                            <div className="h-3 w-44 rounded bg-surface-elevated" />
+                                        </div>
+                                    </div>
+                                    <div className="h-3 w-28 rounded bg-surface-elevated" />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Skeleton (>= sm) */}
+                        <div className="hidden sm:block overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
+                                    <tr>
+                                        <th className="px-5 py-3.5">Name</th>
+                                        <th className="px-5 py-3.5">Email</th>
+                                        <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
+                                        <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
+                                        <th className="px-5 py-3.5 w-28">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border-subtle">
+                                    {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 ) : displayedStudents.length === 0 ? (
                     <div className="text-center py-16">
@@ -270,58 +290,135 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                         )}
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
-                                <tr>
-                                    <th className="px-5 py-3.5">Name</th>
-                                    <th className="px-5 py-3.5">Email</th>
-                                    <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
-                                    <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
-                                    <th className="px-5 py-3.5 w-28">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border-subtle">
-                                {displayedStudents.map(student => (
-                                        <tr
-                                            key={student.id}
-                                            className="cv-auto-row hover:bg-brand-50/30 cursor-pointer transition-all group"
-                                            onClick={() => setDetailStudent(student)}
-                                        >
-                                            <td className="px-5 py-3.5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`table-avatar w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
-                                                        {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
+                    <div>
+                        {/* Mobile Cards (< sm) */}
+                        <div className="sm:hidden divide-y divide-border-subtle">
+                            {displayedStudents.map(student => (
+                                <div
+                                    key={student.id}
+                                    onClick={() => setDetailStudent(student)}
+                                    className="p-3.5 hover:bg-surface-elevated/40 active:bg-brand-50/10 cursor-pointer transition-colors flex flex-col gap-2"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
+                                                {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-primary text-sm truncate">{student.first_name} {student.last_name}</p>
+                                                <p className="text-xs text-muted truncate">{student.email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                            <button
+                                                onClick={() => openEdit(student)}
+                                                className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
+                                                title="Edit"
+                                            >
+                                                <Edit2 size={15} />
+                                            </button>
+                                            <button
+                                                onClick={() => setDeleteTarget(student)}
+                                                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={15} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Mobile bottom info bar (Phone call / WhatsApp / Eircode) */}
+                                    {(student.phone || student.eircode) && (
+                                        <div className="flex items-center justify-between pt-2 border-t border-border-subtle/40 text-xs" onClick={e => e.stopPropagation()}>
+                                            <div className="flex items-center gap-2">
+                                                {student.phone && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <a
+                                                            href={formatPhoneForCall(student.phone) || undefined}
+                                                            className="flex items-center gap-1 text-primary/80 hover:text-blue-600 font-medium transition-colors"
+                                                        >
+                                                            <Phone size={12} className="text-blue-500" />
+                                                            <span>{student.phone}</span>
+                                                        </a>
+                                                        {formatPhoneForWhatsApp(student.phone) && (
+                                                            <a
+                                                                href={formatPhoneForWhatsApp(student.phone)!}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center justify-center min-w-[24px] h-[24px] px-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-md shadow-xs transition-all active:scale-95"
+                                                                title="Chat on WhatsApp"
+                                                            >
+                                                                <MessageSquare size={13} />
+                                                            </a>
+                                                        )}
                                                     </div>
-                                                    <span className="font-semibold text-primary">{student.first_name} {student.last_name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-5 py-3.5 text-muted">{student.email}</td>
-                                            <td className="px-5 py-3.5 text-muted hidden md:table-cell">{student.phone}</td>
-                                            <td className="px-5 py-3.5 text-muted hidden lg:table-cell">{student.eircode}</td>
-                                            <td className="px-5 py-3.5">
-                                                <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-all" onClick={e => e.stopPropagation()}>
-                                                    <button
-                                                        onClick={() => openEdit(student)}
-                                                        className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setDeleteTarget(student)}
-                                                        className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                    <ChevronRight size={14} className="text-muted/50 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                                                </div>
-                                            </td>
-                                        </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                                )}
+                                            </div>
+                                            {student.eircode && (
+                                                <span className="font-mono bg-surface-elevated px-2 py-0.5 rounded border border-border-subtle text-[11px] text-primary/75">
+                                                    {student.eircode}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table (>= sm) */}
+                        <div className="hidden sm:block overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
+                                    <tr>
+                                        <th className="px-5 py-3.5">Name</th>
+                                        <th className="px-5 py-3.5">Email</th>
+                                        <th className="px-5 py-3.5 hidden md:table-cell">Phone</th>
+                                        <th className="px-5 py-3.5 hidden lg:table-cell">Eircode</th>
+                                        <th className="px-5 py-3.5 w-28">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border-subtle">
+                                    {displayedStudents.map(student => (
+                                            <tr
+                                                key={student.id}
+                                                className="cv-auto-row hover:bg-brand-50/30 cursor-pointer transition-all group"
+                                                onClick={() => setDetailStudent(student)}
+                                            >
+                                                <td className="px-5 py-3.5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`table-avatar w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
+                                                            {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
+                                                        </div>
+                                                        <span className="font-semibold text-primary">{student.first_name} {student.last_name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-muted">{student.email}</td>
+                                                <td className="px-5 py-3.5 text-muted hidden md:table-cell">{student.phone}</td>
+                                                <td className="px-5 py-3.5 text-muted hidden lg:table-cell">{student.eircode}</td>
+                                                <td className="px-5 py-3.5">
+                                                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+                                                        <button
+                                                            onClick={() => openEdit(student)}
+                                                            className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
+                                                            title="Edit"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteTarget(student)}
+                                                            className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                        <ChevronRight size={14} className="text-muted/50 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>

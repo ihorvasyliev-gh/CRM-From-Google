@@ -366,11 +366,14 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full sm:w-96 h-full sm:h-auto sm:max-h-[85vh] bg-surface-elevated sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideInRight">
+            <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
+                {/* Mobile pull handle */}
+                <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
+
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-5 py-4">
+                <div className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-5 py-3.5 sm:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>
