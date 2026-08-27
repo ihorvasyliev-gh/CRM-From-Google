@@ -45,6 +45,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     const [deleteTarget, setDeleteTarget] = useState<EnrollmentRow | null>(null);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+    const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: string } | null>(null);
+    const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: string; confirmedCount: number; totalCount: number } | null>(null);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
@@ -370,6 +372,12 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             const newStatus = over.id as string;
             
             if (oldStatus && newStatus && oldStatus !== newStatus) {
+                // Moving from confirmed to anything other than completed requires confirmation
+                if (oldStatus === 'confirmed' && newStatus !== 'completed') {
+                    setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
+                    return;
+                }
+
                 enrollmentsHook.updateStatus(enrollmentId, newStatus);
 
                 // п.11: undo-toast for dangerous status transitions
@@ -383,6 +391,46 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             }
         });
     }, [enrollmentsHook]);
+
+    const handleConfirmMove = useCallback(() => {
+        if (!confirmMoveTarget) return;
+        const { enrollmentId, oldStatus, newStatus } = confirmMoveTarget;
+        
+        enrollmentsHook.updateStatus(enrollmentId, newStatus);
+
+        if (newStatus === 'rejected' || newStatus === 'withdrawn') {
+            const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
+            const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+            setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
+            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
+        }
+        
+        setConfirmMoveTarget(null);
+    }, [confirmMoveTarget, enrollmentsHook]);
+
+    const handleBulkUpdateStatus = useCallback((newStatus: string) => {
+        const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
+        const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
+        
+        if (confirmedCount > 0 && newStatus !== 'confirmed' && newStatus !== 'completed' && newStatus !== 'rejected') {
+            setBulkConfirmMoveTarget({
+                newStatus,
+                confirmedCount,
+                totalCount: selected.length
+            });
+            return;
+        }
+        
+        bulkActions.bulkUpdateStatus(newStatus);
+    }, [enrollments, bulkActions]);
+
+    const handleConfirmBulkMove = useCallback(() => {
+        if (!bulkConfirmMoveTarget) return;
+        const { newStatus } = bulkConfirmMoveTarget;
+        setBulkConfirmMoveTarget(null);
+        bulkActions.bulkUpdateStatus(newStatus);
+    }, [bulkConfirmMoveTarget, bulkActions]);
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
         setActiveId(event.active.id as string);
@@ -400,14 +448,14 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 selectedEnrollments={selectedEnrollments}
                 generatingDocs={bulkActions.generatingDocs}
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
-                bulkUpdateStatus={bulkActions.bulkUpdateStatus}
+                bulkUpdateStatus={handleBulkUpdateStatus}
                 handleGenerateDocuments={bulkActions.handleGenerateDocuments}
                 setBulkDeleteOpen={setBulkDeleteOpen}
                 clearSelection={bulkActions.clearSelection}
                 toggleSelect={bulkActions.toggleSelect}
             />
         );
-    }, [enrollments, filteredEnrollments, bulkActions]);
+    }, [enrollments, filteredEnrollments, bulkActions, handleBulkUpdateStatus]);
 
     // п.9: scroll-to-column handler
     const handleStatusBadgeClick = useCallback((status: string) => {
@@ -906,6 +954,42 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 onConfirm={() => { bulkActions.handleBulkDelete(); setBulkDeleteOpen(false); }}
                 onCancel={() => setBulkDeleteOpen(false)}
             />
+
+            {confirmMoveTarget && (() => {
+                const enrollment = enrollments.find(e => e.id === confirmMoveTarget.enrollmentId);
+                const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'this student';
+                const targetLabel = STATUS_CONFIG[confirmMoveTarget.newStatus]?.label || confirmMoveTarget.newStatus;
+                return (
+                    <ConfirmDialog
+                        open={true}
+                        title="Move from Confirmed"
+                        message={`Are you sure you want to move ${name} from Confirmed to ${targetLabel}?`}
+                        confirmLabel="Move"
+                        variant="warning"
+                        onConfirm={handleConfirmMove}
+                        onCancel={() => setConfirmMoveTarget(null)}
+                    />
+                );
+            })()}
+
+            {bulkConfirmMoveTarget && (() => {
+                const targetLabel = STATUS_CONFIG[bulkConfirmMoveTarget.newStatus]?.label || bulkConfirmMoveTarget.newStatus;
+                const isAllConfirmed = bulkConfirmMoveTarget.confirmedCount === bulkConfirmMoveTarget.totalCount;
+                const message = isAllConfirmed
+                    ? `Are you sure you want to move ${bulkConfirmMoveTarget.totalCount} confirmed enrollment(s) to ${targetLabel}?`
+                    : `Are you sure you want to move ${bulkConfirmMoveTarget.totalCount} enrollment(s) (${bulkConfirmMoveTarget.confirmedCount} currently confirmed) to ${targetLabel}?`;
+                return (
+                    <ConfirmDialog
+                        open={true}
+                        title="Move Confirmed Enrollments"
+                        message={message}
+                        confirmLabel="Move"
+                        variant="warning"
+                        onConfirm={handleConfirmBulkMove}
+                        onCancel={() => setBulkConfirmMoveTarget(null)}
+                    />
+                );
+            })()}
 
             {editNoteTarget && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setEditNoteTarget(null)}>
