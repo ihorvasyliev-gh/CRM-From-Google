@@ -283,6 +283,20 @@ export default function Settings() {
         }
     }, [runDuplicateScan]);
 
+    const insertVariable = useCallback((variable: string, target: 'invitation' | 'status') => {
+        if (target === 'invitation') {
+            setLocalConfig(prev => ({
+                ...prev,
+                htmlEmailTemplate: prev.htmlEmailTemplate ? `${prev.htmlEmailTemplate} ${variable}` : variable
+            }));
+        } else {
+            setLocalConfig(prev => ({
+                ...prev,
+                statusEmailTemplate: prev.statusEmailTemplate ? `${prev.statusEmailTemplate} ${variable}` : variable
+            }));
+        }
+    }, []);
+
     return (
         <div className="space-y-6 pb-8 w-full animate-fadeIn">
             {/* Header */}
@@ -337,7 +351,7 @@ export default function Settings() {
                         className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
                     >
                         {showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {showPreview ? 'Hide' : 'Preview'}
+                        {showPreview ? 'Hide' : 'Live Preview'}
                     </button>
                 </div>
 
@@ -353,7 +367,7 @@ export default function Settings() {
                                 className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
                                 placeholder="e.g. You are Invited to join our {courseName} course"
                             />
-                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl">
+                            <div className="flex items-start gap-2 p-2.5 bg-surface-elevated/50 border border-border-subtle rounded-xl">
                                 <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
                                 <p className="text-[11px] text-muted leading-relaxed">
                                     Subject placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{courseName}'}</code> — course name, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{date}'}</code> — invite date
@@ -363,13 +377,42 @@ export default function Settings() {
 
                         {/* Body Editing */}
                         <div className="space-y-2">
-                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
-                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl mb-2">
-                                <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
-                                <p className="text-[11px] text-muted leading-relaxed">
-                                    Body placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{courseDetails}'}</code> — styled course details card, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{confirmationButton}'}</code> — styled confirm button
-                                </p>
+                            <div className="flex items-center justify-between">
+                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
+                                <span className="text-[11px] text-muted">Click chips below to insert tag:</span>
                             </div>
+
+                            {/* Variable Insertion Chips */}
+                            <div className="flex flex-wrap items-center gap-1.5 p-2 bg-surface-elevated/40 border border-border-subtle rounded-xl">
+                                {[
+                                    { tag: '{studentName}', label: 'Student Name' },
+                                    { tag: '{courseName}', label: 'Course Name' },
+                                    { tag: '{date}', label: 'Date' },
+                                    { tag: '{courseDetails}', label: 'Course Card' },
+                                    { tag: '{confirmationButton}', label: 'Confirm Button' },
+                                    { tag: '{confirmationLink}', label: 'Confirm URL' },
+                                ].map(item => {
+                                    const isPresent = config.htmlEmailTemplate.includes(item.tag);
+                                    return (
+                                        <button
+                                            key={item.tag}
+                                            type="button"
+                                            onClick={() => insertVariable(item.tag, 'invitation')}
+                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-all active:scale-95 ${
+                                                isPresent
+                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
+                                                    : 'bg-surface-elevated text-primary border border-border-subtle hover:border-brand-500 hover:text-brand-500'
+                                            }`}
+                                            title={`Click to insert ${item.tag} into body`}
+                                        >
+                                            <span className="text-brand-500 font-bold">+</span>
+                                            <span>{item.tag}</span>
+                                            {isPresent && <Check size={12} className="text-emerald-500 ml-0.5" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
                             <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                                 <ReactQuill 
                                     theme="snow"
@@ -384,10 +427,15 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {!isValidTemplate && (
-                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fadeIn">
-                                <AlertTriangle size={16} className="flex-shrink-0" />
+                        {!isValidTemplate ? (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-xs animate-fadeIn font-medium">
+                                <AlertTriangle size={15} className="flex-shrink-0" />
                                 <span><strong>Warning:</strong> Template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 p-2 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                                <Check size={14} className="flex-shrink-0" />
+                                <span>Confirmation button/link tag is valid and configured.</span>
                             </div>
                         )}
                     </div>
@@ -395,17 +443,20 @@ export default function Settings() {
                     {/* Preview */}
                     {showPreview && (
                         <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
-                            <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
-                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col">
+                            <div className="flex items-center justify-between text-xs font-bold text-muted uppercase tracking-wider">
+                                <span>Live Responsive Preview</span>
+                                <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
+                            </div>
+                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col shadow-inner">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>
-                                    <span className="text-primary">{previewSubject}</span>
+                                    <span className="text-primary font-medium">{previewSubject}</span>
                                 </div>
                                 <hr className="border-border-subtle mb-3" />
                                 <iframe
                                     srcDoc={previewBody}
                                     title="Email Invitation Preview"
-                                    className="w-full flex-1 min-h-[500px] max-h-[600px] border border-border-subtle rounded-xl bg-[#f4f7f6]"
+                                    className="w-full flex-1 min-h-[500px] max-h-[600px] border border-border-subtle rounded-xl bg-[#f4f7f6] shadow-sm"
                                 />
                             </div>
                         </div>
@@ -430,7 +481,7 @@ export default function Settings() {
                         className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
                     >
                         {showStatusPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {showStatusPreview ? 'Hide' : 'Preview'}
+                        {showStatusPreview ? 'Hide' : 'Live Preview'}
                     </button>
                 </div>
 
@@ -450,13 +501,39 @@ export default function Settings() {
 
                         {/* Body Editing */}
                         <div className="space-y-2">
-                            <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
-                            <div className="flex items-start gap-2 p-3 bg-surface-elevated/50 border border-border-subtle rounded-xl mb-2">
-                                <Info size={14} className="text-muted mt-0.5 flex-shrink-0" />
-                                <p className="text-[11px] text-muted leading-relaxed">
-                                    Body placeholders: <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{statusButton}'}</code> — styled action button, <code className="px-1.5 py-0.5 bg-background rounded font-mono text-primary">{'{statusLink}'}</code> — raw update URL
-                                </p>
+                            <div className="flex items-center justify-between">
+                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
+                                <span className="text-[11px] text-muted">Click chips below to insert tag:</span>
                             </div>
+
+                            {/* Variable Insertion Chips */}
+                            <div className="flex flex-wrap items-center gap-1.5 p-2 bg-surface-elevated/40 border border-border-subtle rounded-xl">
+                                {[
+                                    { tag: '{studentName}', label: 'Student Name' },
+                                    { tag: '{statusButton}', label: 'Status Button' },
+                                    { tag: '{statusLink}', label: 'Status Link' },
+                                ].map(item => {
+                                    const isPresent = config.statusEmailTemplate.includes(item.tag);
+                                    return (
+                                        <button
+                                            key={item.tag}
+                                            type="button"
+                                            onClick={() => insertVariable(item.tag, 'status')}
+                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-all active:scale-95 ${
+                                                isPresent
+                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
+                                                    : 'bg-surface-elevated text-primary border border-border-subtle hover:border-violet-500 hover:text-violet-500'
+                                            }`}
+                                            title={`Click to insert ${item.tag} into body`}
+                                        >
+                                            <span className="text-violet-500 font-bold">+</span>
+                                            <span>{item.tag}</span>
+                                            {isPresent && <Check size={12} className="text-emerald-500 ml-0.5" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
                             <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                                 <ReactQuill
                                     theme="snow"
@@ -471,10 +548,15 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {!isValidStatusTemplate && (
-                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fadeIn">
-                                <AlertTriangle size={16} className="flex-shrink-0" />
+                        {!isValidStatusTemplate ? (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-xs animate-fadeIn font-medium">
+                                <AlertTriangle size={15} className="flex-shrink-0" />
                                 <span><strong>Warning:</strong> Template must include at least one status tag (<code>{'{statusButton}'}</code> or <code>{'{statusLink}'}</code>).</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 p-2 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                                <Check size={14} className="flex-shrink-0" />
+                                <span>Survey button/link tag is valid and configured.</span>
                             </div>
                         )}
                     </div>
@@ -482,17 +564,20 @@ export default function Settings() {
                     {/* Preview */}
                     {showStatusPreview && (
                         <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
-                            <div className="text-xs font-bold text-muted uppercase tracking-wider">Live Preview</div>
-                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col">
+                            <div className="flex items-center justify-between text-xs font-bold text-muted uppercase tracking-wider">
+                                <span>Live Responsive Preview</span>
+                                <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
+                            </div>
+                            <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col shadow-inner">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>
-                                    <span className="text-primary">{config.statusEmailSubjectFormat}</span>
+                                    <span className="text-primary font-medium">{config.statusEmailSubjectFormat}</span>
                                 </div>
                                 <hr className="border-border-subtle mb-3" />
                                 <iframe
                                     srcDoc={statusPreviewBody}
                                     title="Status Survey Preview"
-                                    className="w-full flex-1 min-h-[500px] max-h-[500px] border border-border-subtle rounded-xl bg-[#f4f7f6]"
+                                    className="w-full flex-1 min-h-[500px] max-h-[500px] border border-border-subtle rounded-xl bg-[#f4f7f6] shadow-sm"
                                 />
                             </div>
                         </div>

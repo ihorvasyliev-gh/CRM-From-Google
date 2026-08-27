@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, Suspense, useTransition, useRef } fro
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3 } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -11,6 +11,11 @@ import { fetchAllEnrollments } from './hooks/useEnrollments';
 import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
+import { Student, StudentFormData } from './lib/types';
+import CommandPalette from './components/CommandPalette';
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
+import StudentModal from './components/StudentModal';
+import StudentDetail from './components/StudentDetail';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
@@ -107,6 +112,12 @@ function App() {
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!isViewer);
+
+    // Global Modal & Palette States
+    const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+    const [globalAddStudentOpen, setGlobalAddStudentOpen] = useState(false);
+    const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -407,6 +418,89 @@ function App() {
         });
     }
 
+    // Global Keyboard Shortcuts Listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const isInput = target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable ||
+                target.classList.contains('ql-editor')
+            );
+
+            // Ctrl+K or Cmd+K: Open Command Palette
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setCommandPaletteOpen(prev => !prev);
+                return;
+            }
+
+            // Non-input hotkeys
+            if (!isInput) {
+                // ? or Shift+/ -> Open Shortcuts Modal
+                if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+                    e.preventDefault();
+                    setShortcutsModalOpen(prev => !prev);
+                    return;
+                }
+
+                // / -> Focus Search Input
+                if (e.key === '/') {
+                    e.preventDefault();
+                    const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+                    if (searchInput) {
+                        searchInput.focus();
+                        searchInput.select();
+                    }
+                    return;
+                }
+
+                // N -> Add Student (admin only)
+                if (!isViewer && (e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    e.preventDefault();
+                    setGlobalAddStudentOpen(true);
+                    return;
+                }
+
+                // 1-8 -> Tab Navigation (admin only)
+                if (!isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '8') {
+                    const idx = parseInt(e.key, 10) - 1;
+                    if (NAV_ITEMS[idx]) {
+                        e.preventDefault();
+                        navigate(NAV_ITEMS[idx].key);
+                    }
+                    return;
+                }
+            }
+
+            // Ctrl+Shift+D -> Toggle Theme
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                toggleDarkMode();
+                return;
+            }
+
+            // Ctrl+Shift+C -> Toggle Density
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                toggleDensity();
+                return;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isViewer, toggleDarkMode, toggleDensity]);
+
+    const handleSaveNewStudent = async (formData: StudentFormData) => {
+        const { id, ...rest } = formData;
+        const { error } = await supabase.from('students').insert([rest]);
+        if (error) throw new Error(error.message);
+        queryClient.invalidateQueries({ queryKey: ['students'] });
+        setGlobalAddStudentOpen(false);
+    };
+
     return (
         <TooltipProvider delayDuration={100}>
             <div className="h-screen w-full bg-background text-primary flex transition-colors duration-300 ease-in-out relative overflow-hidden">
@@ -455,7 +549,21 @@ function App() {
                     </div>
 
                     {/* Nav */}
-                    <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto">
+                    <nav className="flex-1 px-2.5 py-3 space-y-1 overflow-y-auto">
+                        <button
+                            onClick={() => setCommandPaletteOpen(true)}
+                            className="w-full mb-3 flex items-center justify-between px-2.5 py-2 bg-surface-elevated/70 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/40 rounded-xl text-xs font-medium text-muted hover:text-primary transition-all group shadow-xs"
+                            title="Quick search (Ctrl+K)"
+                        >
+                            <div className="flex items-center gap-2">
+                                <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
+                                <span>Quick Search</span>
+                            </div>
+                            <kbd className="px-1.5 py-0.2 text-[9px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded group-hover:border-brand-500/30">
+                                ⌘K
+                            </kbd>
+                        </button>
+
                         <p className="px-2.5 text-[9px] font-bold text-muted uppercase tracking-wider mb-2">Navigation</p>
                         {NAV_ITEMS.map(item => {
                             const Icon = item.icon;
@@ -491,29 +599,41 @@ function App() {
                     </nav>
 
                     {/* User / Settings / Sign Out */}
-                    <div className="p-2 border-t border-border-subtle flex-shrink-0 space-y-2">
+                    <div className="p-2 border-t border-border-subtle flex-shrink-0 space-y-1.5">
                         {/* Theme Toggle */}
                         <button
                             onClick={toggleDarkMode}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
+                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
                         >
                             <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
-                                {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+                                {darkMode ? <Sun size={14} /> : <Moon size={14} />}
                             </div>
                             <span className="flex-1 text-left truncate">Theme</span>
-                            <span className="text-xs text-muted flex-shrink-0">{darkMode ? 'Dark' : 'Light'}</span>
+                            <span className="text-[10px] text-muted flex-shrink-0">{darkMode ? 'Dark' : 'Light'}</span>
                         </button>
 
                         {/* Density Toggle */}
                         <button
                             onClick={toggleDensity}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
+                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
                         >
                             <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
-                                <Rows3 size={16} />
+                                <Rows3 size={14} />
                             </div>
                             <span className="flex-1 text-left truncate">Density</span>
-                            <span className="text-xs text-muted flex-shrink-0 capitalize">{density}</span>
+                            <span className="text-[10px] text-muted flex-shrink-0 capitalize">{density}</span>
+                        </button>
+
+                        {/* Shortcuts helper */}
+                        <button
+                            onClick={() => setShortcutsModalOpen(true)}
+                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
+                        >
+                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
+                                <HelpCircle size={14} />
+                            </div>
+                            <span className="flex-1 text-left truncate">Shortcuts</span>
+                            <kbd className="text-[10px] font-mono font-bold text-muted px-1.5 py-0.2 bg-surface border border-border-subtle rounded flex-shrink-0">?</kbd>
                         </button>
 
                         <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-elevated rounded-lg border border-border-subtle/50">
@@ -622,7 +742,25 @@ function App() {
                             </div>
 
                             <div className="flex items-center gap-2 sm:gap-3">
+                                <button
+                                    onClick={() => setCommandPaletteOpen(true)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
+                                    title="Quick search (Ctrl+K)"
+                                >
+                                    <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
+                                    <span className="hidden sm:inline">Search</span>
+                                    <kbd className="px-1.5 py-0.2 text-[9px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded group-hover:border-brand-500/30">Ctrl K</kbd>
+                                </button>
+
                                 <NetworkStatusIndicator />
+
+                                <button
+                                    onClick={() => setShortcutsModalOpen(true)}
+                                    className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
+                                    title="Keyboard Shortcuts (?)"
+                                >
+                                    <HelpCircle size={17} />
+                                </button>
 
                                 <button
                                     onClick={toggleDensity}
@@ -675,7 +813,14 @@ function App() {
                                 </div>
                                 <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setCommandPaletteOpen(true)}
+                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                    title="Search (Ctrl+K)"
+                                >
+                                    <Search size={17} />
+                                </button>
                                 <NetworkStatusIndicator />
                                 {pendingApprovalsCount > 0 ? (
                                     <button
@@ -712,9 +857,29 @@ function App() {
                                     </p>
                                 </div>
 
-                                {/* Header Right Controls: Approvals & Notifications */}
+                                {/* Header Right Controls: Search, Approvals & Notifications */}
                                 <div className="flex items-center gap-2.5">
+                                    <button
+                                        onClick={() => setCommandPaletteOpen(true)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
+                                        title="Quick search (Ctrl+K)"
+                                    >
+                                        <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
+                                        <span>Quick search...</span>
+                                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md group-hover:border-brand-500/30">
+                                            Ctrl K
+                                        </kbd>
+                                    </button>
+
                                     <NetworkStatusIndicator showLabel />
+
+                                    <button
+                                        onClick={() => setShortcutsModalOpen(true)}
+                                        className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
+                                        title="Keyboard Shortcuts (?)"
+                                    >
+                                        <HelpCircle size={17} />
+                                    </button>
 
                                     <button
                                         onClick={toggleDensity}
@@ -787,6 +952,48 @@ function App() {
                 open={approvalsModalOpen}
                 onClose={() => setApprovalsModalOpen(false)}
             />
+
+            {/* Global Command Palette */}
+            <CommandPalette
+                open={commandPaletteOpen}
+                onClose={() => setCommandPaletteOpen(false)}
+                onNavigate={handleNavigate}
+                onOpenStudentDetail={student => setGlobalStudentDetail(student)}
+                onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
+                onOpenApprovals={() => setApprovalsModalOpen(true)}
+                onOpenShortcuts={() => setShortcutsModalOpen(true)}
+                darkMode={darkMode}
+                toggleDarkMode={toggleDarkMode}
+                density={density}
+                toggleDensity={toggleDensity}
+                isViewer={isViewer}
+                pendingApprovalsCount={pendingApprovalsCount}
+            />
+
+            {/* Global Keyboard Shortcuts Modal */}
+            <KeyboardShortcutsModal
+                open={shortcutsModalOpen}
+                onClose={() => setShortcutsModalOpen(false)}
+            />
+
+            {/* Global Add Student Modal */}
+            {globalAddStudentOpen && (
+                <StudentModal
+                    open={true}
+                    student={null}
+                    onSave={handleSaveNewStudent}
+                    onClose={() => setGlobalAddStudentOpen(false)}
+                />
+            )}
+
+            {/* Global Student Detail Modal */}
+            {globalStudentDetail && (
+                <StudentDetail
+                    student={globalStudentDetail}
+                    onClose={() => setGlobalStudentDetail(null)}
+                    onNavigate={handleNavigate}
+                />
+            )}
         </TooltipProvider>
     );
 }

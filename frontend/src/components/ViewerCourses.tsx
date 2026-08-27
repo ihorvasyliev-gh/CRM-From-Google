@@ -11,7 +11,7 @@ import {
     BookOpen, Search, ArrowLeft, Users, Clock, CheckCircle,
     GraduationCap, CheckSquare, Square, Calendar, Loader2,
     AlertCircle, RefreshCw, Star, ArrowDownUp, ArrowUpDown, CaseSensitive,
-    Download, FileSpreadsheet
+    Download, FileSpreadsheet, Copy, X
 } from 'lucide-react';
 
 const STATUS_TABS = [
@@ -328,6 +328,25 @@ export default function ViewerCourses() {
         }
     };
 
+    const handleCopySelectedBccEmails = () => {
+        if (selectedEnrollmentIds.size === 0) return;
+        const selectedItems = sortedRoster.filter(item => selectedEnrollmentIds.has(item.enrollment_id));
+        const emails = selectedItems
+            .map(i => i.email?.trim())
+            .filter((e): e is string => !!e && e.length > 0);
+        const uniqueEmails = Array.from(new Set(emails));
+        if (uniqueEmails.length === 0) {
+            setToast({ message: 'No valid email addresses found for selected students', type: 'error' });
+            return;
+        }
+        const bccString = uniqueEmails.join(', ');
+        navigator.clipboard.writeText(bccString).then(() => {
+            setToast({ message: `Copied ${uniqueEmails.length} email(s) for BCC!`, type: 'success' });
+        }).catch(() => {
+            setToast({ message: 'Failed to copy emails to clipboard', type: 'error' });
+        });
+    };
+
     const handleExportFullRoster = async () => {
         if (!selectedCourse || sortedRoster.length === 0) return;
 
@@ -405,6 +424,14 @@ export default function ViewerCourses() {
                                 {selectedEnrollmentIds.size} selected
                             </span>
                             <button
+                                onClick={handleCopySelectedBccEmails}
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-primary bg-surface-elevated hover:bg-surface border border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
+                                title="Copy all selected emails formatted for BCC in email client"
+                            >
+                                <Copy size={14} className="text-brand-500" />
+                                <span>Copy Emails (BCC)</span>
+                            </button>
+                            <button
                                 onClick={handleExportSelected}
                                 disabled={isExporting}
                                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-surface-elevated hover:bg-surface border border-border-strong rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
@@ -419,6 +446,13 @@ export default function ViewerCourses() {
                             >
                                 <GraduationCap size={15} />
                                 <span>Mark Selected as Completed</span>
+                            </button>
+                            <button
+                                onClick={() => setSelectedEnrollmentIds(new Set())}
+                                className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
+                                title="Clear selection"
+                            >
+                                <X size={15} />
                             </button>
                         </div>
                     )}

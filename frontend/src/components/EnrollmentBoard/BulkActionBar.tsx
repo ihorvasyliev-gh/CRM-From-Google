@@ -79,7 +79,7 @@ export default function BulkActionBar({
 
                 <div className="w-px h-5 bg-white/10 ml-0.5" />
 
-                <CustomTooltip content="Copy Emails">
+                <CustomTooltip content="Copy Emails (BCC)">
                     <button
                         onClick={handleCopySelectedEmails}
                         className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
