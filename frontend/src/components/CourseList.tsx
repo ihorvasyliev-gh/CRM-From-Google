@@ -146,17 +146,47 @@ export default function CourseList() {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
     }, [queryClient]);
 
-    async function handleSave(data: { id?: string; name: string }) {
+    async function handleSave(data: { id?: string; name: string; requires_english?: boolean }) {
         if (data.id) {
-            const { error } = await supabase.from('courses').update({ name: data.name }).eq('id', data.id);
+            const { error } = await supabase
+                .from('courses')
+                .update({ name: data.name, requires_english: data.requires_english ?? false })
+                .eq('id', data.id);
             if (error) throw new Error(error.message);
-            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name } : c));
+            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english } : c));
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             setToast({ message: 'Course updated', type: 'success' });
         } else {
-            const { data: inserted, error } = await supabase.from('courses').insert({ name: data.name }).select();
+            const { data: inserted, error } = await supabase
+                .from('courses')
+                .insert({ name: data.name, requires_english: data.requires_english ?? false })
+                .select();
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
             setToast({ message: 'Course created', type: 'success' });
+        }
+    }
+
+    async function handleToggleEnglish(course: Course, e: React.MouseEvent) {
+        e.stopPropagation();
+        const newRequiresEnglish = !course.requires_english;
+        // Optimistic update
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: newRequiresEnglish } : c));
+        try {
+            const { error } = await supabase
+                .from('courses')
+                .update({ requires_english: newRequiresEnglish })
+                .eq('id', course.id);
+            if (error) throw error;
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            setToast({
+                message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
+                type: 'success'
+            });
+        } catch {
+            // Rollback on error
+            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !newRequiresEnglish } : c));
+            setToast({ message: 'Failed to update course template', type: 'error' });
         }
     }
 
@@ -272,8 +302,8 @@ export default function CourseList() {
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
-                                <div className="course-card-body p-5" style={{ minHeight: 140, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                    <div className="flex items-start justify-between mb-4">
+                                <div className="course-card-body p-5" style={{ minHeight: 150, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                    <div className="flex items-start justify-between mb-3">
                                         <div className="flex items-center gap-3">
                                             <div className={`course-card-icon w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
                                                 {course.name.substring(0, 2).toUpperCase()}
@@ -290,18 +320,35 @@ export default function CourseList() {
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                                 className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
-                                                title="Edit"
+                                                title="Edit Course"
                                             >
                                                 <Edit2 size={14} />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(course); }}
                                                 className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
-                                                title="Delete"
+                                                title="Delete Course"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
+                                    </div>
+
+                                    {/* Template Selection Pill */}
+                                    <div className="mb-3.5">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleToggleEnglish(course, e)}
+                                            title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
+                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${
+                                                course.requires_english
+                                                    ? 'bg-blue-500/15 border-blue-500/40 text-blue-400 hover:bg-blue-500/25 shadow-sm'
+                                                    : 'bg-surface-elevated/70 border-border-subtle text-muted hover:text-primary hover:border-border-strong hover:bg-surface-elevated'
+                                            }`}
+                                        >
+                                            <span className="text-xs">{course.requires_english ? '🇬🇧' : '🌐'}</span>
+                                            <span>{course.requires_english ? 'High English' : 'Standard'}</span>
+                                        </button>
                                     </div>
 
                                     <StatusBar counts={counts} />

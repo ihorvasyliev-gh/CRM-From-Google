@@ -5,18 +5,20 @@ import { Course } from '../lib/types';
 interface Props {
     open: boolean;
     course: Course | null;
-    onSave: (data: { id?: string; name: string }) => Promise<void>;
+    onSave: (data: { id?: string; name: string; requires_english?: boolean }) => Promise<void>;
     onClose: () => void;
 }
 
 export default function CourseModal({ open, course, onSave, onClose }: Props) {
     const [name, setName] = useState('');
+    const [requiresEnglish, setRequiresEnglish] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (open) {
             setName(course?.name || '');
+            setRequiresEnglish(Boolean(course?.requires_english));
             setError('');
         }
     }, [open, course]);
@@ -30,7 +32,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         setSaving(true);
         setError('');
         try {
-            await onSave({ id: course?.id, name: name.trim() });
+            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish });
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -84,6 +86,56 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             autoFocus
                             required
                         />
+                    </div>
+
+                    {/* Email Template Type Selection */}
+                    <div className="pt-1">
+                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">
+                            Invitation Email Template
+                        </label>
+                        <div className="grid grid-cols-1 gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setRequiresEnglish(false)}
+                                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                                    !requiresEnglish
+                                        ? 'bg-emerald-500/10 border-emerald-500/40 text-primary'
+                                        : 'bg-surface border-border-subtle text-muted hover:border-border-strong'
+                                }`}
+                            >
+                                <span className="text-lg mt-0.5">🌐</span>
+                                <div>
+                                    <div className="text-xs font-bold flex items-center gap-1.5">
+                                        Standard Course
+                                        {!requiresEnglish && <span className="text-[10px] bg-emerald-500/20 text-emerald-500 font-semibold px-1.5 py-0.2 rounded">Selected</span>}
+                                    </div>
+                                    <div className="text-[11px] text-muted mt-0.5">
+                                        Standard invitation letter with [Confirm My Place] button.
+                                    </div>
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setRequiresEnglish(true)}
+                                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                                    requiresEnglish
+                                        ? 'bg-blue-500/10 border-blue-500/40 text-primary'
+                                        : 'bg-surface border-border-subtle text-muted hover:border-border-strong'
+                                }`}
+                            >
+                                <span className="text-lg mt-0.5">🇬🇧</span>
+                                <div>
+                                    <div className="text-xs font-bold flex items-center gap-1.5">
+                                        High English Required
+                                        {requiresEnglish && <span className="text-[10px] bg-blue-500/20 text-blue-400 font-semibold px-1.5 py-0.2 rounded">Selected</span>}
+                                    </div>
+                                    <div className="text-[11px] text-muted mt-0.5">
+                                        Includes English warning notes &amp; [I Feel Confident — Confirm My Place] button.
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex gap-3 pt-2">

@@ -181,7 +181,8 @@ export function useInviteFlow({
             console.error('Token generation failed, using long URL:', err);
         }
 
-        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays);
+        const requiresEnglish = Boolean(first?.courses?.requires_english);
+        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays, requiresEnglish);
 
         try {
             const blobHtml = new Blob([htmlBody], { type: "text/html" });

@@ -21,7 +21,7 @@ export async function fetchAllEnrollments() {
     while (true) {
         const { data, error } = await supabase
             .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name)')
+            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english)')
             .order('created_at', { ascending: false })
             .range(from, from + limit - 1);
             

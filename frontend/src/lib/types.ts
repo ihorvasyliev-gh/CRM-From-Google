@@ -16,6 +16,7 @@ export interface Student {
 export interface Course {
     id: string;
     name: string;
+    requires_english?: boolean;
     created_at: string;
 }
 
@@ -46,6 +47,7 @@ export interface Enrollment {
 export interface ViewerCourse {
     id: string;
     name: string;
+    requires_english?: boolean;
     created_at: string;
     total_count: number;
     requested_count: number;

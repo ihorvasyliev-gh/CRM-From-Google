@@ -10,8 +10,10 @@ export interface ExcelColumn {
 }
 
 export interface AppConfig {
-    /** HTML Email body template. Supports placeholders: {courseTitle}, {date}, {confirmationButton}, {confirmationLink} */
+    /** HTML Email body template for courses requiring high English. Supports placeholders: {courseDetails}, {confirmationButton}, {confirmationLink}, {responseDays} */
     htmlEmailTemplate: string;
+    /** HTML Email body template for standard courses. Supports placeholders: {courseDetails}, {confirmationButton}, {confirmationLink}, {responseDays} */
+    htmlEmailTemplateStandard: string;
     /** Email subject format. Supports placeholders: {courseName}, {date} */
     emailSubjectFormat: string;
     /** Columns to include in the Excel spreadsheet exported with the archive */
@@ -36,12 +38,34 @@ export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-    htmlEmailTemplate: `<p style="margin:0 0 24px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
-<p style="margin:0 0 32px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
+    htmlEmailTemplate: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
+<p style="margin:0 0 24px 0;font-size:16px;color:#64748b;line-height:1.6;">Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
 {courseDetails}
-<p style="margin:0 0 32px 0;font-size:16px;color:#64748b;text-align:center;">Spaces are limited, please let us know within <strong>{responseDays} days</strong>.</p>
+<p style="margin:0 0 12px 0;font-size:16px;font-weight:700;color:#1e293b;">Important note before you confirm:</p>
+<ul style="margin:0 0 28px 0;padding-left:24px;font-size:15px;color:#475569;line-height:1.6;">
+  <li style="margin-bottom:8px;">Please only accept this place if you feel confident with your English.</li>
+  <li style="margin-bottom:8px;">The course and final test are fully in English. You will need a good understanding of English to pass.</li>
+  <li>We have a very long waiting list and limited places, so we cannot offer a second chance or a retake if you don't pass.</li>
+</ul>
 {confirmationButton}
-<p style="margin:0;font-size:15px;color:#94a3b8;line-height:1.6;text-align:center;">If you have any questions, simply reply to this email.</p>`,
+<p style="margin:0 0 12px 0;font-size:15px;color:#64748b;line-height:1.6;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0;padding-left:24px;font-size:14px;color:#94a3b8;line-height:1.6;">
+  <li>You've already taken this course elsewhere</li>
+  <li>You're not interested</li>
+  <li>You’d prefer not to receive future emails</li>
+</ul>`,
+    htmlEmailTemplateStandard: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
+<p style="margin:0 0 28px 0;font-size:16px;color:#64748b;line-height:1.6;">Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
+{courseDetails}
+{confirmationButton}
+<p style="margin:0 0 12px 0;font-size:15px;color:#64748b;line-height:1.6;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0;padding-left:24px;font-size:14px;color:#94a3b8;line-height:1.6;">
+  <li>You've already taken this course elsewhere</li>
+  <li>You're not interested</li>
+  <li>You’d prefer not to receive future emails</li>
+</ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello from <strong>Cork City Partnership</strong>,</p>
@@ -354,9 +378,17 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 }
 
 /** Build the email body HTML by replacing placeholders. */
-export function buildEmailBodyHtml(courseTitle: string, date: string, confirmationLink?: string, customConfig?: AppConfig, responseDays?: number): string {
+export function buildEmailBodyHtml(
+    courseTitle: string, 
+    date: string, 
+    confirmationLink?: string, 
+    customConfig?: AppConfig, 
+    responseDays?: number,
+    requiresEnglish: boolean = false
+): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
+    const buttonText = requiresEnglish ? 'I Feel Confident — Confirm My Place' : 'Confirm My Place';
     
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
@@ -379,7 +411,7 @@ export function buildEmailBodyHtml(courseTitle: string, date: string, confirmati
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
         <tr>
           <td align="center" bgcolor="#2563eb" style="border-radius:12px;padding:16px 36px;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2), 0 2px 4px -1px rgba(37,99,235,0.1);">
-            <a href="${linkStr}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;text-decoration:none;display:inline-block;letter-spacing:0.5px;">Confirm My Place</a>
+            <a href="${linkStr}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;text-decoration:none;display:inline-block;letter-spacing:0.5px;">${buttonText}</a>
           </td>
         </tr>
       </table>
@@ -388,7 +420,10 @@ export function buildEmailBodyHtml(courseTitle: string, date: string, confirmati
 </table>`
         : '';
         
-    let body = config.htmlEmailTemplate;
+    let body = requiresEnglish
+        ? (config.htmlEmailTemplate || DEFAULT_CONFIG.htmlEmailTemplate)
+        : (config.htmlEmailTemplateStandard || DEFAULT_CONFIG.htmlEmailTemplateStandard);
+
     // Strip wrapping <p> tags ReactQuill might have added around placeholders
     body = body.replace(/<p>\s*\{courseDetails\}\s*<\/p>/g, '{courseDetails}');
     body = body.replace(/<p>\s*\{confirmationButton\}\s*<\/p>/g, '{confirmationButton}');

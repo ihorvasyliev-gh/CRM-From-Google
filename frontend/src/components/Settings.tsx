@@ -56,7 +56,11 @@ export default function Settings() {
         return () => window.removeEventListener('densitychange', handleDensityChange);
     }, []);
 
-    const isValidTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
+    const [inviteTemplateTab, setInviteTemplateTab] = useState<'high_english' | 'standard'>('high_english');
+
+    const isValidHighEnglishTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
+    const isValidStandardTemplate = (config.htmlEmailTemplateStandard || '').includes('{confirmationLink}') || (config.htmlEmailTemplateStandard || '').includes('{confirmationButton}');
+    const isValidTemplate = isValidHighEnglishTemplate && isValidStandardTemplate;
     const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
 
     const handleSave = useCallback(() => {
@@ -78,8 +82,9 @@ export default function Settings() {
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
-    const previewBody = buildEmailBodyHtml('Introduction to Digital Skills', '15 Mar 2026', linkStr, config);
-    const previewSubject = buildEmailSubject('Introduction to Digital Skills', '15 Mar 2026', config);
+    const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
+    const previewBody = buildEmailBodyHtml(previewCourseName, '15 Mar 2026', linkStr, config, 7, inviteTemplateTab === 'high_english');
+    const previewSubject = buildEmailSubject(previewCourseName, '15 Mar 2026', config);
 
     // Status template preview
     const statusLinkStr = 'https://forms.gle/5ernSprvAbq4MTgf9';
@@ -283,11 +288,16 @@ export default function Settings() {
         }
     }, [runDuplicateScan]);
 
-    const insertVariable = useCallback((variable: string, target: 'invitation' | 'status') => {
-        if (target === 'invitation') {
+    const insertVariable = useCallback((variable: string, target: 'invitation_high_english' | 'invitation_standard' | 'status') => {
+        if (target === 'invitation_high_english') {
             setLocalConfig(prev => ({
                 ...prev,
                 htmlEmailTemplate: prev.htmlEmailTemplate ? `${prev.htmlEmailTemplate} ${variable}` : variable
+            }));
+        } else if (target === 'invitation_standard') {
+            setLocalConfig(prev => ({
+                ...prev,
+                htmlEmailTemplateStandard: prev.htmlEmailTemplateStandard ? `${prev.htmlEmailTemplateStandard} ${variable}` : variable
             }));
         } else {
             setLocalConfig(prev => ({
@@ -336,27 +346,77 @@ export default function Settings() {
 
             {/* ═══ Course Invitation Email Settings ═══ */}
             <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
+                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="p-1.5 bg-brand-500/10 rounded-lg">
                             <Mail size={16} className="text-brand-500 dark:text-brand-400" />
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-primary">Course Invitation Email</h3>
-                            <p className="text-xs text-muted mt-0.5">Configure email subject and body template sent to invited students</p>
+                            <p className="text-xs text-muted mt-0.5">Configure email subject and body templates sent to invited students</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
-                    >
-                        {showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {showPreview ? 'Hide' : 'Live Preview'}
-                    </button>
+                    
+                    <div className="flex items-center gap-2">
+                        {/* Template Type Subtabs */}
+                        <div className="flex items-center bg-background p-1 rounded-xl border border-border-subtle text-xs font-semibold">
+                            <button
+                                type="button"
+                                onClick={() => setInviteTemplateTab('high_english')}
+                                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                                    inviteTemplateTab === 'high_english'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-muted hover:text-primary'
+                                }`}
+                            >
+                                <span>🇬🇧</span>
+                                <span>High English</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setInviteTemplateTab('standard')}
+                                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                                    inviteTemplateTab === 'standard'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-muted hover:text-primary'
+                                }`}
+                            >
+                                <span>🌐</span>
+                                <span>Standard Course</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowPreview(!showPreview)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all ml-1"
+                        >
+                            {showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {showPreview ? 'Hide' : 'Live Preview'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className={`p-5 grid grid-cols-1 ${showPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
                     <div className="space-y-4">
+                        {/* Tab Info Banner */}
+                        <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                            inviteTemplateTab === 'high_english'
+                                ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        }`}>
+                            <span className="text-base">{inviteTemplateTab === 'high_english' ? '🇬🇧' : '🌐'}</span>
+                            <div className="space-y-0.5">
+                                <div className="font-bold text-primary">
+                                    {inviteTemplateTab === 'high_english' ? 'High English Required Template' : 'Standard Course Template'}
+                                </div>
+                                <div className="text-muted leading-relaxed">
+                                    {inviteTemplateTab === 'high_english'
+                                        ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Feel Confident — Confirm My Place] button.'
+                                        : 'Used for general courses. Does not include language warnings and uses standard [Confirm My Place] button.'}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Subject Editing */}
                         <div className="space-y-2">
                             <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Subject</label>
@@ -378,7 +438,9 @@ export default function Settings() {
                         {/* Body Editing */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Body</label>
+                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
+                                    {inviteTemplateTab === 'high_english' ? 'Email Body (High English)' : 'Email Body (Standard Course)'}
+                                </label>
                                 <span className="text-[11px] text-muted">Click chips below to insert tag:</span>
                             </div>
 
@@ -388,16 +450,21 @@ export default function Settings() {
                                     { tag: '{studentName}', label: 'Student Name' },
                                     { tag: '{courseName}', label: 'Course Name' },
                                     { tag: '{date}', label: 'Date' },
+                                    { tag: '{responseDays}', label: 'Days' },
                                     { tag: '{courseDetails}', label: 'Course Card' },
                                     { tag: '{confirmationButton}', label: 'Confirm Button' },
                                     { tag: '{confirmationLink}', label: 'Confirm URL' },
                                 ].map(item => {
-                                    const isPresent = config.htmlEmailTemplate.includes(item.tag);
+                                    const activeContent = inviteTemplateTab === 'high_english'
+                                        ? config.htmlEmailTemplate
+                                        : (config.htmlEmailTemplateStandard || '');
+                                    const isPresent = activeContent.includes(item.tag);
+                                    const target = inviteTemplateTab === 'high_english' ? 'invitation_high_english' : 'invitation_standard';
                                     return (
                                         <button
                                             key={item.tag}
                                             type="button"
-                                            onClick={() => insertVariable(item.tag, 'invitation')}
+                                            onClick={() => insertVariable(item.tag, target)}
                                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-all active:scale-95 ${
                                                 isPresent
                                                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
@@ -415,11 +482,18 @@ export default function Settings() {
 
                             <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                                 <ReactQuill 
+                                    key={inviteTemplateTab}
                                     theme="snow"
-                                    value={config.htmlEmailTemplate}
+                                    value={inviteTemplateTab === 'high_english' ? config.htmlEmailTemplate : (config.htmlEmailTemplateStandard || '')}
                                     onChange={(content) => {
-                                        if (content !== config.htmlEmailTemplate) {
-                                            setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
+                                        if (inviteTemplateTab === 'high_english') {
+                                            if (content !== config.htmlEmailTemplate) {
+                                                setLocalConfig(prev => ({ ...prev, htmlEmailTemplate: content }));
+                                            }
+                                        } else {
+                                            if (content !== config.htmlEmailTemplateStandard) {
+                                                setLocalConfig(prev => ({ ...prev, htmlEmailTemplateStandard: content }));
+                                            }
                                         }
                                     }}
                                     modules={quillModules}
@@ -427,12 +501,21 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {!isValidTemplate ? (
+                        {inviteTemplateTab === 'high_english' && !isValidHighEnglishTemplate && (
                             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-xs animate-fadeIn font-medium">
                                 <AlertTriangle size={15} className="flex-shrink-0" />
-                                <span><strong>Warning:</strong> Template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
+                                <span><strong>Warning:</strong> High English template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
                             </div>
-                        ) : (
+                        )}
+
+                        {inviteTemplateTab === 'standard' && !isValidStandardTemplate && (
+                            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-xs animate-fadeIn font-medium">
+                                <AlertTriangle size={15} className="flex-shrink-0" />
+                                <span><strong>Warning:</strong> Standard Course template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</span>
+                            </div>
+                        )}
+
+                        {((inviteTemplateTab === 'high_english' && isValidHighEnglishTemplate) || (inviteTemplateTab === 'standard' && isValidStandardTemplate)) && (
                             <div className="flex items-center gap-2 p-2 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-xs font-medium">
                                 <Check size={14} className="flex-shrink-0" />
                                 <span>Confirmation button/link tag is valid and configured.</span>
@@ -444,7 +527,7 @@ export default function Settings() {
                     {showPreview && (
                         <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
                             <div className="flex items-center justify-between text-xs font-bold text-muted uppercase tracking-wider">
-                                <span>Live Responsive Preview</span>
+                                <span>Live Responsive Preview ({inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'})</span>
                                 <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
                             </div>
                             <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col shadow-inner">

@@ -46,15 +46,25 @@ describe('appConfig', () => {
             expect(result).toContain('Oct 20');
         });
 
-        it('includes confirmation link block if provided', () => {
-            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm');
+        it('includes standard confirmation button if provided and requiresEnglish is false', () => {
+            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 7, false);
             expect(result).toContain('https://example.com/confirm');
             expect(result).toContain('Confirm My Place');
+            expect(result).not.toContain('Important note before you confirm:');
+        });
+
+        it('includes confident confirmation button and warning if requiresEnglish is true', () => {
+            const result = buildEmailBodyHtml('Security Guarding', 'Oct 20', 'https://example.com/confirm', undefined, 7, true);
+            expect(result).toContain('https://example.com/confirm');
+            expect(result).toContain('I Feel Confident — Confirm My Place');
+            expect(result).toContain('Important note before you confirm:');
+            expect(result).toContain('feel confident with your English');
         });
 
         it('does not include confirmation block if no link provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20');
             expect(result).not.toContain('Confirm My Place');
+            expect(result).not.toContain('I Feel Confident');
         });
     });
 
