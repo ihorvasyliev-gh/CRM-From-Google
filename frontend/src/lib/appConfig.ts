@@ -421,7 +421,7 @@ export function buildEmailBodyHtml(
       <p style="margin:0 0 10px 0;font-size:15px;font-weight:700;color:#854d0e;">⚠️ Important note before you confirm:</p>
       <ul style="margin:0;padding-left:20px;font-size:14px;color:#78350f;line-height:1.6;">
         <li style="margin-bottom:6px;">Please only accept this place if you feel confident with your English.</li>
-        <li style="margin-bottom:6px;">The course and final test are fully in English. You will need a good understanding of English to pass.</li>
+        <li style="margin-bottom:6px;">The course and final test are all in English. You will need a good understanding of English to pass.</li>
         <li>We cannot offer a second chance or a retake if you don't pass.</li>
       </ul>
     </td>
