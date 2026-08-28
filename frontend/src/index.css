@@ -671,8 +671,13 @@ textarea {
 }
 
 .density-compact .enrollment-card .card-pill {
+    height: 1.125rem !important; /* 18px */
     font-size: 0.625rem !important; /* 10px */
-    padding: 0.05rem 0.35rem !important;
+    padding: 0 0.35rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
 }
 
 .density-compact .enrollment-card .card-contact {
