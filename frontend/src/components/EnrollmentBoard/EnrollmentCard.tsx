@@ -69,8 +69,10 @@ const EnrollmentCard = function EnrollmentCard({
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
+    const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+    const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
     
     useEffect(() => {
@@ -81,6 +83,7 @@ const EnrollmentCard = function EnrollmentCard({
     }, [status]);
 
     useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
         const media = window.matchMedia('(max-width: 1023px)');
         setIsMobile(media.matches);
         const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
@@ -132,7 +135,25 @@ const EnrollmentCard = function EnrollmentCard({
         toggleSelect(enrollment.id);
     };
 
-    // п.3: Timer level — grey / orange / red
+    const handleOpenQuickMove = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if (quickMoveBtnRef.current) {
+            const rect = quickMoveBtnRef.current.getBoundingClientRect();
+            const width = 180;
+            let left = rect.right - width;
+            if (left < 10) left = 10;
+            if (left + width > window.innerWidth - 10) left = window.innerWidth - width - 10;
+            let top = rect.bottom + 6;
+            // if dropdown exceeds bottom of viewport, position above button
+            if (top + 260 > window.innerHeight && rect.top > 260) {
+                top = rect.top - 260;
+            }
+            setPopoverPos({ top, left });
+        }
+        setShowQuickMove(prev => !prev);
+    };
+
+    // Timer level — grey / orange / red
     const timerLevel = useMemo(() => {
         if (status !== 'invited') return null;
         const invitedAt = enrollment.invited_at;
@@ -154,7 +175,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay || isMobile ? {} : attributes)}
             {...(isOverlay || isMobile ? {} : listeners)}
-            className={`group relative enrollment-card cv-auto-card p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
+            className={`group relative enrollment-card cv-auto-card p-2 md:p-2.5 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile
@@ -170,18 +191,54 @@ const EnrollmentCard = function EnrollmentCard({
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}
         >
-            <div className="flex items-start gap-2 md:gap-3">
-                {/* Left Actions Column */}
-                <div className="card-actions-col mt-0.5 flex flex-col items-center gap-1.5 md:gap-2 flex-shrink-0">
+            {/* Top Row: Checkbox, Name, Badges & Quick Action Buttons */}
+            <div className="flex items-center justify-between gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
+                    {/* Checkbox */}
                     <div
-                        className={`w-[16px] h-[16px] rounded flex items-center justify-center border transition-all ${isSelected
-                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                            : 'border-border-strong group-hover:border-brand-500/50 bg-background'
-                            }`}
+                        className={`w-[16px] h-[16px] rounded flex items-center justify-center border transition-all flex-shrink-0 ${
+                            isSelected
+                                ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                : 'border-border-strong group-hover:border-brand-500/50 bg-background'
+                        }`}
                     >
                         {isSelected && <Check size={11} strokeWidth={3} />}
                     </div>
 
+                    {/* Student Name */}
+                    <p className="card-title font-bold text-primary text-[13px] md:text-[15px] leading-tight truncate">
+                        {enrollment.students?.first_name} {enrollment.students?.last_name}
+                    </p>
+
+                    {/* Course Pill */}
+                    <span className={`card-pill inline-block text-[10px] md:text-[11px] font-medium px-1.5 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
+                        {getCoursePill(enrollment)}
+                    </span>
+
+                    {/* Queue Number */}
+                    {status === 'requested' && queuePosition !== undefined && (
+                        <div title="Position in queue for this course" className="flex-shrink-0">
+                            <span className="card-pill inline-flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 font-mono text-[10px] md:text-[11px] font-bold rounded px-1.5 py-0.5 border border-violet-200 dark:border-violet-500/30">
+                                #{queuePosition}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* 🥇 Completed Courses Badge */}
+                    {completedCourses.length > 0 && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
+                            title="Click to view completed courses"
+                            className="card-pill flex items-center justify-center gap-0.5 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer flex-shrink-0 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                        >
+                            <Award size={11} strokeWidth={2.5} />
+                            <span className="text-[10px] font-bold">{completedCourses.length}</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Right Quick Actions (In one horizontal row) */}
+                <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
                     {/* Star Priority */}
                     <button
                         title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
@@ -189,12 +246,12 @@ const EnrollmentCard = function EnrollmentCard({
                             e.stopPropagation();
                             togglePriority(enrollment.id, !!enrollment.is_priority);
                         }}
-                        className={`transition-all ${enrollment.is_priority
+                        className={`p-1 rounded transition-colors ${enrollment.is_priority
                             ? 'text-warning hover:text-warning/80 drop-shadow-sm'
                             : 'text-muted/30 hover:text-warning/60 lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
-                            }`}
+                        }`}
                     >
-                        <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                        <Star size={13} fill={enrollment.is_priority ? "currentColor" : "none"} />
                     </button>
 
                     {/* ⚠ Student Flags */}
@@ -202,311 +259,26 @@ const EnrollmentCard = function EnrollmentCard({
                         <button
                             title={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}
                             onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                            className="text-orange-500 hover:text-orange-600 transition-colors drop-shadow-sm"
+                            className="p-1 text-orange-500 hover:text-orange-600 transition-colors drop-shadow-sm"
                         >
-                            <AlertTriangle size={14} strokeWidth={2.5} />
+                            <AlertTriangle size={13} strokeWidth={2.5} />
                         </button>
                     ) : (
                         <button
                             title="Flag student (e.g. failed a course)"
                             onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                            className="text-muted/30 hover:text-orange-400 transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
+                            className="p-1 text-muted/30 hover:text-orange-400 transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
                         >
-                            <AlertTriangle size={14} />
+                            <AlertTriangle size={13} />
                         </button>
                     )}
-                </div>
 
-                <div className="flex-1 min-w-0 flex flex-col pr-5 md:pr-6">
-                    {/* Header: Name & Badges */}
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <p className="card-title font-bold text-primary text-[14px] md:text-[16px] leading-tight">
-                                {enrollment.students?.first_name} {enrollment.students?.last_name}
-                            </p>
-
-                            {/* Course Pill — inline with name */}
-                            <span className={`card-pill inline-block text-[10px] md:text-[12px] font-medium px-1.5 py-0.5 rounded-md ${cfg.pillBg} flex-shrink-0`}>
-                                {getCoursePill(enrollment)}
-                            </span>
-                            
-                            {/* Queue Number */}
-                            {status === 'requested' && queuePosition !== undefined && (
-                                <div title="Position in queue for this course">
-                                    <span className="card-pill inline-flex items-center justify-center bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 font-mono text-[11px] font-bold rounded px-1.5 py-0.5 border border-violet-200 dark:border-violet-500/30">
-                                        #{queuePosition}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* 🥇 Completed Courses Badge */}
-                            {completedCourses.length > 0 && (
-                                <>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
-                                        title="Click to view completed courses"
-                                        className="card-pill flex items-center justify-center gap-0.5 px-1 py-0.5 md:px-1.5 md:py-0.5 rounded border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20"
-                                    >
-                                        <Award size={isMobile ? 11 : 12} strokeWidth={2.5} />
-                                        <span className="text-[10px] md:text-[11px] font-bold">{completedCourses.length}</span>
-                                    </button>
-                                    
-                                    {showCompleted && createPortal(
-                                        <div 
-                                            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
-                                            onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                        >
-                                            <div 
-                                                onClick={e => e.stopPropagation()}
-                                                onPointerDown={(e) => e.stopPropagation()}
-                                                className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-5 w-full max-w-sm animate-scaleIn cursor-default"
-                                            >
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-500">
-                                                        <Award size={22} strokeWidth={2.5} />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-primary">Completed Courses</h3>
-                                                        <p className="text-xs text-muted mt-0.5">
-                                                            {enrollment.students?.first_name} {enrollment.students?.last_name} has completed {completedCourses.length} course{completedCourses.length > 1 ? 's' : ''}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                                                    {completedCourses.map(c => (
-                                                        <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-sm">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                                                            <span className="text-[13px] font-bold text-primary">{c.name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                
-                                                <div className="mt-5 text-right">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
-                                                        className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-sm active:scale-[0.98]"
-                                                    >
-                                                        Close
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>,
-                                        document.body
-                                    )}
-                                </>
-                            )}
-
-                        </div>
-
-                    {/* Contact Info */}
-                    <div className="card-contact mt-1 md:mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-[11px] md:text-[13px] text-primary/80 truncate">
-                        {enrollment.students?.email && (
-                            <div className="flex items-center gap-1.5 truncate min-w-0">
-                                <Mail size={12} className="flex-shrink-0 text-primary/60" />
-                                <a
-                                    href={`mailto:${enrollment.students.email}`}
-                                    onClick={e => e.stopPropagation()}
-                                    onPointerDown={e => e.stopPropagation()}
-                                    onTouchStart={e => e.stopPropagation()}
-                                    className="truncate hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                                    title={`Send email to ${enrollment.students.email}`}
-                                >
-                                    {enrollment.students.email}
-                                </a>
-                            </div>
-                        )}
-                        {enrollment.students?.phone && (() => {
-                            const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
-                            const telUrl = formatPhoneForCall(enrollment.students.phone);
-                            return (
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    {telUrl ? (
-                                        <a
-                                            href={telUrl}
-                                            onClick={e => e.stopPropagation()}
-                                            onPointerDown={e => e.stopPropagation()}
-                                            onTouchStart={e => e.stopPropagation()}
-                                            className="flex items-center gap-1 text-primary/80 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
-                                            title="Click to call"
-                                        >
-                                            <Phone size={12} className="flex-shrink-0 text-primary/60" />
-                                            <span>{enrollment.students.phone}</span>
-                                        </a>
-                                    ) : (
-                                        <div className="flex items-center gap-1">
-                                            <Phone size={12} className="flex-shrink-0 text-primary/60" />
-                                            <span>{enrollment.students.phone}</span>
-                                        </div>
-                                    )}
-                                    <div
-                                        className="flex items-center gap-1.5 ml-0.5"
-                                        onClick={e => e.stopPropagation()}
-                                        onPointerDown={e => e.stopPropagation()}
-                                        onTouchStart={e => e.stopPropagation()}
-                                    >
-                                        {waUrl && (
-                                            <a
-                                                href={waUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center justify-center min-w-[28px] h-[28px] md:min-w-[24px] md:h-[24px] px-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-md shadow-xs transition-all active:scale-95"
-                                                title="Chat on WhatsApp"
-                                            >
-                                                <MessageSquare size={14} />
-                                            </a>
-                                        )}
-                                        {telUrl && (
-                                            <a
-                                                href={telUrl}
-                                                className="flex items-center justify-center min-w-[28px] h-[28px] md:min-w-[24px] md:h-[24px] px-1 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-md shadow-xs transition-all active:scale-95"
-                                                title="Call Phone Number"
-                                            >
-                                                <Phone size={13} />
-                                            </a>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    {/* Info row */}
-                    <div className="card-info mt-1 flex flex-wrap items-center gap-x-1.5 md:gap-x-2 gap-y-1 text-[10px] md:text-[12px] text-primary/75">
-                        {/* п.7: Registration date with relative time */}
-                        <span className="flex items-center gap-1">
-                            {formatDateLong(enrollment.created_at)}
-                            <span className="text-primary/40 font-normal">·</span>
-                            <span className="text-primary/60">{getRelativeTime(enrollment.created_at)}</span>
-                        </span>
-
-                        {enrollment.invited_date && enrollment.status !== 'completed' && (
-                            <>
-                                <span>•</span>
-                                <span className="text-status-invited font-medium flex items-center gap-1 bg-info/8 px-1.5 py-0.5 rounded">
-                                    <Send size={isMobile ? 10 : 11} />
-                                    {formatDateLong(enrollment.invited_date)}
-                                </span>
-                            </>
-                        )}
-                        {enrollment.confirmed_date && enrollment.status !== 'completed' && (
-                            <>
-                                <span>•</span>
-                                <span className="text-status-confirmed font-medium flex items-center gap-1 bg-success/8 px-1.5 py-0.5 rounded">
-                                    <CheckCircle size={isMobile ? 10 : 11} />
-                                    {formatDateLong(enrollment.confirmed_date)}
-                                </span>
-                            </>
-                        )}
-                        {enrollment.completed_date && enrollment.status === 'completed' && (
-                            <>
-                                <span>•</span>
-                                <span className="text-status-completed font-medium flex items-center gap-1 bg-[oklch(var(--status-completed)/0.08)] px-1.5 py-0.5 rounded">
-                                    <GraduationCap size={isMobile ? 10 : 11} />
-                                    {formatDateLong(enrollment.completed_date)}
-                                </span>
-                            </>
-                        )}
-
-                        {/* Invitation Timer — п.3: three-level colour */}
-                        {status === 'invited' && (() => {
-                            const invitedAt = enrollment.invited_at;
-                            if (!invitedAt) return null;
-                            const days = enrollment.response_days ?? 7;
-                            const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                            const remaining = deadline - now;
-
-                            if (remaining <= 0) {
-                                const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-                                return (
-                                    <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded text-[11px] font-bold animate-pulse-timer" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                        <Timer size={isMobile ? 11 : 12} strokeWidth={2.5} />
-                                        <span>Expired</span>
-                                    </div>
-                                );
-                            }
-
-                            const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                            const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                            const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
-
-                            // п.3: urgent = ≤2 days left → orange with pulse
-                            const isUrgent = timerLevel === 'urgent';
-                            return (
-                                <div
-                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[12px] font-medium shadow-sm transition-colors ${
-                                        isUrgent
-                                            ? 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-pulse-timer'
-                                            : 'bg-surface-elevated border border-border-subtle text-primary/80'
-                                    }`}
-                                    title={`${timerText} remaining (${days}-day deadline)`}
-                                >
-                                    <Timer size={isMobile ? 11 : 12} />
-                                    <span>{timerText}</span>
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    {/* Pending Completion Approval Highlight */}
-                    {enrollment.completion_request_status === 'pending' && (
-                        <div className="mt-1.5 flex items-center gap-1.5 p-1.5 bg-amber-500/15 border border-amber-500/30 rounded-lg text-amber-700 dark:text-amber-300 text-[11px] font-semibold animate-pulse shadow-sm">
-                            <Clock size={isMobile ? 11 : 12} className="flex-shrink-0" />
-                            <span className="truncate">
-                                Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
-                                {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Notes */}
-                    {enrollment.notes && (
-                        <div className="card-note mt-1 md:mt-1.5 flex items-start gap-1 md:gap-1.5 text-[11px] md:text-[13px] text-primary/80 bg-surface-elevated border border-border-subtle p-1.5 md:p-2 rounded-md shadow-sm">
-                            <Pencil size={isMobile ? 10 : 12} className="mt-0.5 flex-shrink-0 text-brand-500" />
-                            <p className="italic leading-relaxed">{enrollment.notes}</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Right Quick Actions */}
-            <div className="absolute top-2 right-2 md:top-3 md:right-3 flex flex-col items-center gap-1 md:gap-1.5 z-10">
-                {/* ✏ Edit Note — п.6: hover tooltip with note preview */}
-                <div
-                    className="relative"
-                    onMouseEnter={() => enrollment.notes && setNoteTooltipVisible(true)}
-                    onMouseLeave={() => setNoteTooltipVisible(false)}
-                >
-                    <button
-                        title={enrollment.notes ? '' : 'Add Note'}
-                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                        className={`p-1 rounded transition-colors border ${enrollment.notes
-                            ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 hover:bg-brand-100 dark:hover:bg-brand-500/20'
-                            : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
-                            }`}
-                    >
-                        <Pencil size={14} strokeWidth={enrollment.notes ? 2.5 : 2} />
-                    </button>
-                    {/* Note preview tooltip — п.6 */}
-                    {noteTooltipVisible && enrollment.notes && (
-                        <div
-                            className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-3 animate-fadeIn pointer-events-none"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <p className="text-[12px] text-primary/80 leading-relaxed italic line-clamp-4">
-                                {enrollment.notes}
-                            </p>
-                            <p className="text-[11px] text-primary/50 mt-1.5 font-medium">Click to edit</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* ⇄ Quick Move Status Button */}
-                {onMoveStatus && (
-                    <div className="relative">
+                    {/* ⇄ Quick Move Status Button */}
+                    {onMoveStatus && (
                         <button
+                            ref={quickMoveBtnRef}
                             title="Move status"
-                            onClick={e => { e.stopPropagation(); setShowQuickMove(prev => !prev); }}
+                            onClick={handleOpenQuickMove}
                             className={`p-1 rounded transition-colors border ${showQuickMove
                                 ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
                                 : 'text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
@@ -514,50 +286,291 @@ const EnrollmentCard = function EnrollmentCard({
                         >
                             <ArrowRightLeft size={13} />
                         </button>
+                    )}
 
-                        {showQuickMove && (
-                            <div
-                                className="fixed inset-x-4 bottom-24 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:bottom-auto sm:mt-1.5 z-[999] sm:w-44 bg-surface-elevated border border-border-subtle rounded-2xl sm:rounded-xl shadow-2xl p-2 sm:p-1.5 animate-slideUp sm:animate-scaleIn space-y-1"
-                                onClick={e => e.stopPropagation()}
-                            >
-                                <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
-                                    <span>Move to Status</span>
-                                    <button onClick={() => setShowQuickMove(false)} className="text-muted hover:text-primary p-0.5">
-                                        <X size={12} />
-                                    </button>
+                    {/* ℹ Student Info Button */}
+                    <button
+                        title="View Student Details"
+                        onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                        className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
+                    >
+                        <Info size={13} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Middle Row: Contacts (Phone + WhatsApp & Email) */}
+            <div className="card-contact mt-1 flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 text-[11px] md:text-[12px] text-primary/80 min-w-0">
+                {enrollment.students?.phone && (() => {
+                    const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
+                    const telUrl = formatPhoneForCall(enrollment.students.phone);
+                    return (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {telUrl ? (
+                                <a
+                                    href={telUrl}
+                                    onClick={e => e.stopPropagation()}
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onTouchStart={e => e.stopPropagation()}
+                                    className="flex items-center gap-1 font-medium text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                    title="Click to call"
+                                >
+                                    <Phone size={11} className="flex-shrink-0 text-primary/60" />
+                                    <span>{enrollment.students.phone}</span>
+                                </a>
+                            ) : (
+                                <div className="flex items-center gap-1">
+                                    <Phone size={11} className="flex-shrink-0 text-primary/60" />
+                                    <span>{enrollment.students.phone}</span>
                                 </div>
-                                {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
-                                    if (st === status) return null;
-                                    const stCfg = STATUS_CONFIG[st];
-                                    if (!stCfg) return null;
-                                    return (
-                                        <button
-                                            key={st}
-                                            onClick={() => {
-                                                setShowQuickMove(false);
-                                                onMoveStatus(enrollment.id, status, st);
-                                            }}
-                                            className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left"
-                                        >
-                                            <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
-                                            <span>{stCfg.label}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
+                            )}
+                            {waUrl && (
+                                <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onTouchStart={e => e.stopPropagation()}
+                                    className="flex items-center justify-center w-[22px] h-[22px] md:w-[24px] md:h-[24px] px-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-md shadow-xs transition-all active:scale-95"
+                                    title="Chat on WhatsApp"
+                                >
+                                    <MessageSquare size={12} />
+                                </a>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {enrollment.students?.email && (
+                    <div className="flex items-center gap-1 min-w-0 truncate">
+                        <Mail size={11} className="flex-shrink-0 text-primary/50" />
+                        <a
+                            href={`mailto:${enrollment.students.email}`}
+                            onClick={e => e.stopPropagation()}
+                            onPointerDown={e => e.stopPropagation()}
+                            onTouchStart={e => e.stopPropagation()}
+                            className="truncate max-w-[150px] md:max-w-[210px] text-primary/70 hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-[10px] md:text-[11px]"
+                            title={`Send email to ${enrollment.students.email}`}
+                        >
+                            {enrollment.students.email}
+                        </a>
                     </div>
                 )}
-
-                {/* ℹ Student Info Button */}
-                <button
-                    title="View Student Details"
-                    onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                    className="p-1 rounded transition-colors border text-muted/40 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
-                >
-                    <Info size={14} />
-                </button>
             </div>
+
+            {/* Bottom Row: Meta Dates / Timers & Compact Note */}
+            <div className="card-info mt-1 pt-1 border-t border-border-subtle/40 flex items-center justify-between gap-1 text-[10px] md:text-[11px] text-primary/70 min-w-0">
+                <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 min-w-0">
+                    <span className="flex items-center gap-1 truncate">
+                        {formatDateLong(enrollment.created_at)}
+                        <span className="text-primary/40 font-normal">·</span>
+                        <span className="text-primary/60">{getRelativeTime(enrollment.created_at)}</span>
+                    </span>
+
+                    {enrollment.invited_date && enrollment.status !== 'completed' && (
+                        <span className="text-status-invited font-medium flex items-center gap-0.5 bg-info/8 px-1 py-0.2 rounded">
+                            <Send size={10} />
+                            {formatDateLong(enrollment.invited_date)}
+                        </span>
+                    )}
+                    {enrollment.confirmed_date && enrollment.status !== 'completed' && (
+                        <span className="text-status-confirmed font-medium flex items-center gap-0.5 bg-success/8 px-1 py-0.2 rounded">
+                            <CheckCircle size={10} />
+                            {formatDateLong(enrollment.confirmed_date)}
+                        </span>
+                    )}
+                    {enrollment.completed_date && enrollment.status === 'completed' && (
+                        <span className="text-status-completed font-medium flex items-center gap-0.5 bg-[oklch(var(--status-completed)/0.08)] px-1 py-0.2 rounded">
+                            <GraduationCap size={10} />
+                            {formatDateLong(enrollment.completed_date)}
+                        </span>
+                    )}
+
+                    {/* Invitation Timer */}
+                    {status === 'invited' && (() => {
+                        const invitedAt = enrollment.invited_at;
+                        if (!invitedAt) return null;
+                        const days = enrollment.response_days ?? 7;
+                        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
+                        const remaining = deadline - now;
+
+                        if (remaining <= 0) {
+                            const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                            return (
+                                <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 px-1 py-0.2 rounded text-[10px] font-bold animate-pulse-timer" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                    <Timer size={10} strokeWidth={2.5} />
+                                    <span>Expired</span>
+                                </div>
+                            );
+                        }
+
+                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                        const isUrgent = timerLevel === 'urgent';
+                        return (
+                            <div
+                                className={`flex items-center gap-1 px-1 py-0.2 rounded text-[10px] font-medium shadow-2xs transition-colors ${
+                                    isUrgent
+                                        ? 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-pulse-timer'
+                                        : 'bg-surface-elevated border border-border-subtle text-primary/80'
+                                }`}
+                                title={`${timerText} remaining (${days}-day deadline)`}
+                            >
+                                <Timer size={10} />
+                                <span>{timerText}</span>
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                {/* Compact Note Badge (1 row with line-clamp-1) or Add Note pencil */}
+                {enrollment.notes ? (
+                    <button
+                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                        onMouseEnter={() => setNoteTooltipVisible(true)}
+                        onMouseLeave={() => setNoteTooltipVisible(false)}
+                        className="flex items-center gap-1 text-[10px] md:text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-1.5 py-0.5 rounded font-normal italic max-w-[130px] md:max-w-[200px] truncate transition-colors text-left flex-shrink-0"
+                        title={enrollment.notes}
+                    >
+                        <Pencil size={9} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <span className="truncate">{enrollment.notes}</span>
+                    </button>
+                ) : (
+                    <button
+                        title="Add Note"
+                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
+                        className="p-0.5 text-muted/30 hover:text-brand-500 rounded transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 flex-shrink-0"
+                    >
+                        <Pencil size={11} />
+                    </button>
+                )}
+            </div>
+
+            {/* Note hover preview tooltip on desktop */}
+            {noteTooltipVisible && enrollment.notes && (
+                <div
+                    className="absolute right-2 bottom-full mb-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-2.5 animate-fadeIn pointer-events-none"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <p className="text-[11px] text-primary/90 leading-relaxed italic line-clamp-4">
+                        {enrollment.notes}
+                    </p>
+                    <p className="text-[10px] text-primary/50 mt-1 font-medium">Click to edit</p>
+                </div>
+            )}
+
+            {/* Pending Completion Approval Highlight */}
+            {enrollment.completion_request_status === 'pending' && (
+                <div className="mt-1 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-amber-700 dark:text-amber-300 text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
+                    <Clock size={11} className="flex-shrink-0" />
+                    <span className="truncate">
+                        Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
+                        {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
+                    </span>
+                </div>
+            )}
+
+            {/* Completed Courses Modal in Portal */}
+            {showCompleted && createPortal(
+                <div 
+                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
+                    onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                >
+                    <div 
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-5 w-full max-w-sm animate-scaleIn cursor-default"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-500">
+                                <Award size={22} strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-primary">Completed Courses</h3>
+                                <p className="text-xs text-muted mt-0.5">
+                                    {enrollment.students?.first_name} {enrollment.students?.last_name} has completed {completedCourses.length} course{completedCourses.length > 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                            {completedCourses.map(c => (
+                                <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-sm">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                                    <span className="text-[13px] font-bold text-primary">{c.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="mt-5 text-right">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
+                                className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-sm active:scale-[0.98]"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Quick Move Dropdown rendered in Portal (eliminates any clipping by sibling cards or scroll containers) */}
+            {showQuickMove && createPortal(
+                <div
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-stretch justify-center sm:justify-start bg-black/40 sm:bg-transparent backdrop-blur-xs sm:backdrop-blur-none animate-fadeIn"
+                    onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                >
+                    <div
+                        style={popoverPos && !isMobile ? {
+                            position: 'fixed',
+                            top: `${popoverPos.top}px`,
+                            left: `${popoverPos.left}px`,
+                        } : undefined}
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()}
+                        onTouchStart={e => e.stopPropagation()}
+                        className="w-full sm:w-44 bg-surface-elevated border border-border-subtle rounded-t-2xl sm:rounded-xl shadow-2xl p-3 sm:p-1.5 animate-slideUp sm:animate-scaleIn space-y-1 z-[10000]"
+                    >
+                        <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
+                            <span>Move to Status</span>
+                            <button
+                                onClick={() => setShowQuickMove(false)}
+                                className="text-muted hover:text-primary p-0.5 rounded transition-colors"
+                            >
+                                <X size={12} />
+                            </button>
+                        </div>
+                        <div className="py-1 space-y-0.5 max-h-[50vh] sm:max-h-none overflow-y-auto">
+                            {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                if (st === status) return null;
+                                const stCfg = STATUS_CONFIG[st];
+                                if (!stCfg) return null;
+                                return (
+                                    <button
+                                        key={st}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowQuickMove(false);
+                                            onMoveStatus?.(enrollment.id, status, st);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left cursor-pointer"
+                                    >
+                                        <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
+                                        <span>{stCfg.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };
