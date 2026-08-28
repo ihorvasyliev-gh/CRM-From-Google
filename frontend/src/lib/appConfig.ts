@@ -38,38 +38,38 @@ export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
 ];
 
 export const DEFAULT_CONFIG: AppConfig = {
-    htmlEmailTemplate: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
-<p style="margin:0 0 24px 0;font-size:16px;color:#64748b;line-height:1.6;">Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
+    htmlEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
 {courseDetails}
 {englishWarning}
 {confirmationButton}
-<p style="margin:0 0 12px 0;font-size:15px;color:#64748b;line-height:1.6;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
-<ul style="margin:0;padding-left:24px;font-size:14px;color:#94a3b8;line-height:1.6;">
-  <li>You've already taken this course elsewhere</li>
-  <li>You're not interested</li>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <li style="margin-bottom:4px;">You've already taken this course elsewhere</li>
+  <li style="margin-bottom:4px;">You're not interested</li>
   <li>You’d prefer not to receive future emails</li>
 </ul>`,
-    htmlEmailTemplateStandard: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
-<p style="margin:0 0 28px 0;font-size:16px;color:#64748b;line-height:1.6;">Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
+    htmlEmailTemplateStandard: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
 {courseDetails}
 {confirmationButton}
-<p style="margin:0 0 12px 0;font-size:15px;color:#64748b;line-height:1.6;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
-<ul style="margin:0;padding-left:24px;font-size:14px;color:#94a3b8;line-height:1.6;">
-  <li>You've already taken this course elsewhere</li>
-  <li>You're not interested</li>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <li style="margin-bottom:4px;">You've already taken this course elsewhere</li>
+  <li style="margin-bottom:4px;">You're not interested</li>
   <li>You’d prefer not to receive future emails</li>
 </ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
-    statusEmailTemplate: `<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">Hello from <strong>Cork City Partnership</strong>,</p>
-<p style="margin:0 0 20px 0;font-size:17px;color:#4b5563;line-height:1.6;">We hope you're doing well! As a recent participant in our programmes, we'd love to hear how things are going for you.</p>
-<p style="margin:0 0 32px 0;font-size:17px;color:#4b5563;line-height:1.6;">Could you take 30 seconds to let us know your current status? This helps us understand the impact of our courses and continue improving our offerings.</p>
+    statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello from <strong>Cork City Partnership</strong>,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you're doing well! As a recent participant in our programmes, we'd love to hear how things are going for you.</p>
+<p style="margin:0 0 24px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you take 30 seconds to let us know your current status? This helps us understand the impact of our courses and continue improving our offerings.</p>
 {statusButton}
-<p style="margin:0;font-size:14px;color:#94a3b8;line-height:1.6;text-align:center;">Your information is confidential and used only for internal statistics.</p>`,
+<p style="margin:0;font-size:13px;line-height:18px;color:#94a3b8;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your information is confidential and used only for internal statistics.</p>`,
     statusEmailSubjectFormat: 'Quick Status Update — How are things going?',
-    includeLogosInEmails: true,
+    includeLogosInEmails: false,
 };
 
 /** Read the full config, merging saved values over defaults. */
@@ -322,65 +322,57 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const isInvite = type === 'invite';
-    const heroBg = '#ffffff';
     const heroTitle = isInvite ? "You're Invited!" : "Quick Status Update";
     const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "How are things going?";
-    const titleColor = '#0f172a';
-    const subtitleColor = '#64748b';
-    const heroPadding = '24px 32px 8px 32px';
-    const titleSize = '24px';
     const cacheBuster = Date.now();
 
     const logoHtml = includeLogos ? `
-            <!-- Logos -->
-            <tr>
-              <td style="padding:24px 32px;text-align:center;background-color:#ffffff;border-bottom:1px solid #f0f0f0;">
-                <img src="${origin}/logos-banner.png?v=${cacheBuster}" alt="Cork City Partnership — Government of Ireland, EU Co-Funded, SICAP" width="500" style="width:100%;max-width:500px;height:auto;border:none;text-decoration:none;color:#ffffff;">
-              </td>
-            </tr>` : '';
+          <!-- Logos -->
+          <tr>
+            <td align="center" style="padding: 16px 0 20px 0; text-align: center; border-bottom: 1px solid #e2e8f0;">
+              <img src="${origin}/logos-banner.png?v=${cacheBuster}" alt="Cork City Partnership — Government of Ireland, EU Co-Funded, SICAP" width="500" style="width: 100%; max-width: 500px; height: auto; border: 0; outline: none; text-decoration: none; display: block; margin: 0 auto;">
+            </td>
+          </tr>` : '';
     
-    const htmlWrapper = `<!DOCTYPE html>
-<html lang="en">
+    const htmlWrapper = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="x-apple-disable-message-reformatting">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title></title>
-  <style>
-    a { color: ${isInvite ? '#6366f1' : '#7c3aed'}; text-decoration: underline; }
-    img { max-width: 100% !important; height: auto !important; }
-    @media only screen and (max-width: 620px) {
-      table[width="600"] {
-        width: 100% !important;
-        border-radius: 0 !important;
-      }
-    }
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a { color: ${isInvite ? '#2563eb' : '#7c3aed'}; text-decoration: underline; }
   </style>
 </head>
-<body style="margin:0;padding:0;word-spacing:normal;background-color:#f4f7f6;">
-  <div role="article" aria-roledescription="email" lang="en" style="text-size-adjust:100%;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;background-color:#f4f7f6;padding:40px 0;">
-    <table role="presentation" style="width:100%;border:none;border-spacing:0;">
-      <tr>
-        <td align="center" style="padding:0;">
-          <table role="presentation" width="600" style="width:600px;max-width:100%;border:none;border-spacing:0;text-align:left;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:22px;color:#363636;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);">${logoHtml}
-            <!-- Hero -->
-            <tr>
-              <td bgcolor="${heroBg}" style="padding:${heroPadding};text-align:center;background-color:${heroBg};">
-                <h1 style="margin:0;font-size:${titleSize};font-weight:800;color:${titleColor};letter-spacing:-1px;">${heroTitle}</h1>
-                <p style="margin:12px 0 0 0;font-size:18px;color:${subtitleColor};font-weight:500;">${heroSubtitle}</p>
-              </td>
-            </tr>
-            <!-- Content -->
-            <tr>
-              <td style="padding:32px 32px 40px 32px;">
-                ${content}
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </div>
+<body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+    <tr>
+      <td align="left" style="padding: 10px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+          ${logoHtml}
+          <!-- Hero -->
+          <tr>
+            <td align="left" style="padding: 8px 0 16px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;">
+              <div style="font-size: 22px; font-weight: bold; color: #0f172a; line-height: 28px; margin: 0 0 4px 0;">${heroTitle}</div>
+              <div style="font-size: 15px; color: #64748b; line-height: 20px; margin: 0;">${heroSubtitle}</div>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td align="left" style="padding: 8px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+              ${content}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 
@@ -403,41 +395,50 @@ export function buildEmailBodyHtml(
     const buttonText = requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place';
     
     const courseDetailsHtml = `<!-- Course Details Card -->
-<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:20px 0;background-color:#f8fafc;border:1px solid #cbd5e1;border-left:5px solid #2563eb;border-radius:8px;">
   <tr>
-    <td bgcolor="#f8fafc" style="padding:24px;background-color:#f8fafc;border-radius:12px;border-left:4px solid #2563eb;">
-      <p style="margin:0 0 8px 0;font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:700;">Course Title</p>
-      <p style="margin:0 0 16px 0;font-size:22px;color:#0f172a;font-weight:800;">${courseTitle}</p>
-      <p style="margin:0 0 8px 0;font-size:14px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:700;">Date & Time</p>
-      <p style="margin:0;font-size:18px;color:#334155;font-weight:600;">${date}</p>
+    <td style="padding:18px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;">
+      <div style="margin:0 0 4px 0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
+      <div style="margin:0 0 16px 0;font-size:18px;color:#0f172a;font-weight:bold;line-height:24px;">${courseTitle}</div>
+      <div style="margin:0 0 4px 0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
+      <div style="margin:0;font-size:16px;color:#334155;font-weight:bold;line-height:22px;">${date}</div>
     </td>
   </tr>
 </table>`;
 
     const englishWarningHtml = `<!-- English Warning Card -->
-<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:28px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:20px 0;background-color:#fefce8;border:1px solid #fde047;border-left:5px solid #eab308;border-radius:8px;">
   <tr>
-    <td bgcolor="#fefce8" style="padding:18px 22px;background-color:#fefce8;border-radius:12px;border:1px solid #fde047;">
-      <p style="margin:0 0 10px 0;font-size:15px;font-weight:700;color:#854d0e;">⚠️ Important note before you confirm:</p>
-      <ul style="margin:0;padding-left:20px;font-size:14px;color:#78350f;line-height:1.6;">
-        <li style="margin-bottom:6px;">Please only accept this place if you feel confident with your English.</li>
-        <li style="margin-bottom:6px;">The course and final test are all in English. You will need a good understanding of English to pass.</li>
-        <li>We cannot offer a second chance or a retake if you don't pass.</li>
-      </ul>
+    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#78350f;">
+      <div style="margin:0 0 10px 0;font-size:15px;font-weight:bold;color:#854d0e;line-height:20px;">⚠️ Important note before you confirm:</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:20px;color:#78350f;">
+        <tr>
+          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">Please only accept this place if you feel confident with your English.</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">The course and final test are all in English. You will need a good understanding of English to pass.</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">We cannot offer a second chance or a retake if you don't pass.</td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>`;
 
     const buttonHtml = confirmationLink
         ? `<!-- Action Button Container -->
-<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:24px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0;">
   <tr>
-    <td align="center" style="padding:0;">
+    <td align="left" style="padding:0;">
       <!-- Bulletproof Table Button -->
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
-          <td align="center" bgcolor="#2563eb" style="border-radius:12px;padding:16px 36px;box-shadow:0 4px 6px -1px rgba(37,99,235,0.2), 0 2px 4px -1px rgba(37,99,235,0.1);">
-            <a href="${linkStr}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;text-decoration:none;display:inline-block;letter-spacing:0.5px;">${buttonText}</a>
+          <td align="center" bgcolor="#2563eb" style="border-radius:8px;background-color:#2563eb;padding:14px 28px;">
+            <a href="${linkStr}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText}</a>
           </td>
         </tr>
       </table>
@@ -469,7 +470,7 @@ export function buildEmailBodyHtml(
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(responseDays ?? 7));
 
-    return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? true);
+    return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? false);
 }
 
 /** Build the email subject by replacing placeholders. */
@@ -484,15 +485,15 @@ export function buildEmailSubject(courseName: string, date: string, customConfig
 export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppConfig): string {
     const config = customConfig || getConfig();
     const buttonHtml = `<!-- Action Button Container -->
-<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0;">
   <tr>
-    <td align="center" bgcolor="#faf5ff" style="padding:32px 24px;background-color:#faf5ff;border-radius:16px;border:1px solid #f3e8ff;">
-      <p style="margin:0 0 20px 0;font-size:15px;color:#7c3aed;font-weight:700;text-transform:uppercase;letter-spacing:1px;">👇 Tap below to update 👇</p>
+    <td align="center" bgcolor="#faf5ff" style="padding:24px 20px;background-color:#faf5ff;border-radius:12px;border:1px solid #f3e8ff;">
+      <p style="margin:0 0 16px 0;font-size:14px;color:#7c3aed;font-weight:bold;text-transform:uppercase;letter-spacing:1px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">👇 Tap below to update 👇</p>
       <!-- Bulletproof Table Button -->
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:0 auto;">
         <tr>
-          <td align="center" bgcolor="#7c3aed" style="border-radius:12px;padding:16px 36px;box-shadow:0 4px 6px -1px rgba(124,58,237,0.2), 0 2px 4px -1px rgba(124,58,237,0.1);">
-            <a href="${statusLink}" target="_blank" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:18px;font-weight:700;color:#ffffff;text-decoration:none;display:inline-block;letter-spacing:0.5px;">Update My Status</a>
+          <td align="center" bgcolor="#7c3aed" style="border-radius:8px;background-color:#7c3aed;padding:14px 28px;">
+            <a href="${statusLink}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Update My Status</a>
           </td>
         </tr>
       </table>
@@ -506,7 +507,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
     
     body = body.replace(/\{statusButton\}/g, buttonHtml);
 
-    return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? true);
+    return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? false);
 }
 
 /** Build the status clarification email subject. */

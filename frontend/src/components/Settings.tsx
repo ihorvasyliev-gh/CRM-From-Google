@@ -872,7 +872,7 @@ export default function Settings() {
                             <div className="relative flex items-center justify-center">
                                 <input
                                     type="checkbox"
-                                    checked={config.includeLogosInEmails ?? true}
+                                    checked={config.includeLogosInEmails ?? false}
                                     onChange={e => setLocalConfig({ ...config, includeLogosInEmails: e.target.checked })}
                                     className="peer sr-only"
                                 />
