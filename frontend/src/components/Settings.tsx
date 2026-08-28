@@ -452,6 +452,7 @@ export default function Settings() {
                                     { tag: '{date}', label: 'Date' },
                                     { tag: '{responseDays}', label: 'Days' },
                                     { tag: '{courseDetails}', label: 'Course Card' },
+                                    ...(inviteTemplateTab === 'high_english' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
                                     { tag: '{confirmationButton}', label: 'Confirm Button' },
                                     { tag: '{confirmationLink}', label: 'Confirm URL' },
                                 ].map(item => {

@@ -42,12 +42,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 <p style="margin:0 0 16px 0;font-size:17px;color:#4b5563;line-height:1.6;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
 <p style="margin:0 0 24px 0;font-size:16px;color:#64748b;line-height:1.6;">Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
 {courseDetails}
-<p style="margin:0 0 12px 0;font-size:16px;font-weight:700;color:#1e293b;">Important note before you confirm:</p>
-<ul style="margin:0 0 28px 0;padding-left:24px;font-size:15px;color:#475569;line-height:1.6;">
-  <li style="margin-bottom:8px;">Please only accept this place if you feel confident with your English.</li>
-  <li style="margin-bottom:8px;">The course and final test are fully in English. You will need a good understanding of English to pass.</li>
-  <li>We have a very long waiting list and limited places, so we cannot offer a second chance or a retake if you don't pass.</li>
-</ul>
+{englishWarning}
 {confirmationButton}
 <p style="margin:0 0 12px 0;font-size:15px;color:#64748b;line-height:1.6;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
 <ul style="margin:0;padding-left:24px;font-size:14px;color:#94a3b8;line-height:1.6;">
@@ -89,6 +84,14 @@ export function getConfig(): AppConfig {
         if (saved.htmlEmailTemplate && (saved.htmlEmailTemplate.includes('<html') || saved.htmlEmailTemplate.includes('hero-gradient'))) {
             saved.htmlEmailTemplate = DEFAULT_CONFIG.htmlEmailTemplate;
             saved.statusEmailTemplate = DEFAULT_CONFIG.statusEmailTemplate;
+        }
+
+        // MIGRATION: Convert plain text Important note in saved templates to {englishWarning}
+        if (saved.htmlEmailTemplate && saved.htmlEmailTemplate.includes('Important note before you confirm:') && !saved.htmlEmailTemplate.includes('{englishWarning}')) {
+            saved.htmlEmailTemplate = saved.htmlEmailTemplate.replace(
+                /<p[^>]*>[\s\S]*?Important note before you confirm:[\s\S]*?<\/ul>/i,
+                '{englishWarning}'
+            );
         }
         
         return { ...DEFAULT_CONFIG, ...saved };
@@ -402,6 +405,20 @@ export function buildEmailBodyHtml(
   </tr>
 </table>`;
 
+    const englishWarningHtml = `<!-- English Warning Card -->
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:28px;">
+  <tr>
+    <td bgcolor="#fefce8" style="padding:18px 22px;background-color:#fefce8;border-radius:12px;border:1px solid #fde047;">
+      <p style="margin:0 0 10px 0;font-size:15px;font-weight:700;color:#854d0e;">⚠️ Important note before you confirm:</p>
+      <ul style="margin:0;padding-left:20px;font-size:14px;color:#78350f;line-height:1.6;">
+        <li style="margin-bottom:6px;">Please only accept this place if you feel confident with your English.</li>
+        <li style="margin-bottom:6px;">The course and final test are fully in English. You will need a good understanding of English to pass.</li>
+        <li>We cannot offer a second chance or a retake if you don't pass.</li>
+      </ul>
+    </td>
+  </tr>
+</table>`;
+
     const buttonHtml = confirmationLink
         ? `<!-- Action Button Container -->
 <table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:24px;">
@@ -426,10 +443,20 @@ export function buildEmailBodyHtml(
 
     // Strip wrapping <p> tags ReactQuill might have added around placeholders
     body = body.replace(/<p>\s*\{courseDetails\}\s*<\/p>/g, '{courseDetails}');
+    body = body.replace(/<p>\s*\{englishWarning\}\s*<\/p>/g, '{englishWarning}');
     body = body.replace(/<p>\s*\{confirmationButton\}\s*<\/p>/g, '{confirmationButton}');
+
+    // If template has plain text Important note before you confirm, replace it with the styled card
+    if (requiresEnglish && body.includes('Important note before you confirm:') && !body.includes('{englishWarning}')) {
+        body = body.replace(
+            /<p[^>]*>[\s\S]*?Important note before you confirm:[\s\S]*?<\/ul>/i,
+            englishWarningHtml
+        );
+    }
     
     body = body
         .replace(/\{courseDetails\}/g, courseDetailsHtml)
+        .replace(/\{englishWarning\}/g, requiresEnglish ? englishWarningHtml : '')
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(responseDays ?? 7));
 
