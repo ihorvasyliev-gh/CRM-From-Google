@@ -22,6 +22,9 @@ describe('EnrollmentCard Component', () => {
         confirmed_date: null,
         completed_date: null,
         invited_at: null,
+        confirmed_at: null,
+        completed_at: null,
+        updated_at: '2026-08-20T10:00:00Z',
         response_days: 7,
         notes: 'Needs morning session',
         is_priority: false,
@@ -34,10 +37,15 @@ describe('EnrollmentCard Component', () => {
             last_name: 'Doe',
             email: 'john.doe@example.com',
             phone: '+353871234567',
+            address: '123 Main St',
+            eircode: 'T12AB34',
+            dob: '1990-01-01',
+            created_at: '2026-01-01T00:00:00Z',
         },
         courses: {
             id: 'course-1',
             name: 'First Aid Course',
+            created_at: '2026-01-01T00:00:00Z',
         }
     };
 
