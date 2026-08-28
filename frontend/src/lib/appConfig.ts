@@ -86,12 +86,21 @@ export function getConfig(): AppConfig {
             saved.statusEmailTemplate = DEFAULT_CONFIG.statusEmailTemplate;
         }
 
-        // MIGRATION: Convert plain text Important note in saved templates to {englishWarning}
+        // RECOVERY: If htmlEmailTemplate got corrupted/truncated (e.g. missing confirmation button or just {englishWarning}), restore to default
+        if (saved.htmlEmailTemplate && (!saved.htmlEmailTemplate.includes('{confirmationButton}') && !saved.htmlEmailTemplate.includes('{confirmationLink}'))) {
+            saved.htmlEmailTemplate = DEFAULT_CONFIG.htmlEmailTemplate;
+        }
+
+        // MIGRATION: Safely convert plain text Important note in saved templates to {englishWarning}
         if (saved.htmlEmailTemplate && saved.htmlEmailTemplate.includes('Important note before you confirm:') && !saved.htmlEmailTemplate.includes('{englishWarning}')) {
             saved.htmlEmailTemplate = saved.htmlEmailTemplate.replace(
-                /<p[^>]*>[\s\S]*?Important note before you confirm:[\s\S]*?<\/ul>/i,
+                /<p[^>]*>[^<]*?Important note before you confirm:[^<]*?<\/p>[\s\S]*?<\/ul>/i,
                 '{englishWarning}'
             );
+        }
+
+        if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
+            saved.htmlEmailTemplateStandard = DEFAULT_CONFIG.htmlEmailTemplateStandard;
         }
         
         return { ...DEFAULT_CONFIG, ...saved };
@@ -449,7 +458,7 @@ export function buildEmailBodyHtml(
     // If template has plain text Important note before you confirm, replace it with the styled card
     if (requiresEnglish && body.includes('Important note before you confirm:') && !body.includes('{englishWarning}')) {
         body = body.replace(
-            /<p[^>]*>[\s\S]*?Important note before you confirm:[\s\S]*?<\/ul>/i,
+            /<p[^>]*>[^<]*?Important note before you confirm:[^<]*?<\/p>[\s\S]*?<\/ul>/i,
             englishWarningHtml
         );
     }

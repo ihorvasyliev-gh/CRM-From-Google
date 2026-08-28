@@ -18,6 +18,14 @@ describe('appConfig', () => {
             expect(config.emailSubjectFormat).toBe('Custom Subject');
             expect(config.htmlEmailTemplate).toBe(DEFAULT_CONFIG.htmlEmailTemplate);
         });
+
+        it('recovers corrupted htmlEmailTemplate if missing confirmation tags', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({ htmlEmailTemplate: '{englishWarning}' }));
+            const config = getConfig();
+            expect(config.htmlEmailTemplate).toBe(DEFAULT_CONFIG.htmlEmailTemplate);
+            expect(config.htmlEmailTemplate).toContain('{courseDetails}');
+            expect(config.htmlEmailTemplate).toContain('{confirmationButton}');
+        });
     });
 
     describe('setConfig', () => {
