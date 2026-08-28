@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive, Calendar } from 'lucide-react';
+import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive, Calendar, ChevronDown } from 'lucide-react';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
 import { formatDayDateShort } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
@@ -65,8 +65,9 @@ export default function FilterBar({
     statusCounts,
     onStatusBadgeClick,
 }: FilterBarProps) {
-    const hasFilters = searchQuery || selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo;
+    const hasNonSearchFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo;
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     // п.15: search is "active" when it filters results
     const searchIsFiltering = !!searchQuery && filteredCount < enrollmentCount;
@@ -84,7 +85,7 @@ export default function FilterBar({
 
     return (
         <div className="filter-bar-container bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
-            {/* Row 1: Title + Search + Add */}
+            {/* Row 1: Title + Search + Filter Toggle (Mobile) + Add */}
             <div className="flex flex-col sm:flex-row gap-1.5 md:gap-3 items-start sm:items-center justify-between">
                 <div className="hidden md:flex items-center gap-3">
                     <div className="p-2 bg-brand-500/10 rounded-xl text-brand-500 dark:text-brand-400">
@@ -97,7 +98,7 @@ export default function FilterBar({
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 md:gap-3 w-full sm:w-auto">
                     {/* Search with active-filter highlight + Clear × inside */}
                     <div className="relative flex-1 sm:w-72">
                         <Search
@@ -135,8 +136,26 @@ export default function FilterBar({
                         )}
                     </div>
 
+                    {/* Mobile menu toggle button with arrow */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(prev => !prev)}
+                        className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                            mobileMenuOpen || hasNonSearchFilters
+                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40 shadow-xs'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:text-primary'
+                        }`}
+                        title={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
+                    >
+                        <SlidersHorizontal size={13} />
+                        {hasNonSearchFilters && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                        )}
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${mobileMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
                     {/* Clear all filters × button — only when non-search filters active */}
-                    {hasFilters && (selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo) && (
+                    {hasNonSearchFilters && (
                         <button
                             onClick={clearAll}
                             title="Clear all filters"
@@ -157,139 +176,171 @@ export default function FilterBar({
                 </div>
             </div>
 
-            {/* Row 2: Course chips */}
-            <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
-                <button
-                    onClick={() => {
-                        setSelectedCourse('all');
-                        setSelectedVariant('all');
-                    }}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === 'all'
-                        ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                        : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                        }`}
-                >
-                    All Courses
-                </button>
-                {uniqueCourses.map(c => (
+            {/* Mobile Compact Active Filter Bar (when menu is collapsed) */}
+            {!mobileMenuOpen && hasNonSearchFilters && (
+                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 text-xs animate-fadeIn">
+                    <span className="text-[10px] uppercase font-bold text-muted tracking-wider flex-shrink-0">Active:</span>
+                    {selectedCourse !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-600 dark:text-brand-400 border border-brand-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
+                            {uniqueCourses.find(c => c.id === selectedCourse)?.name || 'Course'}
+                        </span>
+                    )}
+                    {selectedVariant !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
+                            {selectedVariant}
+                        </span>
+                    )}
+                    {selectedCourseDate !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
+                            📅 {formatDayDateShort(selectedCourseDate)}
+                        </span>
+                    )}
                     <button
-                        key={c.id}
+                        type="button"
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="text-brand-500 hover:underline text-[11px] font-medium ml-auto flex-shrink-0"
+                    >
+                        Change
+                    </button>
+                </div>
+            )}
+
+            {/* Collapsible Filters Container (always visible on desktop, toggled by arrow on mobile) */}
+            <div className={`${mobileMenuOpen ? 'block' : 'hidden md:block'} space-y-2 transition-all`}>
+                {/* Row 2: Course chips */}
+                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 pt-1">
+                    <button
                         onClick={() => {
-                            const newCourse = c.id === selectedCourse ? 'all' : c.id;
-                            setSelectedCourse(newCourse);
+                            setSelectedCourse('all');
                             setSelectedVariant('all');
                         }}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === c.id
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === 'all'
                             ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                             : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                             }`}
                     >
-                        {c.name}
+                        All Courses
                     </button>
-                ))}
-            </div>
-
-            {/* Row 2.5: Language chips below courses */}
-            {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
-                    <div className="flex items-center text-muted mr-1 flex-shrink-0" title="Language filter">
-                        <Globe size={14} className="text-muted/70 flex-shrink-0" />
-                    </div>
-                    {uniqueVariants.length > 1 && (
+                    {uniqueCourses.map(c => (
                         <button
-                            onClick={() => setSelectedVariant('all')}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
-                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                            key={c.id}
+                            onClick={() => {
+                                const newCourse = c.id === selectedCourse ? 'all' : c.id;
+                                setSelectedCourse(newCourse);
+                                setSelectedVariant('all');
+                            }}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === c.id
+                                ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
                                 }`}
                         >
-                            All
-                        </button>
-                    )}
-                    {uniqueVariants.map(v => (
-                        <button
-                            key={v}
-                            onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
-                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                }`}
-                        >
-                            {v}
+                            {c.name}
                         </button>
                     ))}
                 </div>
-            )}
 
-            {/* Row 2.8: Course Date chips (convenient 1-tap filtering for Mobile & Desktop) */}
-            {availableCourseDates.length > 0 && (
-                <div className="flex overflow-x-auto items-center gap-1.5 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1 animate-fadeIn">
-                    <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
-                        <Calendar size={13} className="text-emerald-500 flex-shrink-0" />
-                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                            Dates:
-                        </span>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => setSelectedCourseDate('all')}
-                        className={`px-2.5 py-1 text-xs font-bold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
-                            selectedCourseDate === 'all'
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
-                        }`}
-                    >
-                        <span>All Dates</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                            selectedCourseDate === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                        }`}>
-                            {availableCourseDates.reduce((sum, d) => sum + d.count, 0)}
-                        </span>
-                    </button>
-
-                    {availableCourseDates.map(({ date, count }) => {
-                        const isActive = selectedCourseDate === date;
-                        return (
+                {/* Row 2.5: Language chips below courses */}
+                {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
+                    <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
+                        <div className="flex items-center text-muted mr-1 flex-shrink-0" title="Language filter">
+                            <Globe size={14} className="text-muted/70 flex-shrink-0" />
+                        </div>
+                        {uniqueVariants.length > 1 && (
                             <button
-                                key={date}
-                                type="button"
-                                onClick={() => setSelectedCourseDate(isActive ? 'all' : date)}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
-                                    isActive
-                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                        : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
-                                }`}
+                                onClick={() => setSelectedVariant('all')}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                    }`}
                             >
-                                <span>{formatDayDateShort(date)}</span>
-                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                                    isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                                }`}>
-                                    {count}
-                                </span>
+                                All
                             </button>
-                        );
-                    })}
-
-                    {/* Quick Range / Advanced toggle button */}
-                    <button
-                        type="button"
-                        onClick={() => setShowAdvanced(prev => !prev)}
-                        title="Custom Date Range & Advanced Filters"
-                        className={`px-2 py-1 text-[11px] font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1 ${
-                            showAdvanced || (dateFrom || dateTo || courseDateFrom || courseDateTo)
-                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
-                        }`}
-                    >
-                        <SlidersHorizontal size={11} />
-                        <span className="hidden sm:inline">Range</span>
-                        {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
                         )}
-                    </button>
-                </div>
-            )}
+                        {uniqueVariants.map(v => (
+                            <button
+                                key={v}
+                                onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
+                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
+                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
+                                    }`}
+                            >
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Row 2.8: Course Date chips (convenient 1-tap filtering for Mobile & Desktop) */}
+                {availableCourseDates.length > 0 && (
+                    <div className="flex overflow-x-auto items-center gap-1.5 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1 animate-fadeIn">
+                        <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
+                            <Calendar size={13} className="text-emerald-500 flex-shrink-0" />
+                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                Dates:
+                            </span>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCourseDate('all')}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
+                                selectedCourseDate === 'all'
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
+                            }`}
+                        >
+                            <span>All Dates</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                                selectedCourseDate === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                            }`}>
+                                {availableCourseDates.reduce((sum, d) => sum + d.count, 0)}
+                            </span>
+                        </button>
+
+                        {availableCourseDates.map(({ date, count }) => {
+                            const isActive = selectedCourseDate === date;
+                            return (
+                                <button
+                                    key={date}
+                                    type="button"
+                                    onClick={() => setSelectedCourseDate(isActive ? 'all' : date)}
+                                    className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
+                                        isActive
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                            : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
+                                    }`}
+                                >
+                                    <span>{formatDayDateShort(date)}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                                        isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                                    }`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+
+                        {/* Quick Range / Advanced toggle button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvanced(prev => !prev)}
+                            title="Custom Date Range & Advanced Filters"
+                            className={`px-2 py-1 text-[11px] font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1 ${
+                                showAdvanced || (dateFrom || dateTo || courseDateFrom || courseDateTo)
+                                    ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
+                            }`}
+                        >
+                            <SlidersHorizontal size={11} />
+                            <span className="hidden sm:inline">Range</span>
+                            {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
+                            )}
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Advanced Filters Panel */}
             {showAdvanced && (

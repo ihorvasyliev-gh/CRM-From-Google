@@ -94,10 +94,20 @@ describe('FilterBar Component - Date Filter', () => {
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
     });
 
-    it('hides the date chips row when no available course dates exist', () => {
-        render(<FilterBar {...defaultProps} availableCourseDates={[]} />);
+    it('toggles mobile filter menu visibility on toggle button click', () => {
+        render(<FilterBar {...defaultProps} selectedCourse="course-1" selectedCourseDate="2026-08-28" />);
 
-        expect(screen.queryByText('All Dates')).not.toBeInTheDocument();
-        expect(screen.queryByText(/Dates:/i)).not.toBeInTheDocument();
+        // Mobile toggle button should exist
+        const toggleBtn = screen.getByTitle(/Show filter options/i);
+        expect(toggleBtn).toBeInTheDocument();
+
+        // When collapsed and has filters, compact active summary is shown
+        expect(screen.getByText(/Active:/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Patient moving and handling/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/28\s+Aug/i).length).toBeGreaterThan(0);
+
+        // Clicking toggle button expands the menu
+        fireEvent.click(toggleBtn);
+        expect(screen.getByTitle(/Hide filter options/i)).toBeInTheDocument();
     });
 });

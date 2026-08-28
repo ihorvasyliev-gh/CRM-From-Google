@@ -136,9 +136,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         enrollmentsRef.current = enrollments;
     }, [enrollments]);
 
-    // Extract available course dates with student counts for current course/variant
+    // Extract available course dates with student counts for current course/variant (today and future dates only)
     const availableCourseDates = useMemo(() => {
         const dateMap = new Map<string, number>();
+        const today = todayISO();
 
         enrollments.forEach(item => {
             if (selectedCourse !== 'all' && item.course_id !== selectedCourse) return;
@@ -151,7 +152,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             if (rawDate) {
                 const cleanD = rawDate.split('T')[0];
                 const d = new Date(cleanD);
-                if (!isNaN(d.getTime())) {
+                // Only include today and future dates
+                if (!isNaN(d.getTime()) && cleanD >= today) {
                     dateMap.set(cleanD, (dateMap.get(cleanD) || 0) + 1);
                 }
             }
