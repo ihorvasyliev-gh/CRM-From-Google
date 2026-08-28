@@ -64,7 +64,7 @@ describe('appConfig', () => {
         it('includes confident confirmation button and warning if requiresEnglish is true', () => {
             const result = buildEmailBodyHtml('Security Guarding', 'Oct 20', 'https://example.com/confirm', undefined, 7, true);
             expect(result).toContain('https://example.com/confirm');
-            expect(result).toContain('I Feel Confident — Confirm My Place');
+            expect(result).toContain('I Am Confident in English — Confirm My Place');
             expect(result).toContain('Important note before you confirm:');
             expect(result).toContain('feel confident with your English');
         });

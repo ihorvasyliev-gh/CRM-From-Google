@@ -131,7 +131,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                                         {requiresEnglish && <span className="text-[10px] bg-blue-500/20 text-blue-400 font-semibold px-1.5 py-0.2 rounded">Selected</span>}
                                     </div>
                                     <div className="text-[11px] text-muted mt-0.5">
-                                        Includes English warning notes &amp; [I Feel Confident — Confirm My Place] button.
+                                        Includes English warning notes &amp; [I Am Confident in English — Confirm My Place] button.
                                     </div>
                                 </div>
                             </button>

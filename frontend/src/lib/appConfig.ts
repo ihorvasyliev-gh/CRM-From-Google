@@ -400,7 +400,7 @@ export function buildEmailBodyHtml(
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
-    const buttonText = requiresEnglish ? 'I Feel Confident — Confirm My Place' : 'Confirm My Place';
+    const buttonText = requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place';
     
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">

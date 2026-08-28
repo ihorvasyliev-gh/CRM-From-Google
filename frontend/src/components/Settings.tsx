@@ -411,7 +411,7 @@ export default function Settings() {
                                 </div>
                                 <div className="text-muted leading-relaxed">
                                     {inviteTemplateTab === 'high_english'
-                                        ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Feel Confident — Confirm My Place] button.'
+                                        ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Am Confident in English — Confirm My Place] button.'
                                         : 'Used for general courses. Does not include language warnings and uses standard [Confirm My Place] button.'}
                                 </div>
                             </div>
