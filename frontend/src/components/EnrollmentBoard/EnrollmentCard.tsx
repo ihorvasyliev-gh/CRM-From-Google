@@ -216,7 +216,7 @@ const EnrollmentCard = function EnrollmentCard({
                             {/* Course Pill */}
                             <span
                                 title={getCoursePill(enrollment)}
-                                className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-2 rounded-md ${cfg.pillBg} truncate max-w-[150px] sm:max-w-[180px] flex-shrink-0 select-none`}
+                                className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-2 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
                             >
                                 {getCoursePill(enrollment)}
                             </span>
