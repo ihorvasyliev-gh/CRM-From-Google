@@ -347,25 +347,25 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
     table { border-collapse: collapse !important; }
     body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
-    a { color: ${isInvite ? '#2563eb' : '#7c3aed'}; text-decoration: underline; }
+    a { color: ${isInvite ? '#0284c7' : '#7c3aed'}; text-decoration: underline; }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+<body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
     <tr>
-      <td align="left" style="padding: 10px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+      <td align="left" style="padding: 10px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
           ${logoHtml}
           <!-- Hero -->
           <tr>
             <td align="left" style="padding: 8px 0 16px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;">
               <div style="font-size: 22px; font-weight: bold; color: #0f172a; line-height: 28px; margin: 0 0 4px 0;">${heroTitle}</div>
-              <div style="font-size: 15px; color: #64748b; line-height: 20px; margin: 0;">${heroSubtitle}</div>
+              <div style="font-size: 14px; color: #64748b; line-height: 20px; margin: 0;">${heroSubtitle}</div>
             </td>
           </tr>
           <!-- Content -->
           <tr>
-            <td align="left" style="padding: 8px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 16px; line-height: 24px; color: #1e293b;">
+            <td align="left" style="padding: 6px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
               ${content}
             </td>
           </tr>
@@ -395,34 +395,44 @@ export function buildEmailBodyHtml(
     const buttonText = requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place';
     
     const courseDetailsHtml = `<!-- Course Details Card -->
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:20px 0;background-color:#f8fafc;border:1px solid #cbd5e1;border-left:5px solid #2563eb;border-radius:8px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td style="padding:18px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;">
-      <div style="margin:0 0 4px 0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
-      <div style="margin:0 0 16px 0;font-size:18px;color:#0f172a;font-weight:bold;line-height:24px;">${courseTitle}</div>
-      <div style="margin:0 0 4px 0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
-      <div style="margin:0;font-size:16px;color:#334155;font-weight:bold;line-height:22px;">${date}</div>
+    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding-bottom:10px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
+            <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${courseTitle}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
+            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:2px;">🗓️ ${date}</div>
+          </td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>`;
 
     const englishWarningHtml = `<!-- English Warning Card -->
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:20px 0;background-color:#fefce8;border:1px solid #fde047;border-left:5px solid #eab308;border-radius:8px;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fffbeb;border:1px solid #fef08a;border-left:5px solid #f59e0b;border-radius:8px;">
   <tr>
-    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#78350f;">
-      <div style="margin:0 0 10px 0;font-size:15px;font-weight:bold;color:#854d0e;line-height:20px;">⚠️ Important note before you confirm:</div>
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:20px;color:#78350f;">
+    <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="font-size:13px;font-weight:bold;color:#b45309;line-height:20px;margin-bottom:8px;">⚠️ Important note before you confirm:</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:19px;color:#92400e;">
         <tr>
-          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">Please only accept this place if you feel confident with your English.</td>
+          <td style="padding:2px 8px 2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#b45309;width:12px;font-weight:bold;">&bull;</td>
+          <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#92400e;">Please only accept this place if you feel confident with your English.</td>
         </tr>
         <tr>
-          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">The course and final test are all in English. You will need a good understanding of English to pass.</td>
+          <td style="padding:2px 8px 2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#b45309;width:12px;font-weight:bold;">&bull;</td>
+          <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#92400e;">The course and final test are all in English. You will need a good understanding of English to pass.</td>
         </tr>
         <tr>
-          <td style="padding:3px 8px 3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#854d0e;width:12px;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:20px;color:#78350f;">We cannot offer a second chance or a retake if you don't pass.</td>
+          <td style="padding:2px 8px 2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#b45309;width:12px;font-weight:bold;">&bull;</td>
+          <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#92400e;">We cannot offer a second chance or a retake if you don't pass.</td>
         </tr>
       </table>
     </td>
@@ -431,14 +441,14 @@ export function buildEmailBodyHtml(
 
     const buttonHtml = confirmationLink
         ? `<!-- Action Button Container -->
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:22px 0;">
   <tr>
     <td align="left" style="padding:0;">
       <!-- Bulletproof Table Button -->
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
-          <td align="center" bgcolor="#2563eb" style="border-radius:8px;background-color:#2563eb;padding:14px 28px;">
-            <a href="${linkStr}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText}</a>
+          <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
+            <a href="${linkStr}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText} &rarr;</a>
           </td>
         </tr>
       </table>
