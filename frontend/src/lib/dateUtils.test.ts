@@ -1,5 +1,4 @@
-import { describe, it, expect } from 'vitest';
-import { formatDateDMY, formatDateLong, formatShortDate, formatDateSpaces } from './dateUtils';
+import { formatDateDMY, formatDateLong, formatShortDate, formatDayDateShort, formatDateSpaces } from './dateUtils';
 
 describe('dateUtils', () => {
     describe('formatDateDMY', () => {
@@ -44,6 +43,20 @@ describe('dateUtils', () => {
 
         it('returns empty string for null or undefined', () => {
             expect(formatShortDate(null)).toBe('');
+        });
+    });
+
+    describe('formatDayDateShort', () => {
+        it('formats a valid ISO string with weekday and short date', () => {
+            // 2026-08-28 is Friday
+            const result = formatDayDateShort('2026-08-28');
+            expect(result).toMatch(/Fri,\s+28\s+Aug/i);
+        });
+
+        it('returns empty string for null, undefined, or invalid', () => {
+            expect(formatDayDateShort(null)).toBe('');
+            expect(formatDayDateShort(undefined)).toBe('');
+            expect(formatDayDateShort('invalid')).toBe('');
         });
     });
 

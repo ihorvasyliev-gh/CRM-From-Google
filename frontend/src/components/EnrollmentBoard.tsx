@@ -64,6 +64,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
     const [selectedVariant, setSelectedVariant] = useState<string>('all');
+    const [selectedCourseDate, setSelectedCourseDate] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
@@ -135,12 +136,52 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         enrollmentsRef.current = enrollments;
     }, [enrollments]);
 
+    // Extract available course dates with student counts for current course/variant
+    const availableCourseDates = useMemo(() => {
+        const dateMap = new Map<string, number>();
+
+        enrollments.forEach(item => {
+            if (selectedCourse !== 'all' && item.course_id !== selectedCourse) return;
+            if (selectedVariant !== 'all') {
+                const cleaned = cleanVariant(item.courses?.name || '', item.course_variant);
+                if (cleaned.toLowerCase() !== selectedVariant.toLowerCase()) return;
+            }
+
+            const rawDate = item.confirmed_date || item.invited_date || item.completed_date;
+            if (rawDate) {
+                const cleanD = rawDate.split('T')[0];
+                const d = new Date(cleanD);
+                if (!isNaN(d.getTime())) {
+                    dateMap.set(cleanD, (dateMap.get(cleanD) || 0) + 1);
+                }
+            }
+        });
+
+        return Array.from(dateMap.entries())
+            .map(([date, count]) => ({ date, count }))
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [enrollments, selectedCourse, selectedVariant]);
+
+    // Reset selectedCourseDate if no longer present in available dates
+    useEffect(() => {
+        if (selectedCourseDate !== 'all' && !availableCourseDates.some(d => d.date === selectedCourseDate)) {
+            setSelectedCourseDate('all');
+        }
+    }, [availableCourseDates, selectedCourseDate]);
+
     // Filters derivation
     const filteredEnrollments = useMemo(() => {
         let result = enrollments;
         if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
         if (selectedVariant !== 'all') {
             result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === selectedVariant.toLowerCase());
+        }
+        if (selectedCourseDate !== 'all') {
+            result = result.filter(e => {
+                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
+                if (!rawDate) return false;
+                return rawDate.split('T')[0] === selectedCourseDate;
+            });
         }
         if (debouncedSearchQuery.trim()) {
             result = result.filter(e =>
@@ -182,7 +223,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
             });
         }
         return result;
-    }, [enrollments, selectedCourse, selectedVariant, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
+    }, [enrollments, selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {
@@ -548,6 +589,9 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 selectedVariant={selectedVariant}
                 setSelectedVariant={setSelectedVariant}
                 uniqueVariants={uniqueVariants}
+                selectedCourseDate={selectedCourseDate}
+                setSelectedCourseDate={setSelectedCourseDate}
+                availableCourseDates={availableCourseDates}
                 dateFrom={dateFrom}
                 setDateFrom={setDateFrom}
                 dateTo={dateTo}

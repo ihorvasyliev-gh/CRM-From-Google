@@ -34,6 +34,13 @@ export function formatShortDate(dateStr: string | null | undefined): string {
     return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 }
 
+export function formatDayDateShort(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const d = parseDate(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 export function formatDateSpaces(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);
