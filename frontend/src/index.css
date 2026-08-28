@@ -453,8 +453,10 @@ option {
         animation: pulse-timer 1.2s ease-in-out infinite;
     }
 
-    .animate-card-drop-in {
-        animation: card-drop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+    @media (min-width: 1024px) {
+        .animate-card-drop-in {
+            animation: card-drop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
     }
 
     .cursor-grab {
@@ -754,9 +756,11 @@ textarea {
     contain-intrinsic-size: 0 52px;
 }
 
-.cv-auto-card {
-    content-visibility: auto;
-    contain-intrinsic-size: 0 120px;
+@media (min-width: 1024px) {
+    .cv-auto-card {
+        content-visibility: auto;
+        contain-intrinsic-size: 0 120px;
+    }
 }
 
 .hardware-accelerated {

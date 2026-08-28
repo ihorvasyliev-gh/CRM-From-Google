@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw } from 'lucide-react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
@@ -340,12 +340,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     }
 
     const mouseSensorOpts = useMemo(() => ({ activationConstraint: { distance: 5 } }), []);
-    const touchSensorOpts = useMemo(() => ({ activationConstraint: { delay: 250, tolerance: 5 } }), []);
-    
     const mouseSensor = useSensor(MouseSensor, mouseSensorOpts);
-    const touchSensor = useSensor(TouchSensor, touchSensorOpts);
-    
-    const sensors = useSensors(mouseSensor, touchSensor);
+    const sensors = useSensors(mouseSensor);
 
     const measuringConfig = useMemo(() => ({
         droppable: {
@@ -483,6 +479,45 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         );
     }, [enrollments, filteredEnrollments, bulkActions, handleBulkUpdateStatus]);
 
+    const boardContainerRef = useRef<HTMLDivElement | null>(null);
+
+    // Synchronize activeMobileColumn with currently scrolled column
+    useEffect(() => {
+        const container = boardContainerRef.current;
+        if (!container || typeof window === 'undefined') return;
+
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const handleScroll = () => {
+            if (window.innerWidth >= 1024) return;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                const scrollLeft = container.scrollLeft;
+                const width = container.clientWidth;
+                let bestStatus: string = PIPELINE_STATUSES[0];
+                let minDiff = Infinity;
+                PIPELINE_STATUSES.forEach(st => {
+                    const el = columnRefs.current[st];
+                    if (el) {
+                        const elCenter = el.offsetLeft + el.offsetWidth / 2;
+                        const viewCenter = scrollLeft + width / 2;
+                        const diff = Math.abs(elCenter - viewCenter);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            bestStatus = st;
+                        }
+                    }
+                });
+                setActiveMobileColumn(bestStatus);
+            }, 60);
+        };
+
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+            if (timer) clearTimeout(timer);
+        };
+    }, []);
+
     // п.9: scroll-to-column handler
     const handleStatusBadgeClick = useCallback((status: string) => {
         setActiveMobileColumn(status);
@@ -560,14 +595,15 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                 measuring={measuringConfig}
             >
                 <div 
-                    className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2"
+                    ref={boardContainerRef}
+                    className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2 overscroll-x-contain touch-pan-x touch-pan-y"
                     style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                     {PIPELINE_STATUSES.map(status => (
                         <div
                             key={status}
                             ref={el => { columnRefs.current[status] = el; }}
-                            className="min-h-0 flex flex-col w-[calc(100vw-2.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none transform-gpu"
+                            className="min-h-0 flex flex-col w-[calc(100vw-2.5rem)] sm:w-[350px] md:w-auto shrink-0 md:shrink snap-center md:snap-align-none"
                         >
                             <StatusColumn
                                 status={status}

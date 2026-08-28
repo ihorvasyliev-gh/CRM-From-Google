@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useEffect } from 'react';
+import { useMemo, memo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
@@ -70,7 +70,8 @@ const EnrollmentCard = function EnrollmentCard({
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+    const touchStartPos = useRef<{ x: number; y: number } | null>(null);
     
     useEffect(() => {
         if (status === 'invited') {
@@ -100,6 +101,37 @@ const EnrollmentCard = function EnrollmentCard({
         opacity: isDragging && !isOverlay ? 0.3 : 1,
     }), [isDragging, isOverlay]);
 
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 1) {
+            touchStartPos.current = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+            };
+        }
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (touchStartPos.current && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+            const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+            const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+            if (dx > 8 || dy > 8) {
+                touchStartPos.current = { x: -9999, y: -9999 };
+                return;
+            }
+        }
+        touchStartPos.current = null;
+    };
+
+    const handleClick = () => {
+        if (touchStartPos.current && (touchStartPos.current.x === -9999 || touchStartPos.current.y === -9999)) {
+            touchStartPos.current = null;
+            return;
+        }
+        touchStartPos.current = null;
+        toggleSelect(enrollment.id);
+    };
+
     // п.3: Timer level — grey / orange / red
     const timerLevel = useMemo(() => {
         if (status !== 'invited') return null;
@@ -118,10 +150,10 @@ const EnrollmentCard = function EnrollmentCard({
 
     return (
         <div
-            ref={isOverlay ? undefined : setNodeRef}
+            ref={isOverlay || isMobile ? undefined : setNodeRef}
             style={style}
-            {...(isOverlay ? {} : attributes)}
-            {...(isOverlay ? {} : listeners)}
+            {...(isOverlay || isMobile ? {} : attributes)}
+            {...(isOverlay || isMobile ? {} : listeners)}
             className={`group relative enrollment-card cv-auto-card p-2 md:p-3 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
@@ -134,7 +166,9 @@ const EnrollmentCard = function EnrollmentCard({
                     ? 'border-border-subtle bg-surface/50'
                     : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
             } ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging ? '' : 'animate-card-drop-in'}`}
-            onClick={() => toggleSelect(enrollment.id)}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={handleClick}
         >
             <div className="flex items-start gap-2 md:gap-3">
                 {/* Left Actions Column */}

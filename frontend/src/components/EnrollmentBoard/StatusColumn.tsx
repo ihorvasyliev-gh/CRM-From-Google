@@ -165,7 +165,7 @@ const StatusColumn = function StatusColumn({
             <div className="flex-1 min-h-0 relative" style={{ minHeight: 0 }}>
                 <div 
                     ref={scrollContainerRef}
-                    className="status-column-cards p-2 overflow-y-auto space-y-1.5 bg-transparent md:bg-surface will-change-scroll"
+                    className="status-column-cards p-2 overflow-y-auto space-y-1.5 bg-transparent md:bg-surface overscroll-y-contain touch-pan-y"
                     style={{ height: '100%' }}
                     onScroll={handleScroll}
                 >
