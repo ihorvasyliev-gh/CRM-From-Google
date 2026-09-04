@@ -26,7 +26,13 @@ import { matchesSearch } from '../lib/searchUtils';
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
-export default function EnrollmentBoard({ initialCourseFilter }: { initialCourseFilter?: string }) {
+export default function EnrollmentBoard({
+    initialCourseFilter,
+    initialCourseDate,
+}: {
+    initialCourseFilter?: string;
+    initialCourseDate?: string;
+}) {
     const [toast, setToast] = useState<ToastData | null>(null);
     const showToast = useCallback(
         (
@@ -76,7 +82,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
     // Filters
     const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
     const [selectedVariant, setSelectedVariant] = useState<string>('all');
-    const [selectedCourseDate, setSelectedCourseDate] = useState<string>('all');
+    const [selectedCourseDate, setSelectedCourseDate] = useState<string>(initialCourseDate || 'all');
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
@@ -88,7 +94,8 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
     useEffect(() => {
         if (initialCourseFilter) setSelectedCourse(initialCourseFilter);
-    }, [initialCourseFilter]);
+        if (initialCourseDate) setSelectedCourseDate(initialCourseDate);
+    }, [initialCourseFilter, initialCourseDate]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);

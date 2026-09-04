@@ -338,12 +338,12 @@ function App() {
         });
     }, [navigateFn]);
 
-    // Called from child components (e.g., StudentDetail) to navigate with filters
-    const handleNavigate = useCallback((tab: string, filter?: { courseId?: string }) => {
+    // Called from child components (e.g., StudentDetail, Dashboard) to navigate with filters
+    const handleNavigate = useCallback((tab: string, filter?: any) => {
         setSidebarOpen(false);
         startTransition(() => {
-            if (tab === 'enrollments' && filter?.courseId) {
-                navigateFn(`/${tab}`, { state: { courseId: filter.courseId } });
+            if (tab === 'enrollments' && filter) {
+                navigateFn(`/${tab}`, { state: filter });
             } else {
                 navigateFn(`/${tab}`);
             }
@@ -905,7 +905,7 @@ function App() {
                                         />
                                         <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
                                         <Route path="/courses" element={<CourseList />} />
-                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />
+                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} initialCourseDate={location.state?.courseDate} />} />
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />

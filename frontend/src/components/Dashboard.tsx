@@ -1,58 +1,23 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Plus, UserPlus, BookOpen, GraduationCap, Sparkles, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, Copy, Check, ExternalLink } from 'lucide-react';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { cleanVariant } from '../lib/types';
+import DashboardKPIs from './Dashboard/DashboardKPIs';
+import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
+import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
+import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
+import DashboardActivityFeed, { type ActivityFilter, type GroupedActivity } from './Dashboard/DashboardActivityFeed';
+import StatusBreakdownCard from './Dashboard/StatusBreakdownCard';
+import { calculateExpiredInvites, groupUpcomingCohorts } from './Dashboard/dashboardUtils';
 
-interface DashboardProps {
-    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
+export interface DashboardProps {
+    onNavigate?: (tab: string, filter?: any) => void;
     onOpenStudentDetail?: (studentId: string) => void;
     pendingApprovalsCount?: number;
     onOpenApprovals?: () => void;
 }
-
-interface GroupedActivity {
-    key: string;                // studentName + date for unique key
-    studentName: string;
-    studentId: string;
-    date: string;               // ISO date string (YYYY-MM-DD)
-    dateLabel: string;          // formatted "24 May"
-    isNew?: boolean;            // true if this is the student's first ever registration day
-    enrollments: {
-        id: string;
-        courseId?: string;
-        courseName: string;
-        courseVariant: string | null;
-        status: string;
-    }[];
-    previousEnrollments: {
-        id: string;
-        courseId?: string;
-        courseName: string;
-        courseVariant: string | null;
-        status: string;
-        dateLabel: string;
-    }[];
-}
-
-const STATUS_DOT: Record<string, string> = {
-    requested: 'bg-warning',
-    invited:   'bg-info',
-    confirmed: 'bg-success',
-    completed: 'bg-[oklch(var(--status-completed))]',
-    withdrawn: 'bg-muted',
-    rejected:  'bg-danger',
-};
-
-const FILTER_ACTIVE_CLASSES: Record<ActivityFilter, string> = {
-    all:       'bg-brand-500 text-white border-brand-500 shadow-glow-sm scale-105',
-    requested: 'status-pill-requested border-warning/50 font-bold scale-105 shadow-sm',
-    invited:   'status-pill-invited   border-info/50    font-bold scale-105 shadow-sm',
-    confirmed: 'status-pill-confirmed border-success/50 font-bold scale-105 shadow-sm',
-    completed: 'status-pill-completed border-[oklch(var(--status-completed)/0.50)] font-bold scale-105 shadow-sm',
-};
-
 
 function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
     const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
@@ -68,190 +33,16 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
     return {
         dateKey: d.toISOString().slice(0, 10),
         dateLabel: d.toLocaleDateString('en-IE', dateOpts),
-        time: d.getTime()
+        time: d.getTime(),
     };
 }
 
-// ─── Skeleton Components ─────────────────────────────────────
-function SkeletonStatCard() {
-    return (
-        <div className="relative bg-surface rounded-2xl shadow-card border border-border-subtle p-3.5 sm:p-4 overflow-hidden animate-pulse">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-surface-elevated" />
-            <div className="flex items-center justify-between">
-                <div>
-                    <div className="h-2.5 w-20 rounded bg-surface-elevated mb-1.5" />
-                    <div className="h-7 w-12 rounded bg-surface-elevated" />
-                </div>
-                <div className="w-9 h-9 rounded-lg bg-surface-elevated" />
-            </div>
-        </div>
-    );
-}
-
-function SkeletonActivityItem() {
-    return (
-        <div className="flex items-center justify-between gap-4 p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm animate-pulse">
-            <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-surface-elevated flex-shrink-0" />
-                <div className="flex-1 min-w-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:items-center">
-                    <div>
-                        <div className="h-4 w-32 rounded bg-surface-elevated mb-1.5" />
-                        <div className="h-3 w-20 rounded bg-surface-elevated" />
-                    </div>
-                    <div className="hidden sm:block">
-                        <div className="h-4 w-40 rounded bg-surface-elevated" />
-                    </div>
-                </div>
-            </div>
-            <div className="flex items-center gap-4 flex-shrink-0">
-                <div className="h-5 w-16 rounded-full bg-surface-elevated" />
-                <div className="h-4 w-12 rounded bg-surface-elevated" />
-            </div>
-        </div>
-    );
-}
-
-function SkeletonStatusBreakdown() {
-    return (
-        <div className="space-y-5 animate-pulse">
-            <div className="flex h-3.5 rounded-full overflow-hidden bg-surface-elevated" />
-            <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex flex-col gap-2 p-3 rounded-xl bg-surface-elevated/50">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full bg-surface-elevated flex-shrink-0" />
-                            <div className="h-3 w-16 rounded bg-surface-elevated" />
-                        </div>
-                        <div className="h-4 w-10 rounded bg-surface-elevated mt-1" />
-                        <div className="h-1 w-full rounded-full bg-surface-elevated mt-1" />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-// ─── Bento Card Component with Spotlight Effect ───────────────────
-interface BentoCardProps extends React.HTMLAttributes<HTMLDivElement> {
-    children: React.ReactNode;
-    className?: string;
-    glowColor?: string;
-    accentGradient?: string;
-}
-
-function BentoCard({
-    children,
-    className = '',
-    glowColor = 'rgba(99, 102, 241, 0.12)',
-    accentGradient,
-    ...props
-}: BentoCardProps) {
-    const cardRef = useRef<HTMLDivElement>(null);
-    const rafIdRef = useRef<number | null>(null);
-
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!cardRef.current) return;
-        const clientX = e.clientX;
-        const clientY = e.clientY;
-        if (rafIdRef.current !== null) return;
-
-        rafIdRef.current = requestAnimationFrame(() => {
-            if (cardRef.current) {
-                const rect = cardRef.current.getBoundingClientRect();
-                cardRef.current.style.setProperty('--mouse-x', `${clientX - rect.left}px`);
-                cardRef.current.style.setProperty('--mouse-y', `${clientY - rect.top}px`);
-            }
-            rafIdRef.current = null;
-        });
-    };
-
-    return (
-        <div
-            ref={cardRef}
-            onMouseMove={handleMouseMove}
-            className={`relative overflow-hidden rounded-2xl bg-surface border border-border-subtle hover:border-border-strong/50 transition-colors duration-300 group ${className}`}
-            {...props}
-        >
-            {/* Spotlight Glow Overlay */}
-            <div
-                className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                style={{
-                    background: `radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), ${glowColor}, transparent 80%)`,
-                }}
-            />
-
-            {/* Top Accent Gradient */}
-            {accentGradient && (
-                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${accentGradient}`} />
-            )}
-
-            {/* Content Container */}
-            <div className="relative z-10 h-full">
-                {children}
-            </div>
-        </div>
-    );
-}
-
-
-const GOOGLE_FORM_URL = 'https://forms.gle/9U4DsSe5UYnsakJZ8';
-
-function GoogleFormButton() {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(GOOGLE_FORM_URL).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        });
-    };
-
-    return (
-        <div className="mt-1 rounded-xl border border-brand-500/20 bg-brand-500/5 overflow-hidden">
-            <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-                <div className="p-1.5 bg-brand-500/15 text-brand-500 dark:text-brand-400 rounded-lg flex-shrink-0">
-                    <ExternalLink size={13} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <span className="block text-[11px] font-semibold text-brand-600 dark:text-brand-400 leading-tight">Registration Form</span>
-                    <span className="block text-[10px] text-muted font-mono truncate">forms.gle/9U4DsSe5UYnsakJZ8</span>
-                </div>
-            </div>
-            <div className="flex border-t border-brand-500/15">
-                <button
-                    onClick={handleCopy}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold transition-all duration-300 ${copied ? 'text-emerald-500 bg-emerald-500/10' : 'text-brand-500 hover:bg-brand-500/10'}`}
-                >
-                    {copied ? <Check size={12} /> : <Copy size={12} />}
-                    {copied ? 'Copied!' : 'Copy Link'}
-                </button>
-                <div className="w-px bg-brand-500/15" />
-                <a
-                    href={GOOGLE_FORM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-all duration-300"
-                >
-                    <ExternalLink size={12} />
-                    Open
-                </a>
-            </div>
-        </div>
-    );
-}
-
-
-type ActivityFilter = 'all' | 'requested' | 'invited' | 'confirmed' | 'completed';
-
-const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'requested', label: 'Requested' },
-    { key: 'invited', label: 'Invited' },
-    { key: 'confirmed', label: 'Confirmed' },
-    { key: 'completed', label: 'Completed' },
-];
-
-export default function Dashboard({ onNavigate, onOpenStudentDetail }: DashboardProps) {
+export default function Dashboard({
+    onNavigate,
+    onOpenStudentDetail,
+    pendingApprovalsCount,
+    onOpenApprovals,
+}: DashboardProps) {
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
         return (localStorage.getItem('dashboardActivityFilter') as ActivityFilter) || 'all';
     });
@@ -259,7 +50,8 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
     useEffect(() => {
         localStorage.setItem('dashboardActivityFilter', activityFilter);
     }, [activityFilter]);
-    // Stats counts — 30s staleTime so they refresh in background on revisit after 30s
+
+    // Stats counts — staleTime 30s
     const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
         queryKey: ['dashboard_stats'],
         queryFn: async () => {
@@ -274,30 +66,36 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
                 enrollments: enrollRes.count || 0,
             };
         },
-        staleTime: 30_000, // 30 seconds — shows cached instantly, refetches in background if stale
+        staleTime: 30_000,
     });
 
-    // Reuse the global ['enrollments'] cache for status breakdown and activity lists (same key as useEnrollments)
+    // Reuse the global ['enrollments'] cache (staleTime 30_000)
     const { data: allEnrollments = [], isLoading: enrollmentsLoading } = useQuery({
         queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments,
+        staleTime: 30_000,
     });
-
-    // Derive status breakdown from cached enrollments
-    const statusBreakdown = useMemo(() => {
-        const breakdown: Record<string, number> = {};
-        for (const e of allEnrollments) {
-            breakdown[e.status] = (breakdown[e.status] || 0) + 1;
-        }
-        return breakdown;
-    }, [allEnrollments]);
-
 
     const loading = statsLoading || enrollmentsLoading;
 
-    // Build flat list of enrollments based on filter with fast numeric timestamp sorting
+    // Operational KPI counts & breakdown
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const e of allEnrollments) {
+            counts[e.status] = (counts[e.status] || 0) + 1;
+        }
+        return counts;
+    }, [allEnrollments]);
+
+    const statusBreakdown = statusCounts;
+
+    // Expired invites & upcoming cohorts
+    const expiredInvites = useMemo(() => calculateExpiredInvites(allEnrollments), [allEnrollments]);
+    const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
+
+    // Filtered recent enrollments
     const filteredRecent = useMemo(() => {
-        const mappedEnrollments = allEnrollments.map(en => {
+        const mappedEnrollments = allEnrollments.map((en: any) => {
             const time = en.created_at ? new Date(en.created_at).getTime() : 0;
             return {
                 id: en.id,
@@ -315,12 +113,12 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
 
         const targetList = activityFilter === 'all'
             ? mappedEnrollments
-            : mappedEnrollments.filter(en => en.status === activityFilter);
+            : mappedEnrollments.filter((en: any) => en.status === activityFilter);
 
-        return targetList.sort((a, b) => b.timestamp - a.timestamp);
+        return targetList.sort((a: any, b: any) => b.timestamp - a.timestamp);
     }, [allEnrollments, activityFilter]);
 
-    // Pre-index enrollments by student_id in O(N) time for instant O(1) history lookup
+    // Index enrollments by student_id for fast history lookup
     const enrollmentsByStudent = useMemo(() => {
         const map = new Map<string, typeof allEnrollments>();
         for (const e of allEnrollments) {
@@ -338,12 +136,9 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
 
     // Group enrollments by student + day
     const groupedActivity = useMemo((): GroupedActivity[] => {
-        const source = filteredRecent;
-
-        // Build groups keyed by studentId + date
         const groupMap = new Map<string, GroupedActivity>();
 
-        for (const en of source) {
+        for (const en of filteredRecent) {
             const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
             const studentId = en.student_id || en.id;
             const { dateKey, dateLabel } = parseSafeDate(en.created_at);
@@ -371,7 +166,6 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
             });
         }
 
-        // Sort by date descending and take top 50 before heavy history resolution
         let allGroupsList = Array.from(groupMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
         if (activityFilter !== 'all') {
@@ -380,19 +174,17 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
 
         const visibleGroups = allGroupsList.slice(0, 50);
 
-        // For each visible group, resolve previous enrollments using O(1) student map
         for (const group of visibleGroups) {
             const studentAllEn = enrollmentsByStudent.get(group.studentId) || [];
-            
-            // Check if this is the student's first ever registration day in the system
+
             const hasPriorEnrollments = studentAllEn.some(en => {
                 const { dateKey } = parseSafeDate(en.created_at);
                 return dateKey < group.date;
             });
             group.isNew = !hasPriorEnrollments;
 
-            const otherDaysMap = new Map<string, { 
-                dateLabel: string; 
+            const otherDaysMap = new Map<string, {
+                dateLabel: string;
                 enrollments: {
                     id: string;
                     courseId?: string;
@@ -411,7 +203,7 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
                 if (!otherDaysMap.has(dateKey)) {
                     otherDaysMap.set(dateKey, {
                         dateLabel,
-                        enrollments: []
+                        enrollments: [],
                     });
                 }
                 const dayData = otherDaysMap.get(dateKey)!;
@@ -420,21 +212,20 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
                     courseId: en.course_id,
                     courseName,
                     courseVariant: en.course_variant,
-                    status: en.status
+                    status: en.status,
                 });
             }
 
             const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
             for (const dKey of sortedDates) {
                 const dayData = otherDaysMap.get(dKey)!;
-                
-                // Group by courseName + status on this other day
+
                 const otherCourseGroups = new Map<string, typeof dayData.enrollments>();
                 for (const en of dayData.enrollments) {
-                    const groupKey = `${en.courseName}:::${en.status}`;
-                    const existing = otherCourseGroups.get(groupKey) || [];
+                    const grpKey = `${en.courseName}:::${en.status}`;
+                    const existing = otherCourseGroups.get(grpKey) || [];
                     existing.push(en);
-                    otherCourseGroups.set(groupKey, existing);
+                    otherCourseGroups.set(grpKey, existing);
                 }
 
                 const groupedOtherEnrollments = Array.from(otherCourseGroups.entries()).map(([_, ens]) => {
@@ -473,24 +264,22 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
                         courseName: en.courseName,
                         courseVariant: en.courseVariant,
                         status: en.status,
-                        dateLabel: dayData.dateLabel
+                        dateLabel: dayData.dateLabel,
                     });
                 }
             }
 
-            // Combine enrollments of the same course name + status on this day
             const courseGroups = new Map<string, typeof group.enrollments>();
             for (const en of group.enrollments) {
-                const groupKey = `${en.courseName}:::${en.status}`;
-                const existing = courseGroups.get(groupKey) || [];
+                const grpKey = `${en.courseName}:::${en.status}`;
+                const existing = courseGroups.get(grpKey) || [];
                 existing.push(en);
-                courseGroups.set(groupKey, existing);
+                courseGroups.set(grpKey, existing);
             }
 
             group.enrollments = Array.from(courseGroups.entries()).map(([_, ens]) => {
                 const courseName = ens[0].courseName;
                 const status = ens[0].status;
-                // Clean and extract all unique variants
                 const variants = ens
                     .map(en => cleanVariant(courseName, en.courseVariant))
                     .filter((v, idx, self) => v && self.indexOf(v) === idx);
@@ -522,14 +311,14 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
         return visibleGroups;
     }, [filteredRecent, activityFilter, enrollmentsByStudent]);
 
-    // Counts per filter for pill badges
+    // Badge counts per activity filter
     const filterCounts = useMemo(() => {
         const counts: Record<ActivityFilter, number> = {
             all: 0,
             requested: 0,
             invited: 0,
             confirmed: 0,
-            completed: 0
+            completed: 0,
         };
 
         for (const en of allEnrollments) {
@@ -540,366 +329,204 @@ export default function Dashboard({ onNavigate, onOpenStudentDetail }: Dashboard
         }
 
         counts.all = allEnrollments.length;
-
-        // Limit the badge count to 50 for 'all' and 'requested'
         counts.all = Math.min(counts.all, 50);
         counts.requested = Math.min(counts.requested, 50);
 
         return counts;
     }, [allEnrollments]);
 
-    const statCards = [
-        {
-            label: 'Total Students',
-            value: stats.students,
-            icon: <Users size={22} />,
-            gradient: 'from-brand-500 to-brand-600',
-            iconBg: 'bg-brand-500/10 text-brand-600',
-            accentColor: 'brand',
-            tab: 'students'
-        },
-        {
-            label: 'Active Courses',
-            value: stats.courses,
-            icon: <BookOpen size={22} />,
-            gradient: 'from-violet-500 to-purple-600',
-            iconBg: 'bg-violet-500/10 text-violet-600',
-            accentColor: 'violet',
-            tab: 'courses'
-        },
-        {
-            label: 'Enrollments',
-            value: stats.enrollments,
-            icon: <GraduationCap size={22} />,
-            gradient: 'from-emerald-500 to-teal-600',
-            iconBg: 'bg-emerald-500/10 text-emerald-600',
-            accentColor: 'emerald',
-            tab: 'enrollments'
-        },
-    ];
-
-    const totalStatus = Object.values(statusBreakdown).reduce((a, b) => a + b, 0);
-    const statusItems = [
-        { key: 'requested', label: 'Requested', color: 'bg-warning',                              lightBg: 'bg-warning/10 text-warning' },
-        { key: 'invited',   label: 'Invited',   color: 'bg-info',                                 lightBg: 'bg-info/10 text-info' },
-        { key: 'confirmed', label: 'Confirmed', color: 'bg-success',                              lightBg: 'bg-success/10 text-success' },
-        { key: 'completed', label: 'Completed', color: 'bg-[oklch(var(--status-completed))]',     lightBg: 'bg-[oklch(var(--status-completed)/0.12)] text-status-completed' },
-        { key: 'withdrawn', label: 'Withdrawn', color: 'bg-muted',                               lightBg: 'bg-muted/10 text-muted' },
-        { key: 'rejected',  label: 'Rejected',  color: 'bg-danger',                              lightBg: 'bg-danger/10 text-danger' },
-    ];
-
     return (
-        <div className="grid grid-cols-1 grid-rows-auto lg:grid-cols-3 lg:grid-rows-[auto_1fr] gap-4 sm:gap-6 flex-1 min-h-0">
-            {/* Top Row: Stats Cards (Full Width) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 lg:col-span-3 flex-shrink-0">
-                {loading ? (
-                    <>{Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}</>
-                ) : (
-                    statCards.map((card, i) => (
-                        <BentoCard
-                            key={card.label}
-                            onClick={() => onNavigate?.(card.tab)}
-                            accentGradient={card.gradient}
-                            glowColor={card.accentColor === 'brand' ? 'oklch(var(--accent-primary) / 0.12)' : card.accentColor === 'violet' ? 'rgba(139, 92, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)'}
-                            className="p-3.5 sm:p-4 cursor-pointer h-full"
-                            style={{ animationDelay: `${i * 100}ms` }}
-                        >
-                            <div className="flex items-center justify-between h-full min-h-[56px] sm:min-h-[64px]">
-                                <div className="flex flex-col min-w-0 pr-2">
-                                    <p className="text-[10px] sm:text-[11px] font-bold text-muted uppercase tracking-wider mb-1 leading-none">{card.label}</p>
-                                    <p className="text-2xl sm:text-3xl font-mono font-bold text-primary tracking-tight leading-none animate-countUp">{card.value}</p>
-                                </div>
-                                <div className={`p-2 rounded-lg ${card.iconBg} transition-transform duration-500 ease-spring group-hover:scale-110 shadow-sm flex-shrink-0`}>
-                                    {card.icon}
-                                </div>
-                            </div>
-                        </BentoCard>
-                    ))
-                )}
-            </div>
-
-            {/* Left Column: Recent Activity (Col-span 2) */}
-            <div className="lg:col-span-2 flex flex-col lg:min-h-0">
-                <BentoCard
-                    glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-3 sm:p-5 lg:flex-1 lg:min-h-0"
-                >
-                    <div className="flex flex-col h-auto lg:h-full">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
-                                <Clock size={14} className="text-brand-500" /> Recent Activity
-                            </h3>
-                            <Filter size={12} className="text-muted" />
-                        </div>
-                        {/* Filter pills */}
-                        {/* Filter pills & Legend */}
-                        {!loading && allEnrollments.length > 0 && (
-                            <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-4 items-center">
-                                {ACTIVITY_FILTERS.map(f => {
-                                    const isActive = activityFilter === f.key;
-                                    return (
-                                        <button
-                                            key={f.key}
-                                            onClick={() => setActivityFilter(f.key)}
-                                            className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-all duration-300 ease-spring flex items-center gap-1.5 ${
-                                                isActive
-                                                    ? FILTER_ACTIVE_CLASSES[f.key]
-                                                    : 'bg-surface-elevated/50 text-muted hover:text-primary border-border-subtle hover:border-border-strong hover:scale-105'
-                                            }`}
-                                        >
-                                            {f.key !== 'all' && (
-                                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[f.key]} ${isActive ? '' : 'opacity-60'} flex-shrink-0`} />
-                                            )}
-                                            {f.label} ({filterCounts[f.key]})
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        {loading ? (
-                            <div className="space-y-3 lg:flex-1 lg:overflow-y-auto pr-1">
-                                {Array.from({ length: 6 }).map((_, i) => <SkeletonActivityItem key={i} />)}
-                            </div>
-                        ) : groupedActivity.length === 0 ? (
-                            <div className="text-center py-8 lg:flex-1 flex flex-col justify-center items-center">
-                                <Clock size={40} className="mb-2 text-muted/50" />
-                                <p className="text-sm text-muted">{activityFilter === 'all' ? 'No recent activity' : `No ${activityFilter} enrollments`}</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2 md:space-y-3 lg:overflow-y-auto pr-1 lg:flex-1 lg:min-h-0">
-                                {groupedActivity.map((group, i) => {
-                                    // Group history by date
-                                    const historyByDate = new Map<string, typeof group.previousEnrollments>();
-                                    for (const pe of group.previousEnrollments) {
-                                        const existing = historyByDate.get(pe.dateLabel) || [];
-                                        existing.push(pe);
-                                        historyByDate.set(pe.dateLabel, existing);
-                                    }
-
-                                    // Build unified timeline events
-                                    const timelineEvents = [
-                                        {
-                                            date: group.dateLabel,
-                                            enrollments: group.enrollments,
-                                            isCurrent: true,
-                                            key: 'current'
-                                        },
-                                        ...Array.from(historyByDate.entries()).map(([date, enrollments]) => ({
-                                            date,
-                                            enrollments,
-                                            isCurrent: false,
-                                            key: date
-                                        }))
-                                    ];
-
-                                    return (
-                                        <div
-                                            key={group.key}
-                                            className="p-2.5 sm:p-3.5 rounded-xl bg-surface-elevated/30 border border-border-subtle shadow-sm hover:bg-surface-elevated/60 hover:border-border-strong/30 hover:shadow-md transition-all duration-300 ease-spring cursor-default flex flex-col lg:flex-row gap-2 lg:gap-4"
-                                            style={{ animationDelay: `${i * 50}ms` }}
-                                        >
-                                            {/* Left Column: Student Info */}
-                                            <div className="flex flex-row items-center gap-2 w-full lg:flex-col lg:items-start lg:gap-1.5 lg:w-1/4 lg:min-w-[160px] lg:max-w-[240px] flex-shrink-0 pt-0.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onOpenStudentDetail?.(group.studentId)}
-                                                    className="text-[13px] font-semibold text-primary hover:text-brand-500 hover:underline truncate tracking-tight leading-tight text-left cursor-pointer transition-colors"
-                                                    title={`View details for ${group.studentName}`}
-                                                >
-                                                    {group.studentName}
-                                                </button>
-                                                {group.isNew && (
-                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
-                                                        NEW
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Right Column: Unified Timeline */}
-                                            <div className="flex-1 min-w-0 relative pl-5 flex flex-col gap-3">
-                                                {/* Vertical line connecting the timeline nodes */}
-                                                {timelineEvents.length > 1 && (
-                                                    <div className="absolute left-[8px] top-2.5 bottom-2.5 w-0.5 bg-border-subtle/50" />
-                                                )}
-
-                                                {timelineEvents.map((event) => (
-                                                    <div key={event.key} className="flex items-start gap-3 relative min-w-0">
-                                                        {/* Timeline node */}
-                                                        <div
-                                                            className={`absolute left-[-17px] top-[5px] w-2.5 h-2.5 rounded-full border-2 ${
-                                                                event.isCurrent
-                                                                    ? 'bg-brand-500 border-brand-500 shadow-glow-sm'
-                                                                    : 'bg-surface border-border-strong'
-                                                            } z-10`}
-                                                        />
-
-                                                        {/* Event Date */}
-                                                        <span
-                                                            className={`font-mono text-[10px] w-12 pt-[3px] flex-shrink-0 select-none ${
-                                                                event.isCurrent ? 'text-primary font-bold' : 'text-muted/60'
-                                                            }`}
-                                                        >
-                                                            {event.date}
-                                                        </span>
-
-                                                        {/* Event Badges */}
-                                                        <div className="flex flex-wrap gap-1.5 items-center flex-1 min-w-0">
-                                                            {event.enrollments.map((en) => (
-                                                                <button
-                                                                    type="button"
-                                                                    key={en.id}
-                                                                    onClick={() => {
-                                                                        if (en.courseId) {
-                                                                            onNavigate?.('enrollments', { courseId: en.courseId });
-                                                                        } else {
-                                                                            onNavigate?.('enrollments');
-                                                                        }
-                                                                    }}
-                                                                    className={`status-pill-${en.status} inline-flex items-center gap-1.5 ${
-                                                                        event.isCurrent
-                                                                            ? 'text-[11px] px-2.5 py-0.5 rounded-full font-semibold shadow-sm'
-                                                                            : 'text-[10px] px-1.5 py-0.25 rounded-md font-medium'
-                                                                    } whitespace-nowrap hover:ring-1 hover:ring-brand-500/50 hover:scale-[1.03] active:scale-95 transition-all cursor-pointer`}
-                                                                    title={`Filter board by ${en.courseName}`}
-                                                                >
-                                                                    <span
-                                                                        className={`${
-                                                                            event.isCurrent ? 'w-1.5 h-1.5' : 'w-1 h-1'
-                                                                        } rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`}
-                                                                    />
-                                                                    <span>{en.courseName}</span>
-                                                                    {en.courseVariant && (
-                                                                        <span className="opacity-75 font-normal"> ({en.courseVariant})</span>
-                                                                    )}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+        <div className="w-full space-y-4 sm:space-y-6">
+            {/* Pending Approvals Notice if any */}
+            {pendingApprovalsCount && pendingApprovalsCount > 0 ? (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                        <Clock size={15} />
+                        <span>{pendingApprovalsCount} course completion request{pendingApprovalsCount > 1 ? 's' : ''} awaiting approval</span>
                     </div>
-                </BentoCard>
+                    <button
+                        type="button"
+                        onClick={onOpenApprovals}
+                        className="px-2.5 py-1 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+                    >
+                        Review
+                    </button>
+                </div>
+            ) : null}
+
+            {/* Mobile View (1023px and below) */}
+            <div className="block lg:hidden space-y-4">
+                {/* 1. Top banner: Registration Link */}
+                <RegistrationLinkCard variant="compact" />
+
+                {/* 2. Operational KPIs */}
+                <DashboardKPIs
+                    stats={stats}
+                    statusCounts={statusCounts}
+                    onNavigate={onNavigate}
+                    loading={loading}
+                />
+
+                {/* 3. Quick Action Chips */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                        type="button"
+                        onClick={() => onNavigate?.('students')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
+                    >
+                        <UserPlus size={14} className="text-brand-500" />
+                        <span>+ Student</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onNavigate?.('enrollments')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
+                    >
+                        <Plus size={14} className="text-brand-500" />
+                        <span>+ Enroll</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onNavigate?.('enrollments')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
+                    >
+                        <GraduationCap size={14} className="text-brand-500" />
+                        <span>Board</span>
+                    </button>
+                </div>
+
+                {/* 4. Needs Attention: Expired Invites */}
+                <ExpiredInvitesCard
+                    items={expiredInvites}
+                    onNavigate={onNavigate}
+                    onOpenStudentDetail={onOpenStudentDetail}
+                />
+
+                {/* 5. Upcoming Cohorts */}
+                <UpcomingCohortsCard
+                    cohorts={upcomingCohorts}
+                    onNavigate={onNavigate}
+                />
+
+                {/* 6. Activity Stream */}
+                <DashboardActivityFeed
+                    groupedActivity={groupedActivity}
+                    activityFilter={activityFilter}
+                    setActivityFilter={setActivityFilter}
+                    filterCounts={filterCounts}
+                    onNavigate={onNavigate}
+                    onOpenStudentDetail={onOpenStudentDetail}
+                    loading={loading}
+                />
             </div>
 
-            {/* Right Column: Quick Actions + Enrollment Status (Col-span 1) */}
-            <div className="lg:col-span-1 flex flex-col gap-4 sm:gap-6 min-h-0">
-                {/* Quick Actions */}
-                <BentoCard
-                    glowColor="oklch(var(--accent-primary) / 0.12)"
-                    className="p-4 sm:p-5 flex-shrink-0"
-                >
-                    <div className="flex flex-col justify-between h-full">
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+            {/* Desktop View (1024px+) */}
+            <div className="hidden lg:grid lg:grid-cols-12 gap-6">
+                {/* Top Row: Operational KPIs */}
+                <div className="lg:col-span-12">
+                    <DashboardKPIs
+                        stats={stats}
+                        statusCounts={statusCounts}
+                        onNavigate={onNavigate}
+                        loading={loading}
+                    />
+                </div>
+
+                {/* Left Column (8 cols): Upcoming Cohorts & Activity Feed */}
+                <div className="lg:col-span-8 space-y-6">
+                    <UpcomingCohortsCard
+                        cohorts={upcomingCohorts}
+                        onNavigate={onNavigate}
+                    />
+                    <DashboardActivityFeed
+                        groupedActivity={groupedActivity}
+                        activityFilter={activityFilter}
+                        setActivityFilter={setActivityFilter}
+                        filterCounts={filterCounts}
+                        onNavigate={onNavigate}
+                        onOpenStudentDetail={onOpenStudentDetail}
+                        loading={loading}
+                    />
+                </div>
+
+                {/* Right Column (4 cols): Registration Card, Expired Invites, Quick Actions, Status Breakdown */}
+                <div className="lg:col-span-4 space-y-6">
+                    <RegistrationLinkCard variant="card" />
+
+                    <ExpiredInvitesCard
+                        items={expiredInvites}
+                        onNavigate={onNavigate}
+                        onOpenStudentDetail={onOpenStudentDetail}
+                    />
+
+                    {/* Quick Actions Card */}
+                    <div className="p-4 rounded-2xl bg-surface border border-border-subtle shadow-card">
+                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
                             <Sparkles size={14} className="text-brand-500" /> Quick Actions
                         </h3>
-                        <div className="flex flex-col gap-2.5 sm:gap-3">
+                        <div className="grid grid-cols-2 gap-2">
                             <button
+                                type="button"
                                 onClick={() => onNavigate?.('students')}
-                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
-                                <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
-                                    <Plus size={16} />
+                                <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+                                    <UserPlus size={14} />
                                 </div>
-                                <div className="text-left">
-                                    <span className="block font-semibold group-hover/action:text-brand-500 transition-colors duration-500 ease-spring">Add Student</span>
-                                    <span className="text-xs text-muted">Create new record</span>
+                                <div className="min-w-0">
+                                    <span className="block text-xs font-semibold text-primary group-hover:text-brand-500 transition-colors">+ Student</span>
+                                    <span className="block text-[10px] text-muted truncate">New record</span>
                                 </div>
-                                <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover/action:opacity-100 group-hover/action:translate-x-0.5 group-hover/action:-translate-y-0.5 transition-all duration-500 ease-spring" />
                             </button>
                             <button
+                                type="button"
                                 onClick={() => onNavigate?.('courses')}
-                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
-                                <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
-                                    <BookOpen size={16} />
+                                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-600 group-hover:bg-violet-500 group-hover:text-white transition-colors">
+                                    <BookOpen size={14} />
                                 </div>
-                                <div className="text-left">
-                                    <span className="block font-semibold group-hover/action:text-brand-500 transition-colors duration-500 ease-spring">Manage Courses</span>
-                                    <span className="text-xs text-muted">View catalog</span>
+                                <div className="min-w-0">
+                                    <span className="block text-xs font-semibold text-primary group-hover:text-violet-600 transition-colors">+ Course</span>
+                                    <span className="block text-[10px] text-muted truncate">Manage catalog</span>
                                 </div>
-                                <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover/action:opacity-100 group-hover/action:translate-x-0.5 group-hover/action:-translate-y-0.5 transition-all duration-500 ease-spring" />
                             </button>
                             <button
+                                type="button"
                                 onClick={() => onNavigate?.('enrollments')}
-                                className="flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-3 text-sm font-medium text-primary bg-surface-elevated hover:bg-background/80 rounded-xl border border-border-subtle hover:border-brand-500/30 transition-all duration-500 ease-spring group/action hover:scale-[1.02] active:scale-[0.98] hover:shadow-glow-sm"
+                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
-                                <div className="p-2 bg-brand-500/10 text-brand-500 dark:text-brand-400 rounded-lg shadow-sm group-hover/action:bg-brand-500 group-hover/action:text-white transition-all duration-500 ease-spring">
-                                    <UserPlus size={16} />
+                                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                    <Plus size={14} />
                                 </div>
-                                <div className="text-left">
-                                    <span className="block font-semibold group-hover/action:text-brand-500 transition-colors duration-500 ease-spring">New Enrollment</span>
-                                    <span className="text-xs text-muted">Enroll student</span>
+                                <div className="min-w-0">
+                                    <span className="block text-xs font-semibold text-primary group-hover:text-emerald-600 transition-colors">+ Enroll</span>
+                                    <span className="block text-[10px] text-muted truncate">New registration</span>
                                 </div>
-                                <ArrowUpRight size={14} className="ml-auto text-muted opacity-0 group-hover/action:opacity-100 group-hover/action:translate-x-0.5 group-hover/action:-translate-y-0.5 transition-all duration-500 ease-spring" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onNavigate?.('enrollments')}
+                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
+                            >
+                                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                                    <GraduationCap size={14} />
+                                </div>
+                                <div className="min-w-0">
+                                    <span className="block text-xs font-semibold text-primary group-hover:text-amber-600 transition-colors">Open Kanban</span>
+                                    <span className="block text-[10px] text-muted truncate">Board view</span>
+                                </div>
                             </button>
                         </div>
-
-                        {/* Google Form Link */}
-                        <GoogleFormButton />
                     </div>
-                </BentoCard>
 
-                {/* Enrollment Status */}
-                <BentoCard
-                    glowColor="oklch(var(--accent-primary) / 0.1)"
-                    className="p-4 sm:p-5 flex-shrink-0"
-                >
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <TrendingUp size={14} className="text-brand-500" /> Enrollment Status
-                    </h3>
-                    {loading ? (
-                        <SkeletonStatusBreakdown />
-                    ) : totalStatus === 0 ? (
-                        <div className="text-center py-6 flex flex-col justify-center items-center">
-                            <GraduationCap size={36} className="mx-auto mb-2 text-muted/50" />
-                            <p className="text-sm text-muted">No enrollments yet</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col gap-2.5 sm:gap-3">
-                            {/* Stacked bar — no padding/wrapper, just overflow:hidden on the container */}
-                            <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
-                                {statusItems.map(s => {
-                                    const count = statusBreakdown[s.key] || 0;
-                                    if (count === 0) return null;
-                                    return (
-                                        <div
-                                            key={s.key}
-                                            className={`${s.color} h-full transition-all duration-700 ease-spring cursor-default`}
-                                            style={{ width: `${(count / totalStatus) * 100}%` }}
-                                            title={`${s.label}: ${count} (${Math.round(count / totalStatus * 100)}%)`}
-                                        />
-                                    );
-                                })}
-                            </div>
-                            {/* Rows */}
-                            <div className="flex flex-col">
-                                {statusItems.map(s => {
-                                    const count = statusBreakdown[s.key] || 0;
-                                    const pct = totalStatus > 0 ? Math.round((count / totalStatus) * 100) : 0;
-                                    return (
-                                        <div key={s.key} className="flex items-center gap-2.5 px-2 py-1 sm:py-[7px] rounded-lg hover:bg-surface-elevated/60 transition-colors duration-200">
-                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.color}`} />
-                                            <span className="text-[12px] text-muted font-medium w-[68px] flex-shrink-0">{s.label}</span>
-                                            <div className="flex-1 h-[5px] bg-border-subtle/25 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full ${s.color} rounded-full transition-all duration-700 ease-spring`}
-                                                    style={{ width: `${pct}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-[12px] font-mono font-bold text-primary w-10 text-right flex-shrink-0">{count}</span>
-                                            <span className="text-[11px] text-muted/55 w-8 text-right flex-shrink-0">{pct}%</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </BentoCard>
+                    {/* Status Breakdown */}
+                    <StatusBreakdownCard
+                        statusBreakdown={statusBreakdown}
+                        loading={loading}
+                        onNavigate={onNavigate}
+                    />
+                </div>
             </div>
         </div>
     );

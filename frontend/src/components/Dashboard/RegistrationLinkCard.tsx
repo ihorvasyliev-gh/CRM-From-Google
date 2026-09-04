@@ -5,10 +5,12 @@ export const GOOGLE_FORM_URL = 'https://forms.gle/9U4DsSe5UYnsakJZ8';
 
 interface RegistrationLinkCardProps {
     compact?: boolean;
+    variant?: 'compact' | 'card';
 }
 
-export default function RegistrationLinkCard({ compact = false }: RegistrationLinkCardProps): JSX.Element {
+export default function RegistrationLinkCard({ compact = false, variant }: RegistrationLinkCardProps): JSX.Element {
     const [copied, setCopied] = useState(false);
+    const isCompact = compact || variant === 'compact';
 
     const handleCopy = () => {
         navigator.clipboard.writeText(GOOGLE_FORM_URL).then(() => {
@@ -17,7 +19,7 @@ export default function RegistrationLinkCard({ compact = false }: RegistrationLi
         });
     };
 
-    if (compact) {
+    if (isCompact) {
         return (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-500/25 shadow-xs">
                 <div className="flex items-center gap-2 min-w-0">

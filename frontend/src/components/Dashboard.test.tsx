@@ -85,7 +85,7 @@ describe('Dashboard Activity Grouping Logic', () => {
     });
 });
 
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './Dashboard';
 import { vi } from 'vitest';
@@ -120,6 +120,16 @@ vi.mock('../hooks/useEnrollments', () => ({
             students: { id: 'stu-2', first_name: 'Bob', last_name: 'Builder' },
             courses: { id: 'crs-2', name: 'Manual Handling' },
         },
+        {
+            id: 'enr-3',
+            student_id: 'stu-3',
+            course_id: 'crs-3',
+            status: 'confirmed',
+            confirmed_date: '2026-09-12',
+            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            students: { id: 'stu-3', first_name: 'Alice', last_name: 'Wonder' },
+            courses: { id: 'crs-3', name: 'First Aid' },
+        },
     ]),
 }));
 
@@ -140,14 +150,13 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         );
     };
 
-
     it('allows clicking student name in activity feed to view student details', async () => {
         const mockOpenDetail = vi.fn();
         renderDashboard({ onOpenStudentDetail: mockOpenDetail });
 
-        const studentBtn = await screen.findByRole('button', { name: /Jane Smith/i });
-        expect(studentBtn).toBeInTheDocument();
-        fireEvent.click(studentBtn);
+        const studentBtns = await screen.findAllByRole('button', { name: /Jane Smith/i }, { timeout: 4000 });
+        expect(studentBtns.length).toBeGreaterThan(0);
+        fireEvent.click(studentBtns[0]);
         expect(mockOpenDetail).toHaveBeenCalledWith('stu-1');
     });
 
@@ -155,9 +164,62 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         const mockNavigate = vi.fn();
         renderDashboard({ onNavigate: mockNavigate });
 
-        const courseBtn = await screen.findByRole('button', { name: /SafePass/i });
-        expect(courseBtn).toBeInTheDocument();
-        fireEvent.click(courseBtn);
+        const courseBtns = await screen.findAllByRole('button', { name: /SafePass/i }, { timeout: 4000 });
+        expect(courseBtns.length).toBeGreaterThan(0);
+        fireEvent.click(courseBtns[0]);
         expect(mockNavigate).toHaveBeenCalledWith('enrollments', { courseId: 'crs-1' });
     });
+
+    it('renders all assembled sections: KPIs, registration links, expired invites, upcoming cohorts, quick actions, status breakdown', async () => {
+        renderDashboard();
+
+        // Operational KPIs
+        const totalStudents = await screen.findAllByText(/Total Students/i, {}, { timeout: 4000 });
+        expect(totalStudents.length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/New Requests/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Pending Invites/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Confirmed/i).length).toBeGreaterThan(0);
+
+        // Expired Invites card
+        const expiredHeaders = await screen.findAllByText(/Expired Invites/i, {}, { timeout: 4000 });
+        expect(expiredHeaders.length).toBeGreaterThan(0);
+
+        // Upcoming Cohorts card
+        const cohortHeaders = await screen.findAllByText(/Upcoming Cohorts by Date/i, {}, { timeout: 4000 });
+        expect(cohortHeaders.length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/First Aid/i).length).toBeGreaterThan(0);
+
+        // Status Breakdown
+        expect(screen.getAllByText(/Enrollment Status/i).length).toBeGreaterThan(0);
+
+        // Registration form link
+        expect(screen.getAllByText(/Registration Form/i).length).toBeGreaterThan(0);
+    });
+
+    it('handles clicking upcoming cohort to navigate to enrollments with courseId and courseDate', async () => {
+        const mockNavigate = vi.fn();
+        renderDashboard({ onNavigate: mockNavigate });
+
+        const cohortBtns = await screen.findAllByRole('button', { name: /First Aid/i }, { timeout: 4000 });
+        expect(cohortBtns.length).toBeGreaterThan(0);
+        fireEvent.click(cohortBtns[0]);
+
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments', {
+            courseId: 'crs-3',
+            courseDate: '2026-09-12',
+        });
+    });
+
+    it('handles clicking KPI cards to navigate to enrollments with status filter', async () => {
+        const mockNavigate = vi.fn();
+        renderDashboard({ onNavigate: mockNavigate });
+
+        const requestsKpis = await screen.findAllByRole('button', { name: /New Requests/i }, { timeout: 4000 });
+        expect(requestsKpis.length).toBeGreaterThan(0);
+        await waitFor(() => expect(requestsKpis[0]).not.toBeDisabled(), { timeout: 4000 });
+        fireEvent.click(requestsKpis[0]);
+
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments', { status: 'requested' });
+    });
 });
+
