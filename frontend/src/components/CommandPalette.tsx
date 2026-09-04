@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Student, Course, getAvatarGradient } from '../lib/types';
 import { matchesSearch } from '../lib/searchUtils';
@@ -59,6 +60,13 @@ export default function CommandPalette({
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
+    let queryClient: ReturnType<typeof useQueryClient> | null = null;
+    try {
+        queryClient = useQueryClient();
+    } catch {
+        // Outside QueryClientProvider (e.g. lightweight unit tests)
+    }
+
     // Reset query & focus input on open
     useEffect(() => {
         if (open) {
@@ -68,22 +76,42 @@ export default function CommandPalette({
         }
     }, [open]);
 
-    // Load initial courses and recent students
+    // Load initial courses and recent students with instant cache pre-fill
     useEffect(() => {
         if (!open) return;
 
         let isMounted = true;
-        const fetchData = async () => {
-            setLoadingData(true);
-            try {
-                const [coursesRes, studentsRes] = await Promise.all([
-                    supabase.from('courses').select('*').order('name').limit(50),
-                    supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30),
-                ]);
+        const cachedCourses = queryClient?.getQueryData<Course[]>(['courses']);
+        if (cachedCourses && cachedCourses.length > 0) {
+            setCourses(cachedCourses);
+        }
 
+        const fetchData = async () => {
+            const needsCourses = !cachedCourses || cachedCourses.length === 0;
+            if (needsCourses) {
+                setLoadingData(true);
+            }
+            try {
+                const promises: Promise<any>[] = [];
+                if (needsCourses) {
+                    promises.push(supabase.from('courses').select('*').order('name').limit(50));
+                }
+                promises.push(supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30));
+
+                const results = await Promise.all(promises);
                 if (isMounted) {
-                    if (coursesRes.data) setCourses(coursesRes.data as Course[]);
-                    if (studentsRes.data) setStudents(studentsRes.data as Student[]);
+                    let studentsData = null;
+                    if (needsCourses) {
+                        const coursesRes = results[0];
+                        studentsData = results[1]?.data;
+                        if (coursesRes?.data) {
+                            setCourses(coursesRes.data as Course[]);
+                            queryClient?.setQueryData(['courses'], coursesRes.data);
+                        }
+                    } else {
+                        studentsData = results[0]?.data;
+                    }
+                    if (studentsData) setStudents(studentsData as Student[]);
                 }
             } catch (err) {
                 console.error('Error fetching data for CommandPalette:', err);
@@ -96,7 +124,7 @@ export default function CommandPalette({
         return () => {
             isMounted = false;
         };
-    }, [open]);
+    }, [open, queryClient]);
 
     // Debounced student search when user types a specific query
     useEffect(() => {
