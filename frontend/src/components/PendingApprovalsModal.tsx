@@ -124,7 +124,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
     return (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-            <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp">
+            <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleIn">
                 {/* Header */}
                 <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0 bg-surface-elevated/40">
                     <div className="flex items-center gap-3">
@@ -307,7 +307,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
             {/* Rejection Prompt Modal */}
             {rejectionTargetId && (
                 <div className="fixed inset-0 z-60 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-                    <div className="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3 animate-scaleUp">
+                    <div className="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3 animate-scaleIn">
                         <div className="flex items-center gap-2.5 text-red-500">
                             <AlertCircle size={20} />
                             <h3 className="font-bold text-sm text-primary">Reject Completion Request</h3>

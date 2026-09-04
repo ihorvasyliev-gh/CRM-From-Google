@@ -366,7 +366,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end overflow-hidden animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
                 {/* Mobile pull handle */}

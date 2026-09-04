@@ -34,7 +34,7 @@ export default function BulkActionBar({
 
     return (
         <>
-        <div className="fixed bottom-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 animate-slideUp">
+        <div className="fixed bottom-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 animate-slideUpCenter">
             
             {showList && (
                 <div className="bg-surface-elevated border border-border-subtle rounded-xl shadow-float w-72 max-h-64 flex flex-col overflow-hidden animate-slideUp">

@@ -857,7 +857,7 @@ export default function ViewerCourses() {
                 {/* Date Selection Modal */}
                 {dateModalOpen && (
                     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-                        <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-md w-full p-6 space-y-4 animate-scaleUp">
+                        <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-md w-full p-6 space-y-4 animate-scaleIn">
                             <div className="flex items-center gap-3">
                                 <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
                                     <GraduationCap size={24} />

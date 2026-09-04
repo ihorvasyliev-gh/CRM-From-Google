@@ -701,7 +701,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
             {/* п.11: Undo-toast for dangerous drag-and-drop */}
             {undoData && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] animate-slideUp">
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] animate-slideUpCenter">
                     <div className="glass-dark rounded-2xl shadow-float px-4 py-3 flex items-center gap-3 min-w-[280px]">
                         <div className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
                         <p className="text-sm text-white/90 flex-1">
