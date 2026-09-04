@@ -737,7 +737,6 @@ const EnrollmentCard = function EnrollmentCard({
                                 }}
                                 onClick={e => e.stopPropagation()}
                                 onPointerDown={e => e.stopPropagation()}
-                                touchStart={undefined}
                                 className={`w-44 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
                             >
                                 <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">

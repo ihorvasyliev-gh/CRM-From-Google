@@ -116,7 +116,7 @@ describe('useBulkActions Undo System', () => {
         // Retrieve the undo callback
         const toastCall = mockShowToast.mock.calls.find(call => call[0].includes('2 enrollment(s) → rejected'));
         expect(toastCall).toBeDefined();
-        const undoAction = toastCall[2].action;
+        const undoAction = toastCall![2].action;
 
         // Trigger Undo
         await act(async () => {
