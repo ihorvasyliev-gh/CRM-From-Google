@@ -8,6 +8,8 @@ import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatDateLong } from '../../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
+import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
+import { useNowMinute } from '../../hooks/useNow';
 
 interface EnrollmentCardProps {
     enrollment: EnrollmentRow;
@@ -66,40 +68,15 @@ const EnrollmentCard = function EnrollmentCard({
     onShowDetail,
     onMoveStatus
 }: EnrollmentCardProps) {
-    const [now, setNow] = useState(() => Date.now());
+    const now = useNowMinute(status === 'invited');
+    const isMobile = useIsMobile();
+    const isSmallScreen = useIsSmallScreen();
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
-    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
-    const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 640 : false);
     const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
-    
-    useEffect(() => {
-        if (status === 'invited') {
-            const interval = setInterval(() => setNow(Date.now()), 60000);
-            return () => clearInterval(interval);
-        }
-    }, [status]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.matchMedia) return;
-        const media = window.matchMedia('(max-width: 1023px)');
-        setIsMobile(media.matches);
-        const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-        media.addEventListener('change', listener);
-        return () => media.removeEventListener('change', listener);
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.matchMedia) return;
-        const media = window.matchMedia('(max-width: 639px)');
-        setIsSmallScreen(media.matches);
-        const listener = (e: MediaQueryListEvent) => setIsSmallScreen(e.matches);
-        media.addEventListener('change', listener);
-        return () => media.removeEventListener('change', listener);
-    }, []);
 
     useEffect(() => {
         if (!showQuickMove) return;
