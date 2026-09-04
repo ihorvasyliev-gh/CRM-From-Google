@@ -129,7 +129,7 @@ export default function ConfirmationPage() {
         e.preventDefault();
 
         // BUG-6 FIX: Validate email format before sending RPC
-        const trimmedEmail = email.trim();
+        const trimmedEmail = email.trim().toLowerCase();
         if (!trimmedEmail || !trimmedEmail.includes('@')) {
             setInlineError('Please enter a valid email address.');
             return;
@@ -343,13 +343,21 @@ export default function ConfirmationPage() {
                             <p className="text-zinc-400 text-sm leading-relaxed">
                                 Could not load course information. Please check your internet connection and try again.
                             </p>
-                            <button
-                                onClick={handleRetry}
-                                className="mt-2 flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation"
-                            >
-                                <RefreshCw size={18} />
-                                Try Again
-                            </button>
+                            <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+                                <button
+                                    onClick={handleRetry}
+                                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation"
+                                >
+                                    <RefreshCw size={18} />
+                                    Try Again
+                                </button>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="flex items-center gap-2 px-5 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold rounded-xl transition-all active:scale-[0.98] touch-manipulation"
+                                >
+                                    Reload Page
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -398,10 +406,15 @@ export default function ConfirmationPage() {
                                         <Mail size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-zinc-600' : 'text-zinc-500'}`} />
                                         <input
                                             type="email"
+                                            inputMode="email"
+                                            autoComplete="email"
+                                            autoCapitalize="none"
+                                            spellCheck={false}
                                             required
                                             value={email}
                                             disabled={isSubmitting}
-                                            onChange={(e) => setEmail(e.target.value)}
+                                            onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                                            onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                             placeholder="Enter the email you registered with"
                                             className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                                         />
@@ -412,9 +425,18 @@ export default function ConfirmationPage() {
                                 </div>
 
                                 {inlineError && (
-                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
-                                        <AlertCircle size={16} className="shrink-0" />
-                                        <p>{inlineError}</p>
+                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center justify-between gap-3 animate-fadeIn">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <AlertCircle size={16} className="shrink-0" />
+                                            <p className="break-words">{inlineError}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleSubmit}
+                                            className="text-xs font-semibold underline text-red-300 hover:text-white shrink-0 ml-2 touch-manipulation"
+                                        >
+                                            Retry
+                                        </button>
                                     </div>
                                 )}
 
