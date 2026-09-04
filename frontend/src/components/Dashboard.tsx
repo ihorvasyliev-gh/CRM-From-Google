@@ -37,6 +37,8 @@ function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; d
     };
 }
 
+const VALID_FILTERS: ActivityFilter[] = ['all', 'requested', 'invited', 'confirmed', 'completed'];
+
 export default function Dashboard({
     onNavigate,
     onOpenStudentDetail,
@@ -44,7 +46,8 @@ export default function Dashboard({
     onOpenApprovals,
 }: DashboardProps) {
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
-        return (localStorage.getItem('dashboardActivityFilter') as ActivityFilter) || 'all';
+        const stored = localStorage.getItem('dashboardActivityFilter') as ActivityFilter;
+        return stored && VALID_FILTERS.includes(stored) ? stored : 'all';
     });
 
     useEffect(() => {
