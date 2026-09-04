@@ -84,3 +84,111 @@ describe('Dashboard Activity Grouping Logic', () => {
         });
     });
 });
+
+import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Dashboard from './Dashboard';
+import { vi } from 'vitest';
+
+vi.mock('../lib/supabase', () => ({
+    supabase: {
+        from: vi.fn(() => ({
+            select: vi.fn().mockResolvedValue({ count: 5 }),
+        })),
+    },
+}));
+
+vi.mock('../hooks/useEnrollments', () => ({
+    fetchAllEnrollments: vi.fn().mockResolvedValue([
+        {
+            id: 'enr-1',
+            student_id: 'stu-1',
+            course_id: 'crs-1',
+            status: 'invited',
+            invited_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), // 6 days ago with 7 days limit = 24h left
+            response_days: 7,
+            created_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+            students: { id: 'stu-1', first_name: 'Jane', last_name: 'Smith' },
+            courses: { id: 'crs-1', name: 'SafePass' },
+        },
+        {
+            id: 'enr-2',
+            student_id: 'stu-2',
+            course_id: 'crs-2',
+            status: 'requested',
+            created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago = stale
+            students: { id: 'stu-2', first_name: 'Bob', last_name: 'Builder' },
+            courses: { id: 'crs-2', name: 'Manual Handling' },
+        },
+    ]),
+}));
+
+describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
+    let queryClient: QueryClient;
+
+    beforeEach(() => {
+        queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+    });
+
+    const renderDashboard = (props: any = {}) => {
+        return render(
+            <QueryClientProvider client={queryClient}>
+                <Dashboard {...props} />
+            </QueryClientProvider>
+        );
+    };
+
+    it('renders Needs Attention widget with expiring invites and stale requests', async () => {
+        const mockNavigate = vi.fn();
+        const mockOpenApprovals = vi.fn();
+
+        renderDashboard({
+            onNavigate: mockNavigate,
+            onOpenApprovals: mockOpenApprovals,
+            pendingApprovalsCount: 2,
+        });
+
+        // Widget header
+        expect(await screen.findByText(/Needs Attention/i)).toBeInTheDocument();
+
+        // Check expiring invites row
+        const expiringBtn = await screen.findByRole('button', { name: /1 Expiring Invite/i });
+        expect(expiringBtn).toBeInTheDocument();
+        fireEvent.click(expiringBtn);
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments');
+
+        // Check stale requests row
+        const staleBtn = await screen.findByRole('button', { name: /1 Stale Request/i });
+        expect(staleBtn).toBeInTheDocument();
+        fireEvent.click(staleBtn);
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments');
+
+        // Check pending approvals row
+        const approvalsBtn = await screen.findByRole('button', { name: /2 Course Completion Approvals/i });
+        expect(approvalsBtn).toBeInTheDocument();
+        fireEvent.click(approvalsBtn);
+        expect(mockOpenApprovals).toHaveBeenCalled();
+    });
+
+    it('allows clicking student name in activity feed to view student details', async () => {
+        const mockOpenDetail = vi.fn();
+        renderDashboard({ onOpenStudentDetail: mockOpenDetail });
+
+        const studentBtn = await screen.findByRole('button', { name: /Jane Smith/i });
+        expect(studentBtn).toBeInTheDocument();
+        fireEvent.click(studentBtn);
+        expect(mockOpenDetail).toHaveBeenCalledWith('stu-1');
+    });
+
+    it('allows clicking course pill in activity feed to filter board by that course', async () => {
+        const mockNavigate = vi.fn();
+        renderDashboard({ onNavigate: mockNavigate });
+
+        const courseBtn = await screen.findByRole('button', { name: /SafePass/i });
+        expect(courseBtn).toBeInTheDocument();
+        fireEvent.click(courseBtn);
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments', { courseId: 'crs-1' });
+    });
+});

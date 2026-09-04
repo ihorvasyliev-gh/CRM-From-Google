@@ -350,6 +350,17 @@ function App() {
         });
     }, [navigateFn]);
 
+    const handleOpenStudentDetail = useCallback(async (studentId: string) => {
+        try {
+            const { data, error } = await supabase.from('students').select('*').eq('id', studentId).single();
+            if (!error && data) {
+                setGlobalStudentDetail(data);
+            }
+        } catch (e) {
+            console.error('Failed to load student details', e);
+        }
+    }, []);
+
     // Global Keyboard Shortcuts Listener
     useEffect(() => {
         if (!user) return;
@@ -881,7 +892,17 @@ function App() {
                                 ) : (
                                     <>
                                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                                        <Route path="/dashboard" element={<Dashboard onNavigate={navigate} />} />
+                                        <Route
+                                            path="/dashboard"
+                                            element={
+                                                <Dashboard
+                                                    onNavigate={handleNavigate}
+                                                    onOpenStudentDetail={handleOpenStudentDetail}
+                                                    pendingApprovalsCount={pendingApprovalsCount}
+                                                    onOpenApprovals={() => setApprovalsModalOpen(true)}
+                                                />
+                                            }
+                                        />
                                         <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
                                         <Route path="/courses" element={<CourseList />} />
                                         <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} />} />

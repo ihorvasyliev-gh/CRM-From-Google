@@ -1,12 +1,15 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, Copy, Check, ExternalLink } from 'lucide-react';
+import { Users, BookOpen, GraduationCap, Plus, UserPlus, Clock, TrendingUp, ArrowUpRight, Sparkles, Filter, Copy, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { cleanVariant } from '../lib/types';
 
 interface DashboardProps {
-    onNavigate?: (tab: string) => void;
+    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
+    onOpenStudentDetail?: (studentId: string) => void;
+    pendingApprovalsCount?: number;
+    onOpenApprovals?: () => void;
 }
 
 interface GroupedActivity {
@@ -18,12 +21,14 @@ interface GroupedActivity {
     isNew?: boolean;            // true if this is the student's first ever registration day
     enrollments: {
         id: string;
+        courseId?: string;
         courseName: string;
         courseVariant: string | null;
         status: string;
     }[];
     previousEnrollments: {
         id: string;
+        courseId?: string;
         courseName: string;
         courseVariant: string | null;
         status: string;
@@ -246,7 +251,7 @@ const ACTIVITY_FILTERS: { key: ActivityFilter; label: string }[] = [
     { key: 'completed', label: 'Completed' },
 ];
 
-export default function Dashboard({ onNavigate }: DashboardProps) {
+export default function Dashboard({ onNavigate, onOpenStudentDetail, pendingApprovalsCount = 0, onOpenApprovals }: DashboardProps) {
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
         return (localStorage.getItem('dashboardActivityFilter') as ActivityFilter) || 'all';
     });
@@ -287,6 +292,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         return breakdown;
     }, [allEnrollments]);
 
+    // Attention required metrics (Expiring Invites, Stale Requests)
+    const nowMs = Date.now();
+    const expiringInvites = useMemo(() => {
+        return allEnrollments.filter(e => {
+            if (e.status !== 'invited' || !e.invited_at) return false;
+            const days = e.response_days ?? 7;
+            const deadline = new Date(e.invited_at).getTime() + days * 24 * 60 * 60 * 1000;
+            const remainingHours = (deadline - nowMs) / (1000 * 60 * 60);
+            return remainingHours <= 48;
+        });
+    }, [allEnrollments, nowMs]);
+
+    const staleRequests = useMemo(() => {
+        return allEnrollments.filter(e => {
+            if (e.status !== 'requested' || !e.created_at) return false;
+            const ageDays = (nowMs - new Date(e.created_at).getTime()) / (1000 * 60 * 60 * 24);
+            return ageDays >= 7;
+        });
+    }, [allEnrollments, nowMs]);
+
+    const totalAttentionCount = expiringInvites.length + staleRequests.length + pendingApprovalsCount;
+
     const loading = statsLoading || enrollmentsLoading;
 
     // Build flat list of enrollments based on filter with fast numeric timestamp sorting
@@ -296,6 +323,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             return {
                 id: en.id,
                 student_id: en.student_id,
+                course_id: en.course_id,
                 status: en.status,
                 created_at: en.created_at,
                 timestamp: isNaN(time) ? 0 : time,
@@ -357,6 +385,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             const group = groupMap.get(groupKey)!;
             group.enrollments.push({
                 id: en.id,
+                courseId: en.course_id,
                 courseName: en.courses?.name || 'Unknown Course',
                 courseVariant: en.course_variant,
                 status: en.status,
@@ -387,6 +416,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 dateLabel: string; 
                 enrollments: {
                     id: string;
+                    courseId?: string;
                     courseName: string;
                     courseVariant: string | null;
                     status: string;
@@ -408,6 +438,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 const dayData = otherDaysMap.get(dateKey)!;
                 dayData.enrollments.push({
                     id: en.id,
+                    courseId: en.course_id,
                     courseName,
                     courseVariant: en.course_variant,
                     status: en.status
@@ -436,6 +467,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     const first = ens[0];
                     return {
                         id: first.id,
+                        courseId: first.courseId,
                         courseName,
                         courseVariant: variants.length > 0 ? variants.join(', ') : null,
                         status,
@@ -458,6 +490,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 for (const en of groupedOtherEnrollments) {
                     group.previousEnrollments.push({
                         id: en.id,
+                        courseId: en.courseId,
                         courseName: en.courseName,
                         courseVariant: en.courseVariant,
                         status: en.status,
@@ -486,6 +519,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 const first = ens[0];
                 return {
                     id: first.id,
+                    courseId: first.courseId,
                     courseName,
                     courseVariant: variants.length > 0 ? variants.join(', ') : null,
                     status,
@@ -687,9 +721,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                         >
                                             {/* Left Column: Student Info */}
                                             <div className="flex flex-row items-center gap-2 w-full lg:flex-col lg:items-start lg:gap-1.5 lg:w-1/4 lg:min-w-[160px] lg:max-w-[240px] flex-shrink-0 pt-0.5">
-                                                <span className="text-[13px] font-semibold text-primary truncate tracking-tight leading-tight">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onOpenStudentDetail?.(group.studentId)}
+                                                    className="text-[13px] font-semibold text-primary hover:text-brand-500 hover:underline truncate tracking-tight leading-tight text-left cursor-pointer transition-colors"
+                                                    title={`View details for ${group.studentName}`}
+                                                >
                                                     {group.studentName}
-                                                </span>
+                                                </button>
                                                 {group.isNew && (
                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
                                                         NEW
@@ -727,24 +766,33 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                                         {/* Event Badges */}
                                                         <div className="flex flex-wrap gap-1.5 items-center flex-1 min-w-0">
                                                             {event.enrollments.map((en) => (
-                                                                <span
+                                                                <button
+                                                                    type="button"
                                                                     key={en.id}
+                                                                    onClick={() => {
+                                                                        if (en.courseId) {
+                                                                            onNavigate?.('enrollments', { courseId: en.courseId });
+                                                                        } else {
+                                                                            onNavigate?.('enrollments');
+                                                                        }
+                                                                    }}
                                                                     className={`status-pill-${en.status} inline-flex items-center gap-1.5 ${
                                                                         event.isCurrent
                                                                             ? 'text-[11px] px-2.5 py-0.5 rounded-full font-semibold shadow-sm'
                                                                             : 'text-[10px] px-1.5 py-0.25 rounded-md font-medium'
-                                                                    } whitespace-nowrap`}
+                                                                    } whitespace-nowrap hover:ring-1 hover:ring-brand-500/50 hover:scale-[1.03] active:scale-95 transition-all cursor-pointer`}
+                                                                    title={`Filter board by ${en.courseName}`}
                                                                 >
                                                                     <span
                                                                         className={`${
                                                                             event.isCurrent ? 'w-1.5 h-1.5' : 'w-1 h-1'
                                                                         } rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`}
                                                                     />
-                                                                    {en.courseName}
+                                                                    <span>{en.courseName}</span>
                                                                     {en.courseVariant && (
                                                                         <span className="opacity-75 font-normal"> ({en.courseVariant})</span>
                                                                     )}
-                                                                </span>
+                                                                </button>
                                                             ))}
                                                         </div>
                                                     </div>
@@ -759,8 +807,97 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 </BentoCard>
             </div>
 
-            {/* Right Column: Quick Actions + Enrollment Status (Col-span 1) */}
+            {/* Right Column: Needs Attention + Quick Actions + Enrollment Status (Col-span 1) */}
             <div className="lg:col-span-1 flex flex-col gap-4 sm:gap-6 min-h-0">
+                {/* Needs Attention / Action Required Widget */}
+                <BentoCard
+                    glowColor={totalAttentionCount > 0 ? 'rgba(245, 158, 11, 0.15)' : 'oklch(var(--accent-primary) / 0.1)'}
+                    className="p-4 sm:p-5 flex-shrink-0 border-amber-500/20"
+                    accentGradient={totalAttentionCount > 0 ? 'from-amber-500 to-orange-500' : undefined}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
+                            <AlertTriangle size={14} className={totalAttentionCount > 0 ? 'text-amber-500 animate-pulse' : 'text-emerald-500'} />
+                            Needs Attention
+                        </h3>
+                        {totalAttentionCount > 0 ? (
+                            <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                {totalAttentionCount} action{totalAttentionCount > 1 ? 's' : ''}
+                            </span>
+                        ) : (
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Check size={11} /> All caught up
+                            </span>
+                        )}
+                    </div>
+
+                    {totalAttentionCount > 0 ? (
+                        <div className="space-y-2">
+                            {expiringInvites.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigate?.('enrollments')}
+                                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/25 transition-all text-left group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="text-amber-500 font-bold">⚠️</span>
+                                        <div>
+                                            <p className="text-xs font-semibold text-primary group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                                                {expiringInvites.length} Expiring Invite{expiringInvites.length > 1 ? 's' : ''}
+                                            </p>
+                                            <p className="text-[10px] text-muted">&lt;48h response window left</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight size={13} className="text-muted group-hover:text-amber-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                                </button>
+                            )}
+
+                            {staleRequests.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigate?.('enrollments')}
+                                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/25 transition-all text-left group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="text-rose-500 font-bold">⏳</span>
+                                        <div>
+                                            <p className="text-xs font-semibold text-primary group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                                                {staleRequests.length} Stale Request{staleRequests.length > 1 ? 's' : ''}
+                                            </p>
+                                            <p className="text-[10px] text-muted">Waiting &gt;7 days for review</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight size={13} className="text-muted group-hover:text-rose-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                                </button>
+                            )}
+
+                            {Boolean(pendingApprovalsCount && pendingApprovalsCount > 0) && (
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenApprovals?.()}
+                                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/15 border border-violet-500/25 transition-all text-left group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="text-violet-500 font-bold">📝</span>
+                                        <div>
+                                            <p className="text-xs font-semibold text-primary group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                                                {pendingApprovalsCount} Course Completion Approval{pendingApprovalsCount > 1 ? 's' : ''}
+                                            </p>
+                                            <p className="text-[10px] text-muted">Pending admin sign-off</p>
+                                        </div>
+                                    </div>
+                                    <ArrowUpRight size={13} className="text-muted group-hover:text-violet-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="py-2 flex items-center gap-2 text-xs text-muted">
+                            <Check size={14} className="text-emerald-500" />
+                            <span>No urgent invites or stale requests right now.</span>
+                        </div>
+                    )}
+                </BentoCard>
+
                 {/* Quick Actions */}
                 <BentoCard
                     glowColor="oklch(var(--accent-primary) / 0.12)"
