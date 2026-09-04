@@ -16,6 +16,7 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+.agents/
 
 # Backups (ignore database dumps but keep scripts)
 backups/*

@@ -14,13 +14,15 @@ import {
     ExternalLink,
     ArrowLeft,
     Sparkles,
-    HelpCircle
+    HelpCircle,
+    Copy,
+    Check,
+    ShieldCheck
 } from 'lucide-react';
 import { suggestEmailCorrection } from '../lib/emailValidation';
 import { getGoogleCalendarUrl, downloadIcsFile } from '../lib/calendarUtils';
 
-type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline_confirm' | 'decline_success';
-type DeclineActionType = 'reschedule' | 'withdraw';
+type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline_confirm';
 
 interface MatchedStudent {
     student_id: string;
@@ -42,7 +44,7 @@ export default function ConfirmationPage() {
     const [inlineError, setInlineError] = useState('');
     const [matchedStudents, setMatchedStudents] = useState<MatchedStudent[]>([]);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-    const [pendingDeclineAction, setPendingDeclineAction] = useState<DeclineActionType | null>(null);
+    const [copiedCoordinatorEmail, setCopiedCoordinatorEmail] = useState(false);
 
     // Guard against double-click race conditions
     const submittingRef = useRef(false);
@@ -172,8 +174,6 @@ export default function ConfirmationPage() {
         submittingRef.current = true;
         setIsSubmitting(true);
         setInlineError('');
-        setPendingDeclineAction(null);
-
         try {
             let students: MatchedStudent[] | null = null;
             try {
@@ -239,68 +239,6 @@ export default function ConfirmationPage() {
         }
     }
 
-    async function handleDeclineAction(action: DeclineActionType) {
-        const trimmedEmail = email.trim().toLowerCase();
-        if (!trimmedEmail || !trimmedEmail.includes('@')) {
-            setInlineError('Please enter the email address you registered with.');
-            return;
-        }
-
-        if (submittingRef.current) return;
-        submittingRef.current = true;
-        setIsSubmitting(true);
-        setInlineError('');
-
-        try {
-            let students: MatchedStudent[] | null = null;
-            try {
-                const { data } = await supabase.rpc('find_students_by_email', {
-                    p_email: trimmedEmail,
-                    p_course_id: courseId,
-                });
-                if (data) students = data;
-            } catch (findErr) {
-                console.warn('find_students_by_email exception:', findErr);
-            }
-
-            if (students && students.length > 1) {
-                // Multiple students found with this email -> ask which one to decline
-                setPendingDeclineAction(action);
-                setMatchedStudents(students);
-                setSelectedStudentIds(new Set());
-                setState('pick');
-                return;
-            }
-
-            const targetStudentId = (students && students.length === 1) ? students[0].student_id : null;
-
-            const { data, error } = await supabase.rpc('public_decline_enrollment', {
-                p_email: trimmedEmail,
-                p_course_id: courseId,
-                p_action: action,
-                p_student_id: targetStudentId,
-            });
-
-            if (error) {
-                setInlineError(error.message || 'Unable to process your request. Please try again.');
-                return;
-            }
-
-            if (data && data.success) {
-                setResultMessage(data.message);
-                setState('decline_success');
-            } else {
-                setInlineError(data?.message || 'Unable to update your registration.');
-            }
-        } catch (err) {
-            console.error('Decline error:', err);
-            setInlineError('Network error. Please check your connection and try again.');
-        } finally {
-            setIsSubmitting(false);
-            submittingRef.current = false;
-        }
-    }
-
     function toggleStudent(studentId: string) {
         setSelectedStudentIds(prev => {
             const next = new Set(prev);
@@ -323,30 +261,16 @@ export default function ConfirmationPage() {
             const results: { id: string; success: boolean; message: string }[] = [];
 
             for (const studentId of ids) {
-                if (pendingDeclineAction) {
-                    const { data, error } = await supabase.rpc('public_decline_enrollment', {
-                        p_email: trimmedEmail,
-                        p_course_id: courseId,
-                        p_action: pendingDeclineAction,
-                        p_student_id: studentId,
-                    });
-                    results.push({
-                        id: studentId,
-                        success: !error && (data?.success ?? false),
-                        message: error?.message || data?.message || ''
-                    });
-                } else {
-                    const { data, error } = await supabase.rpc('public_confirm_enrollment', {
-                        p_email: trimmedEmail,
-                        p_course_id: courseId,
-                        p_student_id: studentId,
-                    });
-                    results.push({
-                        id: studentId,
-                        success: !error && (data?.success ?? false),
-                        message: error?.message || data?.message || ''
-                    });
-                }
+                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                    p_student_id: studentId,
+                });
+                results.push({
+                    id: studentId,
+                    success: !error && (data?.success ?? false),
+                    message: error?.message || data?.message || ''
+                });
             }
 
             const allSuccess = results.every(r => r.success);
@@ -358,19 +282,11 @@ export default function ConfirmationPage() {
                     .map(s => `${s.first_name} ${s.last_name}`.trim())
                     .join(', ');
 
-                if (pendingDeclineAction === 'reschedule') {
-                    setResultMessage(`We've noted that ${names} cannot attend on this date and will remain on the waiting list.`);
-                    setState('decline_success');
-                } else if (pendingDeclineAction === 'withdraw') {
-                    setResultMessage(`Registration cancelled for: ${names}. Thank you for letting us know!`);
-                    setState('decline_success');
-                } else {
-                    setResultMessage(`Attendance confirmed for: ${names}. We look forward to seeing you!`);
-                    setState('success');
-                }
+                setResultMessage(`Attendance confirmed for: ${names}. We look forward to seeing you!`);
+                setState('success');
             } else if (anySuccess) {
                 setResultMessage(results[0]?.message || 'Operation updated with partial results.');
-                setState(pendingDeclineAction ? 'decline_success' : 'success');
+                setState('success');
             } else {
                 setInlineError(results[0]?.message || 'Operation failed.');
             }
@@ -383,6 +299,28 @@ export default function ConfirmationPage() {
         }
     }
 
+    function handleCopyCoordinatorEmail() {
+        navigator.clipboard.writeText(ORGANIZER_EMAIL);
+        setCopiedCoordinatorEmail(true);
+        setTimeout(() => setCopiedCoordinatorEmail(false), 2000);
+    }
+
+    function getRescheduleMailtoUrl(): string {
+        const subject = `Waiting list / Reschedule: ${courseName || 'Course'}`;
+        const dateFormatted = courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
+        const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
+        const body = `Hello Igor,\n\nI am unable to attend the upcoming session for "${courseName}" on ${dateFormatted}.\n\nPlease keep me on the waiting list for future dates.\n\n${emailLine}Thank you!`;
+        return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
+    function getWithdrawMailtoUrl(): string {
+        const subject = `Cancel registration: ${courseName || 'Course'}`;
+        const dateFormatted = courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
+        const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
+        const body = `Hello Igor,\n\nI am no longer interested in attending "${courseName}" on ${dateFormatted}.\n\nPlease cancel my registration and remove me from the waiting list.\n\n${emailLine}Thank you!`;
+        return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
     // ─── Render ─────────────────────────────────────────────
 
     return (
@@ -393,19 +331,8 @@ export default function ConfirmationPage() {
                 <div className="absolute bottom-1/4 right-1/4 w-[240px] sm:w-[380px] h-[240px] sm:h-[380px] bg-purple-500/10 rounded-full blur-[50px] sm:blur-[90px] opacity-60" />
             </div>
 
-            {/* Header / Logo */}
-            <div className="w-full max-w-md relative z-10 pt-4 sm:pt-6 mb-4 flex items-center justify-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 rounded-xl flex items-center justify-center text-white font-black text-base shadow-lg shadow-indigo-500/25 border border-indigo-400/20">
-                    C
-                </div>
-                <div>
-                    <h1 className="text-lg font-bold tracking-tight text-white leading-tight">Course CRM</h1>
-                    <p className="text-[11px] text-zinc-400 font-semibold tracking-wider uppercase">Cork City Partnership</p>
-                </div>
-            </div>
-
             {/* Main Card */}
-            <div className="w-full max-w-md relative z-10 my-auto">
+            <div className="w-full max-w-md relative z-10 my-auto py-4">
                 <div className="bg-[#141417]/95 backdrop-blur-md rounded-2xl border border-zinc-800/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
 
                     {/* ─── Loading Skeleton ─── */}
@@ -600,17 +527,17 @@ export default function ConfirmationPage() {
                                 </button>
 
                                 {/* Decline / Reschedule Option */}
-                                <div className="pt-2 flex flex-col items-center">
+                                <div className="pt-2">
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setInlineError('');
                                             setState('decline_confirm');
                                         }}
-                                        className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors py-2 px-3 rounded-lg hover:bg-zinc-800/50 flex items-center gap-1.5 touch-manipulation"
+                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/60 hover:bg-zinc-800/80 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-sm active:scale-[0.99] touch-manipulation cursor-pointer"
                                     >
-                                        <CalendarX size={14} className="text-zinc-500" />
-                                        Can't make it to this date? Let us know
+                                        <CalendarX size={16} className="text-amber-400 shrink-0" />
+                                        <span>Can't make it to this date? Let us know</span>
                                     </button>
                                 </div>
 
@@ -633,6 +560,7 @@ export default function ConfirmationPage() {
                     {/* ─── Decline / Reschedule Screen ─── */}
                     {state === 'decline_confirm' && (
                         <div className="p-5 sm:p-6 flex flex-col animate-fadeIn">
+                            {/* Header */}
                             <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-800">
                                 <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 shrink-0">
                                     <CalendarX size={22} />
@@ -640,24 +568,31 @@ export default function ConfirmationPage() {
                                 <div>
                                     <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Can't attend this session?</h2>
                                     <p className="text-xs text-zinc-400 mt-0.5">
-                                        Let us know so we can update your enrollment and free up this seat.
+                                        Let the coordinator know so we can update your enrollment and free up this seat.
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Email Check */}
+                            {/* Security Notice */}
+                            <div className="mb-4 p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/25 flex items-start gap-2.5 text-xs text-indigo-200 leading-relaxed">
+                                <ShieldCheck size={16} className="text-indigo-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-semibold text-white">Security notice: </span>
+                                    To protect registrations from unauthorized cancellation, requests to reschedule or cancel must be sent from your email address. Clicking an option below will open your email client with a pre-filled message.
+                                </div>
+                            </div>
+
+                            {/* Registered Email helper */}
                             <div className="mb-4">
                                 <label className="block text-xs font-bold text-zinc-400 mb-1.5 uppercase tracking-wider">
-                                    Your Registered Email
+                                    Your Registered Email (included in draft)
                                 </label>
                                 <div className="relative">
                                     <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                                     <input
                                         type="email"
                                         inputMode="email"
-                                        required
                                         value={email}
-                                        disabled={isSubmitting}
                                         onChange={(e) => handleEmailInputChange(e.target.value)}
                                         onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                         placeholder="Enter registered email"
@@ -678,61 +613,77 @@ export default function ConfirmationPage() {
                                 )}
                             </div>
 
-                            {inlineError && (
-                                <div className="mb-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl flex items-start gap-2 animate-fadeIn">
-                                    <AlertCircle size={15} className="shrink-0 mt-0.5" />
-                                    <p className="break-words leading-relaxed">{inlineError}</p>
-                                </div>
-                            )}
-
                             {/* Choice Actions */}
                             <div className="space-y-3">
                                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                                    Please choose an option:
+                                    Choose an option to email the coordinator:
                                 </p>
 
                                 {/* Option 1: Keep on Waiting List (Reschedule) */}
-                                <button
-                                    type="button"
-                                    disabled={isSubmitting || !email.trim()}
-                                    onClick={() => handleDeclineAction('reschedule')}
-                                    className="w-full text-left p-4 rounded-xl border border-indigo-500/40 bg-indigo-950/20 hover:bg-indigo-900/30 active:scale-[0.98] transition-all touch-manipulation group disabled:opacity-50 disabled:cursor-not-allowed"
+                                <a
+                                    href={getRescheduleMailtoUrl()}
+                                    className="w-full text-left p-4 rounded-xl border border-indigo-500/40 bg-indigo-950/20 hover:bg-indigo-900/30 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-lg shrink-0 mt-0.5">
-                                            <Calendar size={18} />
-                                        </div>
-                                        <div>
+                                    <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-lg shrink-0 mt-0.5 group-hover:bg-indigo-500/30 transition-colors">
+                                        <Calendar size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
                                             <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
                                                 Keep me on the waiting list for future dates
                                             </h3>
-                                            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                                                We'll contact you when the next session of this course is scheduled.
-                                            </p>
+                                            <Mail size={14} className="text-indigo-400 shrink-0 opacity-80" />
                                         </div>
+                                        <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                                            Opens a pre-filled email to remain on the waiting list for the next course session.
+                                        </p>
                                     </div>
-                                </button>
+                                </a>
 
                                 {/* Option 2: Withdraw completely */}
-                                <button
-                                    type="button"
-                                    disabled={isSubmitting || !email.trim()}
-                                    onClick={() => handleDeclineAction('withdraw')}
-                                    className="w-full text-left p-4 rounded-xl border border-zinc-800 bg-[#09090B] hover:border-red-500/40 hover:bg-red-950/15 active:scale-[0.98] transition-all touch-manipulation group disabled:opacity-50 disabled:cursor-not-allowed"
+                                <a
+                                    href={getWithdrawMailtoUrl()}
+                                    className="w-full text-left p-4 rounded-xl border border-zinc-800 bg-[#09090B] hover:border-red-500/40 hover:bg-red-950/15 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-zinc-800 text-zinc-400 group-hover:text-red-400 rounded-lg shrink-0 mt-0.5 transition-colors">
-                                            <CalendarX size={18} />
-                                        </div>
-                                        <div>
+                                    <div className="p-2.5 bg-zinc-800 text-zinc-400 group-hover:text-red-400 group-hover:bg-red-950/30 rounded-lg shrink-0 mt-0.5 transition-colors">
+                                        <CalendarX size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
                                             <h3 className="text-sm font-bold text-zinc-300 group-hover:text-red-300 transition-colors">
                                                 I'm no longer interested in this course
                                             </h3>
-                                            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                                                Cancel my registration completely and remove me from the waiting list.
-                                            </p>
+                                            <Mail size={14} className="text-zinc-500 group-hover:text-red-400 shrink-0 opacity-80" />
                                         </div>
+                                        <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                                            Opens a pre-filled email to cancel your registration completely.
+                                        </p>
                                     </div>
+                                </a>
+                            </div>
+
+                            {/* Manual copy fallback */}
+                            <div className="mt-4 pt-3.5 border-t border-zinc-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                <div className="text-[11px] text-zinc-400">
+                                    <span>Coordinator email: </span>
+                                    <span className="text-white font-medium">{ORGANIZER_EMAIL}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyCoordinatorEmail}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors active:scale-95 touch-manipulation cursor-pointer"
+                                >
+                                    {copiedCoordinatorEmail ? (
+                                        <>
+                                            <Check size={13} className="text-emerald-400" />
+                                            <span className="text-emerald-400">Copied!</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy size={13} className="text-zinc-400" />
+                                            <span>Copy address</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
 
@@ -742,35 +693,10 @@ export default function ConfirmationPage() {
                                     setInlineError('');
                                     setState('form');
                                 }}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-white py-3 mt-4 transition-colors touch-manipulation"
+                                className="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-white py-3 mt-3 transition-colors touch-manipulation cursor-pointer"
                             >
                                 <ArrowLeft size={14} /> Back to confirmation
                             </button>
-                        </div>
-                    )}
-
-                    {/* ─── Decline Success Screen ─── */}
-                    {state === 'decline_success' && (
-                        <div className="p-8 sm:p-10 flex flex-col items-center gap-4 text-center animate-fadeIn">
-                            <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
-                                <CheckCircle size={32} className="text-indigo-400" />
-                            </div>
-                            <h2 className="text-xl font-bold text-white">Response Recorded</h2>
-                            <p className="text-zinc-300 text-sm leading-relaxed max-w-xs">
-                                {resultMessage || "Thank you for letting us know! We have updated your status."}
-                            </p>
-
-                            <div className="w-full p-4 bg-zinc-900/80 rounded-xl border border-zinc-800 mt-2 text-center">
-                                <p className="text-xs text-zinc-500">
-                                    If your availability changes or you have questions, please reach out to:
-                                </p>
-                                <a
-                                    href={`mailto:${ORGANIZER_EMAIL}`}
-                                    className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1.5 underline"
-                                >
-                                    <Mail size={12} /> {ORGANIZER_EMAIL}
-                                </a>
-                            </div>
                         </div>
                     )}
 
@@ -790,9 +716,7 @@ export default function ConfirmationPage() {
                             </div>
 
                             <p className="text-xs text-zinc-400 mb-3">
-                                {pendingDeclineAction
-                                    ? "Select who should have their registration updated:"
-                                    : "Select who is confirming attendance:"}
+                                Select who is confirming attendance:
                             </p>
 
                             {/* Student List */}
@@ -840,9 +764,7 @@ export default function ConfirmationPage() {
                                 ) : (
                                     <>
                                         <CheckCircle size={18} />
-                                        <span>
-                                            {pendingDeclineAction ? 'Update Selected' : 'Confirm Selected'} ({selectedStudentIds.size})
-                                        </span>
+                                        <span>Confirm Selected ({selectedStudentIds.size})</span>
                                     </>
                                 )}
                             </button>
@@ -850,11 +772,10 @@ export default function ConfirmationPage() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setPendingDeclineAction(null);
                                     setState('form');
                                     setInlineError('');
                                 }}
-                                className="w-full text-xs text-zinc-500 hover:text-zinc-300 py-3 mt-2 transition-colors touch-manipulation"
+                                className="w-full text-xs text-zinc-500 hover:text-zinc-300 py-3 mt-2 transition-colors touch-manipulation cursor-pointer"
                             >
                                 ← Back to email
                             </button>

@@ -50,8 +50,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                     C
                                 </div>
                                 <div>
-                                    <h1 className="text-lg font-bold tracking-tight">Course CRM</h1>
-                                    <p className="text-[10px] text-zinc-500 font-medium -mt-0.5 tracking-wide uppercase">Loading...</p>
+                                    <h1 className="text-lg font-bold tracking-tight">Cork City Partnership</h1>
+                                    <p className="text-[10px] text-zinc-500 font-medium -mt-0.5 tracking-wide uppercase">Course Portal</p>
                                 </div>
                             </div>
                             <div className="w-full max-w-md bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex items-center justify-center p-6">
