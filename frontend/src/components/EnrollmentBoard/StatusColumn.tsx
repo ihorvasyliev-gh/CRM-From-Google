@@ -16,6 +16,7 @@ interface StatusColumnProps {
     toggleSelect: (id: string) => void;
     togglePriority: (id: string, current: boolean) => void;
     openEditNote: (enrollment: EnrollmentRow) => void;
+    onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
     queuePositions: Map<string, number>;
     flagsByStudentId: Map<string, StudentFlag[]>;
     completedCoursesByStudentId: Map<string, Array<{id: string, name: string}>>;
@@ -36,6 +37,7 @@ const StatusColumn = function StatusColumn({
     toggleSelect,
     togglePriority,
     openEditNote,
+    onUpdateNote,
     queuePositions,
     flagsByStudentId,
     completedCoursesByStudentId,
@@ -198,6 +200,7 @@ const StatusColumn = function StatusColumn({
                             toggleSelect={toggleSelect}
                             togglePriority={togglePriority}
                             openEditNote={openEditNote}
+                            onUpdateNote={onUpdateNote}
                             queuePosition={queuePositions.get(enrollment.id)}
                             studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
                             completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
@@ -230,6 +233,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.toggleSelect !== next.toggleSelect) return false;
     if (prev.togglePriority !== next.togglePriority) return false;
     if (prev.openEditNote !== next.openEditNote) return false;
+    if (prev.onUpdateNote !== next.onUpdateNote) return false;
     if (prev.selectAllInList !== next.selectAllInList) return false;
     if (prev.handleCopyEmails !== next.handleCopyEmails) return false;
     if (prev.onFlagClick !== next.onFlagClick) return false;

@@ -64,6 +64,10 @@ describe('EnrollmentCard Component', () => {
         onMoveStatus: mockOnMoveStatus,
     };
 
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('renders student name, course pill, and queue position', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
@@ -99,6 +103,48 @@ describe('EnrollmentCard Component', () => {
         expect(noteBtn).toBeInTheDocument();
         fireEvent.click(noteBtn);
         expect(mockOpenEditNote).toHaveBeenCalledWith(sampleEnrollment);
+    });
+
+    it('opens inline quick note editor when onUpdateNote is provided and saves note on Save button click', async () => {
+        const mockUpdateNote = vi.fn().mockResolvedValue(undefined);
+        render(<EnrollmentCard {...defaultProps} onUpdateNote={mockUpdateNote} />);
+
+        const noteBtn = screen.getByText('Needs morning session');
+        fireEvent.click(noteBtn);
+
+        // Should NOT call the legacy full modal
+        expect(mockOpenEditNote).not.toHaveBeenCalled();
+
+        // Textarea should appear with current note
+        const textarea = screen.getByPlaceholderText(/Add quick note/i) as HTMLTextAreaElement;
+        expect(textarea).toBeInTheDocument();
+        expect(textarea.value).toBe('Needs morning session');
+
+        // Edit text
+        fireEvent.change(textarea, { target: { value: 'Needs afternoon session' } });
+        expect(textarea.value).toBe('Needs afternoon session');
+
+        // Click Save
+        const saveBtn = screen.getByRole('button', { name: /^Save$/i });
+        fireEvent.click(saveBtn);
+
+        expect(mockUpdateNote).toHaveBeenCalledWith('enrollment-1', 'Needs afternoon session');
+    });
+
+    it('saves inline quick note on Enter and cancels on Escape', () => {
+        const mockUpdateNote = vi.fn().mockResolvedValue(undefined);
+        render(<EnrollmentCard {...defaultProps} onUpdateNote={mockUpdateNote} />);
+
+        // Open editor
+        const noteBtn = screen.getByText('Needs morning session');
+        fireEvent.click(noteBtn);
+
+        const textarea = screen.getByPlaceholderText(/Add quick note/i);
+
+        // Press Enter without shift -> triggers save
+        fireEvent.change(textarea, { target: { value: 'Updated via enter' } });
+        fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+        expect(mockUpdateNote).toHaveBeenCalledWith('enrollment-1', 'Updated via enter');
     });
 
     it('opens Quick Move popover in portal and triggers onMoveStatus', () => {

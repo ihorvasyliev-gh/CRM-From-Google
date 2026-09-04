@@ -347,6 +347,10 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
         setEditNoteText(enrollment.notes || '');
     }, []);
 
+    const handleUpdateNote = useCallback(async (id: string, noteText: string) => {
+        await enrollmentsHook.updateNote(id, noteText);
+    }, [enrollmentsHook]);
+
     const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
         if (enrollment.students) {
             setDetailStudent(enrollment.students);
@@ -672,6 +676,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 toggleSelect={bulkActions.toggleSelect}
                                 togglePriority={enrollmentsHook.togglePriority}
                                 openEditNote={openEditNote}
+                                onUpdateNote={handleUpdateNote}
                                 queuePositions={queuePositions}
                                 flagsByStudentId={studentFlagsHook.flagsByStudentId}
                                 completedCoursesByStudentId={completedCoursesByStudentId}
@@ -699,6 +704,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                 toggleSelect={bulkActions.toggleSelect}
                                 togglePriority={enrollmentsHook.togglePriority}
                                 openEditNote={openEditNote}
+                                onUpdateNote={handleUpdateNote}
                                 queuePosition={queuePositions.get(activeId)}
                                 studentFlags={studentFlagsHook.flagsByStudentId.get(activeEnrollment.student_id) || EMPTY_FLAGS}
                                 completedCourses={completedCoursesByStudentId.get(activeEnrollment.student_id) || EMPTY_COMPLETED_COURSES}

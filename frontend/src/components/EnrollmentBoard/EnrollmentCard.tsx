@@ -20,6 +20,7 @@ interface EnrollmentCardProps {
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
     openEditNote: (enrollment: EnrollmentRow) => void;
+    onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
     studentFlags?: StudentFlag[];
     completedCourses?: Array<{id: string, name: string}>;
     onFlagClick?: (enrollment: EnrollmentRow) => void;
@@ -62,6 +63,7 @@ const EnrollmentCard = function EnrollmentCard({
     togglePriority,
     queuePosition,
     openEditNote,
+    onUpdateNote,
     studentFlags = [],
     completedCourses = [],
     onFlagClick,
@@ -76,8 +78,58 @@ const EnrollmentCard = function EnrollmentCard({
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
+    const [isEditingNote, setIsEditingNote] = useState(false);
+    const [noteDraft, setNoteDraft] = useState('');
+    const [isSavingNote, setIsSavingNote] = useState(false);
+    const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
     const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
+    useEffect(() => {
+        if (isEditingNote && noteInputRef.current) {
+            noteInputRef.current.focus();
+            noteInputRef.current.select();
+        }
+    }, [isEditingNote]);
+
+    const handleStartEditNote = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onUpdateNote) {
+            setIsEditingNote(true);
+            setNoteDraft(enrollment.notes || '');
+            setNoteTooltipVisible(false);
+        } else {
+            openEditNote(enrollment);
+        }
+    };
+
+    const handleSaveNote = async (e?: React.MouseEvent | React.KeyboardEvent) => {
+        if (e) e.stopPropagation();
+        if (!onUpdateNote) return;
+        setIsSavingNote(true);
+        try {
+            await onUpdateNote(enrollment.id, noteDraft.trim());
+            setIsEditingNote(false);
+        } finally {
+            setIsSavingNote(false);
+        }
+    };
+
+    const handleCancelNote = (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setIsEditingNote(false);
+        setNoteDraft(enrollment.notes || '');
+    };
+
+    const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSaveNote();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            handleCancelNote();
+        }
+    };
 
     useEffect(() => {
         if (!showQuickMove) return;
@@ -96,7 +148,7 @@ const EnrollmentCard = function EnrollmentCard({
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: enrollment.id,
         data: draggableData,
-        disabled: isOverlay || isMobile
+        disabled: isOverlay || isMobile || isEditingNote
     });
 
     const style = useMemo(() => ({
@@ -462,10 +514,10 @@ const EnrollmentCard = function EnrollmentCard({
                 {/* Compact Note Badge (1 row with line-clamp-1) or Add Note pencil */}
                 {enrollment.notes ? (
                     <button
-                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                        onMouseEnter={() => setNoteTooltipVisible(true)}
+                        onClick={handleStartEditNote}
+                        onMouseEnter={() => !isEditingNote && setNoteTooltipVisible(true)}
                         onMouseLeave={() => setNoteTooltipVisible(false)}
-                        className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-1.5 py-0.2 rounded font-normal italic max-w-[130px] sm:max-w-[180px] truncate transition-colors text-left flex-shrink-0"
+                        className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-1.5 py-0.2 rounded font-normal italic max-w-[130px] sm:max-w-[180px] truncate transition-colors text-left flex-shrink-0 cursor-pointer"
                         title={enrollment.notes}
                     >
                         <Pencil size={10} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
@@ -474,8 +526,8 @@ const EnrollmentCard = function EnrollmentCard({
                 ) : (
                     <button
                         title="Add Note"
-                        onClick={e => { e.stopPropagation(); openEditNote(enrollment); }}
-                        className="p-1 text-muted/40 hover:text-brand-500 hover:bg-surface-elevated rounded transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 flex-shrink-0"
+                        onClick={handleStartEditNote}
+                        className="p-1 text-muted/40 hover:text-brand-500 hover:bg-surface-elevated rounded transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 flex-shrink-0 cursor-pointer"
                     >
                         <Pencil size={12} />
                     </button>
@@ -483,7 +535,7 @@ const EnrollmentCard = function EnrollmentCard({
             </div>
 
             {/* Note hover preview tooltip on desktop */}
-            {noteTooltipVisible && enrollment.notes && (
+            {!isEditingNote && noteTooltipVisible && enrollment.notes && (
                 <div
                     className="absolute right-2 bottom-full mb-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-2.5 animate-fadeIn pointer-events-none"
                     onClick={e => e.stopPropagation()}
@@ -492,6 +544,50 @@ const EnrollmentCard = function EnrollmentCard({
                         {enrollment.notes}
                     </p>
                     <p className="text-[10px] text-primary/50 mt-1 font-medium">Click to edit</p>
+                </div>
+            )}
+
+            {/* Inline Quick Note Editor */}
+            {isEditingNote && (
+                <div
+                    className="mt-2 p-2.5 rounded-xl bg-surface-elevated border border-amber-500/40 shadow-card animate-fadeIn cursor-default select-text"
+                    onClick={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
+                >
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <Pencil size={10} /> Quick Note
+                        </span>
+                        <span className="text-[9px] text-muted font-mono">↵ Save · Esc Cancel</span>
+                    </div>
+                    <textarea
+                        ref={noteInputRef}
+                        value={noteDraft}
+                        onChange={e => setNoteDraft(e.target.value)}
+                        onKeyDown={handleNoteKeyDown}
+                        placeholder="Add quick note for this student..."
+                        rows={2}
+                        className="w-full text-xs p-2 bg-background border border-border-subtle rounded-lg text-primary placeholder:text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 resize-none font-sans"
+                    />
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                        <button
+                            type="button"
+                            onClick={handleCancelNote}
+                            disabled={isSavingNote}
+                            className="px-2.5 py-1 text-[11px] font-medium text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleSaveNote()}
+                            disabled={isSavingNote}
+                            className="flex items-center gap-1 px-3 py-1 text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 rounded-lg shadow-xs transition-colors cursor-pointer"
+                        >
+                            <Check size={12} />
+                            Save
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -691,6 +787,7 @@ export default memo(EnrollmentCard, (prev, next) => {
         prev.isSelected === next.isSelected &&
         prev.queuePosition === next.queuePosition &&
         prev.isOverlay === next.isOverlay &&
+        prev.onUpdateNote === next.onUpdateNote &&
         (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
         (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0)
     );
