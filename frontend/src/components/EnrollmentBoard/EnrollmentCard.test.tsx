@@ -196,4 +196,28 @@ describe('EnrollmentCard Component', () => {
 
         expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1');
     });
+
+    it('renders mobile slide-up Action Sheet with Cancel button when screen is small', () => {
+        window.innerWidth = 400;
+        window.dispatchEvent(new Event('resize'));
+
+        render(<EnrollmentCard {...defaultProps} />);
+
+        const quickMoveBtn = screen.getByTitle('Move status');
+        fireEvent.click(quickMoveBtn);
+
+        // Action Sheet header with student context
+        expect(screen.getByText(/John Doe • Current:/i)).toBeInTheDocument();
+        // Cancel button
+        const cancelBtn = screen.getByRole('button', { name: /^Cancel$/i });
+        expect(cancelBtn).toBeInTheDocument();
+
+        // Clicking cancel closes the sheet
+        fireEvent.click(cancelBtn);
+        expect(screen.queryByRole('button', { name: /^Cancel$/i })).not.toBeInTheDocument();
+
+        // Restore window.innerWidth for subsequent tests
+        window.innerWidth = 1024;
+        window.dispatchEvent(new Event('resize'));
+    });
 });

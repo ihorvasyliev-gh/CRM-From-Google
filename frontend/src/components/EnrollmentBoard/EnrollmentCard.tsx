@@ -552,65 +552,132 @@ const EnrollmentCard = function EnrollmentCard({
                 document.body
             )}
 
-            {/* Quick Move Dropdown rendered in Portal (eliminates any clipping by sibling cards or scroll containers) */}
-            {showQuickMove && (isSmallScreen || popoverPos) && createPortal(
-                <div
-                    className={`fixed inset-0 z-[9999] ${
-                        isSmallScreen
-                            ? 'flex items-end justify-center bg-black/40 backdrop-blur-xs animate-fadeIn'
-                            : 'bg-transparent'
-                    }`}
-                    onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                >
+            {/* Quick Move Dropdown / Mobile Action Sheet rendered in Portal */}
+            {showQuickMove && createPortal(
+                isSmallScreen ? (
                     <div
-                        style={!isSmallScreen && popoverPos ? {
-                            position: 'fixed',
-                            top: `${popoverPos.top}px`,
-                            left: `${popoverPos.left}px`,
-                        } : undefined}
-                        onClick={e => e.stopPropagation()}
-                        onPointerDown={e => e.stopPropagation()}
-                        onTouchStart={e => e.stopPropagation()}
-                        className={
-                            isSmallScreen
-                                ? 'w-full bg-surface-elevated border border-border-subtle rounded-t-2xl shadow-2xl p-3 space-y-1 z-[10000] animate-sheetSlideUp'
-                                : `w-44 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`
-                        }
+                        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 backdrop-blur-xs animate-fadeIn"
+                        onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                     >
-                        <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
-                            <span>Move to Status</span>
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            onPointerDown={e => e.stopPropagation()}
+                            onTouchStart={e => e.stopPropagation()}
+                            className="w-full max-w-lg bg-surface-elevated border-t border-border-subtle rounded-t-3xl shadow-2xl p-4 pb-6 space-y-3 z-[10000] animate-sheetSlideUp max-h-[85vh] flex flex-col"
+                        >
+                            {/* Drag Handle Bar */}
+                            <div className="w-12 h-1.5 bg-muted/30 rounded-full mx-auto cursor-pointer" onClick={() => setShowQuickMove(false)} />
+
+                            {/* Sheet Header */}
+                            <div className="flex items-center justify-between px-1 pb-2 border-b border-border-subtle">
+                                <div>
+                                    <h3 className="text-sm font-bold text-primary">Move to Status</h3>
+                                    <p className="text-xs text-muted truncate max-w-[260px]">
+                                        {enrollment.students?.first_name} {enrollment.students?.last_name} • Current: <span className="font-semibold text-primary">{cfg.label}</span>
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setShowQuickMove(false)}
+                                    className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-surface transition-colors"
+                                    aria-label="Close"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            {/* Status Option Buttons */}
+                            <div className="py-1 space-y-2 overflow-y-auto flex-1">
+                                {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                    if (st === status) return null;
+                                    const stCfg = STATUS_CONFIG[st];
+                                    if (!stCfg) return null;
+                                    return (
+                                        <button
+                                            key={st}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowQuickMove(false);
+                                                onMoveStatus?.(enrollment.id, status, st);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl border border-border-subtle text-sm font-semibold transition-all active:scale-[0.98] ${stCfg.bg} ${stCfg.color} hover:shadow-xs text-left cursor-pointer min-h-[48px]`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="p-1.5 rounded-lg bg-white/20 dark:bg-black/20 flex-shrink-0">
+                                                    {stCfg.icon}
+                                                </span>
+                                                <span>{stCfg.label}</span>
+                                            </div>
+                                            <span className="text-xs font-normal opacity-70">Tap to move</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Cancel Button */}
                             <button
+                                type="button"
                                 onClick={() => setShowQuickMove(false)}
-                                className="text-muted hover:text-primary p-0.5 rounded transition-colors"
+                                className="w-full py-3 text-sm font-bold text-muted hover:text-primary bg-surface border border-border-strong rounded-xl transition-all active:scale-[0.98] mt-2"
                             >
-                                <X size={12} />
+                                Cancel
                             </button>
                         </div>
-                        <div className="py-1 space-y-0.5 max-h-[50vh] sm:max-h-none overflow-y-auto">
-                            {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
-                                if (st === status) return null;
-                                const stCfg = STATUS_CONFIG[st];
-                                if (!stCfg) return null;
-                                return (
-                                    <button
-                                        key={st}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowQuickMove(false);
-                                            onMoveStatus?.(enrollment.id, status, st);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left cursor-pointer"
-                                    >
-                                        <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
-                                        <span>{stCfg.label}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
                     </div>
-                </div>,
+                ) : (
+                    popoverPos && (
+                        <div
+                            className="fixed inset-0 z-[9999] bg-transparent"
+                            onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                        >
+                            <div
+                                style={{
+                                    position: 'fixed',
+                                    top: `${popoverPos.top}px`,
+                                    left: `${popoverPos.left}px`,
+                                }}
+                                onClick={e => e.stopPropagation()}
+                                onPointerDown={e => e.stopPropagation()}
+                                touchStart={undefined}
+                                className={`w-44 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
+                            >
+                                <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
+                                    <span>Move to Status</span>
+                                    <button
+                                        onClick={() => setShowQuickMove(false)}
+                                        className="text-muted hover:text-primary p-0.5 rounded transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                                <div className="py-1 space-y-0.5 overflow-y-auto">
+                                    {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                        if (st === status) return null;
+                                        const stCfg = STATUS_CONFIG[st];
+                                        if (!stCfg) return null;
+                                        return (
+                                            <button
+                                                key={st}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowQuickMove(false);
+                                                    onMoveStatus?.(enrollment.id, status, st);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left cursor-pointer"
+                                            >
+                                                <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
+                                                <span>{stCfg.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                ),
                 document.body
             )}
         </div>
