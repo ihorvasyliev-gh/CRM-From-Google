@@ -10,6 +10,7 @@ import Toast, { ToastData } from './Toast';
 import { Student, StudentFormData, getAvatarGradient } from '../lib/types';
 import { useDebounce } from '../hooks/useDebounce';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
+import { formatDateLong } from '../lib/dateUtils';
 
 const PAGE_SIZE = 30;
 
@@ -239,12 +240,12 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 {loading ? (
                     <div>
-                        {/* Mobile Skeleton (< sm) */}
-                        <div className="sm:hidden divide-y divide-border-subtle p-2">
+                        {/* Mobile Skeleton (< md) */}
+                        <div className="md:hidden p-3 space-y-3">
                             {Array.from({ length: 5 }).map((_, i) => (
-                                <div key={i} className="p-3.5 space-y-3 animate-pulse">
+                                <div key={i} className="p-3.5 sm:p-4 rounded-xl border border-border-subtle bg-surface space-y-3 animate-pulse">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-surface-elevated" />
+                                        <div className="w-11 h-11 rounded-full bg-surface-elevated" />
                                         <div className="space-y-1.5 flex-1">
                                             <div className="h-4 w-32 rounded bg-surface-elevated" />
                                             <div className="h-3 w-44 rounded bg-surface-elevated" />
@@ -255,8 +256,8 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                             ))}
                         </div>
 
-                        {/* Desktop Skeleton (>= sm) */}
-                        <div className="hidden sm:block overflow-x-auto">
+                        {/* Desktop Skeleton (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
                                     <tr>
@@ -291,82 +292,108 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                     </div>
                 ) : (
                     <div>
-                        {/* Mobile Cards (< sm) */}
-                        <div className="sm:hidden divide-y divide-border-subtle">
+                        {/* Mobile Cards (< md) */}
+                        <div className="md:hidden p-3 sm:p-4 space-y-3">
                             {displayedStudents.map(student => (
                                 <div
                                     key={student.id}
                                     onClick={() => setDetailStudent(student)}
-                                    className="p-3.5 hover:bg-surface-elevated/40 active:bg-brand-50/10 cursor-pointer transition-colors flex flex-col gap-2"
+                                    className="p-3.5 sm:p-4 rounded-xl border border-border-subtle bg-surface hover:bg-surface-elevated/40 active:bg-brand-50/10 cursor-pointer transition-all duration-200 shadow-2xs hover:shadow-card flex flex-col gap-3 group"
                                 >
-                                    <div className="flex items-center justify-between gap-2">
+                                    {/* Card Header: Avatar, Name, Email, Joined Date, Actions */}
+                                    <div className="flex items-start justify-between gap-2.5">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm`}>
+                                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm ring-2 ring-border-subtle`}>
                                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="font-bold text-primary text-sm truncate">{student.first_name} {student.last_name}</p>
-                                                <p className="text-xs text-muted truncate">{student.email}</p>
+                                                <p className="font-bold text-primary text-sm sm:text-base leading-tight truncate">
+                                                    {student.first_name} {student.last_name}
+                                                </p>
+                                                <p className="text-xs text-muted truncate mt-0.5">{student.email}</p>
+                                                {student.created_at && (
+                                                    <span className="text-[10px] text-muted/75 block mt-0.5 font-medium">
+                                                        Joined {formatDateLong(student.created_at)}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
+                                        {/* Action buttons */}
                                         <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
                                             <button
+                                                type="button"
+                                                onClick={() => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
+                                                className="p-1.5 text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 active:bg-brand-500/30 rounded-lg transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                                                title="Enroll student in course"
+                                            >
+                                                <Plus size={14} />
+                                                <span className="hidden xs:inline">Enroll</span>
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={() => openEdit(student)}
-                                                className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
-                                                title="Edit"
+                                                className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all cursor-pointer"
+                                                title="Edit student"
                                             >
                                                 <Edit2 size={15} />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => setDeleteTarget(student)}
-                                                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
-                                                title="Delete"
+                                                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all cursor-pointer"
+                                                title="Delete student"
                                             >
                                                 <Trash2 size={15} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Mobile bottom info bar (Phone call / WhatsApp / Eircode) */}
-                                    {(student.phone || student.eircode) && (
-                                        <div className="flex items-center justify-between pt-2 border-t border-border-subtle/40 text-xs" onClick={e => e.stopPropagation()}>
-                                            <div className="flex items-center gap-2">
-                                                {student.phone && (
-                                                    <div className="flex items-center gap-1.5">
+                                    {/* Contact & Meta Row */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-border-subtle/50 text-xs" onClick={e => e.stopPropagation()}>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {student.phone && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <a
+                                                        href={formatPhoneForCall(student.phone) || undefined}
+                                                        className="inline-flex items-center gap-1 text-primary/90 hover:text-brand-500 font-medium bg-surface-elevated/60 hover:bg-surface-elevated px-2 py-1 rounded-lg border border-border-subtle transition-colors"
+                                                    >
+                                                        <Phone size={12} className="text-blue-500" />
+                                                        <span>{student.phone}</span>
+                                                    </a>
+                                                    {formatPhoneForWhatsApp(student.phone) && (
                                                         <a
-                                                            href={formatPhoneForCall(student.phone) || undefined}
-                                                            className="flex items-center gap-1 text-primary/80 hover:text-blue-600 font-medium transition-colors"
+                                                            href={formatPhoneForWhatsApp(student.phone)!}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center justify-center w-7 h-7 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-2xs transition-all active:scale-95"
+                                                            title="Chat on WhatsApp"
                                                         >
-                                                            <Phone size={12} className="text-blue-500" />
-                                                            <span>{student.phone}</span>
+                                                            <MessageSquare size={13} />
                                                         </a>
-                                                        {formatPhoneForWhatsApp(student.phone) && (
-                                                            <a
-                                                                href={formatPhoneForWhatsApp(student.phone)!}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="flex items-center justify-center min-w-[24px] h-[24px] px-1 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-md shadow-xs transition-all active:scale-95"
-                                                                title="Chat on WhatsApp"
-                                                            >
-                                                                <MessageSquare size={13} />
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                                            {student.dob && (
+                                                <span className="text-[11px] text-muted bg-surface-elevated px-2 py-0.5 rounded-md border border-border-subtle">
+                                                    DOB: {student.dob}
+                                                </span>
+                                            )}
                                             {student.eircode && (
-                                                <span className="font-mono bg-surface-elevated px-2 py-0.5 rounded border border-border-subtle text-[11px] text-primary/75">
+                                                <span className="font-mono bg-surface-elevated px-2 py-0.5 rounded-md border border-border-subtle text-[11px] font-semibold text-primary/80">
                                                     {student.eircode}
                                                 </span>
                                             )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* Desktop Table (>= sm) */}
-                        <div className="hidden sm:block overflow-x-auto">
+                        {/* Desktop Table (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-surface-elevated/50 text-xs uppercase font-bold tracking-wider text-muted border-b border-border-strong">
                                     <tr>

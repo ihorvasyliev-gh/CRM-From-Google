@@ -14,3 +14,10 @@ vi.mock('@supabase/supabase-js', () => {
         }),
     }
 })
+
+class MockIntersectionObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+}
+window.IntersectionObserver = MockIntersectionObserver as any;
