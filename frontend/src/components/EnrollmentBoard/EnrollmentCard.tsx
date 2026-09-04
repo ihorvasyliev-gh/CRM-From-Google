@@ -69,9 +69,10 @@ const EnrollmentCard = function EnrollmentCard({
     const [now, setNow] = useState(() => Date.now());
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
-    const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+    const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
     const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+    const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 640 : false);
     const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
     
@@ -90,6 +91,26 @@ const EnrollmentCard = function EnrollmentCard({
         media.addEventListener('change', listener);
         return () => media.removeEventListener('change', listener);
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const media = window.matchMedia('(max-width: 639px)');
+        setIsSmallScreen(media.matches);
+        const listener = (e: MediaQueryListEvent) => setIsSmallScreen(e.matches);
+        media.addEventListener('change', listener);
+        return () => media.removeEventListener('change', listener);
+    }, []);
+
+    useEffect(() => {
+        if (!showQuickMove) return;
+        const handleDismiss = () => setShowQuickMove(false);
+        window.addEventListener('scroll', handleDismiss, true);
+        window.addEventListener('resize', handleDismiss);
+        return () => {
+            window.removeEventListener('scroll', handleDismiss, true);
+            window.removeEventListener('resize', handleDismiss);
+        };
+    }, [showQuickMove]);
 
     const cfg = STATUS_CONFIG[status];
     const draggableData = useMemo(() => ({ status }), [status]);
@@ -137,18 +158,22 @@ const EnrollmentCard = function EnrollmentCard({
 
     const handleOpenQuickMove = (e: React.MouseEvent | React.TouchEvent) => {
         e.stopPropagation();
-        if (quickMoveBtnRef.current) {
-            const rect = quickMoveBtnRef.current.getBoundingClientRect();
-            const width = 180;
+        const trigger = (e.currentTarget as HTMLElement) || quickMoveBtnRef.current;
+        if (trigger) {
+            const rect = trigger.getBoundingClientRect();
+            const width = 176;
+            const height = 210;
             let left = rect.right - width;
             if (left < 10) left = 10;
             if (left + width > window.innerWidth - 10) left = window.innerWidth - width - 10;
             let top = rect.bottom + 6;
+            let isAbove = false;
             // if dropdown exceeds bottom of viewport, position above button
-            if (top + 260 > window.innerHeight && rect.top > 260) {
-                top = rect.top - 260;
+            if (top + height > window.innerHeight - 10 && rect.top > height + 10) {
+                top = rect.top - height - 6;
+                isAbove = true;
             }
-            setPopoverPos({ top, left });
+            setPopoverPos({ top, left, isAbove });
         }
         setShowQuickMove(prev => !prev);
     };
@@ -536,15 +561,19 @@ const EnrollmentCard = function EnrollmentCard({
             )}
 
             {/* Quick Move Dropdown rendered in Portal (eliminates any clipping by sibling cards or scroll containers) */}
-            {showQuickMove && createPortal(
+            {showQuickMove && (isSmallScreen || popoverPos) && createPortal(
                 <div
-                    className="fixed inset-0 z-[9999] flex items-end sm:items-stretch justify-center sm:justify-start bg-black/40 sm:bg-transparent backdrop-blur-xs sm:backdrop-blur-none animate-fadeIn"
+                    className={`fixed inset-0 z-[9999] ${
+                        isSmallScreen
+                            ? 'flex items-end justify-center bg-black/40 backdrop-blur-xs animate-fadeIn'
+                            : 'bg-transparent'
+                    }`}
                     onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
                     onPointerDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                 >
                     <div
-                        style={popoverPos && !isMobile ? {
+                        style={!isSmallScreen && popoverPos ? {
                             position: 'fixed',
                             top: `${popoverPos.top}px`,
                             left: `${popoverPos.left}px`,
@@ -552,7 +581,11 @@ const EnrollmentCard = function EnrollmentCard({
                         onClick={e => e.stopPropagation()}
                         onPointerDown={e => e.stopPropagation()}
                         onTouchStart={e => e.stopPropagation()}
-                        className="w-full sm:w-44 bg-surface-elevated border border-border-subtle rounded-t-2xl sm:rounded-xl shadow-2xl p-3 sm:p-1.5 animate-slideUp sm:animate-scaleIn space-y-1 z-[10000]"
+                        className={
+                            isSmallScreen
+                                ? 'w-full bg-surface-elevated border border-border-subtle rounded-t-2xl shadow-2xl p-3 space-y-1 z-[10000] animate-sheetSlideUp'
+                                : `w-44 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`
+                        }
                     >
                         <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
                             <span>Move to Status</span>

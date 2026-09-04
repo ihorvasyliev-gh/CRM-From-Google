@@ -119,6 +119,74 @@ describe('EnrollmentCard Component', () => {
         expect(mockOnMoveStatus).toHaveBeenCalledWith('enrollment-1', 'requested', 'invited');
     });
 
+    it('positions Quick Move popover directly at button on desktop without slideUp translate glitch', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        const quickMoveBtn = screen.getByTitle('Move status');
+        vi.spyOn(quickMoveBtn, 'getBoundingClientRect').mockReturnValue({
+            top: 200,
+            bottom: 224,
+            left: 500,
+            right: 524,
+            width: 24,
+            height: 24,
+            x: 500,
+            y: 200,
+            toJSON: () => {}
+        });
+
+        fireEvent.click(quickMoveBtn);
+
+        const popoverTitle = screen.getByText('Move to Status');
+        const popoverCard = popoverTitle.closest('.w-44') as HTMLElement;
+        expect(popoverCard).not.toBeNull();
+        expect(popoverCard.className).toContain('animate-popoverScaleIn');
+        expect(popoverCard.className).not.toContain('animate-slideUp');
+        expect(popoverCard.className).toContain('origin-top-right');
+        // right = 524, width = 176 -> left = 348. bottom = 224 -> top = 230
+        expect(popoverCard.style.position).toBe('fixed');
+        expect(popoverCard.style.top).toBe('230px');
+        expect(popoverCard.style.left).toBe('348px');
+    });
+
+    it('positions Quick Move popover above button when near bottom of viewport', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        const quickMoveBtn = screen.getByTitle('Move status');
+        // Place near bottom: window.innerHeight is usually 768 in jsdom
+        vi.spyOn(quickMoveBtn, 'getBoundingClientRect').mockReturnValue({
+            top: 650,
+            bottom: 674,
+            left: 500,
+            right: 524,
+            width: 24,
+            height: 24,
+            x: 500,
+            y: 650,
+            toJSON: () => {}
+        });
+
+        fireEvent.click(quickMoveBtn);
+
+        const popoverTitle = screen.getByText('Move to Status');
+        const popoverCard = popoverTitle.closest('.w-44') as HTMLElement;
+        expect(popoverCard).not.toBeNull();
+        expect(popoverCard.className).toContain('origin-bottom-right');
+        // top = rect.top (650) - height (210) - 6 = 434
+        expect(popoverCard.style.top).toBe('434px');
+    });
+
+    it('dismisses Quick Move popover on window scroll', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        const quickMoveBtn = screen.getByTitle('Move status');
+        fireEvent.click(quickMoveBtn);
+        expect(screen.getByText('Move to Status')).toBeInTheDocument();
+
+        fireEvent.scroll(window);
+        expect(screen.queryByText('Move to Status')).not.toBeInTheDocument();
+    });
+
     it('toggles selection when tapping card body', () => {
         const { container } = render(<EnrollmentCard {...defaultProps} />);
 
