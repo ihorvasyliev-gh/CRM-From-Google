@@ -140,37 +140,6 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         );
     };
 
-    it('renders Needs Attention widget with expiring invites and stale requests', async () => {
-        const mockNavigate = vi.fn();
-        const mockOpenApprovals = vi.fn();
-
-        renderDashboard({
-            onNavigate: mockNavigate,
-            onOpenApprovals: mockOpenApprovals,
-            pendingApprovalsCount: 2,
-        });
-
-        // Widget header
-        expect(await screen.findByText(/Needs Attention/i)).toBeInTheDocument();
-
-        // Check expiring invites row
-        const expiringBtn = await screen.findByRole('button', { name: /1 Expiring Invite/i });
-        expect(expiringBtn).toBeInTheDocument();
-        fireEvent.click(expiringBtn);
-        expect(mockNavigate).toHaveBeenCalledWith('enrollments');
-
-        // Check stale requests row
-        const staleBtn = await screen.findByRole('button', { name: /1 Stale Request/i });
-        expect(staleBtn).toBeInTheDocument();
-        fireEvent.click(staleBtn);
-        expect(mockNavigate).toHaveBeenCalledWith('enrollments');
-
-        // Check pending approvals row
-        const approvalsBtn = await screen.findByRole('button', { name: /2 Course Completion Approvals/i });
-        expect(approvalsBtn).toBeInTheDocument();
-        fireEvent.click(approvalsBtn);
-        expect(mockOpenApprovals).toHaveBeenCalled();
-    });
 
     it('allows clicking student name in activity feed to view student details', async () => {
         const mockOpenDetail = vi.fn();

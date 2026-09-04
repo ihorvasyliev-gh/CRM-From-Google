@@ -39,7 +39,7 @@ export default function NetworkStatusIndicator({ showLabel = false, className = 
                         ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse cursor-pointer hover:bg-amber-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/40'
                         : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 animate-pulse cursor-pointer hover:bg-red-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500/40'
                 } ${className}`}
-                title={statusText}
+                aria-label={statusText}
             >
                 <span className="relative flex h-2 w-2 items-center justify-center">
                     {status === 'online' && (

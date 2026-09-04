@@ -133,14 +133,17 @@ const EnrollmentCard = function EnrollmentCard({
 
     useEffect(() => {
         if (!showQuickMove) return;
-        const handleDismiss = () => setShowQuickMove(false);
+        const handleDismiss = () => {
+            if (isSmallScreen) return; // Don't dismiss bottom action sheet on scroll
+            setShowQuickMove(false);
+        };
         window.addEventListener('scroll', handleDismiss, true);
         window.addEventListener('resize', handleDismiss);
         return () => {
             window.removeEventListener('scroll', handleDismiss, true);
             window.removeEventListener('resize', handleDismiss);
         };
-    }, [showQuickMove]);
+    }, [showQuickMove, isSmallScreen]);
 
     const cfg = STATUS_CONFIG[status];
     const draggableData = useMemo(() => ({ status }), [status]);
@@ -349,15 +352,14 @@ const EnrollmentCard = function EnrollmentCard({
                         <CustomTooltip content="Move status">
                             <button
                                 ref={quickMoveBtnRef}
-                                title="Move status"
                                 aria-label="Move status"
                                 onClick={handleOpenQuickMove}
-                                className={`p-1 rounded-md transition-colors border ${showQuickMove
+                                className={`p-1.5 sm:p-1 rounded-md transition-colors border ${showQuickMove
                                     ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
-                                    : 'text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
+                                    : 'text-muted/60 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
                                 }`}
                             >
-                                <ArrowRightLeft size={13} />
+                                <ArrowRightLeft size={14} />
                             </button>
                         </CustomTooltip>
                     )}
@@ -411,7 +413,6 @@ const EnrollmentCard = function EnrollmentCard({
                                             onPointerDown={e => e.stopPropagation()}
                                             onTouchStart={e => e.stopPropagation()}
                                             className="flex items-center justify-center w-5 h-5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded shadow-2xs transition-all active:scale-95 flex-shrink-0"
-                                            title="Chat on WhatsApp"
                                             aria-label="Chat on WhatsApp"
                                         >
                                             <MessageSquare size={11} />

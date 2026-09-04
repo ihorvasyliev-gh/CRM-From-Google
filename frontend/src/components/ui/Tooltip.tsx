@@ -23,11 +23,25 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 // A simple wrapper for ease of use
 export function CustomTooltip({ children, content, side = "top" }: { children: React.ReactNode, content: React.ReactNode, side?: "top" | "right" | "bottom" | "left" }) {
   if (!content) return <>{children}</>;
+
+  // Strip native `title` from child to prevent duplicate native OS/browser tooltips from overlaying Radix tooltips
+  let triggerChild = children;
+  if (React.isValidElement(children)) {
+    const childProps = children.props as Record<string, any>;
+    if (childProps.title !== undefined) {
+      const { title, ...restProps } = childProps;
+      triggerChild = React.cloneElement(children, {
+        ...restProps,
+        'aria-label': childProps['aria-label'] || (typeof title === 'string' ? title : undefined),
+      });
+    }
+  }
+
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          {children}
+          {triggerChild}
         </TooltipTrigger>
         <TooltipContent side={side}>
           {content}

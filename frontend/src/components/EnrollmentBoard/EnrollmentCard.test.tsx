@@ -66,6 +66,8 @@ describe('EnrollmentCard Component', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        window.innerWidth = 1024;
+        window.dispatchEvent(new Event('resize'));
     });
 
     it('renders student name, course pill, and queue position', () => {
@@ -91,7 +93,7 @@ describe('EnrollmentCard Component', () => {
     it('renders WhatsApp message button with correct link', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
-        const waLink = screen.getByTitle('Chat on WhatsApp');
+        const waLink = screen.getByLabelText('Chat on WhatsApp');
         expect(waLink).toBeInTheDocument();
         expect(waLink.getAttribute('href')).toContain('wa.me/353871234567');
     });
@@ -150,7 +152,7 @@ describe('EnrollmentCard Component', () => {
     it('opens Quick Move popover in portal and triggers onMoveStatus', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
-        const quickMoveBtn = screen.getByTitle('Move status');
+        const quickMoveBtn = screen.getByLabelText('Move status');
         expect(quickMoveBtn).toBeInTheDocument();
         fireEvent.click(quickMoveBtn);
 
@@ -168,7 +170,7 @@ describe('EnrollmentCard Component', () => {
     it('positions Quick Move popover directly at button on desktop without slideUp translate glitch', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
-        const quickMoveBtn = screen.getByTitle('Move status');
+        const quickMoveBtn = screen.getByLabelText('Move status');
         vi.spyOn(quickMoveBtn, 'getBoundingClientRect').mockReturnValue({
             top: 200,
             bottom: 224,
@@ -198,7 +200,7 @@ describe('EnrollmentCard Component', () => {
     it('positions Quick Move popover above button when near bottom of viewport', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
-        const quickMoveBtn = screen.getByTitle('Move status');
+        const quickMoveBtn = screen.getByLabelText('Move status');
         // Place near bottom: window.innerHeight is usually 768 in jsdom
         vi.spyOn(quickMoveBtn, 'getBoundingClientRect').mockReturnValue({
             top: 650,
@@ -225,7 +227,7 @@ describe('EnrollmentCard Component', () => {
     it('dismisses Quick Move popover on window scroll', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
-        const quickMoveBtn = screen.getByTitle('Move status');
+        const quickMoveBtn = screen.getByLabelText('Move status');
         fireEvent.click(quickMoveBtn);
         expect(screen.getByText('Move to Status')).toBeInTheDocument();
 
@@ -249,7 +251,7 @@ describe('EnrollmentCard Component', () => {
 
         render(<EnrollmentCard {...defaultProps} />);
 
-        const quickMoveBtn = screen.getByTitle('Move status');
+        const quickMoveBtn = screen.getByLabelText('Move status');
         fireEvent.click(quickMoveBtn);
 
         // Action Sheet header with student context

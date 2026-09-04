@@ -251,34 +251,6 @@ export default function FilterBar({
                 </div>
             </div>
 
-            {/* Mobile Compact Active Filter Bar (when menu is collapsed) */}
-            {!mobileMenuOpen && hasNonSearchFilters && (
-                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 text-xs animate-fadeIn">
-                    <span className="text-[10px] uppercase font-bold text-muted tracking-wider flex-shrink-0">Active:</span>
-                    {selectedCourse !== 'all' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-600 dark:text-brand-400 border border-brand-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
-                            {uniqueCourses.find(c => c.id === selectedCourse)?.name || 'Course'}
-                        </span>
-                    )}
-                    {selectedVariant !== 'all' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
-                            {selectedVariant}
-                        </span>
-                    )}
-                    {selectedCourseDate !== 'all' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold whitespace-nowrap flex-shrink-0">
-                            📅 {formatDayDateShort(selectedCourseDate)}
-                        </span>
-                    )}
-                    <button
-                        type="button"
-                        onClick={() => setMobileMenuOpen(true)}
-                        className="text-brand-500 hover:underline text-[11px] font-medium ml-auto flex-shrink-0"
-                    >
-                        Change
-                    </button>
-                </div>
-            )}
 
             {/* Collapsible Filters Container (always visible on desktop, toggled by arrow on mobile) */}
             <div className={`${mobileMenuOpen ? 'block' : 'hidden md:block'} space-y-2 transition-all`}>

@@ -17,7 +17,7 @@ export function useIsMobile(): boolean {
 export function useIsSmallScreen(): boolean {
     return useSyncExternalStore(
         subscribe,
-        () => (typeof window !== 'undefined' ? window.innerWidth < 640 : false),
+        () => (typeof window !== 'undefined' ? window.innerWidth < 768 : false),
         () => false
     );
 }

@@ -101,8 +101,8 @@ describe('FilterBar Component - Date Filter', () => {
         const toggleBtn = screen.getByTitle(/Show filter options/i);
         expect(toggleBtn).toBeInTheDocument();
 
-        // When collapsed and has filters, compact active summary is shown
-        expect(screen.getByText(/Active:/i)).toBeInTheDocument();
+        // When collapsed and has filters, active filter chips strip is shown
+        expect(screen.getByText(/Applied \(2\):/i)).toBeInTheDocument();
         expect(screen.getAllByText(/Patient moving and handling/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/28\s+Aug/i).length).toBeGreaterThan(0);
 
