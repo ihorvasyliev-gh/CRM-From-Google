@@ -144,7 +144,7 @@ function App() {
         }
     }, [darkMode]);
 
-    const toggleDarkMode = () => {
+    const toggleDarkMode = useCallback(() => {
         if (typeof document !== 'undefined' && 'startViewTransition' in document) {
             (document as any).startViewTransition(() => {
                 setDarkMode(prev => !prev);
@@ -152,7 +152,7 @@ function App() {
         } else {
             setDarkMode(prev => !prev);
         }
-    };
+    }, []);
 
     const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
         if (typeof window !== 'undefined') {
@@ -183,11 +183,13 @@ function App() {
         return () => window.removeEventListener('densitychange', handleDensityChange);
     }, [density]);
 
-    const toggleDensity = () => {
-        const next = density === 'comfortable' ? 'compact' : 'comfortable';
-        setDensity(next);
-        window.dispatchEvent(new CustomEvent('densitychange', { detail: next }));
-    };
+    const toggleDensity = useCallback(() => {
+        setDensity(prev => {
+            const next = prev === 'comfortable' ? 'compact' : 'comfortable';
+            window.dispatchEvent(new CustomEvent('densitychange', { detail: next }));
+            return next;
+        });
+    }, []);
 
     const queryClient = useQueryClient();
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -483,7 +485,7 @@ function App() {
     }, [user, isViewer, toggleDarkMode, toggleDensity, navigate]);
 
     const handleSaveNewStudent = async (formData: StudentFormData) => {
-        const { id, ...rest } = formData;
+        const { id: _id, ...rest } = formData;
         const { error } = await supabase.from('students').insert([rest]);
         if (error) throw new Error(error.message);
         queryClient.invalidateQueries({ queryKey: ['students'] });
