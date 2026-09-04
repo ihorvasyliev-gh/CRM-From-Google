@@ -87,15 +87,9 @@ function App() {
         if (!user) return;
         const prewarm = () => {
             import('./components/Dashboard');
+            import('./components/EnrollmentBoard');
             import('./components/StudentList');
             import('./components/CourseList');
-            import('./components/EnrollmentBoard');
-            import('./components/OutcomesList');
-            import('./components/DocumentGenerator');
-            import('./components/Analytics');
-            import('./components/Settings');
-            import('./components/StudentLookup');
-            import('./components/ViewerCourses');
         };
         if (typeof window !== 'undefined') {
             if ('requestIdleCallback' in window) {
@@ -309,6 +303,24 @@ function App() {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
         hoverTimerRef.current = setTimeout(() => {
             prefetchForTab(tab);
+            // Intent-based chunk prewarming: load heavy components only when hovered with intent
+            switch (tab) {
+                case 'documents':
+                    import('./components/DocumentGenerator');
+                    break;
+                case 'analytics':
+                    import('./components/Analytics');
+                    break;
+                case 'settings':
+                    import('./components/Settings');
+                    break;
+                case 'outcomes':
+                    import('./components/OutcomesList');
+                    break;
+                case 'courses':
+                    import('./components/CourseList');
+                    break;
+            }
         }, 150); // 150ms debounce prevents hover-storm when cursor sweeps past tabs
     }, [prefetchForTab]);
 

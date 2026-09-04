@@ -92,7 +92,7 @@ export default function CommandPalette({
                 setLoadingData(true);
             }
             try {
-                const promises: Promise<any>[] = [];
+                const promises: PromiseLike<any>[] = [];
                 if (needsCourses) {
                     promises.push(supabase.from('courses').select('*').order('name').limit(50));
                 }

@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { 
     Users, 
     GraduationCap, 
@@ -9,11 +10,11 @@ import {
     Zap, 
     Clock, 
     TrendingUp, 
-    Briefcase,
-    CheckCircle2,
-    MapPin,
-    BookOpen,
-    Search
+    Briefcase, 
+    CheckCircle2, 
+    MapPin, 
+    BookOpen, 
+    Search 
 } from 'lucide-react';
 
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
@@ -23,11 +24,11 @@ import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
 
 import GlobalFilterBar, { type AnalyticsFilterState } from './Analytics/GlobalFilterBar';
-import PipelineVelocityTab from './Analytics/PipelineVelocityTab';
-import GeographyDemographicsTab from './Analytics/GeographyDemographicsTab';
-import CourseMatrixTab from './Analytics/CourseMatrixTab';
-import OutcomesTab from './Analytics/OutcomesTab';
-import DataExplorerTab from './Analytics/DataExplorerTab';
+const PipelineVelocityTab = lazyWithRetry(() => import('./Analytics/PipelineVelocityTab'));
+const GeographyDemographicsTab = lazyWithRetry(() => import('./Analytics/GeographyDemographicsTab'));
+const CourseMatrixTab = lazyWithRetry(() => import('./Analytics/CourseMatrixTab'));
+const OutcomesTab = lazyWithRetry(() => import('./Analytics/OutcomesTab'));
+const DataExplorerTab = lazyWithRetry(() => import('./Analytics/DataExplorerTab'));
 import DrillDownModal from './Analytics/DrillDownModal';
 import { 
     calculateSpeedMetrics, 
@@ -388,7 +389,12 @@ export default function Analytics() {
                         <p className="text-xs font-semibold">Aggregating CRM intelligence & calculating metrics...</p>
                     </div>
                 ) : (
-                    <>
+                    <Suspense fallback={
+                        <div className="flex flex-col items-center justify-center py-24 text-muted space-y-3">
+                            <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                            <p className="text-xs font-semibold">Loading analytics view...</p>
+                        </div>
+                    }>
                         {activeTab === 'pipeline' && (
                             <PipelineVelocityTab
                                 enrollments={filteredEnrollments}
@@ -424,7 +430,7 @@ export default function Analytics() {
                                 onOpenStudent={handleOpenStudentDetail}
                             />
                         )}
-                    </>
+                    </Suspense>
                 )}
             </div>
 

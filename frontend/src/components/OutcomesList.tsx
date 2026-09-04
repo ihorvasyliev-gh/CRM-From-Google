@@ -9,6 +9,7 @@ import Toast, { ToastData } from './Toast';
 import OutcomeEditModal from './OutcomeEditModal';
 import { useDebounce } from '../hooks/useDebounce';
 
+export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
 
 type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
