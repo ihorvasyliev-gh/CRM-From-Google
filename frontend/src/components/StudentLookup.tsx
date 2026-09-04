@@ -811,7 +811,7 @@ export default function StudentLookup() {
                                                                 </span>
                                                             ) : (
                                                                 <span className={`text-[10px] px-2.5 py-1 rounded-xl flex items-center gap-1.5 border font-semibold ${
-                                                                    STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'
+                                                                    STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'
                                                                 }`}>
                                                                     {STATUS_BADGE[en.status]?.icon}
                                                                     {STATUS_BADGE[en.status]?.label || en.status}

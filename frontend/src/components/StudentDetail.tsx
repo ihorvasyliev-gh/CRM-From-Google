@@ -565,7 +565,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     <span className="text-[10px] text-muted block">{cleanVariant(en.courses?.name || '', en.course_variant)}</span>
                                                 )}
                                             </div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-100 text-muted border-border-subtle'}`}>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
                                                 {STATUS_BADGE[en.status]?.icon} {en.status}
                                             </span>
                                         </div>

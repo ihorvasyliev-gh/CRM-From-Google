@@ -757,7 +757,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                                 </span>
                                                 <button
                                                     onClick={() => bulkActions.handleCopyEmails(items, cfg.label)}
-                                                    className="ml-auto p-1.5 text-muted hover:text-muted hover:bg-surface-100 rounded-lg transition-all"
+                                                    className="ml-auto p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all"
                                                     title={`Copy ${cfg.label} emails`}
                                                 >
                                                     <Copy size={13} />
@@ -780,13 +780,13 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                                     </div>
                                                     <button
                                                         onClick={() => enrollmentsHook.updateStatus(enrollment.id, 'requested')}
-                                                        className="text-[11px] font-medium text-muted hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
+                                                        className="text-[11px] font-medium text-muted hover:text-brand-600 hover:bg-brand-500/10 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
                                                     >
                                                         Restore
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteTarget(enrollment)}
-                                                        className="text-muted hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-all"
+                                                        className="text-muted hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/40 p-1 rounded-lg transition-all"
                                                     >
                                                         <Trash2 size={12} />
                                                     </button>
@@ -803,7 +803,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
 
             {filteredEnrollments.length === 0 && (
                 <div className="text-center py-16">
-                    <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-surface-elevated border border-border-subtle rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <GraduationCap size={28} className="text-muted" />
                     </div>
                     <p className="text-lg font-semibold text-primary">No enrollments found</p>
@@ -850,7 +850,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
                                                     isSelected
                                                         ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
-                                                        : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-100/70'
+                                                        : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-elevated'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
@@ -928,7 +928,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => inviteFlow.setInviteDateTarget(null)}
-                                className="px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
                             >
                                 Cancel
                             </button>
@@ -985,7 +985,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
                                                     isSelected
                                                         ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
-                                                        : 'bg-surface border-border-subtle hover:border-emerald-300 hover:bg-surface-100/70'
+                                                        : 'bg-surface border-border-subtle hover:border-emerald-300 hover:bg-surface-elevated'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
@@ -1040,7 +1040,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setConfirmDateTarget(null)}
-                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
                             >
                                 Cancel
                             </button>
@@ -1156,7 +1156,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => setEditNoteTarget(null)}
-                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
                             >
                                 Cancel
                             </button>
@@ -1250,7 +1250,7 @@ export default function EnrollmentBoard({ initialCourseFilter }: { initialCourse
                             <div className="flex gap-3 mt-4">
                                 <button
                                     onClick={() => setFlagModalTarget(null)}
-                                    className="flex-1 px-4 py-2.5 text-sm font-medium text-muted bg-surface-100 hover:bg-surface-200 rounded-xl transition-all"
+                                    className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
                                 >
                                     Close
                                 </button>

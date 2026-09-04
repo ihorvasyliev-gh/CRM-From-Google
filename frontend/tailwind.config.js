@@ -16,6 +16,10 @@ export default {
                 surface: {
                     DEFAULT: 'oklch(var(--bg-surface) / <alpha-value>)',
                     elevated: 'oklch(var(--bg-surface-elevated) / <alpha-value>)',
+                    100: 'oklch(var(--bg-surface) / <alpha-value>)',
+                    200: 'oklch(var(--border-subtle) / <alpha-value>)',
+                    300: 'oklch(var(--border-strong) / <alpha-value>)',
+                    400: 'oklch(var(--text-muted) / <alpha-value>)',
                 },
                 primary: 'oklch(var(--text-primary) / <alpha-value>)',
                 muted: 'oklch(var(--text-muted) / <alpha-value>)',

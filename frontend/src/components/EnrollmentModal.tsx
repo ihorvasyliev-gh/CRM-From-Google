@@ -140,12 +140,12 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 <div className="sticky top-0 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
                                 <UserPlus size={18} />
                             </div>
                             <h2 className="text-lg font-bold text-primary">Add Enrollment</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -153,7 +153,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
                 <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
+                        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}

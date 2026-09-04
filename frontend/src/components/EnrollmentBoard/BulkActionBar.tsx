@@ -46,13 +46,13 @@ export default function BulkActionBar({
                     </div>
                     <div className="overflow-y-auto p-1.5 flex-1 space-y-0.5 min-h-0">
                         {selectedEnrollments.map((e: EnrollmentRow) => (
-                            <div key={e.id} className="flex items-center justify-between px-3 py-2 hover:bg-surface-100 rounded-lg group transition-colors">
+                            <div key={e.id} className="flex items-center justify-between px-3 py-2 hover:bg-surface rounded-lg group transition-colors">
                                 <span className="text-[13px] font-semibold text-primary truncate pr-2">
                                     {e.students?.first_name} {e.students?.last_name}
                                 </span>
                                 <button 
                                     onClick={() => toggleSelect(e.id)}
-                                    className="text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all p-1 rounded-md"
+                                    className="text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-all p-1 rounded-md"
                                     title="Deselect"
                                 >
                                     <X size={14} />

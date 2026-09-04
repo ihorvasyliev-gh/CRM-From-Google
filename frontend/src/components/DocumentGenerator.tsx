@@ -515,7 +515,7 @@ export default function DocumentGenerator() {
             {/* ═══ Template Management Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
                 {/* Header */}
-                <div className="p-5 border-b border-surface-100">
+                <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl text-violet-600 flex-shrink-0">
                             <FileText size={22} />
@@ -667,7 +667,7 @@ export default function DocumentGenerator() {
 
             {/* ═══ Custom Variables Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-surface-100">
+                <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl text-emerald-600 flex-shrink-0">
                             <Variable size={22} />
@@ -717,7 +717,7 @@ export default function DocumentGenerator() {
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingVarId(null)}
-                                                    className="text-surface-400 hover:text-surface-600 p-1 rounded-lg hover:bg-surface-100 transition-all flex-shrink-0"
+                                                    className="text-muted hover:text-primary p-1 rounded-lg hover:bg-surface-elevated transition-all flex-shrink-0"
                                                     title="Cancel"
                                                 >
                                                     <X size={14} />
@@ -808,7 +808,7 @@ export default function DocumentGenerator() {
 
             {/* ═══ Attendance Sheet Template Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-surface-100">
+                <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl text-blue-600 flex-shrink-0">
                             <FileText size={22} />
@@ -876,7 +876,7 @@ export default function DocumentGenerator() {
 
             {/* ═══ Address Labels Template Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-surface-100">
+                <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl text-amber-600 flex-shrink-0">
                             <Tag size={22} />
@@ -901,7 +901,7 @@ export default function DocumentGenerator() {
                             </div>
                             <button
                                 onClick={handleDeleteLabels}
-                                className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
+                                className="text-muted hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-all"
                                 title="Delete template"
                             >
                                 <Trash2 size={14} />
@@ -944,7 +944,7 @@ export default function DocumentGenerator() {
 
             {/* ═══ Excel Export Columns Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-surface-100">
+                <div className="p-5 border-b border-border-subtle">
                     <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl text-teal-600 flex-shrink-0">
                             <Table2 size={22} />

@@ -57,12 +57,12 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                 <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
+                            <div className="p-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl text-violet-600 dark:text-violet-400">
                                 <BookOpen size={18} />
                             </div>
                             <h2 className="text-lg font-bold text-primary">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
+                        <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -70,7 +70,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
+                        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
