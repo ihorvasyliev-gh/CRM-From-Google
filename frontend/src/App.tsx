@@ -8,6 +8,7 @@ import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
 import { fetchAllEnrollments } from './hooks/useEnrollments';
+import { fetchGraduatesFn } from './hooks/useOutcomes';
 import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
@@ -297,77 +298,7 @@ function App() {
             case 'outcomes':
                 queryClient.prefetchQuery({
                     queryKey: ['outcomes_graduates'],
-                    queryFn: async () => {
-                        let enrollments: any[] = [];
-                        let from = 0;
-                        const limit = 1000;
-                        while (true) {
-                            const { data, error } = await supabase
-                                .from('enrollments')
-                                .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
-                                .eq('status', 'completed')
-                                .range(from, from + limit - 1);
-                            if (error) throw error;
-                            if (!data || data.length === 0) break;
-                            enrollments = [...enrollments, ...data];
-                            if (data.length < limit) break;
-                            from += limit;
-                        }
-
-                        let empStatuses: any[] = [];
-                        from = 0;
-                        while (true) {
-                            const { data, error } = await supabase
-                                .from('employment_status')
-                                .select('*')
-                                .range(from, from + limit - 1);
-                            if (error) break;
-                            if (!data || data.length === 0) break;
-                            empStatuses = [...empStatuses, ...data];
-                            if (data.length < limit) break;
-                            from += limit;
-                        }
-
-                        const studentMap = new Map<string, any>();
-                        for (const e of enrollments) {
-                            const student = e.students;
-                            const course = e.courses;
-                            if (!student || !student.id) continue;
-
-                            if (!studentMap.has(student.id)) {
-                                const empStatus = empStatuses?.find(es => es.student_id === student.id);
-                                let trackingStatus = 'not_contacted';
-                                if (empStatus) {
-                                    trackingStatus = empStatus.status;
-                                }
-
-                                studentMap.set(student.id, {
-                                    student_id: student.id,
-                                    first_name: student.first_name || '',
-                                    last_name: student.last_name || '',
-                                    email: student.email || '',
-                                    courses: [course?.name || 'Unknown'],
-                                    is_working: empStatus?.is_working ?? null,
-                                    started_month: empStatus?.started_month ?? null,
-                                    field_of_work: empStatus?.field_of_work ?? null,
-                                    employment_type: empStatus?.employment_type ?? null,
-                                    status_updated_at: empStatus?.last_responded_at ?? null,
-                                    tracking_status: trackingStatus,
-                                    last_sent_at: empStatus?.last_invited_at ?? null,
-                                });
-                            } else {
-                                const existing = studentMap.get(student.id)!;
-                                const courseName = course?.name || 'Unknown';
-                                if (!existing.courses.includes(courseName)) {
-                                    existing.courses.push(courseName);
-                                }
-                            }
-                        }
-
-                        return Array.from(studentMap.values()).sort(
-                            (a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
-                        );
-                    },
+                    queryFn: fetchGraduatesFn,
                     staleTime: 30_000,
                 });
                 break;
