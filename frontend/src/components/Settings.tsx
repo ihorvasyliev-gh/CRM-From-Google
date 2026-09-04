@@ -161,68 +161,117 @@ export default function Settings() {
                     students: list
                 }));
 
-            // 2. Scan for potential matches (similar names + matching DOB or Phone, but not same email)
+            // 2. Fast candidate bucketing: group students by normalized phone and by DOB
+            // Instead of comparing all N*(N-1)/2 pairs (~4.5M comparisons),
+            // only compare students that share a normalized phone or DOB.
+            const candidatePairs = new Map<string, [Student, Student]>();
+            const phoneBuckets = new Map<string, Student[]>();
+            const dobBuckets = new Map<string, Student[]>();
+
+            for (const s of studentsData) {
+                const p = normalizePhone(s.phone);
+                if (p && p.length >= 6) {
+                    let list = phoneBuckets.get(p);
+                    if (!list) {
+                        list = [];
+                        phoneBuckets.set(p, list);
+                    }
+                    list.push(s);
+                }
+                if (s.dob && s.dob.trim()) {
+                    const d = s.dob.trim();
+                    let list = dobBuckets.get(d);
+                    if (!list) {
+                        list = [];
+                        dobBuckets.set(d, list);
+                    }
+                    list.push(s);
+                }
+            }
+
+            for (const list of phoneBuckets.values()) {
+                if (list.length > 1) {
+                    for (let i = 0; i < list.length; i++) {
+                        for (let j = i + 1; j < list.length; j++) {
+                            const [id1, id2] = [list[i].id, list[j].id].sort();
+                            const key = `${id1}_${id2}`;
+                            if (!candidatePairs.has(key)) {
+                                candidatePairs.set(key, [list[i], list[j]]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (const list of dobBuckets.values()) {
+                if (list.length > 1) {
+                    for (let i = 0; i < list.length; i++) {
+                        for (let j = i + 1; j < list.length; j++) {
+                            const [id1, id2] = [list[i].id, list[j].id].sort();
+                            const key = `${id1}_${id2}`;
+                            if (!candidatePairs.has(key)) {
+                                candidatePairs.set(key, [list[i], list[j]]);
+                            }
+                        }
+                    }
+                }
+            }
+
             const matchesList: { studentA: Student; studentB: Student; reason: string }[] = [];
             const processedPairs = new Set<string>();
 
-            for (let i = 0; i < studentsData.length; i++) {
-                for (let j = i + 1; j < studentsData.length; j++) {
-                    const s1 = studentsData[i];
-                    const s2 = studentsData[j];
+            for (const [pairKey, [s1, s2]] of candidatePairs.entries()) {
+                // Skip if they share the exact same email (handled by email duplicate scanner)
+                if (s1.email && s2.email && s1.email.trim().toLowerCase() === s2.email.trim().toLowerCase()) {
+                    continue;
+                }
 
-                    // Skip if they share the exact same email (handled by email duplicate scanner)
-                    if (s1.email && s2.email && s1.email.trim().toLowerCase() === s2.email.trim().toLowerCase()) {
-                        continue;
+                if (nonDupsSet.has(pairKey) || processedPairs.has(pairKey)) {
+                    continue;
+                }
+
+                // Check if names are similar
+                if (areNamesSimilar(s1.first_name, s1.last_name, s2.first_name, s2.last_name)) {
+                    let hasMatchingId = false;
+                    const reasons: string[] = [];
+
+                    // Check DOB match
+                    if (s1.dob && s2.dob && s1.dob === s2.dob) {
+                        hasMatchingId = true;
+                        reasons.push('Same DOB');
                     }
 
-                    const pairKey = [s1.id, s2.id].sort().join('_');
-                    if (nonDupsSet.has(pairKey) || processedPairs.has(pairKey)) {
-                        continue;
+                    // Check Phone match
+                    const p1 = normalizePhone(s1.phone);
+                    const p2 = normalizePhone(s2.phone);
+                    if (p1 && p2 && p1 === p2) {
+                        hasMatchingId = true;
+                        reasons.push('Same Phone');
                     }
 
-                    // Check if names are similar
-                    if (areNamesSimilar(s1.first_name, s1.last_name, s2.first_name, s2.last_name)) {
-                        let hasMatchingId = false;
-                        const reasons: string[] = [];
+                    if (hasMatchingId) {
+                        processedPairs.add(pairKey);
+                        const t1 = new Date(s1.created_at || 0).getTime();
+                        const t2 = new Date(s2.created_at || 0).getTime();
+                        const studentA = t1 <= t2 ? s1 : s2; // older profile
+                        const studentB = t1 <= t2 ? s2 : s1; // newer profile
 
-                        // Check DOB match
-                        if (s1.dob && s2.dob && s1.dob === s2.dob) {
-                            hasMatchingId = true;
-                            reasons.push('Same DOB');
+                        // List the differences
+                        const diffs: string[] = [];
+                        if (studentA.address !== studentB.address) diffs.push('address');
+                        if (studentA.phone !== studentB.phone && normalizePhone(studentA.phone) !== normalizePhone(studentB.phone)) diffs.push('phone');
+                        if (studentA.email !== studentB.email) diffs.push('email');
+
+                        let reasonText = reasons.join(' & ');
+                        if (diffs.length > 0) {
+                            reasonText += `, different ${diffs.join('/')}`;
                         }
 
-                        // Check Phone match
-                        const p1 = normalizePhone(s1.phone);
-                        const p2 = normalizePhone(s2.phone);
-                        if (p1 && p2 && p1 === p2) {
-                            hasMatchingId = true;
-                            reasons.push('Same Phone');
-                        }
-
-                        if (hasMatchingId) {
-                            processedPairs.add(pairKey);
-                            const t1 = new Date(s1.created_at || 0).getTime();
-                            const t2 = new Date(s2.created_at || 0).getTime();
-                            const studentA = t1 <= t2 ? s1 : s2; // older profile
-                            const studentB = t1 <= t2 ? s2 : s1; // newer profile
-
-                            // List the differences
-                            const diffs: string[] = [];
-                            if (studentA.address !== studentB.address) diffs.push('address');
-                            if (studentA.phone !== studentB.phone && normalizePhone(studentA.phone) !== normalizePhone(studentB.phone)) diffs.push('phone');
-                            if (studentA.email !== studentB.email) diffs.push('email');
-
-                            let reasonText = reasons.join(' & ');
-                            if (diffs.length > 0) {
-                                reasonText += `, different ${diffs.join('/')}`;
-                            }
-
-                            matchesList.push({
-                                studentA,
-                                studentB,
-                                reason: reasonText
-                            });
-                        }
+                        matchesList.push({
+                            studentA,
+                            studentB,
+                            reason: reasonText
+                        });
                     }
                 }
             }
@@ -396,7 +445,7 @@ export default function Settings() {
                     </div>
                 </div>
 
-                <div className={`p-5 grid grid-cols-1 ${showPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
+                <div className={`p-5 grid grid-cols-1 ${showPreview ? 'lg:grid-cols-2 items-start' : ''} gap-6`}>
                     <div className="space-y-4">
                         {/* Tab Info Banner */}
                         <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
@@ -526,7 +575,7 @@ export default function Settings() {
 
                     {/* Preview */}
                     {showPreview && (
-                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
+                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0 lg:sticky lg:top-6">
                             <div className="flex items-center justify-between text-xs font-bold text-muted uppercase tracking-wider">
                                 <span>Live Responsive Preview ({inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'})</span>
                                 <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
@@ -569,7 +618,7 @@ export default function Settings() {
                     </button>
                 </div>
 
-                <div className={`p-5 grid grid-cols-1 ${showStatusPreview ? 'xl:grid-cols-2' : ''} gap-6`}>
+                <div className={`p-5 grid grid-cols-1 ${showStatusPreview ? 'lg:grid-cols-2 items-start' : ''} gap-6`}>
                     <div className="space-y-4">
                         {/* Subject Editing */}
                         <div className="space-y-2">
@@ -647,7 +696,7 @@ export default function Settings() {
 
                     {/* Preview */}
                     {showStatusPreview && (
-                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0">
+                        <div className="space-y-3 animate-fadeIn h-full flex flex-col min-w-0 lg:sticky lg:top-6">
                             <div className="flex items-center justify-between text-xs font-bold text-muted uppercase tracking-wider">
                                 <span>Live Responsive Preview</span>
                                 <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
