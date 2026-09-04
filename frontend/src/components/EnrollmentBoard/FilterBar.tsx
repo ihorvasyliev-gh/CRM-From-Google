@@ -84,6 +84,72 @@ export default function FilterBar({
         setCourseDateTo('');
     };
 
+    const activeFilters: { id: string; label: string; value: string; onRemove: () => void }[] = [];
+
+    if (searchQuery.trim()) {
+        activeFilters.push({
+            id: 'search',
+            label: 'Search',
+            value: `"${searchQuery.trim()}"`,
+            onRemove: () => setSearchQuery(''),
+        });
+    }
+
+    if (selectedCourse !== 'all') {
+        const courseName = uniqueCourses.find(c => c.id === selectedCourse)?.name || 'Course';
+        activeFilters.push({
+            id: 'course',
+            label: 'Course',
+            value: courseName,
+            onRemove: () => {
+                setSelectedCourse('all');
+                setSelectedVariant('all');
+            },
+        });
+    }
+
+    if (selectedVariant !== 'all') {
+        activeFilters.push({
+            id: 'variant',
+            label: 'Language',
+            value: selectedVariant,
+            onRemove: () => setSelectedVariant('all'),
+        });
+    }
+
+    if (selectedCourseDate !== 'all') {
+        activeFilters.push({
+            id: 'courseDate',
+            label: 'Date',
+            value: formatDayDateShort(selectedCourseDate),
+            onRemove: () => setSelectedCourseDate('all'),
+        });
+    }
+
+    if (dateFrom || dateTo) {
+        activeFilters.push({
+            id: 'createdDate',
+            label: 'Created',
+            value: `${dateFrom || '...'} – ${dateTo || '...'}`,
+            onRemove: () => {
+                setDateFrom('');
+                setDateTo('');
+            },
+        });
+    }
+
+    if (courseDateFrom || courseDateTo) {
+        activeFilters.push({
+            id: 'courseDateRange',
+            label: 'Course Range',
+            value: `${courseDateFrom || '...'} – ${courseDateTo || '...'}`,
+            onRemove: () => {
+                setCourseDateFrom('');
+                setCourseDateTo('');
+            },
+        });
+    }
+
     return (
         <div className="filter-bar-container bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
             {/* Row 1: Title + Search + Filter Toggle (Mobile) + Add */}
@@ -449,6 +515,42 @@ export default function FilterBar({
                             dateField="confirmed_date"
                         />
                     </div>
+                </div>
+            )}
+
+            {/* Active Filter Chips Strip (Desktop & Mobile) */}
+            {activeFilters.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-2 pb-0.5 border-t border-border-subtle/50 text-xs animate-fadeIn">
+                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted flex-shrink-0 flex items-center gap-1 mr-1">
+                        <Filter size={11} className="text-brand-500" />
+                        Applied ({activeFilters.length}):
+                    </span>
+
+                    {activeFilters.map(filter => (
+                        <span
+                            key={filter.id}
+                            className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-0.5 rounded-full bg-surface-elevated border border-border-strong text-xs font-medium text-primary shadow-2xs group hover:border-brand-500/50 transition-all"
+                        >
+                            <span className="text-muted font-normal text-[11px]">{filter.label}:</span>
+                            <span className="font-semibold text-primary max-w-[160px] truncate">{filter.value}</span>
+                            <button
+                                type="button"
+                                onClick={filter.onRemove}
+                                aria-label={`Remove ${filter.label} filter`}
+                                className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-muted hover:text-danger transition-colors cursor-pointer"
+                            >
+                                <X size={12} />
+                            </button>
+                        </span>
+                    ))}
+
+                    <button
+                        type="button"
+                        onClick={clearAll}
+                        className="text-[11px] font-semibold text-danger hover:text-danger/80 hover:underline px-2 py-0.5 rounded-lg transition-colors ml-auto sm:ml-1 cursor-pointer"
+                    >
+                        Clear all
+                    </button>
                 </div>
             )}
 

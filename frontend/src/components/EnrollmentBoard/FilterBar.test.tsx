@@ -110,4 +110,46 @@ describe('FilterBar Component - Date Filter', () => {
         fireEvent.click(toggleBtn);
         expect(screen.getByTitle(/Hide filter options/i)).toBeInTheDocument();
     });
+
+    it('renders active filter chips and allows removing individual filters or clearing all', () => {
+        render(
+            <FilterBar
+                {...defaultProps}
+                selectedCourse="course-1"
+                selectedCourseDate="2026-08-28"
+                searchQuery="Alice"
+            />
+        );
+
+        // Applied count should show (3)
+        expect(screen.getByText(/Applied \(3\):/i)).toBeInTheDocument();
+
+        // Search chip should be present
+        expect(screen.getByText(/"Alice"/i)).toBeInTheDocument();
+        const removeSearchBtn = screen.getByLabelText('Remove Search filter');
+        fireEvent.click(removeSearchBtn);
+        expect(mockSetSearchQuery).toHaveBeenCalledWith('');
+
+        // Date chip should be present
+        const removeDateBtn = screen.getByLabelText('Remove Date filter');
+        fireEvent.click(removeDateBtn);
+        expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
+
+        // Course chip should be present
+        const removeCourseBtn = screen.getByLabelText('Remove Course filter');
+        fireEvent.click(removeCourseBtn);
+        expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
+
+        // Clear all button should trigger all resets
+        const clearAllBtn = screen.getByRole('button', { name: /^Clear all$/i });
+        fireEvent.click(clearAllBtn);
+        expect(mockSetSearchQuery).toHaveBeenCalledWith('');
+        expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
+        expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
+        expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
+        expect(mockSetDateFrom).toHaveBeenCalledWith('');
+        expect(mockSetDateTo).toHaveBeenCalledWith('');
+        expect(mockSetCourseDateFrom).toHaveBeenCalledWith('');
+        expect(mockSetCourseDateTo).toHaveBeenCalledWith('');
+    });
 });
