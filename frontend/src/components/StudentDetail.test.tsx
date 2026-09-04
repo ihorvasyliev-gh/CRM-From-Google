@@ -45,7 +45,6 @@ const mockStudent: Student = {
     eircode: 'T12AB34',
     dob: '1995-05-15',
     created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
 };
 
 function renderWithQueryClient(ui: React.ReactElement) {
