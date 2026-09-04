@@ -24,7 +24,11 @@ export function getCoursePill(enrollment: EnrollmentRow): string {
 interface UseBulkActionsProps {
     enrollments: EnrollmentRow[];
     setEnrollments: React.Dispatch<React.SetStateAction<EnrollmentRow[]>>;
-    showToast: (msg: string, type: 'success' | 'error') => void;
+    showToast: (
+        msg: string,
+        type: 'success' | 'error' | 'info',
+        options?: { action?: { label: string; onClick: () => void }; duration?: number }
+    ) => void;
     openInviteModal: (ids: string[], bulk: boolean) => void;
     openConfirmModal: (ids: string[], defaultDate: string, courseId: string) => void;
 }
@@ -50,16 +54,10 @@ export function useBulkActions({
     }, []);
 
     const selectAllInList = useCallback((items: EnrollmentRow[]) => {
-        // We use function updater for set to avoid dependency on selectedIds for the state update,
-        // but we need the current selectedIds to know 'allSelected'. 
-        // Better: calculate it inside the setter or leave selectedIds in deps.
         setSelectedIds(prev => {
-            const allSelected = items.every(e => prev.has(e.id));
+            const allSelected = items.every(i => prev.has(i.id));
             const next = new Set(prev);
-            items.forEach(e => {
-                if (allSelected) next.delete(e.id);
-                else next.add(e.id);
-            });
+            items.forEach(i => allSelected ? next.delete(i.id) : next.add(i.id));
             return next;
         });
     }, []);
@@ -72,6 +70,20 @@ export function useBulkActions({
         mutationFn: async ({ newStatus, confirmedDate }: { newStatus: string, confirmedDate?: string }) => {
             let idsToUpdate = Array.from(selectedIds);
             const updatePayload: Record<string, string | null> = { status: newStatus };
+
+            // Snapshot previous state of selected enrollments for Undo capability
+            const previousSnapshots = enrollments
+                .filter(e => selectedIds.has(e.id))
+                .map(e => ({
+                    id: e.id,
+                    status: e.status,
+                    confirmed_date: e.confirmed_date,
+                    confirmed_at: e.confirmed_at,
+                    completed_date: e.completed_date,
+                    completed_at: e.completed_at,
+                    invited_date: e.invited_date,
+                    invited_at: e.invited_at,
+                }));
 
             if (newStatus === 'confirmed') {
                 if (confirmedDate) updatePayload.confirmed_date = confirmedDate;
@@ -122,7 +134,7 @@ export function useBulkActions({
                     await supabase.from('enrollments').delete().in('id', siblingRequestedIds);
                 }
 
-                return { idsToUpdate, updatePayload, type: 'completed' as const, siblingRequestedIds, selectedEnrollments };
+                return { idsToUpdate, updatePayload, type: 'completed' as const, siblingRequestedIds, selectedEnrollments, previousSnapshots };
             }
 
             if (newStatus === 'withdrawn') {
@@ -140,9 +152,35 @@ export function useBulkActions({
 
             const { error } = await supabase.from('enrollments').update(updatePayload).in('id', idsToUpdate);
             if (error) throw new Error('Error updating status');
-            return { idsToUpdate, updatePayload, type: 'standard' as const };
+            return { idsToUpdate, updatePayload, type: 'standard' as const, previousSnapshots };
         },
         onSuccess: (result) => {
+            const rollback = async () => {
+                try {
+                    const updatePromises = result.previousSnapshots.map(snap =>
+                        supabase.from('enrollments').update({
+                            status: snap.status,
+                            confirmed_date: snap.confirmed_date,
+                            confirmed_at: snap.confirmed_at,
+                            completed_date: snap.completed_date,
+                            completed_at: snap.completed_at,
+                            invited_date: snap.invited_date,
+                            invited_at: snap.invited_at,
+                        }).eq('id', snap.id)
+                    );
+                    await Promise.all(updatePromises);
+
+                    setEnrollments(prev => prev.map(e => {
+                        const match = result.previousSnapshots.find(s => s.id === e.id);
+                        return match ? ({ ...e, ...match } as EnrollmentRow) : e;
+                    }));
+                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                    showToast('Bulk status changes undone', 'info');
+                } catch {
+                    showToast('Failed to undo status changes', 'error');
+                }
+            };
+
             if (result.type === 'completed') {
                 setEnrollments(prev => prev
                     .filter(e => !result.siblingRequestedIds.includes(e.id))
@@ -165,7 +203,13 @@ export function useBulkActions({
                 setSelectedIds(new Set());
                 const msg = `${result.idsToUpdate.length} enrollment(s) → completed`;
                 const extra = result.siblingRequestedIds.length > 0 ? `, removed ${result.siblingRequestedIds.length} requested variant(s)` : '';
-                showToast(msg + extra, 'success');
+                showToast(msg + extra, 'success', {
+                    action: {
+                        label: 'Undo',
+                        onClick: () => { void rollback(); },
+                    },
+                    duration: 7000,
+                });
             } else {
                 setEnrollments(prev => prev.map(e =>
                     result.idsToUpdate.includes(e.id)
@@ -173,7 +217,17 @@ export function useBulkActions({
                         : e
                 ));
                 setSelectedIds(new Set());
-                showToast(`${result.idsToUpdate.length} enrollment(s) → ${result.updatePayload.status}`, 'success');
+                showToast(
+                    `${result.idsToUpdate.length} enrollment(s) → ${result.updatePayload.status}`,
+                    'success',
+                    {
+                        action: {
+                            label: 'Undo',
+                            onClick: () => { void rollback(); },
+                        },
+                        duration: 7000,
+                    }
+                );
             }
         },
         onError: () => showToast('Error updating status', 'error')

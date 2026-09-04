@@ -28,7 +28,19 @@ const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
 export default function EnrollmentBoard({ initialCourseFilter }: { initialCourseFilter?: string }) {
     const [toast, setToast] = useState<ToastData | null>(null);
-    const showToast = useCallback((message: string, type: 'success' | 'error') => setToast({ message, type }), []);
+    const showToast = useCallback(
+        (
+            message: string,
+            type: 'success' | 'error' | 'info' = 'success',
+            options?: { action?: { label: string; onClick: () => void }; duration?: number }
+        ) => setToast({
+            message,
+            type,
+            action: options?.action,
+            duration: options?.duration,
+        }),
+        []
+    );
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
