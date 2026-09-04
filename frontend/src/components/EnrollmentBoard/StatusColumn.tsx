@@ -5,6 +5,7 @@ import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
+import { CustomTooltip } from '../ui/Tooltip';
 
 interface StatusColumnProps {
     status: string;
@@ -135,26 +136,31 @@ const StatusColumn = function StatusColumn({
                         </div>
                         <div className="flex items-center gap-1">
                             {items.length > 0 && (
-                                <button
-                                    onClick={() => handleCopyEmails(items, cfg.label)}
-                                    title={`Copy all ${cfg.label} emails`}
-                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
-                                >
-                                    <Copy size={14} />
-                                </button>
+                                <CustomTooltip content={`Copy all ${cfg.label} emails`}>
+                                    <button
+                                        onClick={() => handleCopyEmails(items, cfg.label)}
+                                        aria-label={`Copy all ${cfg.label} emails`}
+                                        className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+                                </CustomTooltip>
                             )}
                             {items.length > 0 && (
-                                <button
-                                    onClick={() => selectAllInList(items)}
-                                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
-                                        ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                                        : someSelected
-                                            ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
-                                            : 'border-border-strong hover:border-brand-500/50'
-                                        }`}
-                                >
-                                    {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
-                                </button>
+                                <CustomTooltip content={allSelected ? "Deselect all in column" : "Select all in column"}>
+                                    <button
+                                        onClick={() => selectAllInList(items)}
+                                        aria-label={allSelected ? "Deselect all in column" : "Select all in column"}
+                                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
+                                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                            : someSelected
+                                                ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'
+                                                : 'border-border-strong hover:border-brand-500/50'
+                                            }`}
+                                    >
+                                        {(allSelected || someSelected) && <Check size={12} strokeWidth={3} />}
+                                    </button>
+                                </CustomTooltip>
                             )}
                         </div>
                     </div>

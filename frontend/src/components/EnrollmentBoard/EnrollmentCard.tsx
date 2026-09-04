@@ -10,6 +10,7 @@ import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUti
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
+import { CustomTooltip } from '../ui/Tooltip';
 
 interface EnrollmentCardProps {
     enrollment: EnrollmentRow;
@@ -252,62 +253,73 @@ const EnrollmentCard = function EnrollmentCard({
                 {/* Right Quick Actions (In one horizontal row) */}
                 <div className="flex items-center gap-0.5 flex-shrink-0">
                     {/* Star Priority */}
-                    <button
-                        title={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            togglePriority(enrollment.id, !!enrollment.is_priority);
-                        }}
-                        className={`p-1 rounded-md transition-colors ${enrollment.is_priority
-                            ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                            : 'text-muted/40 hover:text-warning/70 hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
-                        }`}
-                    >
-                        <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                    </button>
+                    <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"}>
+                        <button
+                            aria-label={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                togglePriority(enrollment.id, !!enrollment.is_priority);
+                            }}
+                            className={`p-1 rounded-md transition-colors ${enrollment.is_priority
+                                ? 'text-warning hover:text-warning/80 drop-shadow-sm'
+                                : 'text-muted/50 hover:text-warning/90 hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
+                            }`}
+                        >
+                            <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                        </button>
+                    </CustomTooltip>
 
                     {/* ⚠ Student Flags */}
                     {studentFlags.length > 0 ? (
-                        <button
-                            title={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}
-                            onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                            className="p-1 text-orange-500 hover:text-orange-600 transition-colors drop-shadow-sm rounded-md"
-                        >
-                            <AlertTriangle size={14} strokeWidth={2.5} />
-                        </button>
+                        <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
+                            <button
+                                aria-label="Student flags"
+                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                className="p-1 text-orange-500 hover:text-orange-600 transition-colors drop-shadow-sm rounded-md"
+                            >
+                                <AlertTriangle size={14} strokeWidth={2.5} />
+                            </button>
+                        </CustomTooltip>
                     ) : (
-                        <button
-                            title="Flag student (e.g. failed a course)"
-                            onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                            className="p-1 text-muted/40 hover:text-orange-400 hover:bg-surface-elevated transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 rounded-md"
-                        >
-                            <AlertTriangle size={14} />
-                        </button>
+                        <CustomTooltip content="Flag student (e.g. failed a course)">
+                            <button
+                                aria-label="Flag student"
+                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                className="p-1 text-muted/50 hover:text-orange-400 hover:bg-surface-elevated transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 rounded-md"
+                            >
+                                <AlertTriangle size={14} />
+                            </button>
+                        </CustomTooltip>
                     )}
 
                     {/* ⇄ Quick Move Status Button */}
                     {onMoveStatus && (
-                        <button
-                            ref={quickMoveBtnRef}
-                            title="Move status"
-                            onClick={handleOpenQuickMove}
-                            className={`p-1 rounded-md transition-colors border ${showQuickMove
-                                ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
-                                : 'text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
-                            }`}
-                        >
-                            <ArrowRightLeft size={13} />
-                        </button>
+                        <CustomTooltip content="Move status">
+                            <button
+                                ref={quickMoveBtnRef}
+                                title="Move status"
+                                aria-label="Move status"
+                                onClick={handleOpenQuickMove}
+                                className={`p-1 rounded-md transition-colors border ${showQuickMove
+                                    ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
+                                    : 'text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
+                                }`}
+                            >
+                                <ArrowRightLeft size={13} />
+                            </button>
+                        </CustomTooltip>
                     )}
 
                     {/* ℹ Student Info Button */}
-                    <button
-                        title="View Student Details"
-                        onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                        className="p-1 rounded-md transition-colors border text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
-                    >
-                        <Info size={14} />
-                    </button>
+                    <CustomTooltip content="View Student Details">
+                        <button
+                            aria-label="View Student Details"
+                            onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                            className="p-1 rounded-md transition-colors border text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
+                        >
+                            <Info size={14} />
+                        </button>
+                    </CustomTooltip>
                 </div>
             </div>
 
@@ -338,18 +350,21 @@ const EnrollmentCard = function EnrollmentCard({
                                     </div>
                                 )}
                                 {waUrl && (
-                                    <a
-                                        href={waUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        onPointerDown={e => e.stopPropagation()}
-                                        onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center justify-center w-5 h-5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded shadow-2xs transition-all active:scale-95 flex-shrink-0"
-                                        title="Chat on WhatsApp"
-                                    >
-                                        <MessageSquare size={11} />
-                                    </a>
+                                    <CustomTooltip content="Chat on WhatsApp">
+                                        <a
+                                            href={waUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            onPointerDown={e => e.stopPropagation()}
+                                            onTouchStart={e => e.stopPropagation()}
+                                            className="flex items-center justify-center w-5 h-5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded shadow-2xs transition-all active:scale-95 flex-shrink-0"
+                                            title="Chat on WhatsApp"
+                                            aria-label="Chat on WhatsApp"
+                                        >
+                                            <MessageSquare size={11} />
+                                        </a>
+                                    </CustomTooltip>
                                 )}
                             </div>
                         );

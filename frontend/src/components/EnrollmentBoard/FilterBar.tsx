@@ -4,6 +4,7 @@ import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statu
 import { formatDayDateShort } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import { CustomTooltip } from '../ui/Tooltip';
 
 interface FilterBarProps {
     enrollments: EnrollmentRow[];
@@ -127,43 +128,51 @@ export default function FilterBar({
                             </span>
                         )}
                         {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
-                            >
-                                <X size={14} />
-                            </button>
+                            <CustomTooltip content="Clear search">
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    aria-label="Clear search"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </CustomTooltip>
                         )}
                     </div>
 
                     {/* Mobile menu toggle button with arrow */}
-                    <button
-                        type="button"
-                        onClick={() => setMobileMenuOpen(prev => !prev)}
-                        className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
-                            mobileMenuOpen || hasNonSearchFilters
-                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40 shadow-xs'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:text-primary'
-                        }`}
-                        title={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
-                    >
-                        <SlidersHorizontal size={13} />
-                        {hasNonSearchFilters && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-                        )}
-                        <ChevronDown size={14} className={`transition-transform duration-200 ${mobileMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
+                    <CustomTooltip content={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}>
+                        <button
+                            type="button"
+                            onClick={() => setMobileMenuOpen(prev => !prev)}
+                            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                                mobileMenuOpen || hasNonSearchFilters
+                                    ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40 shadow-xs'
+                                    : 'bg-surface-elevated text-muted border-border-strong hover:text-primary'
+                            }`}
+                            title={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
+                            aria-label={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
+                        >
+                            <SlidersHorizontal size={13} />
+                            {hasNonSearchFilters && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                            )}
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${mobileMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                    </CustomTooltip>
 
                     {/* Clear all filters × button — only when non-search filters active */}
                     {hasNonSearchFilters && (
-                        <button
-                            onClick={clearAll}
-                            title="Clear all filters"
-                            className="flex items-center gap-1 text-[11px] font-medium text-danger hover:text-danger/80 bg-danger/10 hover:bg-danger/15 px-2 py-1.5 rounded-xl transition-all active:scale-95 whitespace-nowrap"
-                        >
-                            <X size={12} />
-                            <span className="hidden sm:inline">Clear</span>
-                        </button>
+                        <CustomTooltip content="Clear all filters">
+                            <button
+                                onClick={clearAll}
+                                aria-label="Clear all filters"
+                                className="flex items-center gap-1 text-[11px] font-medium text-danger hover:text-danger/80 bg-danger/10 hover:bg-danger/15 px-2 py-1.5 rounded-xl transition-all active:scale-95 whitespace-nowrap"
+                            >
+                                <X size={12} />
+                                <span className="hidden sm:inline">Clear</span>
+                            </button>
+                        </CustomTooltip>
                     )}
 
                     <button
@@ -242,9 +251,11 @@ export default function FilterBar({
                 {/* Row 2.5: Language chips below courses */}
                 {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
                     <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
-                        <div className="flex items-center text-muted mr-1 flex-shrink-0" title="Language filter">
-                            <Globe size={14} className="text-muted/70 flex-shrink-0" />
-                        </div>
+                        <CustomTooltip content="Language filter">
+                            <div className="flex items-center text-muted mr-1 flex-shrink-0 cursor-default" aria-label="Language filter">
+                                <Globe size={14} className="text-muted/70 flex-shrink-0" />
+                            </div>
+                        </CustomTooltip>
                         {uniqueVariants.length > 1 && (
                             <button
                                 onClick={() => setSelectedVariant('all')}
@@ -322,22 +333,24 @@ export default function FilterBar({
                         })}
 
                         {/* Quick Range / Advanced toggle button */}
-                        <button
-                            type="button"
-                            onClick={() => setShowAdvanced(prev => !prev)}
-                            title="Custom Date Range & Advanced Filters"
-                            className={`px-2 py-1 text-[11px] font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1 ${
-                                showAdvanced || (dateFrom || dateTo || courseDateFrom || courseDateTo)
-                                    ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
-                            }`}
-                        >
-                            <SlidersHorizontal size={11} />
-                            <span className="hidden sm:inline">Range</span>
-                            {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
-                            )}
-                        </button>
+                        <CustomTooltip content="Custom Date Range & Advanced Filters">
+                            <button
+                                type="button"
+                                onClick={() => setShowAdvanced(prev => !prev)}
+                                aria-label="Custom Date Range & Advanced Filters"
+                                className={`px-2 py-1 text-[11px] font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1 ${
+                                    showAdvanced || (dateFrom || dateTo || courseDateFrom || courseDateTo)
+                                        ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                                        : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
+                                }`}
+                            >
+                                <SlidersHorizontal size={11} />
+                                <span className="hidden sm:inline">Range</span>
+                                {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
+                                )}
+                            </button>
+                        </CustomTooltip>
                     </div>
                 )}
             </div>
@@ -451,21 +464,23 @@ export default function FilterBar({
                 <div className="h-3.5 w-px bg-border-strong" />
 
                 {/* Advanced Filters — compact icon pill matching status badges */}
-                <button
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    title="Advanced Filters"
-                    className={`inline-flex items-center gap-1 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
-                        showAdvanced
-                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                    }`}
-                >
-                    <SlidersHorizontal size={11} />
-                    <span>Filters</span>
-                    {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
-                    )}
-                </button>
+                <CustomTooltip content="Advanced Filters">
+                    <button
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        aria-label="Advanced Filters"
+                        className={`inline-flex items-center gap-1 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
+                            showAdvanced
+                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                                : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
+                        }`}
+                    >
+                        <SlidersHorizontal size={11} />
+                        <span>Filters</span>
+                        {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
+                        )}
+                    </button>
+                </CustomTooltip>
 
                 <div className="h-3.5 w-px bg-border-strong" />
 
@@ -474,16 +489,17 @@ export default function FilterBar({
                     const count = statusCounts[status] || 0;
                     if (count === 0 && SECONDARY_STATUSES.includes(status as typeof SECONDARY_STATUSES[number])) return null;
                     return (
-                        <button
-                            key={status}
-                            onClick={() => onStatusBadgeClick?.(status)}
-                            title={`Scroll to ${cfg.label} column`}
-                            className={`inline-flex items-center gap-1 md:gap-1.5 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-all hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer`}
-                        >
-                            {cfg.icon}
-                            <span>{cfg.label}</span>
-                            <span className="font-mono bg-black/15 dark:bg-white/10 text-primary px-1 py-0.5 md:px-1.5 md:py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
-                        </button>
+                        <CustomTooltip key={status} content={`Scroll to ${cfg.label} column`}>
+                            <button
+                                onClick={() => onStatusBadgeClick?.(status)}
+                                aria-label={`Scroll to ${cfg.label} column`}
+                                className={`inline-flex items-center gap-1 md:gap-1.5 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-all hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer`}
+                            >
+                                {cfg.icon}
+                                <span>{cfg.label}</span>
+                                <span className="font-mono bg-black/15 dark:bg-white/10 text-primary px-1 py-0.5 md:px-1.5 md:py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
+                            </button>
+                        </CustomTooltip>
                     );
                 })}
             </div>
