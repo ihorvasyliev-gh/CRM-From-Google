@@ -49,6 +49,24 @@ const FILTER_ACTIVE_CLASSES: Record<ActivityFilter, string> = {
 };
 
 
+function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
+    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+    if (!dateStr) {
+        const now = new Date();
+        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        const now = new Date();
+        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+    }
+    return {
+        dateKey: d.toISOString().slice(0, 10),
+        dateLabel: d.toLocaleDateString('en-IE', dateOpts),
+        time: d.getTime()
+    };
+}
+
 // ─── Skeleton Components ─────────────────────────────────────
 function SkeletonStatCard() {
     return (
@@ -271,45 +289,28 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
     const loading = statsLoading || enrollmentsLoading;
 
-function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
-    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
-    if (!dateStr) {
-        const now = new Date();
-        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
-    }
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) {
-        const now = new Date();
-        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
-    }
-    return {
-        dateKey: d.toISOString().slice(0, 10),
-        dateLabel: d.toLocaleDateString('en-IE', dateOpts),
-        time: d.getTime()
-    };
-}
-
-    // Build flat list of enrollments based on filter
+    // Build flat list of enrollments based on filter with fast numeric timestamp sorting
     const filteredRecent = useMemo(() => {
-        const mappedEnrollments = allEnrollments.map(en => ({
-            id: en.id,
-            student_id: en.student_id,
-            status: en.status,
-            created_at: en.created_at,
-            updated_at: en.updated_at,
-            course_variant: en.course_variant,
-            students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
-            courses: en.courses ? { name: en.courses.name } : null,
-        }));
+        const mappedEnrollments = allEnrollments.map(en => {
+            const time = en.created_at ? new Date(en.created_at).getTime() : 0;
+            return {
+                id: en.id,
+                student_id: en.student_id,
+                status: en.status,
+                created_at: en.created_at,
+                timestamp: isNaN(time) ? 0 : time,
+                updated_at: en.updated_at,
+                course_variant: en.course_variant,
+                students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
+                courses: en.courses ? { name: en.courses.name } : null,
+            };
+        });
 
-        if (activityFilter === 'all') {
-            return mappedEnrollments
-                .sort((a, b) => parseSafeDate(b.created_at).time - parseSafeDate(a.created_at).time);
-        }
+        const targetList = activityFilter === 'all'
+            ? mappedEnrollments
+            : mappedEnrollments.filter(en => en.status === activityFilter);
 
-        return mappedEnrollments
-            .filter(en => en.status === activityFilter)
-            .sort((a, b) => parseSafeDate(b.created_at).time - parseSafeDate(a.created_at).time);
+        return targetList.sort((a, b) => b.timestamp - a.timestamp);
     }, [allEnrollments, activityFilter]);
 
     // Pre-index enrollments by student_id in O(N) time for instant O(1) history lookup
