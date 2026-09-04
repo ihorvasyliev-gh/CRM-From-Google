@@ -94,6 +94,55 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     );
 }
 
+export async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
+    try {
+        if (typeof (supabase as any).rpc === 'function') {
+            const { data, error } = await (supabase as any).rpc('get_course_enrollment_counts');
+            if (!error && Array.isArray(data)) {
+                const map: Record<string, EnrollmentCount> = {};
+                for (const row of data) {
+                    map[row.course_id] = {
+                        course_id: row.course_id,
+                        total: Number(row.total || 0),
+                        requested: Number(row.requested || 0),
+                        invited: Number(row.invited || 0),
+                        confirmed: Number(row.confirmed || 0),
+                        completed: Number(row.completed || 0),
+                        withdrawn: Number(row.withdrawn || 0),
+                        rejected: Number(row.rejected || 0),
+                    };
+                }
+                return map;
+            }
+        }
+    } catch {
+        // Fallback to client-side aggregation if RPC is unavailable
+    }
+
+    const enrollments = await fetchAllEnrollments();
+    const counts: Record<string, EnrollmentCount> = {};
+    for (const e of enrollments) {
+        if (!counts[e.course_id]) {
+            counts[e.course_id] = {
+                course_id: e.course_id,
+                total: 0,
+                requested: 0,
+                invited: 0,
+                confirmed: 0,
+                completed: 0,
+                withdrawn: 0,
+                rejected: 0,
+            };
+        }
+        counts[e.course_id].total++;
+        const stat = e.status as keyof EnrollmentCount;
+        if (stat in counts[e.course_id]) {
+            (counts[e.course_id][stat] as number)++;
+        }
+    }
+    return counts;
+}
+
 export default function CourseList() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -103,36 +152,12 @@ export default function CourseList() {
         queryFn: fetchCourses,
     });
 
-    const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
+    const { data: enrollmentCounts = {}, isLoading: countsLoading } = useQuery({
+        queryKey: ['course_enrollment_counts'],
+        queryFn: fetchCourseEnrollmentCounts,
     });
 
-    const loading = coursesLoading || enrollmentsLoading;
-
-    const enrollmentCounts = useMemo(() => {
-        const counts: Record<string, EnrollmentCount> = {};
-        for (const e of enrollments) {
-            if (!counts[e.course_id]) {
-                counts[e.course_id] = {
-                    course_id: e.course_id,
-                    total: 0,
-                    requested: 0,
-                    invited: 0,
-                    confirmed: 0,
-                    completed: 0,
-                    withdrawn: 0,
-                    rejected: 0,
-                };
-            }
-            counts[e.course_id].total++;
-            const stat = e.status as keyof EnrollmentCount;
-            if (stat in counts[e.course_id]) {
-                (counts[e.course_id][stat] as number)++;
-            }
-        }
-        return counts;
-    }, [enrollments]);
+    const loading = coursesLoading || countsLoading;
 
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
@@ -155,6 +180,7 @@ export default function CourseList() {
             if (error) throw new Error(error.message);
             setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english } : c));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase
@@ -163,6 +189,7 @@ export default function CourseList() {
                 .select();
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course created', type: 'success' });
         }
     }
@@ -179,6 +206,7 @@ export default function CourseList() {
                 .eq('id', course.id);
             if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({
                 message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
                 type: 'success'
@@ -198,6 +226,7 @@ export default function CourseList() {
         } else {
             setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             setToast({ message: 'Course deleted', type: 'success' });
         }

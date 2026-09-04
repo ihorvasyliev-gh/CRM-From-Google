@@ -135,4 +135,54 @@ describe('CourseList Component', () => {
             state: { courseId: 'course-1' },
         });
     });
+
+    it('uses get_course_enrollment_counts RPC when available', async () => {
+        const mockRpc = vi.fn().mockResolvedValue({
+            data: [
+                {
+                    course_id: 'course-1',
+                    total: 10,
+                    requested: 4,
+                    invited: 2,
+                    confirmed: 3,
+                    completed: 1,
+                    withdrawn: 0,
+                    rejected: 0,
+                },
+                {
+                    course_id: 'course-2',
+                    total: 6,
+                    requested: 6,
+                    invited: 0,
+                    confirmed: 0,
+                    completed: 0,
+                    withdrawn: 0,
+                    rejected: 0,
+                },
+            ],
+            error: null,
+        });
+
+        (supabase as any).rpc = mockRpc;
+        (supabase.from as any).mockImplementation((table: string) => {
+            if (table === 'courses') {
+                return {
+                    select: vi.fn().mockReturnValue({
+                        order: vi.fn().mockResolvedValue({ data: mockCourses, error: null }),
+                    }),
+                };
+            }
+            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        });
+
+        renderWithClient(<CourseList />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Patient moving and handling')).toBeInTheDocument();
+            expect(screen.getByText('10')).toBeInTheDocument();
+            expect(screen.getByText('6')).toBeInTheDocument();
+        });
+
+        expect(mockRpc).toHaveBeenCalledWith('get_course_enrollment_counts');
+    });
 });
