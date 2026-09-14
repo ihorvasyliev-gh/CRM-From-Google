@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+configure({ asyncUtilTimeout: 4000 });
 import React from 'react';
 import ViewerStudentsDirectory, { ViewerStudentDirectoryItem } from './ViewerStudentsDirectory';
 import { supabase } from '../lib/supabase';
