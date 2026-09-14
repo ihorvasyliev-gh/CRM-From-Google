@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerCourse, ViewerCourseRosterItem, getAvatarGradient, cleanVariant } from '../lib/types';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDateDMY, todayISO } from '../lib/dateUtils';
 import { exportViewerRosterToExcel } from '../lib/excelExport';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRequestCompletion } from '../hooks/useApprovals';
@@ -11,7 +11,7 @@ import {
     BookOpen, Search, ArrowLeft, Users, Clock, CheckCircle,
     GraduationCap, CheckSquare, Square, Calendar, Loader2,
     AlertCircle, RefreshCw, Star, ArrowDownUp, ArrowUpDown, CaseSensitive,
-    Download, FileSpreadsheet, Copy, X
+    Download, FileSpreadsheet, Copy, X, Send, RotateCcw
 } from 'lucide-react';
 
 const STATUS_TABS = [
@@ -46,7 +46,7 @@ export default function ViewerCourses() {
     // Date Modal state
     const [dateModalOpen, setDateModalOpen] = useState(false);
     const [completionTargetIds, setCompletionTargetIds] = useState<string[]>([]);
-    const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState<string>(() => todayISO());
     const [toast, setToast] = useState<ToastData | null>(null);
 
     const handleCopyField = (value: string | null | undefined, label: string) => {
@@ -99,6 +99,7 @@ export default function ViewerCourses() {
     const {
         data: roster = [],
         isLoading: isLoadingRoster,
+        isFetching: isFetchingRoster,
         error: rosterError,
         refetch: refetchRoster
     } = useQuery<ViewerCourseRosterItem[]>({
@@ -194,7 +195,7 @@ export default function ViewerCourses() {
                 if (orderA !== orderB) return orderA - orderB;
             }
 
-            // 3. Priority: Star / Priority is always first (Admin principle)!
+            // 3. Priority: Star / Priority is always first
             if (a.is_priority !== b.is_priority) {
                 return a.is_priority ? -1 : 1;
             }
@@ -263,8 +264,18 @@ export default function ViewerCourses() {
         });
     };
 
+    const handleBackToCatalog = () => {
+        setSelectedCourse(null);
+        setSelectedEnrollmentIds(new Set());
+        setRosterSearch('');
+        setSelectedStatusTab('all');
+        setSelectedVariant('all');
+        setSelectedDateFilter('all');
+        setSortOrder('queue');
+    };
+
     const openSingleCompletionModal = (item: ViewerCourseRosterItem) => {
-        const defaultDate = item.confirmed_date || item.invited_date || new Date().toISOString().split('T')[0];
+        const defaultDate = item.confirmed_date || item.invited_date || todayISO();
         setSelectedDate(defaultDate);
         setCompletionTargetIds([item.enrollment_id]);
         setDateModalOpen(true);
@@ -272,7 +283,7 @@ export default function ViewerCourses() {
 
     const openBatchCompletionModal = () => {
         if (selectedEnrollmentIds.size === 0) return;
-        setSelectedDate(new Date().toISOString().split('T')[0]);
+        setSelectedDate(todayISO());
         setCompletionTargetIds(Array.from(selectedEnrollmentIds));
         setDateModalOpen(true);
     };
@@ -381,75 +392,89 @@ export default function ViewerCourses() {
     // ─────────────────────────────────────────────────────────
     if (selectedCourse) {
         return (
-            <div className="flex-1 flex flex-col min-h-0 bg-background text-primary animate-fadeIn space-y-4">
-                {/* Header with back button */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => {
-                                setSelectedCourse(null);
-                                setSelectedEnrollmentIds(new Set());
-                                setRosterSearch('');
-                                setSelectedStatusTab('all');
-                                setSelectedVariant('all');
-                                setSelectedDateFilter('all');
-                                setSortOrder('queue');
-                            }}
-                            className="p-2 bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl text-muted hover:text-primary transition-all flex items-center gap-1.5 text-xs font-semibold"
-                            title="Back to courses list"
-                        >
-                            <ArrowLeft size={16} />
-                            <span>Courses</span>
-                        </button>
+            <div className="max-w-7xl mx-auto w-full space-y-6 flex-1 flex flex-col min-h-0 text-primary animate-fadeIn">
+                {/* Breadcrumb & Header Bar */}
+                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-2.5 min-w-0">
+                        {/* Breadcrumb Navigation */}
+                        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs">
+                            <button
+                                type="button"
+                                onClick={handleBackToCatalog}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-border-strong rounded-xl font-semibold text-primary transition-all cursor-pointer group shadow-sm"
+                                title="Back to all courses"
+                            >
+                                <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+                                <span>All Courses</span>
+                            </button>
+                            <span className="text-muted font-medium">/</span>
+                            <span className="font-semibold text-primary truncate max-w-[200px] sm:max-w-md">
+                                {selectedCourse.name}
+                            </span>
+                        </nav>
 
-                        <div className="flex items-center gap-2.5">
-                            <div className={`w-9 h-9 bg-gradient-to-br ${getAvatarGradient(selectedCourse.id)} rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm`}>
+                        {/* Course Info */}
+                        <div className="flex items-center gap-3">
+                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(selectedCourse.id)} rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0`}>
                                 {selectedCourse.name.substring(0, 2).toUpperCase()}
                             </div>
-                            <div>
-                                <h1 className="text-base sm:text-lg font-bold text-primary tracking-tight flex items-center gap-2">
-                                    {selectedCourse.name}
-                                </h1>
-                                <p className="text-xs text-muted">
-                                    Total {selectedCourse.total_count} students registered
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h1 className="text-xl sm:text-2xl font-bold text-primary tracking-tight truncate">
+                                        {selectedCourse.name}
+                                    </h1>
+                                    {selectedCourse.pending_approval_count > 0 && (
+                                        <span className="px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full flex items-center gap-1 animate-pulse" title="Pending completions waiting for admin approval">
+                                            <Clock size={11} />
+                                            <span>{selectedCourse.pending_approval_count} pending</span>
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted mt-0.5">
+                                    Total <strong className="text-primary font-semibold">{selectedCourse.total_count}</strong> students registered
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Quick batch action button */}
+                    {/* Quick batch action buttons if students selected */}
                     {selectedEnrollmentIds.size > 0 && (
-                        <div className="flex items-center gap-2 animate-fadeIn flex-wrap">
-                            <span className="text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-1.5 rounded-xl border border-brand-500/20">
+                        <div className="flex items-center gap-2 animate-fadeIn flex-wrap self-start sm:self-auto">
+                            <span className="text-xs font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 px-3 py-1.5 rounded-xl border border-brand-200 dark:border-brand-500/20">
                                 {selectedEnrollmentIds.size} selected
                             </span>
                             <button
+                                type="button"
                                 onClick={handleCopySelectedBccEmails}
-                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-primary bg-surface-elevated hover:bg-surface border border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
-                                title="Copy all selected emails formatted for BCC in email client"
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                                title="Copy all selected student emails formatted for BCC in email client"
                             >
                                 <Copy size={14} className="text-brand-500" />
                                 <span>Copy Emails (BCC)</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={handleExportSelected}
                                 disabled={isExporting}
-                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-surface-elevated hover:bg-surface border border-border-strong rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                                title="Download Excel file for selected students"
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                                title="Export selected students to Excel (.xlsx)"
                             >
                                 {isExporting ? <Loader2 size={15} className="animate-spin text-brand-500" /> : <FileSpreadsheet size={15} className="text-emerald-500" />}
                                 <span>Export Excel ({selectedEnrollmentIds.size})</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={openBatchCompletionModal}
-                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm active:scale-95"
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+                                title="Request completion for selected students"
                             >
                                 <GraduationCap size={15} />
                                 <span>Mark Selected as Completed</span>
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setSelectedEnrollmentIds(new Set())}
-                                className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
+                                className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all cursor-pointer"
                                 title="Clear selection"
                             >
                                 <X size={15} />
@@ -458,11 +483,11 @@ export default function ViewerCourses() {
                     )}
                 </div>
 
-                {/* Filters & Search Bar */}
-                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-3 sm:p-4 space-y-3">
+                {/* Filters & Search Card */}
+                <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4 space-y-4">
                     <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                        {/* Status Tabs */}
-                        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                        {/* Status Tabs / Pills */}
+                        <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto scrollbar-none">
                             {STATUS_TABS.map(tab => {
                                 const isActive = selectedStatusTab === tab.key;
                                 let count = selectedCourse.total_count;
@@ -474,20 +499,21 @@ export default function ViewerCourses() {
                                 return (
                                     <button
                                         key={tab.key}
+                                        type="button"
                                         onClick={() => {
                                             setSelectedStatusTab(tab.key);
                                             setSelectedDateFilter('all');
                                             setSelectedEnrollmentIds(new Set());
                                         }}
-                                        className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex-shrink-0 flex items-center gap-1.5 border ${
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex-shrink-0 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                                             isActive
-                                                ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                                                : 'bg-surface-elevated hover:bg-surface text-muted hover:text-primary border-border-subtle'
+                                                ? 'bg-brand-600 text-white shadow-sm'
+                                                : 'text-muted hover:text-primary hover:bg-surface'
                                         }`}
                                     >
                                         <span>{tab.label}</span>
-                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                                            isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                            isActive ? 'bg-white/20 text-white' : 'bg-surface text-muted'
                                         }`}>
                                             {count}
                                         </span>
@@ -498,111 +524,129 @@ export default function ViewerCourses() {
 
                         {/* Search Input */}
                         <div className="relative w-full md:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={15} />
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={15} />
                             <input
                                 type="text"
                                 placeholder="Search attendees..."
                                 value={rosterSearch}
                                 onChange={e => setRosterSearch(e.target.value)}
-                                className="w-full pl-9 pr-3 py-1.5 bg-surface-elevated border border-border-strong rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary"
+                                className="w-full pl-9 pr-8 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
                             />
+                            {rosterSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setRosterSearch('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary rounded-full hover:bg-surface transition-colors cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    <X size={13} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
                     {/* Date Filter Chips (for Confirmed and Invited tabs) */}
                     {availableDates.length > 0 && (
-                        <div className="pt-2.5 border-t border-border-subtle/50 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none animate-fadeIn">
-                            <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
-                                <Calendar size={13} className="text-brand-500" />
+                        <div className="pt-3 border-t border-border-subtle/50 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none animate-fadeIn">
+                            <div className="flex items-center gap-1.5 text-muted text-xs font-semibold shrink-0">
+                                <Calendar size={14} className="text-brand-500" />
                                 <span className="text-[11px] uppercase tracking-wider">
                                     {selectedStatusTab === 'confirmed' ? 'Course Dates:' : 'Invited Dates:'}
                                 </span>
                             </div>
 
-                            <button
-                                onClick={() => {
-                                    setSelectedDateFilter('all');
-                                    setSelectedEnrollmentIds(new Set());
-                                }}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all ${
-                                    selectedDateFilter === 'all'
-                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                        : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
-                                }`}
-                            >
-                                <span>All Dates</span>
-                                <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
-                                    selectedDateFilter === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                                }`}>
-                                    {availableDates.reduce((sum, d) => sum + d.count, 0)}
-                                </span>
-                            </button>
+                            <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedDateFilter('all');
+                                        setSelectedEnrollmentIds(new Set());
+                                    }}
+                                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        selectedDateFilter === 'all'
+                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                            : 'text-muted hover:text-primary hover:bg-surface'
+                                    }`}
+                                >
+                                    <span>All Dates</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                        selectedDateFilter === 'all' ? 'bg-white/20 text-white' : 'bg-surface text-muted'
+                                    }`}>
+                                        {availableDates.reduce((sum, d) => sum + d.count, 0)}
+                                    </span>
+                                </button>
 
-                            {availableDates.map(({ date, count }) => {
-                                const isActive = selectedDateFilter === date;
-                                return (
-                                    <button
-                                        key={date}
-                                        onClick={() => {
-                                            setSelectedDateFilter(isActive ? 'all' : date);
-                                            setSelectedEnrollmentIds(new Set());
-                                        }}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
-                                            isActive
-                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                                : 'bg-surface-elevated text-muted border-border-subtle hover:border-emerald-500/50 hover:text-primary'
-                                        }`}
-                                    >
-                                        <span>{formatDateDMY(date)}</span>
-                                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                                            isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                                        }`}>
-                                            {count}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                                {availableDates.map(({ date, count }) => {
+                                    const isActive = selectedDateFilter === date;
+                                    return (
+                                        <button
+                                            key={date}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedDateFilter(isActive ? 'all' : date);
+                                                setSelectedEnrollmentIds(new Set());
+                                            }}
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                                                isActive
+                                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                                    : 'text-muted hover:text-primary hover:bg-surface'
+                                            }`}
+                                        >
+                                            <span>{formatDateDMY(date)}</span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                                isActive ? 'bg-white/20 text-white' : 'bg-surface text-muted'
+                                            }`}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
                     {/* Sub-toolbar: Sort Controls + Variants (if any) + Export Roster + Refresh */}
-                    <div className="pt-2.5 border-t border-border-subtle/50 flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="pt-3 border-t border-border-subtle/50 flex flex-wrap items-center justify-between gap-2.5">
                         {/* Sort pills */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1 text-muted text-xs font-semibold">
                                 <ArrowDownUp size={13} />
                                 <span className="text-[11px] uppercase tracking-wider">Sort:</span>
                             </div>
-                            {([
-                                { value: 'queue' as const, label: 'Queue Order (Oldest)', icon: <Clock size={12} /> },
-                                { value: 'date-desc' as const, label: 'Newest First', icon: <ArrowUpDown size={12} /> },
-                                { value: 'name' as const, label: 'By Name', icon: <CaseSensitive size={12} /> },
-                            ]).map(opt => (
-                                <button
-                                    key={opt.value}
-                                    onClick={() => setSortOrder(opt.value)}
-                                    className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl border transition-all active:scale-95 ${
-                                        sortOrder === opt.value
-                                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                                            : 'bg-surface-elevated hover:bg-surface text-muted hover:text-primary border-border-subtle'
-                                    }`}
-                                >
-                                    {opt.icon}
-                                    <span>{opt.label}</span>
-                                </button>
-                            ))}
+                            <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl">
+                                {([
+                                    { value: 'queue' as const, label: 'Queue Order (Oldest)', icon: <Clock size={12} /> },
+                                    { value: 'date-desc' as const, label: 'Newest First', icon: <ArrowUpDown size={12} /> },
+                                    { value: 'name' as const, label: 'By Name', icon: <CaseSensitive size={12} /> },
+                                ]).map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setSortOrder(opt.value)}
+                                        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                            sortOrder === opt.value
+                                                ? 'bg-brand-600 text-white shadow-sm'
+                                                : 'text-muted hover:text-primary hover:bg-surface'
+                                        }`}
+                                    >
+                                        {opt.icon}
+                                        <span>{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Right: Variants Filter (if available) & Export Roster & Refresh */}
+                        {/* Right: Variants Filter & Export Roster & Refresh */}
                         <div className="flex items-center gap-2 flex-wrap">
                             {availableVariants.length > 1 && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl">
                                     <button
+                                        type="button"
                                         onClick={() => setSelectedVariant('all')}
-                                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-xl border transition-all ${
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                             selectedVariant === 'all'
-                                                ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                                : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
+                                                ? 'bg-violet-600 text-white shadow-sm'
+                                                : 'text-muted hover:text-primary hover:bg-surface'
                                         }`}
                                     >
                                         All Streams
@@ -610,11 +654,12 @@ export default function ViewerCourses() {
                                     {availableVariants.map(v => (
                                         <button
                                             key={v}
+                                            type="button"
                                             onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-xl border transition-all ${
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                                 selectedVariant === v
-                                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                                    : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
+                                                    ? 'bg-violet-600 text-white shadow-sm'
+                                                    : 'text-muted hover:text-primary hover:bg-surface'
                                             }`}
                                         >
                                             {v}
@@ -624,21 +669,23 @@ export default function ViewerCourses() {
                             )}
 
                             <button
+                                type="button"
                                 onClick={handleExportFullRoster}
                                 disabled={isExporting || sortedRoster.length === 0}
-                                className="flex items-center gap-1 text-muted hover:text-primary transition-colors text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-emerald-500/50 disabled:opacity-50 active:scale-95"
-                                title="Export current roster to Excel"
+                                className="flex items-center gap-1.5 text-muted hover:text-primary transition-colors text-xs font-semibold px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-emerald-500/50 disabled:opacity-50 active:scale-95 cursor-pointer shadow-sm"
+                                title="Export full filtered roster to Excel (.xlsx)"
                             >
-                                {isExporting ? <Loader2 size={12} className="animate-spin text-brand-500" /> : <Download size={12} className="text-emerald-500" />}
+                                {isExporting ? <Loader2 size={13} className="animate-spin text-brand-500" /> : <Download size={13} className="text-emerald-500" />}
                                 <span>Export Roster</span>
                             </button>
 
                             <button
+                                type="button"
                                 onClick={() => refetchRoster()}
-                                className="flex items-center gap-1 text-muted hover:text-primary transition-colors text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle"
+                                className="flex items-center gap-1.5 text-muted hover:text-primary transition-colors text-xs font-semibold px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface border border-border-subtle cursor-pointer shadow-sm"
                                 title="Refresh roster"
                             >
-                                <RefreshCw size={12} />
+                                <RefreshCw size={13} className={isFetchingRoster ? 'animate-spin' : ''} />
                                 <span>Refresh</span>
                             </button>
                         </div>
@@ -646,12 +693,13 @@ export default function ViewerCourses() {
 
                     {/* Batch Selection Row if applicable */}
                     {eligibleRosterItems.length > 0 && (
-                        <div className="pt-2 border-t border-border-subtle/50 flex items-center justify-between text-xs text-muted">
+                        <div className="pt-2.5 border-t border-border-subtle/50 flex items-center justify-between text-xs text-muted">
                             <button
+                                type="button"
                                 onClick={toggleSelectAll}
-                                className="flex items-center gap-1.5 font-semibold text-primary hover:text-brand-500 transition-colors"
+                                className="flex items-center gap-1.5 font-semibold text-primary hover:text-brand-600 transition-colors cursor-pointer"
                             >
-                                {isAllSelected ? <CheckSquare size={16} className="text-brand-500" /> : <Square size={16} />}
+                                {isAllSelected ? <CheckSquare size={16} className="text-brand-600" /> : <Square size={16} />}
                                 <span>{isAllSelected ? 'Deselect All' : `Select All Non-Completed (${eligibleRosterItems.length})`}</span>
                             </button>
                             <span className="text-[11px] text-muted">
@@ -662,23 +710,71 @@ export default function ViewerCourses() {
                 </div>
 
                 {/* Roster Items List */}
-                <div className="flex-1 overflow-y-auto space-y-2.5">
+                <div className="flex-1 overflow-y-auto space-y-3">
                     {isLoadingRoster ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted">
-                            <Loader2 size={30} className="animate-spin text-brand-500" />
-                            <span className="text-xs font-semibold">Loading course roster...</span>
+                        <div className="space-y-3">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="bg-surface rounded-2xl border border-border-subtle p-4 flex items-center gap-3 animate-pulse">
+                                    <div className="w-10 h-10 rounded-xl bg-muted/20 shrink-0" />
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 bg-muted/20 rounded w-1/4" />
+                                        <div className="h-3 bg-muted/20 rounded w-1/3" />
+                                    </div>
+                                    <div className="w-24 h-6 bg-muted/20 rounded-xl" />
+                                </div>
+                            ))}
                         </div>
                     ) : rosterError ? (
-                        <div className="p-8 text-center bg-red-500/5 border border-red-500/20 rounded-2xl">
-                            <AlertCircle size={28} className="text-red-500 mx-auto mb-2" />
-                            <p className="text-sm font-bold text-red-500">Failed to load roster</p>
-                            <p className="text-xs text-muted mt-1">Please try refreshing or check your connection.</p>
+                        <div className="bg-surface rounded-3xl border border-rose-200 dark:border-rose-500/20 p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
+                            <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
+                                <AlertCircle size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-primary">Failed to load roster</h3>
+                                <p className="text-sm text-muted mt-1">
+                                    {rosterError instanceof Error ? rosterError.message : 'Please try refreshing or check your connection.'}
+                                </p>
+                            </div>
+                            <div>
+                                <button
+                                    type="button"
+                                    onClick={() => refetchRoster()}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
+                                >
+                                    <RotateCcw size={15} />
+                                    <span>Retry</span>
+                                </button>
+                            </div>
                         </div>
                     ) : sortedRoster.length === 0 ? (
-                        <div className="p-12 text-center bg-surface rounded-2xl border border-border-subtle">
-                            <Users size={32} className="text-muted mx-auto mb-2 opacity-50" />
-                            <p className="text-sm font-bold text-primary">No students in this list</p>
-                            <p className="text-xs text-muted mt-1">Try switching tabs or adjusting search query.</p>
+                        <div className="bg-surface rounded-3xl border border-border-subtle p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
+                            <div className="w-16 h-16 rounded-full bg-muted/10 text-muted mx-auto flex items-center justify-center">
+                                <Users size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-primary">No students in this list</h3>
+                                <p className="text-sm text-muted mt-1">
+                                    {rosterSearch.trim() || selectedVariant !== 'all' || selectedDateFilter !== 'all'
+                                        ? 'Try adjusting your filters or clearing your search query.'
+                                        : 'There are no students enrolled in this course status tab.'}
+                                </p>
+                            </div>
+                            {(rosterSearch.trim() || selectedVariant !== 'all' || selectedDateFilter !== 'all') && (
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setRosterSearch('');
+                                            setSelectedVariant('all');
+                                            setSelectedDateFilter('all');
+                                        }}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
+                                    >
+                                        <RotateCcw size={15} />
+                                        <span>Reset Filters</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         sortedRoster.map(item => {
@@ -691,32 +787,34 @@ export default function ViewerCourses() {
                             return (
                                 <div
                                     key={item.enrollment_id}
-                                    className={`cv-auto-card p-3.5 sm:p-4 rounded-2xl bg-surface border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                    className={`p-3.5 sm:p-4 rounded-2xl bg-surface border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-card ${
                                         isSelected
-                                            ? 'border-brand-500 bg-brand-500/5 shadow-sm'
+                                            ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-500/5 shadow-md'
                                             : isPending
-                                            ? 'border-amber-500/40 bg-amber-500/5'
-                                            : 'border-border-subtle hover:border-border-strong'
+                                            ? 'border-amber-500/40 bg-amber-50/20 dark:bg-amber-500/5'
+                                            : 'border-border-subtle hover:border-border-strong hover:shadow-card-hover'
                                     }`}
                                 >
                                     {/* Left: Checkbox + Student Info */}
                                     <div className="flex items-start gap-3 min-w-0 flex-1">
                                         {isEligibleForCompletion ? (
                                             <button
+                                                type="button"
                                                 onClick={() => toggleSelectItem(item.enrollment_id)}
-                                                className="mt-1 text-muted hover:text-brand-500 transition-colors flex-shrink-0"
+                                                className="mt-1 text-muted hover:text-brand-600 transition-colors shrink-0 cursor-pointer"
+                                                title={isSelected ? 'Deselect student' : 'Select student'}
                                             >
                                                 {isSelected ? (
-                                                    <CheckSquare size={18} className="text-brand-500" />
+                                                    <CheckSquare size={18} className="text-brand-600" />
                                                 ) : (
                                                     <Square size={18} />
                                                 )}
                                             </button>
                                         ) : (
-                                            <div className="w-[18px] flex-shrink-0" />
+                                            <div className="w-[18px] shrink-0" />
                                         )}
 
-                                        <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(item.student_id)} rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm flex-shrink-0`}>
+                                        <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(item.student_id)} rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0`}>
                                             {(item.first_name?.[0] || '').toUpperCase()}{(item.last_name?.[0] || '').toUpperCase()}
                                         </div>
 
@@ -727,22 +825,22 @@ export default function ViewerCourses() {
                                                         e.stopPropagation();
                                                         handleCopyField(`${item.first_name} ${item.last_name}`, 'Name');
                                                     }}
-                                                    className="font-bold text-primary text-sm truncate cursor-pointer hover:text-brand-500 transition-colors"
+                                                    className="font-bold text-primary text-sm truncate cursor-pointer hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
                                                     title="Click to copy name to clipboard"
                                                 >
                                                     {item.first_name} {item.last_name}
                                                 </h3>
                                                 {item.is_priority && (
                                                     <span 
-                                                        className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-lg shadow-sm"
+                                                        className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-lg shadow-sm"
                                                         title="Priority student"
                                                     >
-                                                        <Star size={12} className="fill-amber-500 text-amber-500" />
+                                                        <Star size={12} className="fill-amber-400 text-amber-500" />
                                                         <span>Priority</span>
                                                     </span>
                                                 )}
                                                 {item.course_variant && (
-                                                    <span className="text-[10px] bg-surface-elevated border border-border-subtle px-1.5 py-0.2 rounded text-muted">
+                                                    <span className="text-[10px] font-medium bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded text-muted">
                                                         {cleanVariant(selectedCourse.name, item.course_variant)}
                                                     </span>
                                                 )}
@@ -775,22 +873,22 @@ export default function ViewerCourses() {
 
                                             {/* Dates Line */}
                                             <div className="flex flex-wrap items-center gap-2.5 mt-1.5 text-[11px]">
-                                                {/* Registration Date (Queue order basis) */}
+                                                {/* Registration Date */}
                                                 <span className="text-muted font-medium flex items-center gap-1" title="Registration Date">
                                                     <Clock size={11} /> Registered: {formatDate(item.created_at)}
                                                 </span>
                                                 {item.confirmed_date && (
-                                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
                                                         <Calendar size={11} /> Confirmed: {formatDate(item.confirmed_date)}
                                                     </span>
                                                 )}
                                                 {item.invited_date && !item.confirmed_date && (
-                                                    <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                                                    <span className="text-blue-700 dark:text-blue-400 font-semibold flex items-center gap-1">
                                                         <Calendar size={11} /> Invited: {formatDate(item.invited_date)}
                                                     </span>
                                                 )}
                                                 {item.completed_date && (
-                                                    <span className="text-teal-600 dark:text-teal-400 font-semibold flex items-center gap-1">
+                                                    <span className="text-teal-700 dark:text-teal-400 font-semibold flex items-center gap-1">
                                                         <GraduationCap size={11} /> Completed: {formatDate(item.completed_date)}
                                                     </span>
                                                 )}
@@ -798,7 +896,7 @@ export default function ViewerCourses() {
 
                                             {/* Rejection notice if previously rejected */}
                                             {isRejected && (
-                                                <div className="mt-1.5 text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">
+                                                <div className="mt-1.5 text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-2.5 py-1 rounded-lg">
                                                     <strong>Completion Request Rejected:</strong> {item.completion_rejection_reason || 'No reason provided by admin'}. You can re-submit if needed.
                                                 </div>
                                             )}
@@ -806,25 +904,35 @@ export default function ViewerCourses() {
                                     </div>
 
                                     {/* Right: Status & Action Button */}
-                                    <div className="flex items-center gap-2 flex-shrink-0 sm:self-center justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-border-subtle">
+                                    <div className="flex items-center gap-2 shrink-0 sm:self-center justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-border-subtle">
                                         {/* Status badge */}
                                         <div className="flex items-center gap-1.5">
                                             {isPending ? (
                                                 <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5 animate-pulse">
-                                                    <Clock size={13} />
+                                                    <Clock size={12} />
                                                     <span>Pending Admin Approval</span>
                                                 </span>
                                             ) : isCompleted ? (
-                                                <span className="px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-500/15 border border-teal-500/30 rounded-xl flex items-center gap-1.5">
-                                                    <CheckCircle size={13} />
+                                                <span className="px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-400 bg-teal-50 border border-teal-200 dark:bg-teal-500/10 dark:border-teal-500/20 rounded-xl flex items-center gap-1.5">
+                                                    <GraduationCap size={12} />
                                                     <span>Completed</span>
                                                 </span>
+                                            ) : item.status === 'confirmed' ? (
+                                                <span className="px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 border border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20 rounded-xl flex items-center gap-1.5">
+                                                    <CheckCircle size={12} />
+                                                    <span>Confirmed</span>
+                                                </span>
+                                            ) : item.status === 'invited' ? (
+                                                <span className="px-2.5 py-1 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 border border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20 rounded-xl flex items-center gap-1.5">
+                                                    <Send size={12} />
+                                                    <span>Invited</span>
+                                                </span>
                                             ) : item.status === 'requested' ? (
-                                                <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5">
-                                                    <Clock size={13} />
+                                                <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20 rounded-xl flex items-center gap-1.5">
+                                                    <Clock size={12} />
                                                     <span>Queue</span>
                                                     {item.queue_position != null && (
-                                                        <span className="bg-amber-500/25 text-amber-900 dark:text-amber-200 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                                                        <span className="bg-amber-500/20 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full text-[10px] font-bold">
                                                             #{item.queue_position}
                                                         </span>
                                                     )}
@@ -839,8 +947,9 @@ export default function ViewerCourses() {
                                         {/* Action Button */}
                                         {isEligibleForCompletion && (
                                             <button
+                                                type="button"
                                                 onClick={() => openSingleCompletionModal(item)}
-                                                className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                                className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
                                                 title="Submit course completion request for admin approval"
                                             >
                                                 <GraduationCap size={14} />
@@ -859,7 +968,7 @@ export default function ViewerCourses() {
                     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
                         <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-md w-full p-6 space-y-4 animate-scaleIn">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                                <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl">
                                     <GraduationCap size={24} />
                                 </div>
                                 <div>
@@ -870,15 +979,16 @@ export default function ViewerCourses() {
                                 </div>
                             </div>
 
-                            <div className="p-3.5 bg-surface-elevated rounded-2xl border border-border-subtle space-y-2">
-                                <label className="text-xs font-bold text-muted uppercase tracking-wider block">
+                            <div className="p-4 bg-surface-elevated rounded-2xl border border-border-subtle space-y-2">
+                                <label htmlFor="completion-date-input" className="text-xs font-bold text-muted uppercase tracking-wider block">
                                     Completion Date
                                 </label>
                                 <input
+                                    id="completion-date-input"
                                     type="date"
                                     value={selectedDate}
                                     onChange={e => setSelectedDate(e.target.value)}
-                                    className="w-full px-3 py-2 bg-surface border border-border-strong rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                                    className="w-full px-3 py-2 bg-surface border border-border-strong rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/30"
                                 />
                                 <p className="text-[11px] text-muted">
                                     This date will be sent to the administrator for review and verification.
@@ -887,16 +997,18 @@ export default function ViewerCourses() {
 
                             <div className="flex items-center justify-end gap-2 pt-2">
                                 <button
+                                    type="button"
                                     onClick={() => setDateModalOpen(false)}
-                                    className="px-4 py-2 text-xs font-semibold text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
+                                    className="px-4 py-2 text-xs font-semibold text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all cursor-pointer"
                                     disabled={requestCompletionMutation.isPending}
                                 >
                                     Cancel
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={handleSubmitCompletionRequest}
                                     disabled={requestCompletionMutation.isPending || !selectedDate}
-                                    className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+                                    className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                                 >
                                     {requestCompletionMutation.isPending && <Loader2 size={14} className="animate-spin" />}
                                     <span>Submit Request</span>
@@ -915,65 +1027,119 @@ export default function ViewerCourses() {
     // RENDER: CATALOG VIEW
     // ─────────────────────────────────────────────────────────
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-background text-primary space-y-4">
+        <div className="max-w-7xl mx-auto w-full space-y-6 flex-1 flex flex-col min-h-0 text-primary">
             {/* Catalog Header */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl">
-                            <BookOpen size={22} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-lg font-bold text-primary tracking-tight">Courses Catalog</h1>
-                                <span className="text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
-                                    {courses.length}
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted">
-                                Select a course to view student rosters and mark completions
-                            </p>
-                        </div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-2xl border border-brand-200 dark:border-brand-500/20 shrink-0">
+                        <BookOpen size={24} />
                     </div>
+                    <div>
+                        <div className="flex items-center gap-2.5">
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary">
+                                Courses Catalog
+                            </h1>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 border border-brand-200 dark:border-brand-500/20">
+                                {courses.length}
+                            </span>
+                        </div>
+                        <p className="text-sm text-muted">
+                            Select a course to view student rosters, monitor streams and request completions
+                        </p>
+                    </div>
+                </div>
 
-                    {/* Search Courses */}
-                    <div className="relative w-full sm:w-72">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Search courses..."
-                            value={catalogSearch}
-                            onChange={e => setCatalogSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-surface-elevated border border-border-strong rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary"
-                        />
-                    </div>
+                {/* Search Courses */}
+                <div className="relative w-full md:w-72">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Search courses..."
+                        value={catalogSearch}
+                        onChange={e => setCatalogSearch(e.target.value)}
+                        className="w-full pl-10 pr-9 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
+                    />
+                    {catalogSearch && (
+                        <button
+                            type="button"
+                            onClick={() => setCatalogSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary rounded-full hover:bg-surface transition-colors cursor-pointer"
+                            title="Clear search"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Courses Grid */}
+            {/* Courses Grid / Status States */}
             <div className="flex-1 overflow-y-auto">
                 {isLoadingCourses ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted">
-                        <Loader2 size={32} className="animate-spin text-brand-500" />
-                        <span className="text-sm font-semibold">Loading courses catalog...</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="bg-surface rounded-2xl border border-border-subtle p-5 space-y-4 animate-pulse shadow-card">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-muted/20 shrink-0" />
+                                    <div className="space-y-2 flex-1">
+                                        <div className="h-4 bg-muted/20 rounded w-2/3" />
+                                        <div className="h-3 bg-muted/20 rounded w-1/3" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-border-subtle/50">
+                                    {[1, 2, 3, 4].map(j => (
+                                        <div key={j} className="h-10 bg-muted/15 rounded-lg" />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ) : coursesError ? (
-                    <div className="p-8 text-center bg-red-500/5 border border-red-500/20 rounded-2xl">
-                        <AlertCircle size={32} className="text-red-500 mx-auto mb-2" />
-                        <p className="text-sm font-bold text-red-500">Failed to load courses</p>
-                        <p className="text-xs text-muted mt-1">Please try refreshing or check permissions.</p>
-                        <button
-                            onClick={() => refetchCourses()}
-                            className="mt-3 px-3 py-1.5 bg-surface border border-border-subtle rounded-xl text-xs font-semibold hover:bg-surface-elevated"
-                        >
-                            Retry
-                        </button>
+                    <div className="bg-surface rounded-3xl border border-rose-200 dark:border-rose-500/20 p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
+                        <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
+                            <AlertCircle size={32} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-primary">Failed to load courses</h3>
+                            <p className="text-sm text-muted mt-1">
+                                {coursesError instanceof Error ? coursesError.message : 'Please try refreshing or check permissions.'}
+                            </p>
+                        </div>
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => refetchCourses()}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
+                            >
+                                <RotateCcw size={15} />
+                                <span>Retry</span>
+                            </button>
+                        </div>
                     </div>
                 ) : filteredCourses.length === 0 ? (
-                    <div className="text-center py-16 bg-surface rounded-2xl border border-border-subtle">
-                        <BookOpen size={36} className="text-muted mx-auto mb-2 opacity-40" />
-                        <p className="text-base font-bold text-primary">No courses found</p>
-                        <p className="text-xs text-muted mt-1">No course names match "{catalogSearch}".</p>
+                    <div className="bg-surface rounded-3xl border border-border-subtle p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
+                        <div className="w-16 h-16 rounded-full bg-muted/10 text-muted mx-auto flex items-center justify-center">
+                            <BookOpen size={32} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-primary">No courses found</h3>
+                            <p className="text-sm text-muted mt-1">
+                                {catalogSearch.trim()
+                                    ? `No course names match "${catalogSearch}".`
+                                    : 'There are currently no courses registered in the catalog.'}
+                            </p>
+                        </div>
+                        {catalogSearch.trim() && (
+                            <div>
+                                <button
+                                    type="button"
+                                    onClick={() => setCatalogSearch('')}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
+                                >
+                                    <RotateCcw size={15} />
+                                    <span>Clear Search</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -983,21 +1149,21 @@ export default function ViewerCourses() {
                                 <div
                                     key={course.id}
                                     onClick={() => setSelectedCourse(course)}
-                                    className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 hover:border-brand-500/40 transition-all duration-200 overflow-hidden cursor-pointer group flex flex-col justify-between"
+                                    className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:-translate-y-0.5 hover:border-brand-500/40 transition-all duration-200 overflow-hidden cursor-pointer group flex flex-col justify-between"
                                 >
                                     <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
 
                                     <div className="p-5 space-y-4">
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-105 transition-transform`}>
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-105 transition-transform shrink-0`}>
                                                     {course.name.substring(0, 2).toUpperCase()}
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-bold text-primary group-hover:text-brand-500 transition-colors text-sm sm:text-base">
+                                                <div className="min-w-0">
+                                                    <h3 className="font-bold text-primary group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors text-base truncate">
                                                         {course.name}
                                                     </h3>
-                                                    <p className="text-xs text-muted flex items-center gap-1 mt-0.5">
+                                                    <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                         <Users size={12} />
                                                         <strong className="text-primary font-semibold">{course.total_count}</strong> students total
                                                     </p>
@@ -1005,7 +1171,7 @@ export default function ViewerCourses() {
                                             </div>
 
                                             {course.pending_approval_count > 0 && (
-                                                <span className="flex-shrink-0 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full flex items-center gap-1 animate-pulse" title="Pending completions waiting for admin approval">
+                                                <span className="shrink-0 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full flex items-center gap-1 animate-pulse" title="Pending completions waiting for admin approval">
                                                     <Clock size={10} />
                                                     {course.pending_approval_count} pending
                                                 </span>
@@ -1014,20 +1180,20 @@ export default function ViewerCourses() {
 
                                         {/* Status badges grid */}
                                         <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-border-subtle/50 text-[11px] text-center">
-                                            <div className="p-1.5 bg-emerald-500/10 rounded-lg">
-                                                <p className="font-bold text-emerald-600 dark:text-emerald-400">{course.confirmed_count}</p>
+                                            <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl border border-emerald-100 dark:border-emerald-500/20">
+                                                <p className="font-bold text-emerald-700 dark:text-emerald-400">{course.confirmed_count}</p>
                                                 <p className="text-[9px] text-muted uppercase font-semibold">Confirmed</p>
                                             </div>
-                                            <div className="p-1.5 bg-amber-500/10 rounded-lg">
-                                                <p className="font-bold text-amber-600 dark:text-amber-400">{course.requested_count}</p>
+                                            <div className="p-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-100 dark:border-amber-500/20">
+                                                <p className="font-bold text-amber-700 dark:text-amber-400">{course.requested_count}</p>
                                                 <p className="text-[9px] text-muted uppercase font-semibold">Queue</p>
                                             </div>
-                                            <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                                                <p className="font-bold text-blue-600 dark:text-blue-400">{course.invited_count}</p>
+                                            <div className="p-2 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20">
+                                                <p className="font-bold text-blue-700 dark:text-blue-400">{course.invited_count}</p>
                                                 <p className="text-[9px] text-muted uppercase font-semibold">Invited</p>
                                             </div>
-                                            <div className="p-1.5 bg-teal-500/10 rounded-lg">
-                                                <p className="font-bold text-teal-600 dark:text-teal-400">{course.completed_count}</p>
+                                            <div className="p-2 bg-teal-50 dark:bg-teal-500/10 rounded-xl border border-teal-100 dark:border-teal-500/20">
+                                                <p className="font-bold text-teal-700 dark:text-teal-400">{course.completed_count}</p>
                                                 <p className="text-[9px] text-muted uppercase font-semibold">Completed</p>
                                             </div>
                                         </div>

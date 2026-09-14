@@ -164,6 +164,44 @@ describe('ViewerCourses Component', () => {
         expect(studentNames).toEqual(['Alice Smith', 'Bob Adams', 'Charlie Brown']);
     });
 
+    it('navigates to roster and back to catalog via breadcrumb button', async () => {
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({ data: mockCourses, error: null });
+            }
+            if (rpcName === 'get_viewer_course_roster') {
+                return Promise.resolve({ data: mockRoster, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => {
+            expect(screen.getByText('First Aid Training')).toBeInTheDocument();
+        });
+
+        // Click on course to open roster
+        fireEvent.click(screen.getByText('First Aid Training'));
+
+        await waitFor(() => {
+            expect(screen.getByText('Alice Smith')).toBeInTheDocument();
+        });
+
+        // Breadcrumb back button
+        const backBtn = screen.getByRole('button', { name: /All Courses/i });
+        expect(backBtn).toBeInTheDocument();
+
+        // Click back to catalog
+        fireEvent.click(backBtn);
+
+        // Catalog view should be visible again
+        await waitFor(() => {
+            expect(screen.getByText('Courses Catalog')).toBeInTheDocument();
+            expect(screen.getByText('First Aid Training')).toBeInTheDocument();
+        });
+    });
+
     it('switches sort order while keeping priority student first', async () => {
         (supabase.rpc as any).mockImplementation((rpcName: string) => {
             if (rpcName === 'get_viewer_courses') {
@@ -203,6 +241,48 @@ describe('ViewerCourses Component', () => {
         expect(studentNamesByName).toEqual(['Alice Smith', 'Bob Adams', 'Charlie Brown']);
     });
 
+    it('filters roster by status tabs and attendee search query', async () => {
+        const rpcMock = vi.fn().mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({ data: mockCourses, error: null });
+            }
+            if (rpcName === 'get_viewer_course_roster') {
+                return Promise.resolve({ data: mockRoster, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+        (supabase.rpc as any) = rpcMock;
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => expect(screen.getByText('First Aid Training')).toBeInTheDocument());
+        fireEvent.click(screen.getByText('First Aid Training'));
+
+        await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+
+        // Switch to 'Requested' tab
+        const requestedTab = screen.getByRole('button', { name: /Requested/i });
+        fireEvent.click(requestedTab);
+
+        await waitFor(() => {
+            expect(rpcMock).toHaveBeenCalledWith('get_viewer_course_roster', expect.objectContaining({
+                p_course_id: 'course-1',
+                p_status: 'requested',
+            }));
+        });
+
+        // Type in roster search
+        const rosterSearchInput = screen.getByPlaceholderText(/Search attendees.../i);
+        fireEvent.change(rosterSearchInput, { target: { value: 'Charlie' } });
+
+        await waitFor(() => {
+            expect(rpcMock).toHaveBeenCalledWith('get_viewer_course_roster', expect.objectContaining({
+                p_course_id: 'course-1',
+                p_search: 'Charlie',
+            }));
+        });
+    });
+
     it('copies student name, email, and phone to clipboard on click', async () => {
         const writeTextMock = vi.fn().mockResolvedValue(undefined);
         Object.assign(navigator, {
@@ -231,14 +311,92 @@ describe('ViewerCourses Component', () => {
         // 1. Click Name
         fireEvent.click(screen.getByText('Alice Smith'));
         expect(writeTextMock).toHaveBeenCalledWith('Alice Smith');
+        await waitFor(() => expect(screen.getByText(/Name copied to clipboard!/i)).toBeInTheDocument());
 
         // 2. Click Email
         fireEvent.click(screen.getByText('alice@example.com'));
         expect(writeTextMock).toHaveBeenCalledWith('alice@example.com');
+        await waitFor(() => expect(screen.getByText(/Email copied to clipboard!/i)).toBeInTheDocument());
 
         // 3. Click Phone
         fireEvent.click(screen.getByText('• 111'));
         expect(writeTextMock).toHaveBeenCalledWith('111');
+        await waitFor(() => expect(screen.getByText(/Phone copied to clipboard!/i)).toBeInTheDocument());
+    });
+
+    it('filters courses in catalog via search input and shows empty state when none match', async () => {
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({
+                    data: [
+                        { ...mockCourses[0], id: 'course-1', name: 'First Aid Training' },
+                        { ...mockCourses[0], id: 'course-2', name: 'Food Safety Level 2' },
+                    ],
+                    error: null
+                });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => {
+            expect(screen.getByText('First Aid Training')).toBeInTheDocument();
+            expect(screen.getByText('Food Safety Level 2')).toBeInTheDocument();
+        });
+
+        // Search for "Safety"
+        const searchInput = screen.getByPlaceholderText(/Search courses.../i);
+        fireEvent.change(searchInput, { target: { value: 'Safety' } });
+
+        await waitFor(() => {
+            expect(screen.queryByText('First Aid Training')).not.toBeInTheDocument();
+            expect(screen.getByText('Food Safety Level 2')).toBeInTheDocument();
+        });
+
+        // Search for non-existent course
+        fireEvent.change(searchInput, { target: { value: 'Nonexistent Course' } });
+
+        await waitFor(() => {
+            expect(screen.getByText('No courses found')).toBeInTheDocument();
+            expect(screen.getByText('Clear Search')).toBeInTheDocument();
+        });
+
+        // Click Clear Search button
+        fireEvent.click(screen.getByText('Clear Search'));
+
+        await waitFor(() => {
+            expect(screen.getByText('First Aid Training')).toBeInTheDocument();
+            expect(screen.getByText('Food Safety Level 2')).toBeInTheDocument();
+        });
+    });
+
+    it('displays error state and allows retry on courses fetch error', async () => {
+        let shouldFail = true;
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                if (shouldFail) {
+                    return Promise.resolve({ data: null, error: new Error('Network error') });
+                }
+                return Promise.resolve({ data: mockCourses, error: null });
+            }
+            return Promise.resolve({ data: [], error: null });
+        });
+
+        renderWithClient(<ViewerCourses />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Failed to load courses')).toBeInTheDocument();
+        });
+
+        // Click retry
+        shouldFail = false;
+        const retryBtn = screen.getByRole('button', { name: /Retry/i });
+        fireEvent.click(retryBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('First Aid Training')).toBeInTheDocument();
+        });
     });
 
     it('renders date filter chips and filters students by confirmed_date', async () => {
