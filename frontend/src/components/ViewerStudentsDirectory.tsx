@@ -8,7 +8,7 @@ import StudentDetailDrawer from './StudentDetailDrawer';
 import {
     Search, X, Star, Clock, Send, CheckCircle, GraduationCap,
     XCircle, MessageSquare, ChevronRight, ChevronLeft, Calendar,
-    Mail, Phone, RotateCcw, Users
+    Mail, Phone, RotateCcw, Users, AlertCircle
 } from 'lucide-react';
 
 export interface ViewerStudentDirectoryItem {
@@ -105,6 +105,9 @@ export default function ViewerStudentsDirectory() {
         data: students = [],
         isLoading: isLoadingStudents,
         isFetching: isFetchingStudents,
+        isError: isStudentsError,
+        error: studentsError,
+        refetch: refetchStudents,
     } = useQuery<ViewerStudentDirectoryItem[]>({
         queryKey: [
             'viewer-students-directory',
@@ -177,6 +180,10 @@ export default function ViewerStudentsDirectory() {
                             <span className="flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
                                 Loading directory...
+                            </span>
+                        ) : isStudentsError ? (
+                            <span className="text-red-600 dark:text-red-400">
+                                Failed to load
                             </span>
                         ) : (
                             <span>
@@ -352,6 +359,31 @@ export default function ViewerStudentsDirectory() {
                         ))}
                     </div>
                 </div>
+            ) : isStudentsError ? (
+                /* Error State Card */
+                <div className="bg-surface rounded-3xl border border-rose-200 dark:border-rose-500/20 p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
+                    <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
+                        <AlertCircle size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-foreground">
+                            Failed to load students directory
+                        </h3>
+                        <p className="text-sm text-muted mt-1">
+                            {studentsError instanceof Error ? studentsError.message : 'An unexpected error occurred while loading participants.'}
+                        </p>
+                    </div>
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => refetchStudents()}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
+                        >
+                            <RotateCcw size={15} />
+                            <span>Retry</span>
+                        </button>
+                    </div>
+                </div>
             ) : students.length === 0 ? (
                 /* Empty State */
                 <div className="bg-surface rounded-3xl border border-border-subtle p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
@@ -401,7 +433,9 @@ export default function ViewerStudentsDirectory() {
                                     const gradient = getAvatarGradient(student.student_id);
                                     const initials = `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase();
                                     const statusConfig = student.primary_status ? STATUS_CONFIG[student.primary_status] : null;
-                                    const variant = cleanVariant(student.primary_course_name || '', student.primary_course_variant);
+                                    const variant = student.primary_course_name && student.primary_course_variant
+                                        ? cleanVariant(student.primary_course_name, student.primary_course_variant)
+                                        : null;
 
                                     return (
                                         <tr
@@ -532,7 +566,9 @@ export default function ViewerStudentsDirectory() {
                             const gradient = getAvatarGradient(student.student_id);
                             const initials = `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase();
                             const statusConfig = student.primary_status ? STATUS_CONFIG[student.primary_status] : null;
-                            const variant = cleanVariant(student.primary_course_name || '', student.primary_course_variant);
+                            const variant = student.primary_course_name && student.primary_course_variant
+                                ? cleanVariant(student.primary_course_name, student.primary_course_variant)
+                                : null;
 
                             return (
                                 <div

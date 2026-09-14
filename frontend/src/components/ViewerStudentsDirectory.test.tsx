@@ -454,4 +454,82 @@ describe('ViewerStudentsDirectory Component', () => {
             );
         });
     });
+
+    it('renders user-friendly error card when RPC query fails and allows retry', async () => {
+        let callCount = 0;
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_viewer_courses') {
+                return Promise.resolve({ data: mockCourses, error: null });
+            }
+            if (rpcName === 'get_viewer_students_directory') {
+                callCount++;
+                if (callCount === 1) {
+                    return Promise.resolve({ data: null, error: new Error('Failed to fetch from Supabase') });
+                }
+                return Promise.resolve({ data: mockStudents, error: null });
+            }
+            return Promise.resolve({ data: null, error: new Error('Unknown RPC') });
+        });
+
+        renderWithClient(<ViewerStudentsDirectory />);
+
+        // Should display error state card instead of empty state
+        await waitFor(() => {
+            expect(screen.getByText(/failed to load students directory/i)).toBeInTheDocument();
+            expect(screen.getByText(/failed to fetch from supabase/i)).toBeInTheDocument();
+        });
+
+        expect(screen.queryByText(/no students found in the database/i)).not.toBeInTheDocument();
+
+        // Retry button should be present
+        const retryBtn = screen.getByRole('button', { name: /retry/i });
+        expect(retryBtn).toBeInTheDocument();
+
+        // Click retry
+        fireEvent.click(retryBtn);
+
+        // On retry, directory data should load successfully
+        await waitFor(() => {
+            expect(screen.getAllByText('Alice Smith').length).toBeGreaterThan(0);
+        });
+    });
+
+    it('does not render variant badge for students without course or variant', async () => {
+        const studentNoCourse: ViewerStudentDirectoryItem[] = [
+            {
+                student_id: 's-no-course',
+                first_name: 'Unenrolled',
+                last_name: 'User',
+                email: 'unenrolled@example.com',
+                phone: null,
+                address: null,
+                eircode: null,
+                dob: null,
+                created_at: '2026-01-01T00:00:00Z',
+                primary_course_name: null,
+                primary_course_id: null,
+                primary_status: null,
+                primary_course_variant: null,
+                primary_queue_position: null,
+                is_priority: false,
+                total_enrollments: 0,
+                notes_count: 0,
+                total_count: 1,
+            },
+        ];
+
+        setupRpcMock(studentNoCourse);
+        renderWithClient(<ViewerStudentsDirectory />);
+
+        await waitFor(() => {
+            expect(screen.getAllByText('Unenrolled User').length).toBeGreaterThan(0);
+        });
+
+        // "No course" should be shown
+        expect(screen.getAllByText(/no course/i).length).toBeGreaterThan(0);
+
+        // cleanVariant default "English" should NOT be rendered
+        expect(screen.queryByText('English')).not.toBeInTheDocument();
+    });
 });
+
