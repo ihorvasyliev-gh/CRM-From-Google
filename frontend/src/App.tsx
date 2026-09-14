@@ -37,6 +37,7 @@ const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerS
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
+import UpcomingCoursesPopover from './components/UpcomingCoursesPopover';
 import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 const NAV_ITEMS = [
@@ -333,12 +334,16 @@ function App() {
         }
     }, []);
 
-    const navigate = useCallback((tab: string) => {
+    const navigate = useCallback((tab: string, state?: any) => {
         setSidebarOpen(false);
         startTransition(() => {
-            navigateFn(`/${tab}`);
+            navigateFn(`/${tab}`, state ? { state } : undefined);
         });
     }, [navigateFn]);
+
+    const handleSelectUpcomingCourse = useCallback((courseId: string, courseDate?: string) => {
+        navigate('courses', { courseId, courseDate });
+    }, [navigate]);
 
     // Called from child components (e.g., StudentDetail, Dashboard) to navigate with filters
     const handleNavigate = useCallback((tab: string, filter?: any) => {
@@ -703,6 +708,9 @@ function App() {
                                         <span>Course Monitor</span>
                                     </button>
                                 </div>
+
+                                {/* Upcoming Courses Dropdown Popover */}
+                                <UpcomingCoursesPopover onSelectCourse={handleSelectUpcomingCourse} />
                             </div>
 
                             <div className="flex items-center gap-2 sm:gap-3">
@@ -888,7 +896,7 @@ function App() {
                                 {isViewer ? (
                                     <>
                                         <Route path="/students" element={<ViewerStudentsDirectory />} />
-                                        <Route path="/courses" element={<ViewerCourses initialCourseId={location.state?.courseId} />} />
+                                        <Route path="/courses" element={<ViewerCourses initialCourseId={location.state?.courseId} initialDate={location.state?.courseDate} />} />
                                         <Route path="/lookup" element={<Navigate to="/students" replace />} />
                                         <Route path="*" element={<Navigate to="/students" replace />} />
                                     </>

@@ -17,8 +17,8 @@ const mockFrom = vi.fn((_table?: string) => ({
 
 vi.mock('../lib/supabase', () => ({
     supabase: {
-        from: (table?: string) => mockFrom(table),
-        rpc: (fn?: string, params?: any) => mockRpc(fn, params),
+        from: (...args: any[]) => (mockFrom as any)(...args),
+        rpc: (...args: any[]) => (mockRpc as any)(...args),
     },
 }));
 

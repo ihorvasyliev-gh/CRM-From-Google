@@ -155,6 +155,15 @@ export interface NonDuplicate {
     created_at?: string;
 }
 
+export interface ViewerUpcomingCourse {
+    course_id: string;
+    course_name: string;
+    course_date: string; // YYYY-MM-DD
+    confirmed_count: number;
+    pending_count: number;
+    total_active_count: number;
+}
+
 
 // ─── UI Utilities ────────────────────────────────────────────
 

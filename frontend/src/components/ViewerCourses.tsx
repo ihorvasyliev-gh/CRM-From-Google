@@ -27,7 +27,7 @@ function formatDate(dateStr: string | null | undefined) {
     return formatDateDMY(dateStr);
 }
 
-export default function ViewerCourses({ initialCourseId }: { initialCourseId?: string } = {}) {
+export default function ViewerCourses({ initialCourseId, initialDate }: { initialCourseId?: string; initialDate?: string } = {}) {
     const [selectedCourse, setSelectedCourse] = useState<ViewerCourse | null>(null);
     const [catalogSearch, setCatalogSearch] = useState('');
     const debouncedCatalogSearch = useDebounce(catalogSearch, 250);
@@ -101,9 +101,12 @@ export default function ViewerCourses({ initialCourseId }: { initialCourseId?: s
             const match = courses.find(c => c.id === initialCourseId);
             if (match) {
                 setSelectedCourse(match);
+                if (initialDate) {
+                    setSelectedDateFilter(initialDate);
+                }
             }
         }
-    }, [initialCourseId, courses]);
+    }, [initialCourseId, initialDate, courses]);
 
     // 2. Query: Roster for selected course
     const {
@@ -183,6 +186,8 @@ export default function ViewerCourses({ initialCourseId }: { initialCourseId?: s
                 list = list.filter(item => item.confirmed_date === selectedDateFilter);
             } else if (selectedStatusTab === 'invited') {
                 list = list.filter(item => item.invited_date === selectedDateFilter);
+            } else {
+                list = list.filter(item => item.confirmed_date === selectedDateFilter || item.invited_date === selectedDateFilter);
             }
         }
 
