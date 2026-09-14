@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerUpcomingCourse } from '../lib/types';
 import { formatDateDMY } from '../lib/dateUtils';
-import { Calendar, ChevronDown, ChevronRight, Users, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface UpcomingCoursesPopoverProps {
     onSelectCourse?: (courseId: string, courseDate?: string) => void;
