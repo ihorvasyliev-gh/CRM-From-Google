@@ -98,6 +98,8 @@ vi.mock('../lib/supabase', () => ({
     },
 }));
 
+const futureCohortDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
 vi.mock('../hooks/useEnrollments', () => ({
     fetchAllEnrollments: vi.fn().mockResolvedValue([
         {
@@ -125,7 +127,7 @@ vi.mock('../hooks/useEnrollments', () => ({
             student_id: 'stu-3',
             course_id: 'crs-3',
             status: 'confirmed',
-            confirmed_date: '2026-09-12',
+            confirmed_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
             students: { id: 'stu-3', first_name: 'Alice', last_name: 'Wonder' },
             courses: { id: 'crs-3', name: 'First Aid' },
@@ -206,7 +208,7 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
 
         expect(mockNavigate).toHaveBeenCalledWith('enrollments', {
             courseId: 'crs-3',
-            courseDate: '2026-09-12',
+            courseDate: futureCohortDate,
         });
     });
 
