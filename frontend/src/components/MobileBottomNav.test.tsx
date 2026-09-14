@@ -61,7 +61,7 @@ describe('MobileBottomNav Component', () => {
         expect(handleNavigate).toHaveBeenCalledWith('analytics');
     });
 
-    it('renders viewer mode navigation with Lookup, Courses, Search, and More', () => {
+    it('renders viewer mode navigation with Students, Courses, Search, and More', () => {
         const handleNavigate = vi.fn();
         const handleCommandPalette = vi.fn();
         const handleToggleDark = vi.fn();
@@ -69,7 +69,42 @@ describe('MobileBottomNav Component', () => {
         const handleShortcuts = vi.fn();
         const handleSignOut = vi.fn();
 
-        render(
+        const { rerender } = render(
+            <MobileBottomNav
+                activeTab="students"
+                onNavigate={handleNavigate}
+                isViewer={true}
+                darkMode={false}
+                toggleDarkMode={handleToggleDark}
+                density="comfortable"
+                toggleDensity={handleToggleDensity}
+                onOpenCommandPalette={handleCommandPalette}
+                onOpenShortcuts={handleShortcuts}
+                onSignOut={handleSignOut}
+                userEmail="viewer@example.com"
+            />
+        );
+
+        expect(screen.getByText('Students')).toBeInTheDocument();
+        expect(screen.getByText('Courses')).toBeInTheDocument();
+        expect(screen.getByText('Search')).toBeInTheDocument();
+        expect(screen.queryByText('Lookup')).not.toBeInTheDocument();
+
+        // Check active tab highlighting for 'students'
+        const studentsBtn = screen.getByText('Students').closest('button');
+        expect(studentsBtn).toHaveClass('text-brand-600');
+
+        fireEvent.click(screen.getByText('Students'));
+        expect(handleNavigate).toHaveBeenCalledWith('students');
+
+        fireEvent.click(screen.getByText('Courses'));
+        expect(handleNavigate).toHaveBeenCalledWith('courses');
+
+        fireEvent.click(screen.getByText('Search'));
+        expect(handleCommandPalette).toHaveBeenCalled();
+
+        // Also verify backwards compatibility when activeTab="lookup"
+        rerender(
             <MobileBottomNav
                 activeTab="lookup"
                 onNavigate={handleNavigate}
@@ -84,15 +119,7 @@ describe('MobileBottomNav Component', () => {
                 userEmail="viewer@example.com"
             />
         );
-
-        expect(screen.getByText('Lookup')).toBeInTheDocument();
-        expect(screen.getByText('Courses')).toBeInTheDocument();
-        expect(screen.getByText('Search')).toBeInTheDocument();
-
-        fireEvent.click(screen.getByText('Courses'));
-        expect(handleNavigate).toHaveBeenCalledWith('courses');
-
-        fireEvent.click(screen.getByText('Search'));
-        expect(handleCommandPalette).toHaveBeenCalled();
+        const studentsBtnLookup = screen.getByText('Students').closest('button');
+        expect(studentsBtnLookup).toHaveClass('text-brand-600');
     });
 });

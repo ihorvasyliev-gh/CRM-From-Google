@@ -33,7 +33,7 @@ const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGener
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
-const StudentLookup = lazyWithRetry(() => import('./components/StudentLookup'));
+const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
 import { usePendingApprovalsCount } from './hooks/useApprovals';
@@ -106,7 +106,7 @@ function App() {
     const navigateFn = useNavigate();
     const [, startTransition] = useTransition();
     const isViewer = user?.app_metadata?.role === 'viewer';
-    const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'lookup';
+    const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'students';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!isViewer);
@@ -675,17 +675,17 @@ function App() {
                                 {/* Viewer Navigation Switcher */}
                                 <div className="flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
                                     <button
-                                        onClick={() => navigate('lookup')}
+                                        onClick={() => navigate('students')}
                                         onMouseEnter={() => handleTabMouseEnter('students')}
                                         onMouseLeave={handleTabMouseLeave}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                            activeTab === 'lookup'
+                                            activeTab === 'students'
                                                 ? 'bg-brand-500 text-white shadow-sm'
                                                 : 'text-muted hover:text-primary hover:bg-surface'
                                         }`}
                                     >
                                         <Users size={14} />
-                                        <span>Students Lookup</span>
+                                        <span>Students Directory</span>
                                     </button>
                                     <button
                                         onClick={() => navigate('courses')}
@@ -698,7 +698,7 @@ function App() {
                                         }`}
                                     >
                                         <BookOpen size={14} />
-                                        <span>Courses Catalog</span>
+                                        <span>Course Monitor</span>
                                     </button>
                                 </div>
                             </div>
@@ -885,9 +885,10 @@ function App() {
                             <Routes>
                                 {isViewer ? (
                                     <>
-                                        <Route path="/lookup" element={<StudentLookup />} />
+                                        <Route path="/students" element={<ViewerStudentsDirectory />} />
                                         <Route path="/courses" element={<ViewerCourses />} />
-                                        <Route path="*" element={<Navigate to="/lookup" replace />} />
+                                        <Route path="/lookup" element={<Navigate to="/students" replace />} />
+                                        <Route path="*" element={<Navigate to="/students" replace />} />
                                     </>
                                 ) : (
                                     <>

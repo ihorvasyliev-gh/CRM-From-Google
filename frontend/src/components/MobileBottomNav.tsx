@@ -61,17 +61,17 @@ export default function MobileBottomNav({
                 >
                     <div className="flex items-center justify-around max-w-md mx-auto">
                         <button
-                            onClick={() => onNavigate('lookup')}
+                            onClick={() => onNavigate('students')}
                             className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 min-w-[64px] ${
-                                activeTab === 'lookup'
+                                activeTab === 'lookup' || activeTab === 'students'
                                     ? 'text-brand-600 dark:text-brand-400 font-bold'
                                     : 'text-muted hover:text-primary'
                             }`}
                         >
-                            <div className={`p-1 rounded-lg transition-transform ${activeTab === 'lookup' ? 'bg-brand-500/10 scale-110' : ''}`}>
+                            <div className={`p-1 rounded-lg transition-transform ${activeTab === 'lookup' || activeTab === 'students' ? 'bg-brand-500/10 scale-110' : ''}`}>
                                 <Users size={19} />
                             </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">Lookup</span>
+                            <span className="text-[10px] tracking-tight mt-0.5">Students</span>
                         </button>
 
                         <button
