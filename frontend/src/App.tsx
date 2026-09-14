@@ -35,6 +35,7 @@ const Settings = lazyWithRetry(() => import('./components/Settings'));
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
+const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
 import { usePendingApprovalsCount } from './hooks/useApprovals';
 
@@ -117,6 +118,7 @@ function App() {
     const [globalAddStudentOpen, setGlobalAddStudentOpen] = useState(false);
     const [globalEnrollModalOpen, setGlobalEnrollModalOpen] = useState(false);
     const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
+    const [viewerSelectedStudentId, setViewerSelectedStudentId] = useState<string | null>(null);
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -886,7 +888,7 @@ function App() {
                                 {isViewer ? (
                                     <>
                                         <Route path="/students" element={<ViewerStudentsDirectory />} />
-                                        <Route path="/courses" element={<ViewerCourses />} />
+                                        <Route path="/courses" element={<ViewerCourses initialCourseId={location.state?.courseId} />} />
                                         <Route path="/lookup" element={<Navigate to="/students" replace />} />
                                         <Route path="*" element={<Navigate to="/students" replace />} />
                                     </>
@@ -956,7 +958,13 @@ function App() {
                 open={commandPaletteOpen}
                 onClose={() => setCommandPaletteOpen(false)}
                 onNavigate={handleNavigate}
-                onOpenStudentDetail={student => setGlobalStudentDetail(student)}
+                onOpenStudentDetail={student => {
+                    if (isViewer) {
+                        setViewerSelectedStudentId(student.id);
+                    } else {
+                        setGlobalStudentDetail(student);
+                    }
+                }}
                 onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
                 onOpenApprovals={() => setApprovalsModalOpen(true)}
                 onOpenShortcuts={() => setShortcutsModalOpen(true)}
@@ -997,8 +1005,18 @@ function App() {
                 />
             )}
 
+            {/* Viewer Student Detail Drawer */}
+            {isViewer && viewerSelectedStudentId && (
+                <Suspense fallback={null}>
+                    <StudentDetailDrawer
+                        studentId={viewerSelectedStudentId}
+                        onClose={() => setViewerSelectedStudentId(null)}
+                    />
+                </Suspense>
+            )}
+
             {/* Global Student Detail Modal */}
-            {globalStudentDetail && (
+            {!isViewer && globalStudentDetail && (
                 <StudentDetail
                     student={globalStudentDetail}
                     onClose={() => setGlobalStudentDetail(null)}

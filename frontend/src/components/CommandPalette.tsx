@@ -59,6 +59,7 @@ export default function CommandPalette({
     const [loadingData, setLoadingData] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
+    const initialStudentsRef = useRef<Student[]>([]);
 
     let queryClient: ReturnType<typeof useQueryClient> | null = null;
     try {
@@ -92,26 +93,72 @@ export default function CommandPalette({
                 setLoadingData(true);
             }
             try {
-                const promises: PromiseLike<any>[] = [];
-                if (needsCourses) {
-                    promises.push(supabase.from('courses').select('*').order('name').limit(50));
-                }
-                promises.push(supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30));
-
-                const results = await Promise.all(promises);
-                if (isMounted) {
-                    let studentsData = null;
+                if (isViewer) {
+                    const promises: PromiseLike<any>[] = [];
                     if (needsCourses) {
-                        const coursesRes = results[0];
-                        studentsData = results[1]?.data;
-                        if (coursesRes?.data) {
-                            setCourses(coursesRes.data as Course[]);
-                            queryClient?.setQueryData(['courses'], coursesRes.data);
-                        }
-                    } else {
-                        studentsData = results[0]?.data;
+                        promises.push(supabase.rpc('get_viewer_courses'));
                     }
-                    if (studentsData) setStudents(studentsData as Student[]);
+                    promises.push(supabase.rpc('get_viewer_students_directory', { p_limit: 30 }));
+
+                    const results = await Promise.all(promises);
+                    if (isMounted) {
+                        let studentsData = null;
+                        if (needsCourses) {
+                            const coursesRes = results[0];
+                            studentsData = results[1]?.data;
+                            if (coursesRes?.data) {
+                                const mappedCourses: Course[] = coursesRes.data.map((c: any) => ({
+                                    id: c.id,
+                                    name: c.name,
+                                    created_at: c.created_at,
+                                }));
+                                setCourses(mappedCourses);
+                                queryClient?.setQueryData(['courses'], mappedCourses);
+                            }
+                        } else {
+                            studentsData = results[0]?.data;
+                        }
+                        if (studentsData) {
+                            const mappedStudents: Student[] = studentsData.map((s: any) => ({
+                                id: s.student_id || s.id,
+                                first_name: s.first_name,
+                                last_name: s.last_name,
+                                email: s.email,
+                                phone: s.phone,
+                                address: s.address,
+                                eircode: s.eircode,
+                                dob: s.dob,
+                                created_at: s.created_at,
+                            }));
+                            setStudents(mappedStudents);
+                            initialStudentsRef.current = mappedStudents;
+                        }
+                    }
+                } else {
+                    const promises: PromiseLike<any>[] = [];
+                    if (needsCourses) {
+                        promises.push(supabase.from('courses').select('*').order('name').limit(50));
+                    }
+                    promises.push(supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30));
+
+                    const results = await Promise.all(promises);
+                    if (isMounted) {
+                        let studentsData = null;
+                        if (needsCourses) {
+                            const coursesRes = results[0];
+                            studentsData = results[1]?.data;
+                            if (coursesRes?.data) {
+                                setCourses(coursesRes.data as Course[]);
+                                queryClient?.setQueryData(['courses'], coursesRes.data);
+                            }
+                        } else {
+                            studentsData = results[0]?.data;
+                        }
+                        if (studentsData) {
+                            setStudents(studentsData as Student[]);
+                            initialStudentsRef.current = studentsData as Student[];
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('Error fetching data for CommandPalette:', err);
@@ -124,7 +171,14 @@ export default function CommandPalette({
         return () => {
             isMounted = false;
         };
-    }, [open, queryClient]);
+    }, [open, queryClient, isViewer]);
+
+    // Reset to initial students when query is cleared
+    useEffect(() => {
+        if (open && !query.trim() && initialStudentsRef.current.length > 0) {
+            setStudents(initialStudentsRef.current);
+        }
+    }, [query, open]);
 
     // Debounced student search when user types a specific query
     useEffect(() => {
@@ -133,16 +187,36 @@ export default function CommandPalette({
         let active = true;
         const timer = setTimeout(async () => {
             const trimmed = query.trim();
-            const parts = trimmed.split(/\s+/);
-            let q = supabase.from('students').select('*').limit(20);
-            parts.forEach((part: string) => {
-                const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
-                q = q.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
-            });
+            if (isViewer) {
+                const { data } = await supabase.rpc('get_viewer_students_directory', {
+                    p_search: trimmed,
+                    p_limit: 20,
+                });
+                if (active && data) {
+                    setStudents(data.map((s: any) => ({
+                        id: s.student_id || s.id,
+                        first_name: s.first_name,
+                        last_name: s.last_name,
+                        email: s.email,
+                        phone: s.phone,
+                        address: s.address,
+                        eircode: s.eircode,
+                        dob: s.dob,
+                        created_at: s.created_at,
+                    })) as Student[]);
+                }
+            } else {
+                const parts = trimmed.split(/\s+/);
+                let q = supabase.from('students').select('*').limit(20);
+                parts.forEach((part: string) => {
+                    const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
+                    q = q.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
+                });
 
-            const { data } = await q;
-            if (active && data) {
-                setStudents(data as Student[]);
+                const { data } = await q;
+                if (active && data) {
+                    setStudents(data as Student[]);
+                }
             }
         }, 200);
 
@@ -150,7 +224,7 @@ export default function CommandPalette({
             active = false;
             clearTimeout(timer);
         };
-    }, [query, open]);
+    }, [query, open, isViewer]);
 
     // Construct searchable items
     const items: PaletteItem[] = useMemo(() => {
@@ -295,11 +369,15 @@ export default function CommandPalette({
             result.push({
                 id: `course-${c.id}`,
                 title: c.name,
-                subtitle: 'Course catalog & board',
+                subtitle: isViewer ? 'Course roster & attendees' : 'Course catalog & board',
                 category: 'Courses',
                 icon: <BookOpen size={17} className="text-brand-400" />,
                 onSelect: () => {
-                    onNavigate('enrollments', { courseId: c.id });
+                    if (isViewer) {
+                        onNavigate('courses', { courseId: c.id });
+                    } else {
+                        onNavigate('enrollments', { courseId: c.id });
+                    }
                     onClose();
                 },
             });
@@ -314,6 +392,7 @@ export default function CommandPalette({
                 email: s.email,
                 phone: s.phone,
                 eircode: s.eircode,
+                address: s.address,
             }, q);
         });
 

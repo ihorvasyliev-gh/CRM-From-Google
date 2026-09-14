@@ -125,4 +125,23 @@ describe('matchesSearch', () => {
             expect(matchesSearch(studentWithEircode, 'y2y4')).toBe(true);
         });
     });
+
+    describe('Address search matching', () => {
+        const studentWithAddress = {
+            firstName: 'Ihor',
+            lastName: 'Vasyliev',
+            email: 'ihor@example.com',
+            phone: '0872890084',
+            notes: '',
+            address: '2 Glen view villas Commons road',
+            eircode: 'T23 Y2Y4',
+        };
+
+        it('matches address by street name or partial address', () => {
+            expect(matchesSearch(studentWithAddress, 'Commons')).toBe(true);
+            expect(matchesSearch(studentWithAddress, 'glen view')).toBe(true);
+            expect(matchesSearch(studentWithAddress, 'Commons road')).toBe(true);
+        });
+    });
 });
+

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerCourse, ViewerCourseRosterItem, getAvatarGradient, cleanVariant } from '../lib/types';
@@ -27,7 +27,7 @@ function formatDate(dateStr: string | null | undefined) {
     return formatDateDMY(dateStr);
 }
 
-export default function ViewerCourses() {
+export default function ViewerCourses({ initialCourseId }: { initialCourseId?: string } = {}) {
     const [selectedCourse, setSelectedCourse] = useState<ViewerCourse | null>(null);
     const [catalogSearch, setCatalogSearch] = useState('');
     const debouncedCatalogSearch = useDebounce(catalogSearch, 250);
@@ -94,6 +94,16 @@ export default function ViewerCourses() {
             }));
         },
     });
+
+    // Select initial course if provided via navigation state
+    useEffect(() => {
+        if (initialCourseId && courses.length > 0) {
+            const match = courses.find(c => c.id === initialCourseId);
+            if (match) {
+                setSelectedCourse(match);
+            }
+        }
+    }, [initialCourseId, courses]);
 
     // 2. Query: Roster for selected course
     const {
