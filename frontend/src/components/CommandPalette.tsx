@@ -61,12 +61,7 @@ export default function CommandPalette({
     const listRef = useRef<HTMLDivElement>(null);
     const initialStudentsRef = useRef<Student[]>([]);
 
-    let queryClient: ReturnType<typeof useQueryClient> | null = null;
-    try {
-        queryClient = useQueryClient();
-    } catch {
-        // Outside QueryClientProvider (e.g. lightweight unit tests)
-    }
+    const queryClient = useQueryClient();
 
     // Reset query & focus input on open
     useEffect(() => {

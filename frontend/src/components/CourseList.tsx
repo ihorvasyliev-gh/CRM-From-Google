@@ -94,7 +94,7 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     );
 }
 
-export async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
+async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
     try {
         if (typeof (supabase as any).rpc === 'function') {
             const { data, error } = await (supabase as any).rpc('get_course_enrollment_counts');

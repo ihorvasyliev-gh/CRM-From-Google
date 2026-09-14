@@ -23,6 +23,31 @@ Deno.serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+        // 1.5 Authenticate caller (require valid Supabase anon/service key or valid authenticated session)
+        const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+        const apiKey = req.headers.get('apikey') || req.headers.get('ApiKey');
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+        const hasValidKey = (apiKey && (apiKey === supabaseServiceKey || (supabaseAnonKey && apiKey === supabaseAnonKey))) ||
+                            (authHeader && (authHeader === `Bearer ${supabaseServiceKey}` || (supabaseAnonKey && authHeader === `Bearer ${supabaseAnonKey}`)));
+
+        if (!hasValidKey) {
+            const token = authHeader?.replace(/^Bearer\s+/i, '');
+            if (!token) {
+                return new Response(JSON.stringify({ error: 'Unauthorized: missing authorization' }), {
+                    status: 401,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+            const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+            if (authErr || !user) {
+                return new Response(JSON.stringify({ error: 'Unauthorized: invalid credentials' }), {
+                    status: 401,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+        }
+
         // 2. Parse request payload (should contain enrollment_id)
         const { enrollment_id } = await req.json();
         if (!enrollment_id) {

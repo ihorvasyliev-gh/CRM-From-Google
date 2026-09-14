@@ -1,6 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CommandPalette from './CommandPalette';
+
+const createTestQueryClient = () =>
+    new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+        },
+    });
+
+const render = (ui: React.ReactElement) => {
+    return rtlRender(
+        <QueryClientProvider client={createTestQueryClient()}>
+            {ui}
+        </QueryClientProvider>
+    );
+};
 
 const mockRpc = vi.fn((_fn?: string, _params?: any) => Promise.resolve({ data: [] }));
 const mockFrom = vi.fn((_table?: string) => ({
