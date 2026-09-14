@@ -188,8 +188,8 @@ export default function CommandPalette({
             });
         } else {
             const viewerNavs = [
-                { id: 'nav-lookup', title: 'Student Lookup', subtitle: 'Search student history & contact info', tab: 'lookup', icon: <Users size={17} /> },
-                { id: 'nav-courses', title: 'Course Rosters', subtitle: 'View course attendees & request completions', tab: 'courses', icon: <BookOpen size={17} /> },
+                { id: 'nav-students', title: 'Students Directory', subtitle: 'Search and browse student history & contacts', tab: 'students', icon: <Users size={17} /> },
+                { id: 'nav-courses', title: 'Course Monitor', subtitle: 'View course attendees & request completions', tab: 'courses', icon: <BookOpen size={17} /> },
             ];
             viewerNavs.forEach(nav => {
                 if (!q || nav.title.toLowerCase().includes(q) || nav.subtitle.toLowerCase().includes(q)) {
