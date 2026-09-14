@@ -281,4 +281,36 @@ describe('StudentDetailDrawer Component', () => {
         fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
+
+    it('closes inner completion modal on Escape without closing the drawer', async () => {
+        const onClose = vi.fn();
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_student_detail_restricted') {
+                return Promise.resolve({ data: mockDetail, error: null });
+            }
+            return Promise.resolve({ data: null, error: null });
+        });
+
+        renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
+
+        await waitFor(() => {
+            expect(screen.getByText('Barista Training')).toBeInTheDocument();
+        });
+
+        // Open completion modal
+        const completionBtn = screen.getByRole('button', { name: /Mark Completed|Request Completion/i });
+        fireEvent.click(completionBtn);
+
+        expect(screen.getByText('Mark Course Completion')).toBeInTheDocument();
+
+        // First Escape closes the modal, NOT the drawer
+        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+
+        expect(screen.queryByText('Mark Course Completion')).not.toBeInTheDocument();
+        expect(onClose).not.toHaveBeenCalled();
+
+        // Second Escape closes the drawer
+        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
 });

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useRequestCompletion } from '../hooks/useApprovals';
 import { cleanVariant, getAvatarGradient } from '../lib/types';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDateDMY, todayISO } from '../lib/dateUtils';
 import {
     formatPhoneForWhatsApp,
     formatPhoneForCall,
@@ -123,9 +123,9 @@ function InfoField({
                     onCopy(copyValue ?? value!, label);
                 }
             }}
-            className={`flex items-center gap-3 p-3 rounded-xl bg-surface-elevated/60 border border-border-subtle shadow-xs transition-all group ${
+            className={`flex items-center gap-3 p-3 rounded-xl bg-surface-elevated/60 border border-border-subtle shadow-sm transition-all group ${
                 isClickable
-                    ? 'cursor-pointer hover:border-brand-500/40 hover:bg-brand-50/10 dark:hover:bg-brand-500/5 hover:shadow-xs'
+                    ? 'cursor-pointer hover:border-brand-500/40 hover:bg-brand-50/10 dark:hover:bg-brand-500/5 hover:shadow-sm'
                     : ''
             }`}
             title={isClickable ? `Click to copy ${label} to clipboard` : undefined}
@@ -155,7 +155,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
     const [toast, setToast] = useState<ToastData | null>(null);
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
     const [targetEnrollment, setTargetEnrollment] = useState<EnrollmentDetail | null>(null);
-    const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => todayISO());
 
     const requestCompletionMutation = useRequestCompletion();
 
@@ -163,12 +163,17 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                onClose();
+                if (completionModalOpen) {
+                    setCompletionModalOpen(false);
+                    setTargetEnrollment(null);
+                } else {
+                    onClose();
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    }, [onClose, completionModalOpen]);
 
     // Query for student details
     const {
@@ -282,7 +287,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                         {studentDetail && (
                             <button
                                 onClick={handleCopySummary}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-primary/80 hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-xs active:scale-95"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-primary/80 hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
                                 title="Copy contact summary"
                             >
                                 <Copy size={13} className="text-brand-500" />
@@ -343,7 +348,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                                                             href={formatPhoneForWhatsApp(studentDetail.phone)!}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex items-center justify-center w-7 h-7 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                            className="flex items-center justify-center w-7 h-7 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-sm transition-all active:scale-95"
                                                             title="WhatsApp"
                                                         >
                                                             <MessageSquare size={13} />
@@ -352,7 +357,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                                                     {formatPhoneForCall(studentDetail.phone) && (
                                                         <a
                                                             href={formatPhoneForCall(studentDetail.phone)!}
-                                                            className="flex items-center justify-center w-7 h-7 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                            className="flex items-center justify-center w-7 h-7 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-sm transition-all active:scale-95"
                                                             title="Call"
                                                         >
                                                             <Phone size={13} />
@@ -477,7 +482,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                                             return (
                                                 <div
                                                     key={en.id}
-                                                    className="p-4 rounded-2xl bg-surface-elevated/50 border border-border-subtle shadow-xs space-y-3"
+                                                    className="p-4 rounded-2xl bg-surface-elevated/50 border border-border-subtle shadow-sm space-y-3"
                                                 >
                                                     {/* Course Title & Status Header */}
                                                     <div className="flex items-start justify-between gap-2">
@@ -586,10 +591,10 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                                                             <button
                                                                 onClick={() => {
                                                                     setTargetEnrollment(en);
-                                                                    setSelectedCompletionDate(en.confirmed_date || en.invited_date || new Date().toISOString().split('T')[0]);
+                                                                    setSelectedCompletionDate(en.confirmed_date || en.invited_date || todayISO());
                                                                     setCompletionModalOpen(true);
                                                                 }}
-                                                                className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95 whitespace-nowrap"
+                                                                className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
                                                             >
                                                                 <GraduationCap size={13} />
                                                                 <span>{en.completion_request_status === 'rejected' ? 'Re-submit Completion' : 'Request Completion'}</span>
@@ -609,7 +614,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
 
             {/* Date Confirmation Modal for Viewer Completion Request */}
             {completionModalOpen && targetEnrollment && (
-                <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+                <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
                     <div className="bg-surface rounded-3xl border border-border-subtle shadow-2xl max-w-md w-full p-6 space-y-4 animate-scaleIn">
                         <div className="flex items-center gap-3">
                             <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
@@ -640,7 +645,10 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
 
                         <div className="flex items-center justify-end gap-2 pt-2">
                             <button
-                                onClick={() => setCompletionModalOpen(false)}
+                                onClick={() => {
+                                    setCompletionModalOpen(false);
+                                    setTargetEnrollment(null);
+                                }}
                                 className="px-4 py-2 text-xs font-semibold text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
                                 disabled={requestCompletionMutation.isPending}
                             >
@@ -658,6 +666,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
                                             type: 'success',
                                         });
                                         setCompletionModalOpen(false);
+                                        setTargetEnrollment(null);
                                         refetch();
                                     } catch (err: any) {
                                         setToast({
