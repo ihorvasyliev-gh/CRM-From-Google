@@ -14,7 +14,8 @@ import {
     CheckCircle2, 
     MapPin, 
     BookOpen, 
-    Search 
+    Search,
+    Award
 } from 'lucide-react';
 
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
@@ -29,6 +30,7 @@ const GeographyDemographicsTab = lazyWithRetry(() => import('./Analytics/Geograp
 const CourseMatrixTab = lazyWithRetry(() => import('./Analytics/CourseMatrixTab'));
 const OutcomesTab = lazyWithRetry(() => import('./Analytics/OutcomesTab'));
 const DataExplorerTab = lazyWithRetry(() => import('./Analytics/DataExplorerTab'));
+const MultiCourseCompletersTab = lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab'));
 import DrillDownModal from './Analytics/DrillDownModal';
 import { 
     calculateSpeedMetrics, 
@@ -37,7 +39,7 @@ import {
     exportCustomCSV 
 } from './Analytics/analyticsUtils';
 
-export type AnalyticsTabId = 'pipeline' | 'geography' | 'courses' | 'outcomes' | 'explorer';
+export type AnalyticsTabId = 'pipeline' | 'geography' | 'courses' | 'outcomes' | 'explorer' | 'multi-course';
 
 export default function Analytics() {
     // 1. Global Filter State
@@ -210,6 +212,7 @@ export default function Analytics() {
         { id: 'courses', label: '3. Courses & Cohorts', icon: BookOpen },
         { id: 'outcomes', label: '4. Graduate Outcomes', icon: Briefcase },
         { id: 'explorer', label: '5. Data Explorer', icon: Search },
+        { id: 'multi-course', label: '6. Multi-Course Completers', icon: Award },
     ] as const;
 
     return (
@@ -427,6 +430,14 @@ export default function Analytics() {
                         {activeTab === 'explorer' && (
                             <DataExplorerTab
                                 enrollments={filteredEnrollments}
+                                onOpenStudent={handleOpenStudentDetail}
+                            />
+                        )}
+
+                        {activeTab === 'multi-course' && (
+                            <MultiCourseCompletersTab
+                                allEnrollments={allEnrollments}
+                                filteredEnrollments={filteredEnrollments}
                                 onOpenStudent={handleOpenStudentDetail}
                             />
                         )}
