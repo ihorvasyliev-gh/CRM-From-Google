@@ -131,6 +131,9 @@ export async function generateDocumentsArchive(
             const student = enrollment.students;
             if (!student) continue;
 
+            // Yield to the event loop so the UI stays responsive during long runs
+            await new Promise(resolve => setTimeout(resolve, 0));
+
             try {
                 const pizZip = new PizZip(templateBuffer);
                 const doc = new Docxtemplater(pizZip, {
@@ -142,7 +145,7 @@ export async function generateDocumentsArchive(
                 const data = { ...buildPlaceholderData(enrollment), ...customVariables };
                 doc.render(data);
 
-                const generatedDoc = doc.getZip().generate({ type: 'arraybuffer' });
+                const generatedDoc = doc.getZip().generate({ type: 'arraybuffer', compression: 'DEFLATE' });
                 const fileName = `${student.first_name || 'Unknown'}_${student.last_name || 'Unknown'}.docx`
                     .replace(/[^a-zA-Z0-9_.\-\s]/g, '')
                     .replace(/\s+/g, '_');
@@ -226,7 +229,7 @@ export async function generateDocumentsArchive(
                 }
 
                 attDoc.render({ ...attData, ...customVariables });
-                const generatedAttDoc = attDoc.getZip().generate({ type: 'arraybuffer' });
+                const generatedAttDoc = attDoc.getZip().generate({ type: 'arraybuffer', compression: 'DEFLATE' });
                 zip.file('Attendance_Sheet.docx', generatedAttDoc);
             }
         } catch (attErr) {
@@ -289,7 +292,7 @@ export async function generateDocumentsArchive(
                 }
 
                 lblDoc.render({ ...lblData, ...customVariables });
-                const generatedLblDoc = lblDoc.getZip().generate({ type: 'arraybuffer' });
+                const generatedLblDoc = lblDoc.getZip().generate({ type: 'arraybuffer', compression: 'DEFLATE' });
                 zip.file('Address_Labels.docx', generatedLblDoc);
             }
         } catch (lblErr) {
@@ -376,8 +379,9 @@ export async function generateDocumentsArchive(
         }
     }
 
-    // Download ZIP
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    // Download ZIP. Entries (.docx/.xlsx) are already deflated, so the outer
+    // archive just stores them — no point compressing twice.
+    const zipBlob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
     saveAs(zipBlob, archiveName);
 
     return result;
