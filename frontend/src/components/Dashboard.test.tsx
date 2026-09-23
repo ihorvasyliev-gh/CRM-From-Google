@@ -144,8 +144,8 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         const expiredHeaders = await screen.findAllByText(/Expired Invites/i, {}, { timeout: 4000 });
         expect(expiredHeaders.length).toBeGreaterThan(0);
 
-        // Upcoming Cohorts card
-        const cohortHeaders = await screen.findAllByText(/Upcoming Cohorts/i, {}, { timeout: 4000 });
+        // Upcoming Courses card
+        const cohortHeaders = await screen.findAllByText(/Upcoming Courses/i, {}, { timeout: 4000 });
         expect(cohortHeaders.length).toBeGreaterThan(0);
         expect(screen.getAllByText(/First Aid/i).length).toBeGreaterThan(0);
 

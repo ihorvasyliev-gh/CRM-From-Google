@@ -57,7 +57,7 @@ function CoursePill({ en, small = false, onNavigate }: { en: Enrollment; small?:
             type="button"
             onClick={() => (en.courseId ? onNavigate?.('enrollments', { courseId: en.courseId }) : onNavigate?.('enrollments'))}
             className={`status-pill-${en.status} inline-flex items-center gap-1.5 max-w-full rounded-full whitespace-nowrap hover:ring-2 hover:ring-brand-500/30 active:scale-95 transition-all cursor-pointer touch-manipulation ${
-                small ? 'text-[10.5px] px-2 py-0.5 font-medium' : 'text-[11.5px] px-2.5 py-1 font-semibold'
+                small ? 'text-[10.5px] px-2 py-0.5 font-medium' : 'text-[11px] px-2 py-0.5 font-semibold'
             }`}
             title={`Filter board by ${en.courseName} (${en.status})`}
         >
@@ -70,15 +70,11 @@ function CoursePill({ en, small = false, onNavigate }: { en: Enrollment; small?:
 
 function SkeletonActivityItem() {
     return (
-        <div className="flex items-start gap-3 p-3 animate-pulse">
-            <div className="w-9 h-9 rounded-full bg-surface-elevated flex-shrink-0" />
-            <div className="flex-1 space-y-2">
-                <div className="h-3.5 w-32 rounded bg-surface-elevated" />
-                <div className="flex gap-2">
-                    <div className="h-5 w-24 rounded-full bg-surface-elevated" />
-                    <div className="h-5 w-20 rounded-full bg-surface-elevated" />
-                </div>
-            </div>
+        <div className="flex items-center gap-2.5 px-2 py-2 animate-pulse">
+            <div className="w-7 h-7 rounded-full bg-surface-elevated flex-shrink-0" />
+            <div className="h-3.5 w-32 rounded bg-surface-elevated" />
+            <div className="h-5 w-28 rounded-full bg-surface-elevated" />
+            <div className="h-5 w-20 rounded-full bg-surface-elevated" />
         </div>
     );
 }
@@ -104,63 +100,66 @@ function ActivityRow({
     }
 
     return (
-        <li className="flex items-start gap-3 px-2 py-2.5 rounded-xl hover:bg-surface-elevated/70 transition-colors">
-            <StudentAvatar name={group.studentName} seed={group.studentId} />
-            <div className="flex-1 min-w-0 sm:grid sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] sm:gap-x-4 sm:items-start">
-                <div className="flex items-center gap-2 min-w-0 sm:min-h-[36px]">
-                    <button
-                        type="button"
-                        onClick={() => onOpenStudentDetail?.(group.studentId)}
-                        className="text-[13.5px] font-semibold text-primary hover:text-brand-500 hover:underline truncate text-left cursor-pointer transition-colors touch-manipulation"
-                        title={`View details for ${group.studentName}`}
-                    >
-                        {group.studentName}
-                    </button>
-                    {group.isNew && (
-                        <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
-                            NEW
-                        </span>
-                    )}
-                </div>
+        <li className="px-2 py-1.5 rounded-lg hover:bg-surface-elevated/70 transition-colors">
+            <div className="flex items-center gap-2.5">
+                <StudentAvatar name={group.studentName} seed={group.studentId} size="sm" />
+                <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <button
+                            type="button"
+                            onClick={() => onOpenStudentDetail?.(group.studentId)}
+                            className="text-[13px] font-semibold text-primary hover:text-brand-500 hover:underline truncate text-left cursor-pointer transition-colors touch-manipulation"
+                            title={`View details for ${group.studentName}`}
+                        >
+                            {group.studentName}
+                        </button>
+                        {group.isNew && (
+                            <span className="inline-flex items-center px-1 py-px rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
+                                NEW
+                            </span>
+                        )}
+                    </div>
 
-                <div className="min-w-0">
-                    <div className="mt-1.5 sm:mt-0 sm:min-h-[36px] flex flex-wrap items-center gap-1.5">
+                    <div className="col-span-2 sm:col-span-1 order-last sm:order-none flex flex-wrap items-center gap-1 min-w-0">
                         {(group.enrollments || []).map(en => (
                             <CoursePill key={en.id} en={en} onNavigate={onNavigate} />
                         ))}
                     </div>
 
-                    {history.length > 0 && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => setExpanded(v => !v)}
-                                aria-expanded={expanded}
-                                className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-primary cursor-pointer transition-colors"
-                            >
-                                <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                                {expanded ? 'Hide history' : `History · ${history.length} earlier`}
-                            </button>
-
-                            {expanded && (
-                                <ol className="mt-2 ml-1.5 pl-4 border-l-2 border-border-subtle space-y-2 animate-fadeIn">
-                                    {Array.from(historyByDate.entries()).map(([date, ens]) => (
-                                        <li key={date} className="relative flex items-start gap-2.5">
-                                            <span aria-hidden className="absolute -left-[21px] top-[5px] w-2 h-2 rounded-full bg-surface border-2 border-border-strong" />
-                                            <span className="text-[10.5px] font-medium text-muted w-12 pt-0.5 flex-shrink-0 tabular-nums">{date}</span>
-                                            <div className="flex flex-wrap gap-1 min-w-0">
-                                                {ens.map(en => (
-                                                    <CoursePill key={en.id} en={en} small onNavigate={onNavigate} />
-                                                ))}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ol>
-                            )}
-                        </>
+                    {history.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => setExpanded(v => !v)}
+                            aria-expanded={expanded}
+                            title={expanded ? 'Hide history' : `Show ${history.length} earlier enrollments`}
+                            className={`inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                                expanded ? 'bg-brand-500/10 text-brand-500' : 'text-muted hover:text-primary hover:bg-surface-elevated'
+                            }`}
+                        >
+                            <span>{expanded ? 'Hide history' : `History · ${history.length} earlier`}</span>
+                            <ChevronDown size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                        </button>
+                    ) : (
+                        <span aria-hidden />
                     )}
                 </div>
             </div>
+
+            {expanded && (
+                <ol className="mt-1.5 mb-1 ml-[46px] pl-3.5 border-l-2 border-border-subtle space-y-1.5 animate-fadeIn">
+                    {Array.from(historyByDate.entries()).map(([date, ens]) => (
+                        <li key={date} className="relative flex items-start gap-2.5">
+                            <span aria-hidden className="absolute -left-[19px] top-[5px] w-2 h-2 rounded-full bg-surface border-2 border-border-strong" />
+                            <span className="text-[10.5px] font-medium text-muted w-12 pt-0.5 flex-shrink-0 tabular-nums">{date}</span>
+                            <div className="flex flex-wrap gap-1 min-w-0">
+                                {ens.map(en => (
+                                    <CoursePill key={en.id} en={en} small onNavigate={onNavigate} />
+                                ))}
+                            </div>
+                        </li>
+                    ))}
+                </ol>
+            )}
         </li>
     );
 }
@@ -294,7 +293,7 @@ export default function DashboardActivityFeed({
                 <div className="flex-1 min-h-0 overflow-y-auto -mx-2 px-0 lg:max-h-[720px]">
                     {sections.map(section => (
                         <div key={section.date}>
-                            <div className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1.5 bg-surface/95 backdrop-blur-sm">
+                            <div className="sticky top-0 z-10 flex items-center gap-2 px-2 pt-2 pb-1 bg-surface/95 backdrop-blur-sm">
                                 <span className="text-[11px] font-semibold text-primary" title={section.date}>
                                     {section.label}
                                 </span>

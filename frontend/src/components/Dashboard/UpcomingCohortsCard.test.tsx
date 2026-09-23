@@ -30,7 +30,7 @@ describe('UpcomingCohortsCard', () => {
     it('renders empty state when no upcoming cohorts', () => {
         const mockNavigate = vi.fn();
         render(<UpcomingCohortsCard cohorts={[]} onNavigate={mockNavigate} />);
-        expect(screen.getByText(/No upcoming course cohorts scheduled/i)).toBeInTheDocument();
+        expect(screen.getByText(/No upcoming courses scheduled/i)).toBeInTheDocument();
 
         const openBoardBtn = screen.getByRole('button', { name: /Open Board →/i });
         fireEvent.click(openBoardBtn);
@@ -39,7 +39,7 @@ describe('UpcomingCohortsCard', () => {
 
     it('renders empty state defensively when cohorts is undefined', () => {
         render(<UpcomingCohortsCard />);
-        expect(screen.getByText(/No upcoming course cohorts scheduled/i)).toBeInTheDocument();
+        expect(screen.getByText(/No upcoming courses scheduled/i)).toBeInTheDocument();
 
         const openBoardBtn = screen.getByRole('button', { name: /Open Board →/i });
         expect(() => fireEvent.click(openBoardBtn)).not.toThrow();
@@ -64,10 +64,10 @@ describe('UpcomingCohortsCard', () => {
 
         render(<UpcomingCohortsCard cohorts={cohorts} onNavigate={mockNavigate} />);
         expect(screen.getByText('Next 2 dates')).toBeInTheDocument();
-        expect(screen.getByLabelText('Cohort: Patient Moving and Handling on 2026-09-12, 9 confirmed')).toBeInTheDocument();
-        expect(screen.getByLabelText('Cohort: SafePass Training on 2026-09-15, 14 confirmed')).toBeInTheDocument();
+        expect(screen.getByLabelText('Course: Patient Moving and Handling on 2026-09-12, 9 confirmed')).toBeInTheDocument();
+        expect(screen.getByLabelText('Course: SafePass Training on 2026-09-15, 14 confirmed')).toBeInTheDocument();
 
-        const card2 = screen.getByLabelText('Cohort: SafePass Training on 2026-09-15, 14 confirmed');
+        const card2 = screen.getByLabelText('Course: SafePass Training on 2026-09-15, 14 confirmed');
         fireEvent.click(card2);
         expect(mockNavigate).toHaveBeenCalledWith('enrollments', {
             courseId: 'c-2',

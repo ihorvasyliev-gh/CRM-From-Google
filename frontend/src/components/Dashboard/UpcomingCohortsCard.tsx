@@ -3,7 +3,7 @@ import { CalendarDays, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
 import DashboardCard from './DashboardCard';
 
-/** Cohorts shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
+/** Course dates shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
 const COLLAPSED_COUNT = 6;
 
 export interface UpcomingCohortsCardProps {
@@ -38,7 +38,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
 
     return (
         <DashboardCard
-            title="Upcoming Cohorts"
+            title="Upcoming Courses"
             subtitle={cohorts.length > 0 ? `Next ${cohorts.length} dates` : 'Confirmed course dates'}
             icon={CalendarDays}
             action={openBoard}
@@ -47,7 +47,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
             {cohorts.length === 0 ? (
                 <div className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-border-strong/70 text-muted">
                     <CalendarDays size={18} className="flex-shrink-0 opacity-60" />
-                    <span className="text-xs">No upcoming course cohorts scheduled</span>
+                    <span className="text-xs">No upcoming courses scheduled</span>
                 </div>
             ) : (
                 <div className="flex sm:grid sm:grid-cols-2 2xl:grid-cols-3 gap-2.5 overflow-x-auto sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 sm:pb-0 snap-x scrollbar-none">
@@ -59,7 +59,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                 type="button"
                                 key={`${c.date}:::${c.courseId}`}
                                 onClick={() => onNavigate?.('enrollments', { courseId: c.courseId, courseDate: c.date })}
-                                aria-label={`Cohort: ${c.courseName} on ${c.date}, ${c.confirmedCount} confirmed`}
+                                aria-label={`Course: ${c.courseName} on ${c.date}, ${c.confirmedCount} confirmed`}
                                 className={`group snap-start flex-shrink-0 w-72 sm:w-auto ${!showAll && idx >= COLLAPSED_COUNT ? 'sm:hidden' : 'sm:flex'} flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated border border-border-subtle hover:border-brand-500/40 hover:shadow-card-hover transition-all duration-200 text-left active:scale-[0.98] cursor-pointer`}
                             >
                                 <span
