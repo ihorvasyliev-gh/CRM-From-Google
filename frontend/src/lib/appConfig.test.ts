@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -192,6 +192,39 @@ describe('appConfig', () => {
             const html = '<span style="color: #ff0000; background-color: #ffff00;">text</span>';
             const expected = '<font color="#ff0000" style="background-color:#ffff00;">text</font>';
             expect(replaceColorSpansWithFontTags(html)).toBe(expected);
+        });
+    });
+
+    describe('buildStatusEmailBodyHtml', () => {
+        const link = 'https://crm.example.com/status';
+
+        it('uses the invitation look: blue bulletproof button, questions card, no purple', () => {
+            const html = buildStatusEmailBodyHtml(link);
+            expect(html).toContain(`href="${link}"`);
+            expect(html).toContain('bgcolor="#0284c7"');
+            expect(html).toContain('What we will ask');
+            expect(html).toContain('full-time or part-time');
+            expect(html).not.toMatch(/#7c3aed|#faf5ff/i);
+            expect(html).not.toMatch(/\{status(Details|Button|Link)\}/);
+        });
+
+        it('replaces {statusLink} and drops {studentName} in custom templates', () => {
+            const html = buildStatusEmailBodyHtml(link, {
+                ...DEFAULT_CONFIG,
+                statusEmailTemplate: '<p>Hi {studentName},</p><p>Go to {statusLink}</p>',
+            });
+            expect(html).toContain('<p>Hi,</p>');
+            expect(html).toContain(`Go to ${link}`);
+        });
+
+        it('migrates the old Google Form status template to the new default', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({
+                statusEmailTemplate: '<p>Could you take 30 seconds to let us know?</p>{statusButton}',
+                statusEmailSubjectFormat: 'Quick Status Update — How are things going?',
+            }));
+            const config = getConfig();
+            expect(config.statusEmailTemplate).toBe(DEFAULT_CONFIG.statusEmailTemplate);
+            expect(config.statusEmailSubjectFormat).toBe(DEFAULT_CONFIG.statusEmailSubjectFormat);
         });
     });
 });

@@ -65,12 +65,14 @@ export const DEFAULT_CONFIG: AppConfig = {
 </ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
-    statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello from <strong>Cork City Partnership</strong>,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you're doing well! As a recent participant in our programmes, we'd love to hear how things are going for you.</p>
-<p style="margin:0 0 24px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you take 30 seconds to let us know your current status? This helps us understand the impact of our courses and continue improving our offerings.</p>
+    statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? Your answers help us see what difference our courses make and plan better ones for future participants.</p>
+{statusDetails}
 {statusButton}
-<p style="margin:0;font-size:13px;line-height:18px;color:#94a3b8;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your information is confidential and used only for internal statistics.</p>`,
-    statusEmailSubjectFormat: 'Quick Status Update — How are things going?',
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, just reply to this email — we are happy to help.</p>
+<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
+    statusEmailSubjectFormat: 'How are things going since your course? (1-minute update)',
     includeLogosInEmails: false,
 };
 
@@ -114,6 +116,17 @@ export function getConfig(): AppConfig {
             );
         if (saved.htmlEmailTemplate) saved.htmlEmailTemplate = upgradeLimitedSentence(saved.htmlEmailTemplate);
         if (saved.htmlEmailTemplateStandard) saved.htmlEmailTemplateStandard = upgradeLimitedSentence(saved.htmlEmailTemplateStandard);
+
+        // MIGRATION: Replace the old Google-Form-era status template (purple box) with the new default.
+        if (saved.statusEmailTemplate && (
+            saved.statusEmailTemplate.includes('Could you take 30 seconds') ||
+            (!saved.statusEmailTemplate.includes('{statusButton}') && !saved.statusEmailTemplate.includes('{statusLink}'))
+        )) {
+            saved.statusEmailTemplate = DEFAULT_CONFIG.statusEmailTemplate;
+        }
+        if (saved.statusEmailSubjectFormat === 'Quick Status Update — How are things going?') {
+            saved.statusEmailSubjectFormat = DEFAULT_CONFIG.statusEmailSubjectFormat;
+        }
 
         if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
             saved.htmlEmailTemplateStandard = DEFAULT_CONFIG.htmlEmailTemplateStandard;
@@ -338,8 +351,8 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const isInvite = type === 'invite';
-    const heroTitle = isInvite ? "You're Invited!" : "Quick Status Update";
-    const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "How are things going?";
+    const heroTitle = isInvite ? "You're Invited!" : "How Are Things Going?";
+    const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "Cork City Partnership participant update";
     const cacheBuster = Date.now();
 
     const logoHtml = includeLogos ? `
@@ -363,7 +376,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
     table { border-collapse: collapse !important; }
     body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
-    a { color: ${isInvite ? '#0284c7' : '#7c3aed'}; text-decoration: underline; }
+    a { color: #0284c7; text-decoration: underline; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
@@ -536,16 +549,46 @@ export function buildEmailSubject(courseName: string, date: string, customConfig
 /** Build the status clarification email body HTML. */
 export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppConfig): string {
     const config = customConfig || getConfig();
-    const buttonHtml = `<!-- Action Button Container -->
-<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0;">
+
+    // Same card / button markup as the course invitation so both emails look alike
+    // and survive copy-paste into Outlook and Gmail.
+    const detailsHtml = `<!-- Status Questions Card -->
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td align="center" bgcolor="#faf5ff" style="padding:24px 20px;background-color:#faf5ff;border-radius:12px;border:1px solid #f3e8ff;">
-      <p style="margin:0 0 16px 0;font-size:14px;color:#7c3aed;font-weight:bold;text-transform:uppercase;letter-spacing:1px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">👇 Tap below to update 👇</p>
-      <!-- Bulletproof Table Button -->
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:0 auto;">
+    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;margin-bottom:6px;">What we will ask</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
         <tr>
-          <td align="center" bgcolor="#7c3aed" style="border-radius:8px;background-color:#7c3aed;padding:14px 28px;">
-            <a href="${statusLink}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Update My Status</a>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Are you working at the moment?</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If yes — when did you start?</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Where do you work (company or sector)?</td>
+        </tr>
+        <tr>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Is it full-time or part-time?</td>
+        </tr>
+      </table>
+      <div style="font-size:13px;color:#0369a1;font-weight:bold;line-height:20px;margin-top:10px;">&#9201; Takes less than a minute</div>
+    </td>
+  </tr>
+</table>`;
+
+    const buttonHtml = `<!-- Action Button Container -->
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:22px 0;">
+  <tr>
+    <td align="left" style="padding:0;">
+      <!-- Bulletproof Table Button -->
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
+        <tr>
+          <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
+            <a href="${statusLink}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Share My Update &rarr;</a>
           </td>
         </tr>
       </table>
@@ -553,11 +596,18 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
   </tr>
 </table>`;
 
-    let body = config.statusEmailTemplate;
+    let body = config.statusEmailTemplate || DEFAULT_CONFIG.statusEmailTemplate;
     // Strip wrapping <p> tags ReactQuill might have added around placeholders
     body = body.replace(/<p>\s*\{statusButton\}\s*<\/p>/g, '{statusButton}');
-    
-    body = body.replace(/\{statusButton\}/g, buttonHtml);
+    body = body.replace(/<p>\s*\{statusDetails\}\s*<\/p>/g, '{statusDetails}');
+
+    // The email goes out as one BCC message, so it can't be personalised
+    body = body.replace(/\s*\{studentName\}/g, '');
+
+    body = body
+        .replace(/\{statusDetails\}/g, detailsHtml)
+        .replace(/\{statusButton\}/g, buttonHtml)
+        .replace(/\{statusLink\}/g, statusLink);
 
     return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? false);
 }

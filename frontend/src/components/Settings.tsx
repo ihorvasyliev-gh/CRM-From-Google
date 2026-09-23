@@ -116,7 +116,7 @@ export default function Settings() {
     const previewSubject = buildEmailSubject(previewCourseName, '15 Mar 2026', config);
 
     // Status template preview
-    const statusLinkStr = 'https://forms.gle/5ernSprvAbq4MTgf9';
+    const statusLinkStr = `${window.location.origin}/status`;
     const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config);
 
     const [showStatusPreview, setShowStatusPreview] = useState(true);
@@ -674,7 +674,7 @@ export default function Settings() {
                             {/* Variable Insertion Chips */}
                             <div className="flex flex-wrap items-center gap-1.5 p-2 bg-surface-elevated/40 border border-border-subtle rounded-xl">
                                 {[
-                                    { tag: '{studentName}', label: 'Student Name' },
+                                    { tag: '{statusDetails}', label: 'Questions Card' },
                                     { tag: '{statusButton}', label: 'Status Button' },
                                     { tag: '{statusLink}', label: 'Status Link' },
                                 ].map(item => {

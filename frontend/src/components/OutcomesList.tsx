@@ -123,7 +123,7 @@ export default function OutcomesList() {
             if (rpcError) throw rpcError;
 
             // Build bulk generic email
-            const statusLink = 'https://forms.gle/5ernSprvAbq4MTgf9';
+            const statusLink = `${window.location.origin}/status`;
             const htmlBody = buildStatusEmailBodyHtml(statusLink);
             const subject = encodeURIComponent(buildStatusEmailSubject());
 
