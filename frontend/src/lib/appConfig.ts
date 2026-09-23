@@ -466,6 +466,7 @@ export function buildEmailBodyHtml(
     <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
       <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please confirm as soon as possible</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;">${capacityLine} Once all places are taken, confirmation for this date will close — even if your ${days}-day response window has not yet expired.</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> Demand for our courses is high, and a confirmed place is held for you instead of someone else. If you confirm but do not attend without a valid reason, you will be given <strong>lower priority for future courses</strong>. If your plans change, please let us know as early as possible so we can offer your place to another participant.</div>
     </td>
   </tr>
 </table>`;

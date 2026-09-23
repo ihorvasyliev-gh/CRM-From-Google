@@ -533,7 +533,7 @@ export default function Settings() {
                                     { tag: '{responseDays}', label: 'Days' },
                                     { tag: '{courseDetails}', label: 'Course Card' },
                                     ...(inviteTemplateTab === 'high_english' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
-                                    { tag: '{capacityNotice}', label: 'Limited Places' },
+                                    { tag: '{capacityNotice}', label: 'Limited Places & No-Show Policy' },
                                     { tag: '{confirmationButton}', label: 'Confirm Button' },
                                     { tag: '{confirmationLink}', label: 'Confirm URL' },
                                 ].map(item => {

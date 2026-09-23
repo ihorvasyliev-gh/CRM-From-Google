@@ -76,6 +76,15 @@ describe('appConfig', () => {
             expect(result).toContain('5-day response window');
         });
 
+        it('warns that no-shows without a valid reason get lower priority', () => {
+            const english = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, true);
+            const standard = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, false);
+            for (const result of [english, standard]) {
+                expect(result).toContain('do not attend without a valid reason');
+                expect(result).toContain('lower priority for future courses');
+            }
+        });
+
         it('injects the limited places notice into custom templates without the placeholder', () => {
             setConfig({ htmlEmailTemplateStandard: '<p>Hi</p>{confirmationButton}' });
             const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm');
