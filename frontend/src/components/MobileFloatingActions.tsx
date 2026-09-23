@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import { Plus, UserPlus, Search, GraduationCap, X } from 'lucide-react';
 
 interface MobileFloatingActionsProps {
@@ -15,6 +16,7 @@ export default function MobileFloatingActions({
     isViewer
 }: MobileFloatingActionsProps) {
     const [open, setOpen] = useState(false);
+    useModalBehavior(open, () => setOpen(false));
 
     // If viewer, FAB opens Quick Search directly
     if (isViewer) {

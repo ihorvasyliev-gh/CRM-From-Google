@@ -82,3 +82,38 @@ export function matchesSearch(
         return false;
     });
 }
+
+/**
+ * Removes characters that have a special meaning inside a PostgREST `or=(...)`
+ * filter (commas, parentheses, quotes, backslashes) and LIKE wildcards, so user
+ * input like "O'Brien, John" or "(087)" can never break or widen the query.
+ */
+export function sanitizeFilterTerm(term: string): string {
+    return term
+        .replace(/[,()"\\]/g, ' ')
+        .replace(/[%*]/g, '')
+        .trim();
+}
+
+/**
+ * Builds one PostgREST `or` filter string per search word for the `students` table.
+ * Every word must match at least one of: first/last name, email, phone, eircode.
+ * Phone-like words also match without their leading zero ("087…" → "+35387…").
+ */
+export function buildStudentSearchFilters(query: string): string[] {
+    const words = sanitizeFilterTerm(query).split(/\s+/).filter(Boolean);
+    return words.map(word => {
+        const eircode = word.replace(/\s+/g, '').toUpperCase();
+        const conditions = [
+            `first_name.ilike.%${word}%`,
+            `last_name.ilike.%${word}%`,
+            `email.ilike.%${word}%`,
+            `phone.ilike.%${word}%`,
+            `normalized_eircode.ilike.%${eircode}%`,
+        ];
+        if (/^0\d{3,}$/.test(word)) {
+            conditions.push(`phone.ilike.%${word.substring(1)}%`);
+        }
+        return conditions.join(',');
+    });
+}

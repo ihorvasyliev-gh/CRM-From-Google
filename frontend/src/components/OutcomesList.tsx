@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Search, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil } from 'lucide-react';
+import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil } from 'lucide-react';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
 import OutcomeEditModal from './OutcomeEditModal';
 import { useDebounce } from '../hooks/useDebounce';
+import SearchInput from './ui/SearchInput';
 
 export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
@@ -52,13 +53,12 @@ export default function OutcomesList() {
             result = result.filter(g => g.courses.includes(filterCourse));
         }
         if (debouncedSearchQuery.trim()) {
-            const q = debouncedSearchQuery.toLowerCase();
-            result = result.filter(g =>
-                g.first_name.toLowerCase().includes(q) ||
-                g.last_name.toLowerCase().includes(q) ||
-                g.email.toLowerCase().includes(q) ||
-                g.field_of_work?.toLowerCase().includes(q)
-            );
+            // Every word must match (so "john smith" finds John Smith), incl. full name and field of work
+            const words = debouncedSearchQuery.toLowerCase().trim().split(/\s+/);
+            result = result.filter(g => {
+                const haystack = `${g.first_name || ''} ${g.last_name || ''} ${g.email || ''} ${g.field_of_work || ''}`.toLowerCase();
+                return words.every(w => haystack.includes(w));
+            });
         }
         return result;
     }, [graduates, filterStatus, filterCourse, debouncedSearchQuery]);
@@ -100,8 +100,12 @@ export default function OutcomesList() {
         const selected = graduates.filter(g => selectedIds.has(g.student_id));
         const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
         if (emails.length === 0) { showToast('No emails to copy', 'error'); return; }
-        await navigator.clipboard.writeText(emails.join('; '));
-        showToast(`${emails.length} email(s) copied!`, 'success');
+        try {
+            await navigator.clipboard.writeText(emails.join('; '));
+            showToast(`${emails.length} email(s) copied!`, 'success');
+        } catch {
+            showToast('Could not access the clipboard', 'error');
+        }
     }
 
     async function handleSendStatusRequest() {
@@ -113,23 +117,35 @@ export default function OutcomesList() {
 
         try {
             // Update DB status to pending
-            await supabase.rpc('mark_students_outcomes_pending', {
+            const { error: rpcError } = await supabase.rpc('mark_students_outcomes_pending', {
                 p_student_ids: ids
             });
+            if (rpcError) throw rpcError;
 
             // Build bulk generic email
             const statusLink = 'https://forms.gle/5ernSprvAbq4MTgf9';
             const htmlBody = buildStatusEmailBodyHtml(statusLink);
             const subject = encodeURIComponent(buildStatusEmailSubject());
 
-            const blobHtml = new Blob([htmlBody], { type: 'text/html' });
-            const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
-            await navigator.clipboard.write([new ClipboardItem({
-                'text/html': blobHtml,
-                'text/plain': blobText,
-            })]);
-            
-            showToast(`Status requests sent to ${selected.length} graduate(s). Template copied!`, 'success');
+            let copied = true;
+            try {
+                const blobHtml = new Blob([htmlBody], { type: 'text/html' });
+                const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
+                await navigator.clipboard.write([new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText,
+                })]);
+            } catch (clipErr) {
+                console.error('Clipboard write failed:', clipErr);
+                copied = false;
+            }
+
+            showToast(
+                copied
+                    ? `Status requests sent to ${selected.length} graduate(s). Template copied!`
+                    : `Marked ${selected.length} graduate(s) as pending, but the email template could not be copied`,
+                copied ? 'success' : 'error'
+            );
 
             // Open mailto with bcc
             const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
@@ -215,16 +231,14 @@ export default function OutcomesList() {
             <div className="bg-surface rounded-2xl border border-border-subtle p-3 sm:p-4">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Search */}
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search by name, email, or field..."
-                            className="w-full pl-9 pr-4 py-1.5 sm:py-2 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-primary placeholder:text-muted/40"
-                        />
-                    </div>
+                    <SearchInput
+                        wrapperClassName="flex-1 min-w-[200px]"
+                        className="!py-1.5 sm:!py-2 !bg-background"
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Search by name, email, or field..."
+                        aria-label="Search graduates"
+                    />
 
                     {/* Filter Toggle */}
                     <button

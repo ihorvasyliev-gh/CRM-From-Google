@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw } from 'lucide-react';
+import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw, Loader2 } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
+import { usePersistentState } from '../hooks/usePersistentState';
 
-import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
+import { useEnrollments, takeEnrollmentSnapshot, type EnrollmentRow, type EnrollmentSnapshot } from '../hooks/useEnrollments';
+import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
@@ -24,6 +26,7 @@ import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
+const isString = (v: unknown): v is string => typeof v === 'string';
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
 export default function EnrollmentBoard({
@@ -67,11 +70,12 @@ export default function EnrollmentBoard({
     const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: string; confirmedCount: number; totalCount: number } | null>(null);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
+    const [confirmingDate, setConfirmingDate] = useState(false);
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
     const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [undoData, setUndoData] = useState<{ id: string; oldStatus: string; newStatus: string; name: string } | null>(null);
+    const [undoData, setUndoData] = useState<{ snapshots: EnrollmentSnapshot[]; newStatus: string; name: string } | null>(null);
     const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Student Flags
@@ -80,22 +84,38 @@ export default function EnrollmentBoard({
     const [flagComment, setFlagComment] = useState('');
 
     // Filters
-    const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
-    const [selectedVariant, setSelectedVariant] = useState<string>('all');
-    const [selectedCourseDate, setSelectedCourseDate] = useState<string>(initialCourseDate || 'all');
-    const [searchQuery, setSearchQuery] = useState('');
+    // Board filters survive navigating away and back within the tab (session) — preferences like sort
+    // order and the Withdrawn/Rejected toggle are remembered across sessions (local).
+    const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => initialCourseFilter || 'all', { validate: isString });
+    const [selectedVariant, setSelectedVariant] = usePersistentState<string>('board.variant', 'all', { validate: isString });
+    const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
+    const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [courseDateFrom, setCourseDateFrom] = useState('');
     const [courseDateTo, setCourseDateTo] = useState('');
-    const [showSecondary, setShowSecondary] = useState(false);
-    const [sortOrder, setSortOrder] = useState<'date-asc' | 'date-desc' | 'name'>('date-asc');
+    const [showSecondary, setShowSecondary] = usePersistentState<boolean>('board.showSecondary', false, {
+        storage: 'local',
+        validate: (v): v is boolean => typeof v === 'boolean',
+    });
+    const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
+        storage: 'local',
+        validate: (v): v is 'date-asc' | 'date-desc' | 'name' => v === 'date-asc' || v === 'date-desc' || v === 'name',
+    });
 
+    // Navigation from elsewhere (course card, dashboard, student drawer) overrides the remembered filters
     useEffect(() => {
-        if (initialCourseFilter) setSelectedCourse(initialCourseFilter);
-        if (initialCourseDate) setSelectedCourseDate(initialCourseDate);
-    }, [initialCourseFilter, initialCourseDate]);
+        if (initialCourseFilter) {
+            setSelectedCourse(prev => {
+                if (prev !== initialCourseFilter) setSelectedVariant('all');
+                return initialCourseFilter;
+            });
+            setSelectedCourseDate(initialCourseDate || 'all');
+        } else if (initialCourseDate) {
+            setSelectedCourseDate(initialCourseDate);
+        }
+    }, [initialCourseFilter, initialCourseDate, setSelectedCourse, setSelectedVariant, setSelectedCourseDate]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -184,11 +204,13 @@ export default function EnrollmentBoard({
     }, [enrollments, selectedCourse, selectedVariant]);
 
     // Reset selectedCourseDate if no longer present in available dates
+    // (only once data is loaded — otherwise a date passed via navigation is wiped before enrollments arrive)
     useEffect(() => {
+        if (enrollments.length === 0) return;
         if (selectedCourseDate !== 'all' && !availableCourseDates.some(d => d.date === selectedCourseDate)) {
             setSelectedCourseDate('all');
         }
-    }, [availableCourseDates, selectedCourseDate]);
+    }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
 
     // Filters derivation
     const filteredEnrollments = useMemo(() => {
@@ -265,9 +287,10 @@ export default function EnrollmentBoard({
                     const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
                     return aName.localeCompare(bName);
                 } else {
-                    const aDate = new Date(a.created_at).getTime();
-                    const bDate = new Date(b.created_at).getTime();
-                    return sortOrder === 'date-asc' ? aDate - bDate : bDate - aDate;
+                    // created_at values are ISO timestamps from Postgres — string order == time order,
+                    // which avoids allocating two Date objects per comparison on large boards
+                    const cmp = a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
+                    return sortOrder === 'date-asc' ? cmp : -cmp;
                 }
             });
         });
@@ -372,38 +395,82 @@ export default function EnrollmentBoard({
     }, []);
 
     async function handleConfirmWithDate() {
-        if (!confirmDateTarget) return;
-        const firstId = confirmDateTarget.ids[0];
-        const first = enrollments.find(e => e.id === firstId);
-        if (first && confirmDate) {
-            await supabase.from('invite_dates').upsert(
-                { course_id: first.course_id, invite_date: confirmDate },
-                { onConflict: 'course_id,invite_date' }
-            );
-        }
+        if (!confirmDateTarget || !confirmDate || confirmingDate) return;
+        setConfirmingDate(true);
+        try {
+            const firstId = confirmDateTarget.ids[0];
+            const first = enrollments.find(e => e.id === firstId);
+            if (first) {
+                // Remember the date for this course (non-critical — don't block confirmation on failure)
+                const { error } = await supabase.from('invite_dates').upsert(
+                    { course_id: first.course_id, invite_date: confirmDate },
+                    { onConflict: 'course_id,invite_date' }
+                );
+                if (error) console.warn('Failed to save course date:', error.message);
+            }
 
-        if (confirmDateTarget.bulk) {
-            await bulkActions.bulkUpdateStatus('confirmed', confirmDate);
-        } else {
-            await enrollmentsHook.updateStatus(confirmDateTarget.ids[0], 'confirmed', confirmDate);
+            if (confirmDateTarget.bulk) {
+                await bulkActions.bulkUpdateStatus('confirmed', confirmDate);
+            } else {
+                await enrollmentsHook.updateStatus(confirmDateTarget.ids[0], 'confirmed', confirmDate);
+            }
+            setConfirmDateTarget(null);
+        } finally {
+            setConfirmingDate(false);
         }
-        setConfirmDateTarget(null);
     }
 
     async function handleSaveNote() {
         if (!editNoteTarget) return;
-        await enrollmentsHook.updateNote(editNoteTarget.id, editNoteText);
+        await enrollmentsHook.updateNote(editNoteTarget.id, editNoteText.trim());
         setEditNoteTarget(null);
     }
+
+    const hasActiveFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' ||
+        !!searchQuery.trim() || !!dateFrom || !!dateTo || !!courseDateFrom || !!courseDateTo;
+
+    const resetFilters = useCallback(() => {
+        setSelectedCourse('all');
+        setSelectedVariant('all');
+        setSelectedCourseDate('all');
+        setSearchQuery('');
+        setDateFrom('');
+        setDateTo('');
+        setCourseDateFrom('');
+        setCourseDateTo('');
+    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery]);
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
         const ok = await enrollmentsHook.deleteEnrollment(deleteTarget.id);
         if (ok) {
-            bulkActions.toggleSelect(deleteTarget.id); // clear if selected
+            // Drop it from the selection if it was selected (toggleSelect would *add* unselected ids)
+            bulkActions.deselect(deleteTarget.id);
         }
         setDeleteTarget(null);
     }
+
+    // Escape / focus handling for the board's inline modals
+    const closeInviteModal = useCallback(() => inviteFlow.setInviteDateTarget(null), [inviteFlow]);
+    useModalBehavior(!!inviteFlow.inviteDateTarget, closeInviteModal);
+    useModalBehavior(!!confirmDateTarget, () => { if (!confirmingDate) setConfirmDateTarget(null); });
+    useModalBehavior(!!editNoteTarget, () => setEditNoteTarget(null));
+    useModalBehavior(!!flagModalTarget, () => setFlagModalTarget(null));
+
+    // Escape clears the bulk selection when nothing else is open
+    const hasSelection = bulkActions.selectedIds.size > 0;
+    const clearSelection = bulkActions.clearSelection;
+    useEffect(() => {
+        if (!hasSelection) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || e.defaultPrevented || isAnyModalOpen()) return;
+            const tag = (e.target as HTMLElement | null)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            clearSelection();
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [hasSelection, clearSelection]);
 
     const mouseSensorOpts = useMemo(() => ({ activationConstraint: { distance: 5 } }), []);
     const mouseSensor = useSensor(MouseSensor, mouseSensorOpts);
@@ -421,6 +488,34 @@ export default function EnrollmentBoard({
             styles: { active: { opacity: '0.4' } }
         })
     }), []);
+
+    // Applies a status change; for destructive moves (rejected / withdrawn) captures the previous
+    // state of every affected row first and offers a one-click Undo that restores it exactly.
+    const moveWithUndo = useCallback((enrollmentId: string, newStatus: string) => {
+        const all = enrollmentsRef.current;
+        const target = all.find(e => e.id === enrollmentId);
+        const isDestructive = newStatus === 'rejected' || newStatus === 'withdrawn';
+        const snapshots = isDestructive && target
+            ? all
+                .filter(e => e.id === enrollmentId || (
+                    newStatus === 'withdrawn' && e.student_id === target.student_id && e.course_id === target.course_id
+                ))
+                .map(takeEnrollmentSnapshot)
+            : [];
+
+        enrollmentsHook.updateStatus(enrollmentId, newStatus);
+
+        if (isDestructive && target) {
+            const name = [target.students?.first_name, target.students?.last_name].filter(Boolean).join(' ') || 'Student';
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+            setUndoData({ snapshots, newStatus, name });
+            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
+        }
+    }, [enrollmentsHook]);
+
+    useEffect(() => () => {
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    }, []);
 
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event;
@@ -440,36 +535,18 @@ export default function EnrollmentBoard({
                     return;
                 }
 
-                enrollmentsHook.updateStatus(enrollmentId, newStatus);
-
                 // п.11: undo-toast for dangerous status transitions
-                if (newStatus === 'rejected' || newStatus === 'withdrawn') {
-                    const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
-                    const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
-                    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-                    setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
-                    undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
-                }
+                moveWithUndo(enrollmentId, newStatus);
             }
         });
-    }, [enrollmentsHook]);
+    }, [moveWithUndo]);
 
     const handleConfirmMove = useCallback(() => {
         if (!confirmMoveTarget) return;
-        const { enrollmentId, oldStatus, newStatus } = confirmMoveTarget;
-        
-        enrollmentsHook.updateStatus(enrollmentId, newStatus);
-
-        if (newStatus === 'rejected' || newStatus === 'withdrawn') {
-            const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
-            const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
-            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
-        }
-        
+        const { enrollmentId, newStatus } = confirmMoveTarget;
         setConfirmMoveTarget(null);
-    }, [confirmMoveTarget, enrollmentsHook]);
+        moveWithUndo(enrollmentId, newStatus);
+    }, [confirmMoveTarget, moveWithUndo]);
 
     const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: string) => {
         if (oldStatus === newStatus) return;
@@ -485,15 +562,8 @@ export default function EnrollmentBoard({
             openInviteModalProxy([enrollmentId], false);
             return;
         }
-        enrollmentsHook.updateStatus(enrollmentId, newStatus);
-        if (newStatus === 'rejected' || newStatus === 'withdrawn') {
-            const enrollment = enrollmentsHook.enrollments.find(e => e.id === enrollmentId);
-            const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'Student';
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            setUndoData({ id: enrollmentId, oldStatus, newStatus, name });
-            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
-        }
-    }, [enrollmentsHook, openConfirmModalSingle, openInviteModalProxy]);
+        moveWithUndo(enrollmentId, newStatus);
+    }, [moveWithUndo, openConfirmModalSingle, openInviteModalProxy]);
 
     const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
 
@@ -735,7 +805,7 @@ export default function EnrollmentBoard({
                         </p>
                         <button
                             onClick={() => {
-                                enrollmentsHook.updateStatus(undoData.id, undoData.oldStatus);
+                                enrollmentsHook.restoreSnapshots(undoData.snapshots);
                                 if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
                                 setUndoData(null);
                             }}
@@ -745,6 +815,7 @@ export default function EnrollmentBoard({
                         </button>
                         <button
                             onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUndoData(null); }}
+                            aria-label="Dismiss"
                             className="text-white/40 hover:text-white/80 transition-colors p-1"
                         >
                             <X size={14} />
@@ -833,6 +904,14 @@ export default function EnrollmentBoard({
                     </div>
                     <p className="text-lg font-semibold text-primary">No enrollments found</p>
                     <p className="text-sm text-muted mt-1">Try adjusting your filters or add a new enrollment</p>
+                    {hasActiveFilters && (
+                        <button
+                            onClick={resetFilters}
+                            className="mt-4 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
+                        >
+                            <RotateCcw size={14} /> Reset filters
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -846,7 +925,7 @@ export default function EnrollmentBoard({
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
+                            <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-400">
                                 <Send size={22} />
                             </div>
                             <div>
@@ -959,13 +1038,15 @@ export default function EnrollmentBoard({
                             </button>
                             <button
                                 onClick={inviteFlow.handleInviteWithDate}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all shadow-sm"
+                                disabled={!inviteFlow.inviteDate}
+                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all shadow-sm"
                             >
                                 <Send size={14} /> Just Invite
                             </button>
                             <button
                                 onClick={inviteFlow.handleInviteAndEmail}
-                                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 rounded-xl transition-all shadow-sm"
+                                disabled={!inviteFlow.inviteDate}
+                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 rounded-xl transition-all shadow-sm"
                             >
                                 <Mail size={14} /> Invite & Email
                             </button>
@@ -981,7 +1062,7 @@ export default function EnrollmentBoard({
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
+                            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
                                 <CheckCircle size={22} />
                             </div>
                             <div>
@@ -1071,8 +1152,10 @@ export default function EnrollmentBoard({
                             </button>
                             <button
                                 onClick={handleConfirmWithDate}
-                                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm"
+                                disabled={!confirmDate || confirmingDate}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
+                                {confirmingDate && <Loader2 size={14} className="animate-spin" />}
                                 Confirm
                             </button>
                         </div>
@@ -1157,7 +1240,7 @@ export default function EnrollmentBoard({
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-brand-50 rounded-xl text-brand-600">
+                            <div className="p-2.5 bg-brand-500/10 rounded-xl text-brand-600 dark:text-brand-400">
                                 <FileText size={22} />
                             </div>
                             <div>
@@ -1174,9 +1257,16 @@ export default function EnrollmentBoard({
                             value={editNoteText}
                             onChange={e => setEditNoteText(e.target.value)}
                             placeholder="Enter note here..."
-                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface min-h-[120px] resize-none"
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                    e.preventDefault();
+                                    handleSaveNote();
+                                }
+                            }}
+                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm text-primary focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface min-h-[120px] resize-none"
                             autoFocus
                         />
+                        <p className="text-[10px] text-muted mt-1.5 text-right">Ctrl + Enter to save</p>
 
                         <div className="flex gap-3 mt-6">
                             <button
@@ -1206,7 +1296,7 @@ export default function EnrollmentBoard({
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-orange-50 rounded-xl text-orange-500">
+                            <div className="p-2.5 bg-orange-500/10 rounded-xl text-orange-500">
                                 <AlertTriangle size={22} />
                             </div>
                             <div>
@@ -1236,7 +1326,8 @@ export default function EnrollmentBoard({
                                                 </div>
                                                 <button
                                                     onClick={() => studentFlagsHook.removeFlag(flag.id)}
-                                                    className="p-1 text-muted hover:text-red-500 hover:bg-red-50 rounded-md transition-all flex-shrink-0"
+                                                    className="p-1 text-muted hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all flex-shrink-0"
+                                                    aria-label="Remove flag"
                                                 >
                                                     <X size={12} />
                                                 </button>

@@ -1,33 +1,58 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { X, Loader2, User, AlertTriangle } from 'lucide-react';
-import { StudentFormData } from '../lib/types';
+import { StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
+import { normalizePhone } from '../lib/contactUtils';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 
 interface Props {
     open: boolean;
     student: StudentFormData | null;
-    onSave: (data: StudentFormData) => Promise<void>;
+    onSave: (data: StudentPayload) => Promise<void>;
     onClose: () => void;
 }
 
+const EMPTY_FORM: StudentFormData = { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' };
+
+const INPUT_CLASS = 'w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted/60';
+const LABEL_CLASS = 'text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block';
+
+/** Strips characters that would break a quoted PostgREST filter value. */
+function quoteFilterValue(value: string): string {
+    return `"${value.replace(/["\\]/g, '')}"`;
+}
+
 export default function StudentModal({ open, student, onSave, onClose }: Props) {
-    const [form, setForm] = useState<StudentFormData>({
-        first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: ''
-    });
+    const [form, setForm] = useState<StudentFormData>(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-
     const [duplicateWarning, setDuplicateWarning] = useState('');
+
+    const initialForm = useMemo(() => student || EMPTY_FORM, [student]);
 
     useEffect(() => {
         if (open) {
-            setForm(student || { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' });
+            setForm(initialForm);
             setError('');
             setDuplicateWarning('');
         }
-    }, [open, student]);
+    }, [open, initialForm]);
 
+    const isDirty = useMemo(
+        () => (Object.keys(EMPTY_FORM) as (keyof StudentFormData)[]).some(k => (form[k] || '') !== (initialForm[k] || '')),
+        [form, initialForm]
+    );
+
+    const requestClose = useCallback(() => {
+        if (saving) return;
+        if (isDirty && !window.confirm('Discard unsaved changes?')) return;
+        onClose();
+    }, [saving, isDirty, onClose]);
+
+    useModalBehavior(open, requestClose);
+
+    // Live duplicate detection (same email or same normalized phone)
     useEffect(() => {
         if (!open) {
             setDuplicateWarning('');
@@ -35,31 +60,32 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         }
 
         const checkEmail = form.email.trim().toLowerCase();
-        const checkPhone = form.phone.trim();
-        
+        const checkPhone = normalizePhone(form.phone);
+
         if (!checkEmail && !checkPhone) {
             setDuplicateWarning('');
             return;
         }
 
+        let active = true;
         const delayCheck = setTimeout(async () => {
             try {
-                let query = supabase.from('students').select('id, first_name, last_name, email, phone');
-                
                 const conditions: string[] = [];
-                if (checkEmail) conditions.push(`email.eq.${checkEmail}`);
-                if (checkPhone) conditions.push(`phone.eq.${checkPhone}`);
-                
-                if (conditions.length === 0) return;
-                
-                query = query.or(conditions.join(','));
-                
+                if (checkEmail) conditions.push(`email.eq.${quoteFilterValue(checkEmail)}`);
+                if (checkPhone) conditions.push(`phone.eq.${quoteFilterValue(checkPhone)}`);
+
+                let query = supabase
+                    .from('students')
+                    .select('id, first_name, last_name, email, phone')
+                    .or(conditions.join(','));
+
                 if (student?.id) {
                     query = query.neq('id', student.id);
                 }
-                
+
                 const { data } = await query.limit(1);
-                
+                if (!active) return;
+
                 if (data && data.length > 0) {
                     const match = data[0];
                     const matchedOnEmail = match.email && match.email.trim().toLowerCase() === checkEmail;
@@ -72,11 +98,15 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
             }
         }, 500);
 
-        return () => clearTimeout(delayCheck);
+        return () => {
+            active = false;
+            clearTimeout(delayCheck);
+        };
     }, [form.email, form.phone, student?.id, open]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        if (saving) return;
         if (!form.first_name.trim() || !form.last_name.trim()) {
             setError('First and last name are required');
             return;
@@ -84,48 +114,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         setSaving(true);
         setError('');
         try {
-            // Clean up exact formats before saving
-            const formattedEmail = form.email.trim().toLowerCase();
-
-            let formattedPhone = form.phone.replace(/[^\d+]/g, '');
-            if (formattedPhone) {
-                if (formattedPhone.startsWith('00')) {
-                    formattedPhone = '+' + formattedPhone.substring(2);
-                } else if (!formattedPhone.startsWith('+')) {
-                    if (formattedPhone.startsWith('353') || formattedPhone.startsWith('380') || formattedPhone.startsWith('44')) {
-                        formattedPhone = '+' + formattedPhone;
-                    } else if (formattedPhone.startsWith('8') && formattedPhone.length === 9) {
-                        formattedPhone = '+353' + formattedPhone;
-                    } else if (formattedPhone.startsWith('08')) {
-                        formattedPhone = '+353' + formattedPhone.substring(1);
-                    } else if (formattedPhone.startsWith('07') && formattedPhone.length === 11) {
-                        formattedPhone = '+44' + formattedPhone.substring(1);
-                    } else {
-                        const uaCodes = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
-                        let isUa = false;
-                        for (const code of uaCodes) {
-                            if (formattedPhone.startsWith(code) && formattedPhone.length === 10) {
-                                formattedPhone = '+38' + formattedPhone;
-                                isUa = true;
-                                break;
-                            }
-                        }
-                        if (!isUa) {
-                            if (formattedPhone.startsWith('0')) {
-                                formattedPhone = '+353' + formattedPhone.substring(1);
-                            } else if (formattedPhone.length >= 10) {
-                                formattedPhone = '+' + formattedPhone;
-                            }
-                        }
-                    }
-                }
-            }
-
-            await onSave({
-                ...form,
-                email: formattedEmail,
-                phone: formattedPhone
-            });
+            await onSave(toStudentPayload(form));
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -141,11 +130,18 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
     if (!open) return null;
 
     const isEditing = !!student?.id;
+    const update = (field: keyof StudentFormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
+        setForm(prev => ({ ...prev, [field]: e.target.value }));
 
     return (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-lg bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="student-modal-title"
+                className="relative w-full max-w-lg bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
+            >
                 {/* Mobile pull handle */}
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
@@ -153,12 +149,17 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                 <div className="px-6 py-3.5 sm:py-4 border-b border-border-subtle bg-surface-elevated flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
+                            <div className="p-2 bg-brand-500/10 rounded-xl text-brand-600 dark:text-brand-400">
                                 <User size={18} />
                             </div>
-                            <h2 className="text-lg font-bold text-primary">{isEditing ? 'Edit Student' : 'Add Student'}</h2>
+                            <h2 id="student-modal-title" className="text-lg font-bold text-primary">{isEditing ? 'Edit Student' : 'Add Student'}</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-muted hover:bg-surface-elevated rounded-lg transition-all">
+                        <button
+                            type="button"
+                            onClick={requestClose}
+                            aria-label="Close"
+                            className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all"
+                        >
                             <X size={18} />
                         </button>
                     </div>
@@ -166,13 +167,13 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
 
                 <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl animate-slideDown">
+                        <div role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
 
                     {duplicateWarning && (
-                        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl flex items-center gap-2.5 animate-slideDown dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20">
+                        <div className="text-sm text-amber-700 bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 rounded-xl flex items-center gap-2.5 animate-slideDown dark:text-amber-400">
                             <AlertTriangle size={16} className="flex-shrink-0 text-amber-500" />
                             <span>{duplicateWarning}</span>
                         </div>
@@ -180,83 +181,99 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">First Name *</label>
+                            <label htmlFor="student-first-name" className={LABEL_CLASS}>First Name *</label>
                             <input
+                                id="student-first-name"
                                 type="text"
                                 autoFocus
-                                className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                autoComplete="off"
+                                className={INPUT_CLASS}
                                 value={form.first_name}
-                                onChange={e => setForm({ ...form, first_name: e.target.value })}
+                                onChange={update('first_name')}
                                 required
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Last Name *</label>
+                            <label htmlFor="student-last-name" className={LABEL_CLASS}>Last Name *</label>
                             <input
+                                id="student-last-name"
                                 type="text"
-                                className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                autoComplete="off"
+                                className={INPUT_CLASS}
                                 value={form.last_name}
-                                onChange={e => setForm({ ...form, last_name: e.target.value })}
+                                onChange={update('last_name')}
                                 required
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Email</label>
+                        <label htmlFor="student-email" className={LABEL_CLASS}>Email</label>
                         <input
+                            id="student-email"
                             type="email"
-                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                            inputMode="email"
+                            autoComplete="off"
+                            className={INPUT_CLASS}
                             value={form.email}
-                            onChange={e => setForm({ ...form, email: e.target.value })}
+                            onChange={update('email')}
                         />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Phone</label>
+                            <label htmlFor="student-phone" className={LABEL_CLASS}>Phone</label>
                             <input
+                                id="student-phone"
                                 type="tel"
-                                className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                inputMode="tel"
+                                autoComplete="off"
+                                placeholder="e.g. 087 123 4567"
+                                className={INPUT_CLASS}
                                 value={form.phone}
-                                onChange={e => setForm({ ...form, phone: e.target.value })}
+                                onChange={update('phone')}
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Date of Birth</label>
+                            <label htmlFor="student-dob" className={LABEL_CLASS}>Date of Birth</label>
                             <input
+                                id="student-dob"
                                 type="date"
-                                className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                max={new Date().toISOString().slice(0, 10)}
+                                className={INPUT_CLASS}
                                 value={form.dob}
-                                onChange={e => setForm({ ...form, dob: e.target.value })}
+                                onChange={update('dob')}
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Address</label>
+                        <label htmlFor="student-address" className={LABEL_CLASS}>Address</label>
                         <input
+                            id="student-address"
                             type="text"
-                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                            className={INPUT_CLASS}
                             value={form.address}
-                            onChange={e => setForm({ ...form, address: e.target.value })}
+                            onChange={update('address')}
                         />
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Eircode</label>
+                        <label htmlFor="student-eircode" className={LABEL_CLASS}>Eircode</label>
                         <input
+                            id="student-eircode"
                             type="text"
-                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                            autoCapitalize="characters"
+                            className={`${INPUT_CLASS} uppercase`}
                             value={form.eircode}
-                            onChange={e => setForm({ ...form, eircode: e.target.value })}
+                            onChange={update('eircode')}
                         />
                     </div>
 
                     <div className="flex gap-3 pt-2">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={requestClose}
                             className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
                         >
                             Cancel

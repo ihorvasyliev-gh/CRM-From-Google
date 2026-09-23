@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerCourse, ViewerCourseRosterItem, getAvatarGradient, cleanVariant } from '../lib/types';
@@ -45,6 +46,7 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
 
     // Date Modal state
     const [dateModalOpen, setDateModalOpen] = useState(false);
+    useModalBehavior(dateModalOpen, () => setDateModalOpen(false));
     const [completionTargetIds, setCompletionTargetIds] = useState<string[]>([]);
     const [selectedDate, setSelectedDate] = useState<string>(() => todayISO());
     const [toast, setToast] = useState<ToastData | null>(null);
@@ -545,6 +547,14 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
                                 placeholder="Search attendees..."
                                 value={rosterSearch}
                                 onChange={e => setRosterSearch(e.target.value)}
+                                data-page-search=""
+                                autoComplete="off"
+                                onKeyDown={e => {
+                                    if (e.key === 'Escape' && rosterSearch) {
+                                        e.preventDefault();
+                                        setRosterSearch('');
+                                    }
+                                }}
                                 className="w-full pl-9 pr-8 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
                             />
                             {rosterSearch && (
@@ -1072,6 +1082,14 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
                         placeholder="Search courses..."
                         value={catalogSearch}
                         onChange={e => setCatalogSearch(e.target.value)}
+                        data-page-search=""
+                        autoComplete="off"
+                        onKeyDown={e => {
+                            if (e.key === 'Escape' && catalogSearch) {
+                                e.preventDefault();
+                                setCatalogSearch('');
+                            }
+                        }}
                         className="w-full pl-10 pr-9 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
                     />
                     {catalogSearch && (

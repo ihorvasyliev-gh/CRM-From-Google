@@ -11,27 +11,37 @@ import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
 import DashboardActivityFeed, { type ActivityFilter, type GroupedActivity } from './Dashboard/DashboardActivityFeed';
 import StatusBreakdownCard from './Dashboard/StatusBreakdownCard';
 import { calculateExpiredInvites, groupUpcomingCohorts } from './Dashboard/dashboardUtils';
+import { useIsMobile } from '../hooks/useScreenSize';
 
 export interface DashboardProps {
     onNavigate?: (tab: string, filter?: any) => void;
     onOpenStudentDetail?: (studentId: string) => void;
     pendingApprovalsCount?: number;
     onOpenApprovals?: () => void;
+    /** Opens the global "Add Student" modal (falls back to navigating to Students). */
+    onAddStudent?: () => void;
+    /** Opens the global "New Enrollment" modal (falls back to navigating to Enrollments). */
+    onAddEnrollment?: () => void;
+}
+
+function localDateKey(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
     const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
     if (!dateStr) {
         const now = new Date();
-        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+        return { dateKey: localDateKey(now), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
     }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) {
         const now = new Date();
-        return { dateKey: now.toISOString().slice(0, 10), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
+        return { dateKey: localDateKey(now), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
     }
     return {
-        dateKey: d.toISOString().slice(0, 10),
+        // Group by the user's local calendar day (not UTC) so late-evening activity lands on the right day
+        dateKey: localDateKey(d),
         dateLabel: d.toLocaleDateString('en-IE', dateOpts),
         time: d.getTime(),
     };
@@ -44,15 +54,29 @@ export default function Dashboard({
     onOpenStudentDetail,
     pendingApprovalsCount,
     onOpenApprovals,
+    onAddStudent,
+    onAddEnrollment,
 }: DashboardProps) {
+    const isMobile = useIsMobile();
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
-        const stored = localStorage.getItem('dashboardActivityFilter') as ActivityFilter;
-        return stored && VALID_FILTERS.includes(stored) ? stored : 'all';
+        try {
+            const stored = localStorage.getItem('dashboardActivityFilter') as ActivityFilter;
+            return stored && VALID_FILTERS.includes(stored) ? stored : 'all';
+        } catch {
+            return 'all';
+        }
     });
 
     useEffect(() => {
-        localStorage.setItem('dashboardActivityFilter', activityFilter);
+        try {
+            localStorage.setItem('dashboardActivityFilter', activityFilter);
+        } catch {
+            // ignore storage errors
+        }
     }, [activityFilter]);
+
+    const handleAddStudent = () => (onAddStudent ? onAddStudent() : onNavigate?.('students'));
+    const handleAddEnrollment = () => (onAddEnrollment ? onAddEnrollment() : onNavigate?.('enrollments'));
 
     // Stats counts — staleTime 30s
     const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
@@ -357,7 +381,8 @@ export default function Dashboard({
                 </div>
             ) : null}
 
-            {/* Mobile View (1023px and below) */}
+            {/* Mobile View (1023px and below) — only one layout is mounted to avoid rendering everything twice */}
+            {isMobile ? (
             <div className="block lg:hidden space-y-4">
                 {/* 1. Top banner: Registration Link */}
                 <RegistrationLinkCard variant="compact" />
@@ -374,7 +399,7 @@ export default function Dashboard({
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                     <button
                         type="button"
-                        onClick={() => onNavigate?.('students')}
+                        onClick={handleAddStudent}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
                     >
                         <UserPlus size={14} className="text-brand-500" />
@@ -382,7 +407,7 @@ export default function Dashboard({
                     </button>
                     <button
                         type="button"
-                        onClick={() => onNavigate?.('enrollments')}
+                        onClick={handleAddEnrollment}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
                     >
                         <Plus size={14} className="text-brand-500" />
@@ -422,8 +447,8 @@ export default function Dashboard({
                     loading={loading}
                 />
             </div>
-
-            {/* Desktop View (1024px+) */}
+            ) : (
+            /* Desktop View (1024px+) */
             <div className="hidden lg:grid lg:grid-cols-12 gap-6">
                 {/* Top Row: Operational KPIs */}
                 <div className="lg:col-span-12">
@@ -470,7 +495,7 @@ export default function Dashboard({
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
-                                onClick={() => onNavigate?.('students')}
+                                onClick={handleAddStudent}
                                 className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
                                 <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors">
@@ -483,7 +508,7 @@ export default function Dashboard({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => onNavigate?.('courses')}
+                                onClick={() => onNavigate?.('courses', { openCreate: true })}
                                 className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
                                 <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-600 group-hover:bg-violet-500 group-hover:text-white transition-colors">
@@ -496,7 +521,7 @@ export default function Dashboard({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => onNavigate?.('enrollments')}
+                                onClick={handleAddEnrollment}
                                 className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
                             >
                                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
@@ -531,6 +556,7 @@ export default function Dashboard({
                     />
                 </div>
             </div>
+            )}
         </div>
     );
 }

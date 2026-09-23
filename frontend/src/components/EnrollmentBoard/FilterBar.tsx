@@ -176,7 +176,15 @@ export default function FilterBar({
                             type="text"
                             id="search-query"
                             name="searchQuery"
+                            data-page-search=""
+                            autoComplete="off"
                             placeholder="Search by name, email or phone..."
+                            onKeyDown={e => {
+                                if (e.key === 'Escape' && searchQuery) {
+                                    e.preventDefault();
+                                    setSearchQuery('');
+                                }
+                            }}
                             className={`w-full pl-8 py-1.5 md:py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
                                 searchIsFiltering
                                     ? 'border-brand-400 pr-24'

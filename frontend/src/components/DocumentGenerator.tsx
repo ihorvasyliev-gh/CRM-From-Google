@@ -1,12 +1,15 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, CheckCircle, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
+import { FileText, Upload, Download, Loader2, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
 import { generateDocumentsArchive, type TemplateDescriptor } from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
 import { DocumentTemplate, Course, TemplateVariable, cleanVariant } from '../lib/types';
 import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/appConfig';
+import Toast, { type ToastData } from './Toast';
+import ConfirmDialog from './ConfirmDialog';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 
 
 // ─── Placeholder Categories ─────────────────────────────────
@@ -116,7 +119,9 @@ export default function DocumentGenerator() {
     const [attUploading, setAttUploading] = useState(false);
     const [labelUploading, setLabelUploading] = useState(false);
     const [generating, setGenerating] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<ToastData | null>(null);
+    // Pending destructive action awaiting confirmation (template / variable deletion)
+    const [pendingDelete, setPendingDelete] = useState<{ title: string; message: string; run: () => Promise<void> } | null>(null);
     const [showPlaceholders, setShowPlaceholders] = useState(true);
     const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
 
@@ -134,8 +139,9 @@ export default function DocumentGenerator() {
 
     const showToast = useCallback((message: string, type: 'success' | 'error') => {
         setToast({ message, type });
-        setTimeout(() => setToast(null), 4000);
     }, []);
+
+    useModalBehavior(courseDropdownOpen, () => setCourseDropdownOpen(false));
 
     // ─── Helpers to update cached data after mutations ──────
     const setTemplates = useCallback((updater: (prev: DocumentTemplate[]) => DocumentTemplate[]) => {
@@ -290,8 +296,9 @@ export default function DocumentGenerator() {
     // ─── Delete Template ────────────────────────────────────
     async function handleDeleteTemplate(tpl: DocumentTemplate) {
         try {
+            const { error } = await supabase.from('document_templates').delete().eq('id', tpl.id);
+            if (error) throw error;
             await supabase.storage.from('templates').remove([tpl.storage_path]);
-            await supabase.from('document_templates').delete().eq('id', tpl.id);
             setTemplates(prev => prev.filter(t => t.id !== tpl.id));
             showToast('Template deleted', 'success');
         } catch (err: unknown) {
@@ -302,8 +309,9 @@ export default function DocumentGenerator() {
     async function handleDeleteAttendance() {
         if (!attTemplate) return;
         try {
+            const { error } = await supabase.from('attendance_templates').delete().eq('id', attTemplate.id);
+            if (error) throw error;
             await supabase.storage.from('templates').remove([attTemplate.storage_path]);
-            await supabase.from('attendance_templates').delete().eq('id', attTemplate.id);
             setAttTemplate(null);
             showToast('Attendance Template deleted', 'success');
         } catch (err: unknown) {
@@ -365,8 +373,9 @@ export default function DocumentGenerator() {
     async function handleDeleteLabels() {
         if (!labelTemplate) return;
         try {
+            const { error } = await supabase.from('label_templates').delete().eq('id', labelTemplate.id);
+            if (error) throw error;
             await supabase.storage.from('templates').remove([labelTemplate.storage_path]);
-            await supabase.from('label_templates').delete().eq('id', labelTemplate.id);
             setLabelTemplate(null);
             showToast('Label Template deleted', 'success');
         } catch (err: unknown) {
@@ -502,15 +511,18 @@ export default function DocumentGenerator() {
     // ─── Render ─────────────────────────────────────────────
     return (
         <div className="space-y-6 pb-8">
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-fadeIn ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-                    }`}>
-                    {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                    {toast.message}
-                    <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70"><X size={14} /></button>
-                </div>
-            )}
+            <Toast toast={toast} onDismiss={() => setToast(null)} />
+            <ConfirmDialog
+                open={!!pendingDelete}
+                title={pendingDelete?.title || ''}
+                message={pendingDelete?.message || ''}
+                onConfirm={async () => {
+                    if (!pendingDelete) return;
+                    await pendingDelete.run();
+                    setPendingDelete(null);
+                }}
+                onCancel={() => setPendingDelete(null)}
+            />
 
             {/* ═══ Template Management Card ═══ */}
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
@@ -569,8 +581,13 @@ export default function DocumentGenerator() {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => handleDeleteTemplate(tpl)}
-                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
+                                        onClick={() => setPendingDelete({
+                                            title: 'Delete Template',
+                                            message: `Delete "${tpl.name}"? The file will be removed permanently.`,
+                                            run: () => handleDeleteTemplate(tpl),
+                                        })}
+                                        aria-label={`Delete template ${tpl.name}`}
+                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-all flex-shrink-0"
                                         title="Delete template"
                                     >
                                         <Trash2 size={14} />
@@ -744,7 +761,11 @@ export default function DocumentGenerator() {
                                             </button>
                                         )}
                                         <button
-                                            onClick={() => handleDeleteVariable(v)}
+                                            onClick={() => setPendingDelete({
+                                                title: 'Delete Variable',
+                                                message: `Delete variable {${v.var_key}}? Templates using it will render it empty.`,
+                                                run: () => handleDeleteVariable(v),
+                                            })}
                                             className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
                                             title="Delete variable"
                                         >
@@ -832,7 +853,11 @@ export default function DocumentGenerator() {
                                 <span className="text-sm text-muted">{attTemplate.name}</span>
                             </div>
                             <button
-                                onClick={handleDeleteAttendance}
+                                onClick={() => setPendingDelete({
+                                    title: 'Delete Attendance Template',
+                                    message: 'Delete the attendance sheet template? The file will be removed permanently.',
+                                    run: handleDeleteAttendance,
+                                })}
                                 className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
                                 title="Delete template"
                             >
@@ -900,7 +925,11 @@ export default function DocumentGenerator() {
                                 <span className="text-sm text-muted">{labelTemplate.name}</span>
                             </div>
                             <button
-                                onClick={handleDeleteLabels}
+                                onClick={() => setPendingDelete({
+                                    title: 'Delete Label Template',
+                                    message: 'Delete the label template? The file will be removed permanently.',
+                                    run: handleDeleteLabels,
+                                })}
                                 className="text-muted hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-all"
                                 title="Delete template"
                             >
@@ -1093,6 +1122,9 @@ export default function DocumentGenerator() {
                                 <ChevronDown size={16} className={`text-muted transition-transform ${courseDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
 
+                            {courseDropdownOpen && (
+                                <div className="fixed inset-0 z-40" onClick={() => setCourseDropdownOpen(false)} aria-hidden="true" />
+                            )}
                             {courseDropdownOpen && (
                                 <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1 max-h-64 overflow-y-auto animate-scaleIn origin-top">
                                     {coursesWithConfirmed.length === 0 ? (

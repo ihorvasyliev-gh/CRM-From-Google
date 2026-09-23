@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Lock, Mail, Sparkles } from 'lucide-react';
+import { Loader2, Lock, Mail, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 const LOCKOUT_KEY_PREFIX = 'crm_login';
 
@@ -53,6 +53,8 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
+    const [showPassword, setShowPassword] = useState(false);
+    const [capsLockOn, setCapsLockOn] = useState(false);
 
     useEffect(() => {
         const { lockedUntil } = getLockoutData();
@@ -98,7 +100,7 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
         try {
-            const { error: signInError } = await signIn(email, password);
+            const { error: signInError } = await signIn(email.trim(), password);
             if (signInError) {
                 const { attempts } = getLockoutData();
                 const newAttempts = attempts + 1;
@@ -112,7 +114,10 @@ export default function LoginPage() {
                     setError(`Too many failed login attempts. Please try again in ${formatLockoutTime(seconds)}.`);
                 } else {
                     setLockoutData(newAttempts, 0);
-                    setError(signInError.message || 'Invalid email or password');
+                    const message = signInError.message === 'Invalid login credentials'
+                        ? 'Invalid email or password'
+                        : signInError.message;
+                    setError(message || 'Invalid email or password');
                 }
             } else {
                 clearLockoutData();
@@ -145,17 +150,20 @@ export default function LoginPage() {
                 <div className="bg-surface/60 dark:bg-white/5 backdrop-blur-2xl border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8 min-h-[380px] flex flex-col justify-start">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
-                            <div className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
+                            <div role="alert" className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
                                 {error}
                             </div>
                         )}
 
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Email</label>
+                            <label htmlFor="login-email" className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Email</label>
                             <div className="relative">
                                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
                                     type="email"
+                                    id="login-email"
+                                    autoComplete="username"
+                                    inputMode="email"
                                     placeholder="admin@example.com"
                                     className="w-full pl-10 pr-4 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={email}
@@ -168,19 +176,36 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Password</label>
+                            <label htmlFor="login-password" className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    id="login-password"
+                                    autoComplete="current-password"
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onKeyUp={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
+                                    onKeyDown={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
+                                    className="w-full pl-10 pr-11 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     required
                                     disabled={loading || lockoutSecondsLeft > 0}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(v => !v)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    aria-pressed={showPassword}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted/70 hover:text-primary hover:bg-surface-elevated transition-colors"
+                                    tabIndex={-1}
+                                >
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
                             </div>
+                            {capsLockOn && (
+                                <p className="mt-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">Caps Lock is on</p>
+                            )}
                         </div>
 
                         <button

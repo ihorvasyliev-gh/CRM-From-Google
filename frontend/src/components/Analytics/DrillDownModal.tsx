@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useModalBehavior } from '../../hooks/useModalBehavior';
 import { X, Search, Download, Mail, ChevronLeft, ChevronRight, Sparkles, User, ExternalLink, Check, MapPin } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
@@ -21,6 +22,16 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
     const [copiedCount, setCopiedCount] = useState<number | null>(null);
     const itemsPerPage = 8;
 
+    useModalBehavior(isOpen, onClose);
+
+    // Each drill-down starts fresh (previously a new cohort could open on a stale page / search)
+    useEffect(() => {
+        if (isOpen) {
+            setSearchQuery('');
+            setCurrentPage(1);
+        }
+    }, [isOpen, title]);
+
     // Filter by search query
     const filteredData = useMemo(() => {
         if (!searchQuery.trim()) return data;
@@ -42,10 +53,11 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
     }, [data, searchQuery]);
 
     const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+    const safePage = Math.min(currentPage, totalPages);
     const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
+        const start = (safePage - 1) * itemsPerPage;
         return filteredData.slice(start, start + itemsPerPage);
-    }, [filteredData, currentPage]);
+    }, [filteredData, safePage]);
 
     const handleCopyEmails = () => {
         const emails = filteredData.map(e => e.students?.email || '').filter(Boolean);
@@ -68,7 +80,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                 onClick={onClose}
             />
             
-            <div className="relative bg-surface border border-border-subtle rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-scaleIn overflow-hidden">
+            <div role="dialog" aria-modal="true" className="relative bg-surface border border-border-subtle rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-scaleIn overflow-hidden">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-5 border-b border-border-subtle bg-surface-elevated gap-3">
                     <div>
@@ -240,19 +252,19 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between p-3 sm:px-5 border-t border-border-subtle bg-surface-elevated text-xs">
                         <div className="text-muted">
-                            Page <span className="font-bold text-primary">{currentPage}</span> of <span className="font-bold text-primary">{totalPages}</span>
+                            Page <span className="font-bold text-primary">{safePage}</span> of <span className="font-bold text-primary">{totalPages}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
+                                disabled={safePage === 1}
                                 className="p-1.5 rounded-lg border border-border-subtle bg-surface disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-elevated transition-colors"
                             >
                                 <ChevronLeft size={15} />
                             </button>
                             <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
+                                disabled={safePage === totalPages}
                                 className="p-1.5 rounded-lg border border-border-subtle bg-surface disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-elevated transition-colors"
                             >
                                 <ChevronRight size={15} />

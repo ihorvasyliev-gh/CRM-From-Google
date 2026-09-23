@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useModalBehavior } from '../../hooks/useModalBehavior';
 import { Calendar, Filter, RotateCcw, Check, Sparkles, BookOpen, Layers, X } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
@@ -27,6 +28,7 @@ export default function GlobalFilterBar({
     filteredEnrollments,
 }: GlobalFilterBarProps) {
     const [showCustomModal, setShowCustomModal] = useState(false);
+    useModalBehavior(showCustomModal, () => setShowCustomModal(false));
     const [tempStart, setTempStart] = useState(filters.customStartDate);
     const [tempEnd, setTempEnd] = useState(filters.customEndDate);
 
@@ -268,7 +270,10 @@ export default function GlobalFilterBar({
 
             {/* Custom Date Range Modal */}
             {showCustomModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
+                    onClick={e => { if (e.target === e.currentTarget) setShowCustomModal(false); }}
+                >
                     <div className="bg-surface border border-border-subtle rounded-2xl shadow-2xl p-5 max-w-sm w-full space-y-4 animate-scaleIn">
                         <div className="flex items-center justify-between border-b border-border-subtle pb-3">
                             <h3 className="text-sm font-bold text-primary flex items-center gap-2">

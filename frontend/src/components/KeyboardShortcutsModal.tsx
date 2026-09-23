@@ -1,4 +1,5 @@
 import { Keyboard, X, Sparkles } from 'lucide-react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 
 interface Props {
     open: boolean;
@@ -14,6 +15,7 @@ interface ShortcutCategory {
 }
 
 export default function KeyboardShortcutsModal({ open, onClose }: Props) {
+    useModalBehavior(open, onClose);
     if (!open) return null;
 
     const categories: ShortcutCategory[] = [
@@ -24,13 +26,13 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
                 { keys: ['1', '–', '8'], description: 'Jump to CRM sections (Dashboard, Students...)' },
                 { keys: ['/'], description: 'Focus search bar in current view' },
                 { keys: ['?'], description: 'Open Keyboard Shortcuts cheat sheet' },
-                { keys: ['Esc'], description: 'Close any active modal or search' },
+                { keys: ['Esc'], description: 'Close the active modal, clear a search or selection' },
             ],
         },
         {
             title: 'Quick Actions & Preferences',
             shortcuts: [
-                { keys: ['N'], description: 'Add new student or course' },
+                { keys: ['N'], description: 'Add new student' },
                 { keys: ['Ctrl', 'Shift', 'D'], description: 'Toggle Theme (Dark / Light)' },
                 { keys: ['Ctrl', 'Shift', 'C'], description: 'Toggle Density (Compact / Comfortable)' },
             ],
@@ -54,7 +56,7 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-lg bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col animate-scaleIn">
+            <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="relative w-full max-w-lg bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col animate-scaleIn">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface/50">
                     <div className="flex items-center gap-2.5">
@@ -68,6 +70,7 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Close"
                         className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated transition-colors"
                     >
                         <X size={16} />

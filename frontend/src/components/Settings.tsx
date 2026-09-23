@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, Rows3 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -6,6 +6,7 @@ import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubjec
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import { toast } from '../lib/toast';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
 // Register inline styles for Quill color, background, font, and size to ensure email client compatibility
@@ -63,22 +64,50 @@ export default function Settings() {
     const isValidTemplate = isValidHighEnglishTemplate && isValidStandardTemplate;
     const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
 
+    // Snapshot of the last saved config — comparing against it avoids re-reading and
+    // re-migrating localStorage on every keystroke in the template editors.
+    const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(getConfig()));
+
     const handleSave = useCallback(() => {
         if (!isValidTemplate || !isValidStatusTemplate) return;
-        setConfig(config);
+        const merged = setConfig(config);
+        setSavedSnapshot(JSON.stringify(merged));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     }, [config, isValidTemplate, isValidStatusTemplate]);
 
     const handleReset = useCallback(() => {
+        if (!window.confirm('Reset all email templates and settings to their defaults?')) return;
         const defaults = resetConfig();
         setLocalConfig(defaults);
+        setSavedSnapshot(JSON.stringify(defaults));
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     }, []);
 
-    const hasChanges = JSON.stringify(config) !== JSON.stringify(getConfig());
+    const hasChanges = useMemo(() => JSON.stringify(config) !== savedSnapshot, [config, savedSnapshot]);
     const canSave = hasChanges && isValidTemplate && isValidStatusTemplate;
+
+    // Ctrl/Cmd+S saves; warn before closing the tab with unsaved edits
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                if (canSave) handleSave();
+            }
+        };
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (!hasChanges) return;
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            window.removeEventListener('beforeunload', onBeforeUnload);
+        };
+    }, [canSave, hasChanges, handleSave]);
 
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
@@ -310,6 +339,7 @@ export default function Settings() {
             await runDuplicateScan();
         } catch (err) {
             console.error('Failed to mark group as non-duplicates:', err);
+            toast.error('Failed to mark profiles as not duplicates');
         } finally {
             setMarkingNonDuplicates(null);
         }
@@ -332,6 +362,7 @@ export default function Settings() {
             await runDuplicateScan();
         } catch (err) {
             console.error('Failed to mark pair as non-duplicates:', err);
+            toast.error('Failed to mark profiles as not duplicates');
         } finally {
             setMarkingNonDuplicates(null);
         }
@@ -917,15 +948,15 @@ export default function Settings() {
                 </div>
                 <div className="p-5 space-y-6">
                     <div>
-                        <label className="flex items-center gap-3 cursor-pointer group w-max">
-                            <div className="relative flex items-center justify-center">
+                        <label className="flex items-center gap-3 cursor-pointer group w-fit max-w-full">
+                            <div className="relative flex items-center justify-center flex-shrink-0">
                                 <input
                                     type="checkbox"
                                     checked={config.includeLogosInEmails ?? false}
                                     onChange={e => setLocalConfig({ ...config, includeLogosInEmails: e.target.checked })}
                                     className="peer sr-only"
                                 />
-                                <div className="w-10 h-6 bg-surface-elevated border border-border-strong rounded-full peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors"></div>
+                                <div className="flex-shrink-0 w-10 h-6 bg-surface-elevated border border-border-strong rounded-full peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors"></div>
                                 <div className="absolute left-1 top-1 w-4 h-4 bg-muted rounded-full peer-checked:bg-white peer-checked:translate-x-4 transition-transform shadow-sm"></div>
                             </div>
                             <div>

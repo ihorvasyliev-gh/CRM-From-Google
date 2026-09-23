@@ -85,3 +85,38 @@ export function formatStudentContactSummary(student: {
 
     return lines.join('\n');
 }
+
+const UA_MOBILE_CODES = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
+
+/**
+ * Normalizes a phone number to an international (+XXX) format before saving.
+ * Handles Irish (08x / 8x), UK (07x), Ukrainian (0xx) and 00-prefixed numbers.
+ * Returns an empty string for empty input.
+ */
+export function normalizePhone(phone: string | null | undefined): string {
+    let formatted = (phone || '').replace(/[^\d+]/g, '');
+    if (!formatted) return '';
+
+    if (formatted.startsWith('00')) return '+' + formatted.substring(2);
+    if (formatted.startsWith('+')) return formatted;
+
+    if (formatted.startsWith('353') || formatted.startsWith('380') || formatted.startsWith('44')) {
+        return '+' + formatted;
+    }
+    if (formatted.startsWith('8') && formatted.length === 9) return '+353' + formatted;
+    if (formatted.startsWith('08')) return '+353' + formatted.substring(1);
+    if (formatted.startsWith('07') && formatted.length === 11) return '+44' + formatted.substring(1);
+
+    for (const code of UA_MOBILE_CODES) {
+        if (formatted.startsWith(code) && formatted.length === 10) {
+            return '+38' + formatted;
+        }
+    }
+
+    if (formatted.startsWith('0')) {
+        formatted = '+353' + formatted.substring(1);
+    } else if (formatted.length >= 10) {
+        formatted = '+' + formatted;
+    }
+    return formatted;
+}

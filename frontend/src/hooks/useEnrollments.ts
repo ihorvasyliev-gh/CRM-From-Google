@@ -6,6 +6,31 @@ import { todayISO } from '../lib/dateUtils';
 
 export type EnrollmentRow = EnrollmentWithRelations;
 
+/** The status-related fields of an enrollment, captured before a change so it can be undone. */
+export interface EnrollmentSnapshot {
+    id: string;
+    status: string;
+    confirmed_date: string | null;
+    confirmed_at: string | null;
+    invited_date: string | null;
+    invited_at: string | null;
+    completed_date: string | null;
+    completed_at: string | null;
+}
+
+export function takeEnrollmentSnapshot(e: EnrollmentRow): EnrollmentSnapshot {
+    return {
+        id: e.id,
+        status: e.status,
+        confirmed_date: e.confirmed_date ?? null,
+        confirmed_at: e.confirmed_at ?? null,
+        invited_date: e.invited_date ?? null,
+        invited_at: e.invited_at ?? null,
+        completed_date: e.completed_date ?? null,
+        completed_at: e.completed_at ?? null,
+    };
+}
+
 interface UseEnrollmentsProps {
     showToast: (msg: string, type: 'success' | 'error') => void;
     openInviteModal: (ids: string[], bulk: boolean) => void;
@@ -14,7 +39,7 @@ interface UseEnrollmentsProps {
 
 
 export async function fetchAllEnrollments() {
-    let allData: EnrollmentRow[] = [];
+    const allData: EnrollmentRow[] = [];
     let from = 0;
     const limit = 1000;
 
@@ -27,9 +52,9 @@ export async function fetchAllEnrollments() {
             
         if (error) throw error;
         if (!data || data.length === 0) break;
-        
-        allData = [...allData, ...data as EnrollmentRow[]];
-        
+
+        allData.push(...(data as EnrollmentRow[]));
+
         if (data.length < limit) break;
         from += limit;
     }
@@ -68,7 +93,10 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     // ─── Status Update Mutation ──────────────────────────────────
     const updateStatusMutation = useMutation({
         mutationFn: async ({ id, newStatus, confirmedDate, invitedDate }: { id: string, newStatus: string, confirmedDate?: string, invitedDate?: string }) => {
-            const current = enrollments.find(e => e.id === id);
+            // Read through the ref: onMutate has already applied the optimistic update and the
+            // closure's `enrollments` may be stale when several moves happen quickly.
+            const snapshot = enrollmentsRef.current;
+            const current = snapshot.find(e => e.id === id);
 
             const updatePayload: Record<string, string | null> = { status: newStatus };
             if (newStatus === 'confirmed') {
@@ -102,7 +130,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
                 const { error } = await supabase.from('enrollments').update(updatePayload).eq('id', id);
                 if (error) throw new Error('Error updating status');
 
-                const siblingRequestedIds = enrollments
+                const siblingRequestedIds = snapshot
                     .filter(e =>
                         e.student_id === current.student_id &&
                         e.course_id === current.course_id &&
@@ -117,7 +145,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             }
 
             if (newStatus === 'withdrawn' && current) {
-                const relatedIds = enrollments
+                const relatedIds = snapshot
                     .filter(e => e.student_id === current.student_id && e.course_id === current.course_id)
                     .map(e => e.id);
 
@@ -273,6 +301,42 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         return true;
     }, [deleteEnrollmentMutation]);
 
+    // ─── Restore Snapshot (Undo) ─────────────────────────────────
+    // Writes back the exact previous status + date fields, instead of re-running the status
+    // flow (which would reopen the invite/confirm date pickers and lose the original dates).
+    const restoreMutation = useMutation({
+        mutationFn: async (snapshots: EnrollmentSnapshot[]) => {
+            const results = await Promise.all(snapshots.map(({ id, ...fields }) =>
+                supabase.from('enrollments').update(fields).eq('id', id)
+            ));
+            const failed = results.find(r => r.error);
+            if (failed?.error) throw failed.error;
+            return snapshots;
+        },
+        onMutate: async (snapshots) => {
+            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
+            const byId = new Map(snapshots.map(snap => [snap.id, snap]));
+            setEnrollments(prev => prev.map(e => {
+                const snap = byId.get(e.id);
+                return snap ? ({ ...e, ...snap } as EnrollmentRow) : e;
+            }));
+            return { previousEnrollments };
+        },
+        onSuccess: () => showToast('Change undone', 'success'),
+        onError: (_err, _variables, context) => {
+            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+            showToast('Failed to undo change', 'error');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        },
+    });
+
+    const restoreSnapshots = useCallback((snapshots: EnrollmentSnapshot[]) => {
+        if (snapshots.length > 0) restoreMutation.mutate(snapshots);
+    }, [restoreMutation]);
+
     return {
         enrollments,
         setEnrollments, // For other hooks to do optimistic updates easily
@@ -280,6 +344,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         updateStatus,
         togglePriority,
         updateNote,
-        deleteEnrollment
+        deleteEnrollment,
+        restoreSnapshots,
     };
 }

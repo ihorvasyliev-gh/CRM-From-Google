@@ -98,7 +98,7 @@ describe('FilterBar Component - Date Filter', () => {
         render(<FilterBar {...defaultProps} selectedCourse="course-1" selectedCourseDate="2026-08-28" />);
 
         // Mobile toggle button should exist
-        const toggleBtn = screen.getByTitle(/Show filter options/i);
+        const toggleBtn = screen.getByRole('button', { name: /Show filter options/i });
         expect(toggleBtn).toBeInTheDocument();
 
         // When collapsed and has filters, active filter chips strip is shown
@@ -108,7 +108,7 @@ describe('FilterBar Component - Date Filter', () => {
 
         // Clicking toggle button expands the menu
         fireEvent.click(toggleBtn);
-        expect(screen.getByTitle(/Hide filter options/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Hide filter options/i })).toBeInTheDocument();
     });
 
     it('renders active filter chips and allows removing individual filters or clearing all', () => {
