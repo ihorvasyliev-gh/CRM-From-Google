@@ -671,12 +671,10 @@ function App() {
                 )}
 
                 {/* Main Content */}
+                {/* Only the board manages its own (per-column) scrolling; every other page scrolls here.
+                    (The dashboard used to be overflow-hidden on desktop, cutting off everything below the fold.) */}
                 <div className={`flex-1 flex flex-col h-screen relative z-10 min-w-0 ${
-                    activeTab === 'enrollments'
-                        ? 'overflow-hidden'
-                        : activeTab === 'dashboard'
-                            ? 'overflow-y-auto lg:overflow-hidden'
-                            : 'overflow-y-auto'
+                    activeTab === 'enrollments' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* Notification Permission Banner */}
                     {showNotifBanner && (
@@ -719,8 +717,8 @@ function App() {
                     )}
                     {/* Viewer Top Header (Glassmorphism) */}
                     {isViewer && (
-                        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 py-3 flex items-center justify-between transition-colors">
-                            <div className="flex items-center gap-3 sm:gap-6">
+                        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-3 sm:px-6 py-3 flex items-center justify-between gap-2 transition-colors min-w-0">
+                            <div className="flex items-center gap-2 sm:gap-6 min-w-0">
                                 <div className="flex items-center gap-2.5">
                                     <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 flex-shrink-0 animate-glow">
                                         C
@@ -733,8 +731,8 @@ function App() {
                                     </div>
                                 </div>
 
-                                {/* Viewer Navigation Switcher */}
-                                <div className="flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
+                                {/* Viewer Navigation Switcher (mobile uses the bottom nav instead) */}
+                                <div className="hidden lg:flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
                                     <button
                                         onClick={() => navigate('students')}
                                         onMouseEnter={() => handleTabMouseEnter('students')}
@@ -767,10 +765,10 @@ function App() {
                                 <UpcomingCoursesPopover onSelectCourse={handleSelectUpcomingCourse} />
                             </div>
 
-                            <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
                                 <button
                                     onClick={() => setCommandPaletteOpen(true)}
-                                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
+                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
                                     title="Quick search (Ctrl+K)"
                                 >
                                     <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
@@ -782,7 +780,7 @@ function App() {
 
                                 <button
                                     onClick={() => setShortcutsModalOpen(true)}
-                                    className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
+                                    className="hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
                                     title="Keyboard Shortcuts (?)"
                                 >
                                     <HelpCircle size={17} />
@@ -790,7 +788,7 @@ function App() {
 
                                 <button
                                     onClick={toggleDensity}
-                                    className={`p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
+                                    className={`hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
                                     title={density === 'compact' ? 'Switch to Comfortable View' : 'Switch to Compact View'}
                                 >
                                     <Rows3 size={17} />
@@ -798,7 +796,7 @@ function App() {
 
                                 <button
                                     onClick={toggleDarkMode}
-                                    className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
+                                    className="hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
                                     title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                                 >
                                     {darkMode ? <Sun size={17} /> : <Moon size={17} />}
@@ -814,7 +812,7 @@ function App() {
 
                                 <button
                                     onClick={signOut}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all shadow-sm"
+                                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all shadow-sm"
                                     title="Sign Out"
                                 >
                                     <LogOut size={14} />

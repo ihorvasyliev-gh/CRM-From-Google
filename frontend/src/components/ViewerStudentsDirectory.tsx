@@ -156,7 +156,7 @@ export default function ViewerStudentsDirectory() {
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <div className="max-w-7xl mx-auto w-full min-w-0 py-1 sm:py-4 space-y-6">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
@@ -261,7 +261,7 @@ export default function ViewerStudentsDirectory() {
                     </div>
 
                     {/* Status Filter Tabs/Pills */}
-                    <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto">
+                    <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto scrollbar-none max-w-full">
                         {STATUS_TABS.map((tab) => {
                             const active = selectedStatus === tab.key;
                             return (

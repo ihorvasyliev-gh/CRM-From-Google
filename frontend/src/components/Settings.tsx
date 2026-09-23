@@ -948,15 +948,15 @@ export default function Settings() {
                 </div>
                 <div className="p-5 space-y-6">
                     <div>
-                        <label className="flex items-center gap-3 cursor-pointer group w-max">
-                            <div className="relative flex items-center justify-center">
+                        <label className="flex items-center gap-3 cursor-pointer group w-fit max-w-full">
+                            <div className="relative flex items-center justify-center flex-shrink-0">
                                 <input
                                     type="checkbox"
                                     checked={config.includeLogosInEmails ?? false}
                                     onChange={e => setLocalConfig({ ...config, includeLogosInEmails: e.target.checked })}
                                     className="peer sr-only"
                                 />
-                                <div className="w-10 h-6 bg-surface-elevated border border-border-strong rounded-full peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors"></div>
+                                <div className="flex-shrink-0 w-10 h-6 bg-surface-elevated border border-border-strong rounded-full peer-checked:bg-brand-500 peer-checked:border-brand-500 transition-colors"></div>
                                 <div className="absolute left-1 top-1 w-4 h-4 bg-muted rounded-full peer-checked:bg-white peer-checked:translate-x-4 transition-transform shadow-sm"></div>
                             </div>
                             <div>

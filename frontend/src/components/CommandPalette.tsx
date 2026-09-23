@@ -479,7 +479,7 @@ export default function CommandPalette({
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         placeholder="Search students, courses, navigation, or actions..."
-                        className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-none"
+                        className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-none focus-visible:shadow-none"
                     />
                     {loadingData && (
                         <Loader2 size={16} className="animate-spin text-brand-500 flex-shrink-0" />

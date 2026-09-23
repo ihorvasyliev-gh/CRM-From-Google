@@ -267,46 +267,10 @@ const EnrollmentCard = function EnrollmentCard({
                         {isSelected && <Check size={11} strokeWidth={3} />}
                     </div>
 
-                    {/* Name & Badges */}
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
-                        <p className="card-title font-bold text-primary text-xs sm:text-[13px] md:text-sm leading-snug break-words" title={`${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`}>
-                            {enrollment.students?.first_name} {enrollment.students?.last_name}
-                        </p>
-
-                        {/* Badges row with strict unified height and alignment */}
-                        <div className="inline-flex items-center gap-1 flex-wrap min-w-0">
-                            {/* Course Pill */}
-                            <span
-                                title={getCoursePill(enrollment)}
-                                className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-2 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
-                            >
-                                {getCoursePill(enrollment)}
-                            </span>
-
-                            {/* Queue Number */}
-                            {status === 'requested' && queuePosition !== undefined && (
-                                <span
-                                    title="Position in queue for this course"
-                                    className="card-pill inline-flex items-center justify-center h-5 px-1.5 text-[11px] leading-none font-bold font-mono rounded-md border border-violet-200 dark:border-violet-500/30 bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex-shrink-0 select-none"
-                                >
-                                    #{queuePosition}
-                                </span>
-                            )}
-
-                            {/* 🥇 Completed Courses Badge */}
-                            {completedCourses.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
-                                    title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                                    className="card-pill inline-flex items-center justify-center gap-1 h-5 px-1.5 text-[11px] leading-none font-bold rounded-md border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer flex-shrink-0 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20 shadow-2xs"
-                                >
-                                    <Award size={11} strokeWidth={2.5} className="flex-shrink-0" />
-                                    <span className="leading-none">{completedCourses.length}</span>
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                    {/* Name */}
+                    <p className="card-title min-w-0 flex-1 font-bold text-primary text-xs sm:text-[13px] md:text-sm leading-snug break-words" title={`${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`}>
+                        {enrollment.students?.first_name} {enrollment.students?.last_name}
+                    </p>
                 </div>
 
                 {/* Right Quick Actions (In one horizontal row) */}
@@ -379,6 +343,40 @@ const EnrollmentCard = function EnrollmentCard({
                         </button>
                     </CustomTooltip>
                 </div>
+            </div>
+
+            {/* Badges row — full card width so the course name isn't squeezed by the action icons */}
+            <div className="mt-1 pl-[22px] flex items-center gap-1 flex-wrap min-w-0">
+                {/* Course Pill */}
+                <span
+                    title={getCoursePill(enrollment)}
+                    className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-2 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
+                >
+                    {getCoursePill(enrollment)}
+                </span>
+
+                {/* Queue Number */}
+                {status === 'requested' && queuePosition !== undefined && (
+                    <span
+                        title="Position in queue for this course"
+                        className="card-pill inline-flex items-center justify-center h-5 px-1.5 text-[11px] leading-none font-bold font-mono rounded-md border border-violet-200 dark:border-violet-500/30 bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex-shrink-0 select-none"
+                    >
+                        #{queuePosition}
+                    </span>
+                )}
+
+                {/* 🥇 Completed Courses Badge */}
+                {completedCourses.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
+                        title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
+                        className="card-pill inline-flex items-center justify-center gap-1 h-5 px-1.5 text-[11px] leading-none font-bold rounded-md border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer flex-shrink-0 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20 shadow-2xs"
+                    >
+                        <Award size={11} strokeWidth={2.5} className="flex-shrink-0" />
+                        <span className="leading-none">{completedCourses.length}</span>
+                    </button>
+                )}
             </div>
 
             {/* Middle Row: Contacts (Phone + WhatsApp & Email) */}
