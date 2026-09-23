@@ -5,7 +5,7 @@ import { useDraggable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
-import { formatDateLong } from '../../lib/dateUtils';
+import { formatDateLong, formatShortDate } from '../../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -46,6 +46,11 @@ function getRelativeTime(isoDate: string): string {
     return `${Math.floor(months / 12)}y ago`;
 }
 
+// Shared class strings for the compact card layout
+const iconBtnBase = 'w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors';
+const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surface-elevated`;
+const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium flex-shrink-0 whitespace-nowrap';
+
 // Left accent border per status
 const STATUS_LEFT_BORDER: Record<string, string> = {
     requested: 'border-l-warning',
@@ -78,8 +83,7 @@ const EnrollmentCard = function EnrollmentCard({
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
-    const [noteTooltipVisible, setNoteTooltipVisible] = useState(false);
-    const [isEditingNote, setIsEditingNote] = useState(false);
+        const [isEditingNote, setIsEditingNote] = useState(false);
     const [noteDraft, setNoteDraft] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -101,7 +105,6 @@ const EnrollmentCard = function EnrollmentCard({
         if (onUpdateNote) {
             setIsEditingNote(true);
             setNoteDraft(enrollment.notes || '');
-            setNoteTooltipVisible(false);
         } else {
             openEditNote(enrollment);
         }
@@ -230,6 +233,7 @@ const EnrollmentCard = function EnrollmentCard({
     }, [status, enrollment.invited_at, enrollment.response_days, now]);
 
     const leftBorder = STATUS_LEFT_BORDER[status] || 'border-l-border-subtle';
+    const fullName = `${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`.trim();
 
     return (
         <div
@@ -237,7 +241,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay || isMobile ? {} : attributes)}
             {...(isOverlay || isMobile ? {} : listeners)}
-            className={`group relative enrollment-card cv-auto-card p-2 md:p-2.5 rounded-lg md:rounded-xl border border-l-4 ${leftBorder} ${
+            className={`group relative enrollment-card cv-auto-card px-2 py-1.5 md:px-2.5 md:py-2 rounded-lg md:rounded-xl border border-l-[3px] ${leftBorder} ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile
@@ -253,29 +257,92 @@ const EnrollmentCard = function EnrollmentCard({
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}
         >
-            {/* Top Row: Checkbox, Name, Badges & Quick Action Buttons */}
-            <div className="flex items-start justify-between gap-1.5 min-w-0">
-                <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                    {/* Checkbox */}
-                    <div
-                        className={`w-4 h-4 mt-0.5 rounded flex items-center justify-center border transition-all flex-shrink-0 ${
-                            isSelected
-                                ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                                : 'border-border-strong group-hover:border-brand-500/50 bg-background'
-                        }`}
-                    >
-                        {isSelected && <Check size={11} strokeWidth={3} />}
-                    </div>
-
-                    {/* Name */}
-                    <p className="card-title min-w-0 flex-1 font-bold text-primary text-xs sm:text-[13px] md:text-sm leading-snug break-words" title={`${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`}>
-                        {enrollment.students?.first_name} {enrollment.students?.last_name}
-                    </p>
+            {/* Row 1: Checkbox, Name & Actions */}
+            <div className="flex items-center gap-1.5 min-w-0">
+                {/* Checkbox */}
+                <div
+                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0 ${
+                        isSelected
+                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                            : 'border-border-strong group-hover:border-brand-500/50 bg-background'
+                    }`}
+                >
+                    {isSelected && <Check size={11} strokeWidth={3} />}
                 </div>
 
-                {/* Right Quick Actions (In one horizontal row) */}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {/* Star Priority */}
+                {/* Name */}
+                <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
+                    {fullName}
+                </p>
+
+                {/* Actions: state indicators always visible, the rest revealed on hover (desktop) */}
+                <div className="card-actions-col flex items-center flex-shrink-0 -my-1 -mr-1">
+                    {/* Secondary actions — hover only on desktop */}
+                    <div className="flex items-center lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+                        {!enrollment.notes && (
+                            <CustomTooltip content="Add note">
+                                <button
+                                    aria-label="Add Note"
+                                    onClick={handleStartEditNote}
+                                    className={iconBtn}
+                                >
+                                    <Pencil size={13} />
+                                </button>
+                            </CustomTooltip>
+                        )}
+
+                        {onMoveStatus && (
+                            <CustomTooltip content="Move status">
+                                <button
+                                    ref={quickMoveBtnRef}
+                                    aria-label="Move status"
+                                    onClick={handleOpenQuickMove}
+                                    className={showQuickMove
+                                        ? `${iconBtnBase} text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10`
+                                        : iconBtn}
+                                >
+                                    <ArrowRightLeft size={13} />
+                                </button>
+                            </CustomTooltip>
+                        )}
+
+                        <CustomTooltip content="View student details">
+                            <button
+                                aria-label="View Student Details"
+                                onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                                className={iconBtn}
+                            >
+                                <Info size={13} />
+                            </button>
+                        </CustomTooltip>
+
+                        {studentFlags.length === 0 && (
+                            <CustomTooltip content="Flag student (e.g. failed a course)">
+                                <button
+                                    aria-label="Flag student"
+                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                    className={`${iconBtnBase} text-muted/60 hover:text-orange-500 hover:bg-surface-elevated`}
+                                >
+                                    <AlertTriangle size={13} />
+                                </button>
+                            </CustomTooltip>
+                        )}
+                    </div>
+
+                    {/* ⚠ Student Flags — always visible when set */}
+                    {studentFlags.length > 0 && (
+                        <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
+                            <button
+                                aria-label="Student flags"
+                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                className={`${iconBtnBase} text-orange-500 hover:text-orange-600 hover:bg-orange-500/10`}
+                            >
+                                <AlertTriangle size={13} strokeWidth={2.5} />
+                            </button>
+                        </CustomTooltip>
+                    )}
+
+                    {/* Star Priority — visible when set */}
                     <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"}>
                         <button
                             aria-label={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
@@ -283,74 +350,23 @@ const EnrollmentCard = function EnrollmentCard({
                                 e.stopPropagation();
                                 togglePriority(enrollment.id, !!enrollment.is_priority);
                             }}
-                            className={`p-1 rounded-md transition-colors ${enrollment.is_priority
-                                ? 'text-warning hover:text-warning/80 drop-shadow-sm'
-                                : 'text-muted/50 hover:text-warning/90 hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
+                            className={`${iconBtnBase} ${enrollment.is_priority
+                                ? 'text-warning hover:bg-warning/10'
+                                : 'text-muted/60 hover:text-warning hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100'
                             }`}
                         >
-                            <Star size={14} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                        </button>
-                    </CustomTooltip>
-
-                    {/* ⚠ Student Flags */}
-                    {studentFlags.length > 0 ? (
-                        <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
-                            <button
-                                aria-label="Student flags"
-                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                className="p-1 text-orange-500 hover:text-orange-600 transition-colors drop-shadow-sm rounded-md"
-                            >
-                                <AlertTriangle size={14} strokeWidth={2.5} />
-                            </button>
-                        </CustomTooltip>
-                    ) : (
-                        <CustomTooltip content="Flag student (e.g. failed a course)">
-                            <button
-                                aria-label="Flag student"
-                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                className="p-1 text-muted/50 hover:text-orange-400 hover:bg-surface-elevated transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 rounded-md"
-                            >
-                                <AlertTriangle size={14} />
-                            </button>
-                        </CustomTooltip>
-                    )}
-
-                    {/* ⇄ Quick Move Status Button */}
-                    {onMoveStatus && (
-                        <CustomTooltip content="Move status">
-                            <button
-                                ref={quickMoveBtnRef}
-                                aria-label="Move status"
-                                onClick={handleOpenQuickMove}
-                                className={`p-1.5 sm:p-1 rounded-md transition-colors border ${showQuickMove
-                                    ? 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 shadow-xs'
-                                    : 'text-muted/60 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100'
-                                }`}
-                            >
-                                <ArrowRightLeft size={14} />
-                            </button>
-                        </CustomTooltip>
-                    )}
-
-                    {/* ℹ Student Info Button */}
-                    <CustomTooltip content="View Student Details">
-                        <button
-                            aria-label="View Student Details"
-                            onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                            className="p-1 rounded-md transition-colors border text-muted/50 hover:text-brand-500 hover:bg-surface-elevated border-transparent lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
-                        >
-                            <Info size={14} />
+                            <Star size={13} fill={enrollment.is_priority ? "currentColor" : "none"} />
                         </button>
                     </CustomTooltip>
                 </div>
             </div>
 
-            {/* Badges row — full card width so the course name isn't squeezed by the action icons */}
+            {/* Row 2: Course, queue, completed courses, stage dates/timer — and request date on the right */}
             <div className="mt-1 pl-[22px] flex items-center gap-1 flex-wrap min-w-0">
                 {/* Course Pill */}
                 <span
                     title={getCoursePill(enrollment)}
-                    className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-2 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
+                    className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-1.5 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
                 >
                     {getCoursePill(enrollment)}
                 </span>
@@ -359,7 +375,7 @@ const EnrollmentCard = function EnrollmentCard({
                 {status === 'requested' && queuePosition !== undefined && (
                     <span
                         title="Position in queue for this course"
-                        className="card-pill inline-flex items-center justify-center h-5 px-1.5 text-[11px] leading-none font-bold font-mono rounded-md border border-violet-200 dark:border-violet-500/30 bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex-shrink-0 select-none"
+                        className="card-pill inline-flex items-center justify-center h-5 px-1.5 text-[11px] leading-none font-bold font-mono rounded-md bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex-shrink-0 select-none"
                     >
                         #{queuePosition}
                     </span>
@@ -371,37 +387,102 @@ const EnrollmentCard = function EnrollmentCard({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                         title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                        className="card-pill inline-flex items-center justify-center gap-1 h-5 px-1.5 text-[11px] leading-none font-bold rounded-md border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 cursor-pointer flex-shrink-0 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20 shadow-2xs"
+                        className="card-pill inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[11px] leading-none font-bold rounded-md text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
                     >
                         <Award size={11} strokeWidth={2.5} className="flex-shrink-0" />
                         <span className="leading-none">{completedCourses.length}</span>
                     </button>
                 )}
+
+                {enrollment.invited_date && enrollment.status !== 'completed' && (
+                    <span title={`Invited ${formatDateLong(enrollment.invited_date)}`} className={`${metaChip} text-status-invited bg-info/10`}>
+                        <Send size={10} />
+                        {formatShortDate(enrollment.invited_date)}
+                    </span>
+                )}
+                {enrollment.confirmed_date && enrollment.status !== 'completed' && (
+                    <span title={`Confirmed ${formatDateLong(enrollment.confirmed_date)}`} className={`${metaChip} text-status-confirmed bg-success/10`}>
+                        <CheckCircle size={10} />
+                        {formatShortDate(enrollment.confirmed_date)}
+                    </span>
+                )}
+                {enrollment.completed_date && enrollment.status === 'completed' && (
+                    <span title={`Completed ${formatDateLong(enrollment.completed_date)}`} className={`${metaChip} text-status-completed bg-[oklch(var(--status-completed)/0.1)]`}>
+                        <GraduationCap size={10} />
+                        {formatShortDate(enrollment.completed_date)}
+                    </span>
+                )}
+
+                {/* Invitation Timer */}
+                {status === 'invited' && (() => {
+                    const invitedAt = enrollment.invited_at;
+                    if (!invitedAt) return null;
+                    const days = enrollment.response_days ?? 7;
+                    const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
+                    const remaining = deadline - now;
+
+                    if (remaining <= 0) {
+                        const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                        return (
+                            <span className={`${metaChip} bg-red-500/10 text-red-600 dark:text-red-400 font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                <Timer size={10} strokeWidth={2.5} />
+                                Expired
+                            </span>
+                        );
+                    }
+
+                    const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                    const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                    const isUrgent = timerLevel === 'urgent';
+                    return (
+                        <span
+                            className={`${metaChip} ${isUrgent
+                                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 animate-pulse-timer'
+                                : 'bg-surface-elevated text-primary/80'
+                            }`}
+                            title={`${timerText} remaining (${days}-day deadline)`}
+                        >
+                            <Timer size={10} />
+                            {timerText}
+                        </span>
+                    );
+                })()}
+
+                {/* Request date — pushed to the right */}
+                <span
+                    className="card-info ml-auto pl-1 text-[11px] text-primary/55 whitespace-nowrap tabular-nums flex-shrink-0"
+                    title={`Added ${formatDateLong(enrollment.created_at)} · ${getRelativeTime(enrollment.created_at)}`}
+                >
+                    {formatShortDate(enrollment.created_at)}
+                    <span className="text-primary/30"> · </span>
+                    {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}
+                </span>
             </div>
 
-            {/* Middle Row: Contacts (Phone + WhatsApp & Email) */}
+            {/* Row 3: Contacts (Phone + WhatsApp & Email) */}
             {(enrollment.students?.phone || enrollment.students?.email) && (
-                <div className="card-contact mt-1.5 flex items-center gap-2.5 text-xs text-primary/90 min-w-0 flex-wrap sm:flex-nowrap">
+                <div className="card-contact mt-1 pl-[22px] flex items-center gap-2 text-xs text-primary/90 min-w-0">
                     {enrollment.students?.phone && (() => {
                         const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
                         const telUrl = formatPhoneForCall(enrollment.students.phone);
                         return (
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                                 {telUrl ? (
                                     <a
                                         href={telUrl}
                                         onClick={e => e.stopPropagation()}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 font-medium text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
                                         title="Click to call"
                                     >
-                                        <Phone size={12} className="flex-shrink-0 text-primary/60" />
+                                        <Phone size={11} className="flex-shrink-0 text-primary/50" />
                                         <span>{enrollment.students.phone}</span>
                                     </a>
                                 ) : (
-                                    <div className="flex items-center gap-1">
-                                        <Phone size={12} className="flex-shrink-0 text-primary/60" />
+                                    <div className="flex items-center gap-1 tabular-nums">
+                                        <Phone size={11} className="flex-shrink-0 text-primary/50" />
                                         <span>{enrollment.students.phone}</span>
                                     </div>
                                 )}
@@ -414,7 +495,7 @@ const EnrollmentCard = function EnrollmentCard({
                                             onClick={e => e.stopPropagation()}
                                             onPointerDown={e => e.stopPropagation()}
                                             onTouchStart={e => e.stopPropagation()}
-                                            className="flex items-center justify-center w-5 h-5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded shadow-2xs transition-all active:scale-95 flex-shrink-0"
+                                            className="flex items-center justify-center w-[18px] h-[18px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 rounded transition-all active:scale-95 flex-shrink-0"
                                             aria-label="Chat on WhatsApp"
                                         >
                                             <MessageSquare size={11} />
@@ -425,20 +506,16 @@ const EnrollmentCard = function EnrollmentCard({
                         );
                     })()}
 
-                    {enrollment.students?.phone && enrollment.students?.email && (
-                        <span className="text-border-strong hidden sm:inline select-none">·</span>
-                    )}
-
                     {enrollment.students?.email && (
-                        <div className="flex items-center gap-1 min-w-0 truncate">
-                            <Mail size={12} className="flex-shrink-0 text-primary/60" />
+                        <div className="flex items-center gap-1 min-w-0">
+                            <Mail size={11} className="flex-shrink-0 text-primary/50" />
                             <a
                                 href={`mailto:${enrollment.students.email}`}
                                 onClick={e => e.stopPropagation()}
                                 onPointerDown={e => e.stopPropagation()}
                                 touch-action="manipulation"
                                 onTouchStart={e => e.stopPropagation()}
-                                className="text-primary/75 hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors truncate"
+                                className="text-primary/70 hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors truncate"
                                 title={`Send email to ${enrollment.students.email}`}
                             >
                                 {enrollment.students.email}
@@ -448,106 +525,17 @@ const EnrollmentCard = function EnrollmentCard({
                 </div>
             )}
 
-            {/* Bottom Row: Meta Dates / Timers & Compact Note */}
-            <div className="card-info mt-1.5 pt-1.5 border-t border-border-subtle/60 flex items-center justify-between gap-1.5 text-[11px] text-primary/75 min-w-0">
-                <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0">
-                    <span className="flex items-center gap-1 flex-shrink-0">
-                        {formatDateLong(enrollment.created_at)}
-                        <span className="text-primary/40 font-normal">·</span>
-                        <span className="text-primary/60">{getRelativeTime(enrollment.created_at)}</span>
-                    </span>
-
-                    {enrollment.invited_date && enrollment.status !== 'completed' && (
-                        <span className="text-status-invited font-medium flex items-center gap-0.5 bg-info/10 px-1.5 py-0.2 rounded border border-info/20 flex-shrink-0">
-                            <Send size={10} />
-                            <span>{formatDateLong(enrollment.invited_date)}</span>
-                        </span>
-                    )}
-                    {enrollment.confirmed_date && enrollment.status !== 'completed' && (
-                        <span className="text-status-confirmed font-medium flex items-center gap-0.5 bg-success/10 px-1.5 py-0.2 rounded border border-success/20 flex-shrink-0">
-                            <CheckCircle size={10} />
-                            <span>{formatDateLong(enrollment.confirmed_date)}</span>
-                        </span>
-                    )}
-                    {enrollment.completed_date && enrollment.status === 'completed' && (
-                        <span className="text-status-completed font-medium flex items-center gap-0.5 bg-[oklch(var(--status-completed)/0.1)] px-1.5 py-0.2 rounded border border-[oklch(var(--status-completed)/0.2)] flex-shrink-0">
-                            <GraduationCap size={10} />
-                            <span>{formatDateLong(enrollment.completed_date)}</span>
-                        </span>
-                    )}
-
-                    {/* Invitation Timer */}
-                    {status === 'invited' && (() => {
-                        const invitedAt = enrollment.invited_at;
-                        if (!invitedAt) return null;
-                        const days = enrollment.response_days ?? 7;
-                        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                        const remaining = deadline - now;
-
-                        if (remaining <= 0) {
-                            const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-                            return (
-                                <div className="flex items-center gap-1 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 px-1.5 py-0.2 rounded text-[10px] font-bold animate-pulse-timer flex-shrink-0" title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                    <Timer size={10} strokeWidth={2.5} />
-                                    <span>Expired</span>
-                                </div>
-                            );
-                        }
-
-                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
-                        const isUrgent = timerLevel === 'urgent';
-                        return (
-                            <div
-                                className={`flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium shadow-2xs transition-colors flex-shrink-0 ${
-                                    isUrgent
-                                        ? 'bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-pulse-timer'
-                                        : 'bg-surface-elevated border border-border-subtle text-primary/80'
-                                }`}
-                                title={`${timerText} remaining (${days}-day deadline)`}
-                            >
-                                <Timer size={10} />
-                                <span>{timerText}</span>
-                            </div>
-                        );
-                    })()}
-                </div>
-
-                {/* Compact Note Badge (1 row with line-clamp-1) or Add Note pencil */}
-                {enrollment.notes ? (
+            {/* Row 4: Note (only when present) — full width, one line; hover shows the whole text */}
+            {enrollment.notes && !isEditingNote && (
+                <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
                     <button
                         onClick={handleStartEditNote}
-                        onMouseEnter={() => !isEditingNote && setNoteTooltipVisible(true)}
-                        onMouseLeave={() => setNoteTooltipVisible(false)}
-                        className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-1.5 py-0.2 rounded font-normal italic max-w-[130px] sm:max-w-[180px] truncate transition-colors text-left flex-shrink-0 cursor-pointer"
-                        title={enrollment.notes}
+                        className="card-note mt-1 ml-[22px] w-[calc(100%-22px)] flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
                     >
                         <Pencil size={10} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
                         <span className="truncate">{enrollment.notes}</span>
                     </button>
-                ) : (
-                    <button
-                        title="Add Note"
-                        onClick={handleStartEditNote}
-                        className="p-1 text-muted/40 hover:text-brand-500 hover:bg-surface-elevated rounded transition-colors lg:opacity-0 lg:group-hover:opacity-100 opacity-100 flex-shrink-0 cursor-pointer"
-                    >
-                        <Pencil size={12} />
-                    </button>
-                )}
-            </div>
-
-            {/* Note hover preview tooltip on desktop */}
-            {!isEditingNote && noteTooltipVisible && enrollment.notes && (
-                <div
-                    className="absolute right-2 bottom-full mb-1.5 z-50 w-56 bg-surface-elevated border border-border-subtle rounded-xl shadow-float p-2.5 animate-fadeIn pointer-events-none"
-                    onClick={e => e.stopPropagation()}
-                >
-                    <p className="text-[11px] text-primary/90 leading-relaxed italic line-clamp-4">
-                        {enrollment.notes}
-                    </p>
-                    <p className="text-[10px] text-primary/50 mt-1 font-medium">Click to edit</p>
-                </div>
+                </CustomTooltip>
             )}
 
             {/* Inline Quick Note Editor */}
