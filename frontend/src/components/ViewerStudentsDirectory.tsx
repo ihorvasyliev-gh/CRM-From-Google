@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 import { ViewerCourse, getAvatarGradient, cleanVariant } from '../lib/types';
@@ -131,6 +131,8 @@ export default function ViewerStudentsDirectory() {
             if (error) throw error;
             return (data || []) as ViewerStudentDirectoryItem[];
         },
+        // Keep showing the current page while the next page / search result loads (no skeleton flash)
+        placeholderData: keepPreviousData,
     });
 
     const isFiltered = Boolean(
@@ -163,7 +165,7 @@ export default function ViewerStudentsDirectory() {
                             <Users size={24} />
                         </div>
                         <div>
-                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary">
                                 Students Directory
                             </h1>
                             <p className="text-sm text-muted">
@@ -204,13 +206,22 @@ export default function ViewerStudentsDirectory() {
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={18} />
                     <input
                         type="text"
+                        data-page-search=""
+                        autoComplete="off"
                         value={search}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape' && search) {
+                                e.preventDefault();
+                                setSearch('');
+                                setPage(1);
+                            }
+                        }}
                         onChange={(e) => {
                             setSearch(e.target.value);
                             setPage(1);
                         }}
                         placeholder="Search students by name, email, phone, eircode..."
-                        className="w-full pl-10 pr-10 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                        className="w-full pl-10 pr-10 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                     />
                     {search && (
                         <button
@@ -220,7 +231,7 @@ export default function ViewerStudentsDirectory() {
                                 setSearch('');
                                 setPage(1);
                             }}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-foreground rounded-full hover:bg-surface transition-colors"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary rounded-full hover:bg-surface transition-colors"
                         >
                             <X size={16} />
                         </button>
@@ -238,7 +249,7 @@ export default function ViewerStudentsDirectory() {
                                 setSelectedCourseId(e.target.value);
                                 setPage(1);
                             }}
-                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
                         >
                             <option value="all">All Courses</option>
                             {courses.map((course) => (
@@ -264,7 +275,7 @@ export default function ViewerStudentsDirectory() {
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                                         active
                                             ? 'bg-brand-600 text-white shadow-sm'
-                                            : 'text-muted hover:text-foreground hover:bg-surface'
+                                            : 'text-muted hover:text-primary hover:bg-surface'
                                     }`}
                                 >
                                     {tab.label}
@@ -283,7 +294,7 @@ export default function ViewerStudentsDirectory() {
                         className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
                             priorityOnly
                                 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
-                                : 'bg-surface-elevated text-muted hover:text-foreground border-border-subtle hover:bg-surface'
+                                : 'bg-surface-elevated text-muted hover:text-primary border-border-subtle hover:bg-surface'
                         }`}
                     >
                         <Star size={13} className={priorityOnly ? 'fill-amber-400 text-amber-500' : ''} />
@@ -299,7 +310,7 @@ export default function ViewerStudentsDirectory() {
                                 setSortBy(e.target.value as SortOption);
                                 setPage(1);
                             }}
-                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
                         >
                             <option value="date_desc">Newest First</option>
                             <option value="date_asc">Oldest First</option>
@@ -366,7 +377,7 @@ export default function ViewerStudentsDirectory() {
                         <AlertCircle size={32} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-foreground">
+                        <h3 className="text-lg font-bold text-primary">
                             Failed to load students directory
                         </h3>
                         <p className="text-sm text-muted mt-1">
@@ -391,7 +402,7 @@ export default function ViewerStudentsDirectory() {
                         <Users size={32} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-foreground">
+                        <h3 className="text-lg font-bold text-primary">
                             {isFiltered ? 'No students match your selected filters' : 'No students found in the database'}
                         </h3>
                         <p className="text-sm text-muted mt-1">
@@ -451,7 +462,7 @@ export default function ViewerStudentsDirectory() {
                                                         {initials}
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <div className="font-semibold text-foreground group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">
+                                                        <div className="font-semibold text-primary group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">
                                                             {student.first_name} {student.last_name}
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs text-muted mt-0.5">
@@ -476,7 +487,7 @@ export default function ViewerStudentsDirectory() {
                                             <td className="px-5 py-4">
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className="font-medium text-foreground text-xs">
+                                                        <span className="font-medium text-primary text-xs">
                                                             {student.primary_course_name || 'No course'}
                                                         </span>
                                                         {variant && (
@@ -537,7 +548,7 @@ export default function ViewerStudentsDirectory() {
                                             {/* Notes Indicator */}
                                             <td className="px-5 py-4 text-center whitespace-nowrap">
                                                 {student.notes_count > 0 ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-surface-elevated border border-border-subtle text-foreground shadow-xs">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-surface-elevated border border-border-subtle text-primary shadow-xs">
                                                         <MessageSquare size={12} className="text-brand-500" />
                                                         <span>{student.notes_count}</span>
                                                     </span>
@@ -584,7 +595,7 @@ export default function ViewerStudentsDirectory() {
                                                 {initials}
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="font-bold text-foreground text-sm truncate">
+                                                <h3 className="font-bold text-primary text-sm truncate">
                                                     {student.first_name} {student.last_name}
                                                 </h3>
                                                 <p className="text-xs text-muted truncate">
@@ -600,7 +611,7 @@ export default function ViewerStudentsDirectory() {
                                                 </span>
                                             )}
                                             {student.notes_count > 0 && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-surface-elevated border border-border-subtle text-foreground">
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-surface-elevated border border-border-subtle text-primary">
                                                     <MessageSquare size={11} className="text-brand-500" />
                                                     <span>{student.notes_count}</span>
                                                 </span>
@@ -612,7 +623,7 @@ export default function ViewerStudentsDirectory() {
                                     {/* Course info */}
                                     <div className="bg-surface-elevated/60 rounded-xl p-2.5 border border-border-subtle space-y-1.5">
                                         <div className="flex items-center justify-between gap-2">
-                                            <span className="text-xs font-semibold text-foreground truncate">
+                                            <span className="text-xs font-semibold text-primary truncate">
                                                 {student.primary_course_name || 'No course assigned'}
                                             </span>
                                             {variant && (
@@ -667,19 +678,19 @@ export default function ViewerStudentsDirectory() {
                                 type="button"
                                 disabled={page <= 1}
                                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-foreground hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                             >
                                 <ChevronLeft size={14} />
                                 <span>Previous</span>
                             </button>
                             <span className="text-xs font-medium text-muted">
-                                Page <strong className="text-foreground">{page}</strong> of <strong className="text-foreground">{totalPages}</strong>
+                                Page <strong className="text-primary">{page}</strong> of <strong className="text-primary">{totalPages}</strong>
                             </span>
                             <button
                                 type="button"
                                 disabled={page >= totalPages}
                                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-foreground hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                             >
                                 <span>Next</span>
                                 <ChevronRight size={14} />

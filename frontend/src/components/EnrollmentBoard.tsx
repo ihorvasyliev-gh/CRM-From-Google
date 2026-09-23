@@ -4,6 +4,7 @@ import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, M
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 import { useEnrollments, takeEnrollmentSnapshot, type EnrollmentRow, type EnrollmentSnapshot } from '../hooks/useEnrollments';
 import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
@@ -25,6 +26,7 @@ import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
+const isString = (v: unknown): v is string => typeof v === 'string';
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
 export default function EnrollmentBoard({
@@ -82,22 +84,38 @@ export default function EnrollmentBoard({
     const [flagComment, setFlagComment] = useState('');
 
     // Filters
-    const [selectedCourse, setSelectedCourse] = useState<string>(initialCourseFilter || 'all');
-    const [selectedVariant, setSelectedVariant] = useState<string>('all');
-    const [selectedCourseDate, setSelectedCourseDate] = useState<string>(initialCourseDate || 'all');
-    const [searchQuery, setSearchQuery] = useState('');
+    // Board filters survive navigating away and back within the tab (session) — preferences like sort
+    // order and the Withdrawn/Rejected toggle are remembered across sessions (local).
+    const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => initialCourseFilter || 'all', { validate: isString });
+    const [selectedVariant, setSelectedVariant] = usePersistentState<string>('board.variant', 'all', { validate: isString });
+    const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
+    const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [courseDateFrom, setCourseDateFrom] = useState('');
     const [courseDateTo, setCourseDateTo] = useState('');
-    const [showSecondary, setShowSecondary] = useState(false);
-    const [sortOrder, setSortOrder] = useState<'date-asc' | 'date-desc' | 'name'>('date-asc');
+    const [showSecondary, setShowSecondary] = usePersistentState<boolean>('board.showSecondary', false, {
+        storage: 'local',
+        validate: (v): v is boolean => typeof v === 'boolean',
+    });
+    const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
+        storage: 'local',
+        validate: (v): v is 'date-asc' | 'date-desc' | 'name' => v === 'date-asc' || v === 'date-desc' || v === 'name',
+    });
 
+    // Navigation from elsewhere (course card, dashboard, student drawer) overrides the remembered filters
     useEffect(() => {
-        if (initialCourseFilter) setSelectedCourse(initialCourseFilter);
-        if (initialCourseDate) setSelectedCourseDate(initialCourseDate);
-    }, [initialCourseFilter, initialCourseDate]);
+        if (initialCourseFilter) {
+            setSelectedCourse(prev => {
+                if (prev !== initialCourseFilter) setSelectedVariant('all');
+                return initialCourseFilter;
+            });
+            setSelectedCourseDate(initialCourseDate || 'all');
+        } else if (initialCourseDate) {
+            setSelectedCourseDate(initialCourseDate);
+        }
+    }, [initialCourseFilter, initialCourseDate, setSelectedCourse, setSelectedVariant, setSelectedCourseDate]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -186,11 +204,13 @@ export default function EnrollmentBoard({
     }, [enrollments, selectedCourse, selectedVariant]);
 
     // Reset selectedCourseDate if no longer present in available dates
+    // (only once data is loaded — otherwise a date passed via navigation is wiped before enrollments arrive)
     useEffect(() => {
+        if (enrollments.length === 0) return;
         if (selectedCourseDate !== 'all' && !availableCourseDates.some(d => d.date === selectedCourseDate)) {
             setSelectedCourseDate('all');
         }
-    }, [availableCourseDates, selectedCourseDate]);
+    }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
 
     // Filters derivation
     const filteredEnrollments = useMemo(() => {
@@ -418,7 +438,7 @@ export default function EnrollmentBoard({
         setDateTo('');
         setCourseDateFrom('');
         setCourseDateTo('');
-    }, []);
+    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery]);
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;

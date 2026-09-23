@@ -547,6 +547,14 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
                                 placeholder="Search attendees..."
                                 value={rosterSearch}
                                 onChange={e => setRosterSearch(e.target.value)}
+                                data-page-search=""
+                                autoComplete="off"
+                                onKeyDown={e => {
+                                    if (e.key === 'Escape' && rosterSearch) {
+                                        e.preventDefault();
+                                        setRosterSearch('');
+                                    }
+                                }}
                                 className="w-full pl-9 pr-8 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
                             />
                             {rosterSearch && (
@@ -1074,6 +1082,14 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
                         placeholder="Search courses..."
                         value={catalogSearch}
                         onChange={e => setCatalogSearch(e.target.value)}
+                        data-page-search=""
+                        autoComplete="off"
+                        onKeyDown={e => {
+                            if (e.key === 'Escape' && catalogSearch) {
+                                e.preventDefault();
+                                setCatalogSearch('');
+                            }
+                        }}
                         className="w-full pl-10 pr-9 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-primary placeholder:text-muted transition-all"
                     />
                     {catalogSearch && (

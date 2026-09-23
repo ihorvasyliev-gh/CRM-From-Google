@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
@@ -79,7 +79,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         queryKey: ['students', debouncedSearch],
         queryFn: fetchStudentsPage,
         getNextPageParam: (lastPage) => lastPage.nextPage,
-        initialPageParam: 0
+        initialPageParam: 0,
+        // Keep the current list on screen while a new search runs instead of flashing skeletons
+        placeholderData: keepPreviousData,
     });
 
     const displayedStudents = useMemo(() => {

@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { 
     Users, 
     GraduationCap, 
@@ -53,7 +54,9 @@ export default function Analytics() {
     });
 
     // 2. Active Tab State
-    const [activeTab, setActiveTab] = useState<AnalyticsTabId>('pipeline');
+    const [activeTab, setActiveTab] = usePersistentState<AnalyticsTabId>('analytics.activeTab', 'pipeline', {
+        validate: (v): v is AnalyticsTabId => typeof v === 'string' && ['pipeline', 'geography', 'courses', 'outcomes', 'explorer', 'multi-course'].includes(v),
+    });
 
     // 3. DrillDown & Student Detail State
     const [drillDownModal, setDrillDownModal] = useState<{
@@ -106,8 +109,9 @@ export default function Analytics() {
             } else if (filters.datePreset === '365') {
                 startDate = new Date(now.getTime() - 365 * 86400000);
             } else if (filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate) {
-                startDate = new Date(filters.customStartDate);
-                endDate = new Date(filters.customEndDate);
+                // Parse as local dates (plain YYYY-MM-DD would be UTC midnight and shift a day west of GMT)
+                startDate = new Date(`${filters.customStartDate}T00:00:00`);
+                endDate = new Date(`${filters.customEndDate}T00:00:00`);
                 endDate.setHours(23, 59, 59, 999);
             }
 
@@ -459,6 +463,7 @@ export default function Analytics() {
                 <StudentDetail
                     student={selectedStudent}
                     onClose={() => setSelectedStudent(null)}
+                    onStudentUpdated={setSelectedStudent}
                 />
             )}
         </div>
