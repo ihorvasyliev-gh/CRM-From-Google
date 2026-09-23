@@ -23,6 +23,8 @@ const upcoming = [
     { course_id: 'c-1', course_name: 'Manual Handling', course_date: TODAY, confirmed_count: 6, pending_count: 1, total_active_count: 7 },
     { course_id: 'c-2', course_name: 'Safe Pass', course_date: TOMORROW, confirmed_count: 4, pending_count: 0, total_active_count: 4 },
     { course_id: 'c-1', course_name: 'Manual Handling', course_date: LATER, confirmed_count: 2, pending_count: 3, total_active_count: 5 },
+    // Nobody pending/confirmed/completed: not a session
+    { course_id: 'c-2', course_name: 'Safe Pass', course_date: isoFromToday(3), confirmed_count: 0, pending_count: 0, completed_count: 0, total_active_count: 0 },
 ];
 
 describe('ViewerHome', () => {
@@ -58,6 +60,7 @@ describe('ViewerHome', () => {
         expect(await screen.findByText('Today')).toBeInTheDocument();
         expect(screen.getByText('Tomorrow')).toBeInTheDocument();
         expect(screen.getByText('Later')).toBeInTheDocument();
+        expect(screen.queryByText('Next 7 days')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getAllByRole('button', { name: /Safe Pass/ })[0]);
         expect(screen.getByTestId('location').textContent).toBe(`/courses/c-2?date=${TOMORROW}`);

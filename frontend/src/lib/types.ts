@@ -216,6 +216,7 @@ export interface ViewerUpcomingCourse {
     course_date: string; // YYYY-MM-DD
     confirmed_count: number;
     pending_count: number;
+    completed_count: number;
     total_active_count: number;
 }
 

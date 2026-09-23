@@ -27,21 +27,24 @@ export function useViewerCourses() {
     });
 }
 
-/** Upcoming course sessions (today onwards), chronological. */
+/** Upcoming course sessions (today onwards), chronological. Dates with nobody pending/confirmed/completed are dropped. */
 export function useViewerUpcoming() {
     return useQuery<ViewerUpcomingCourse[]>({
         queryKey: ['viewer_upcoming_courses'],
         queryFn: async () => {
             const { data, error } = await supabase.rpc('get_viewer_upcoming_courses');
             if (error) throw error;
-            return ((data || []) as Record<string, unknown>[]).map(row => ({
-                course_id: row.course_id as string,
-                course_name: row.course_name as string,
-                course_date: row.course_date as string,
-                confirmed_count: Number(row.confirmed_count || 0),
-                pending_count: Number(row.pending_count || 0),
-                total_active_count: Number(row.total_active_count || 0),
-            }));
+            return ((data || []) as Record<string, unknown>[])
+                .map(row => ({
+                    course_id: row.course_id as string,
+                    course_name: row.course_name as string,
+                    course_date: row.course_date as string,
+                    confirmed_count: Number(row.confirmed_count || 0),
+                    pending_count: Number(row.pending_count || 0),
+                    completed_count: Number(row.completed_count || 0),
+                    total_active_count: Number(row.total_active_count || 0),
+                }))
+                .filter(s => s.confirmed_count + s.pending_count + s.completed_count > 0);
         },
         staleTime: 60_000,
         refetchInterval: 60_000,
