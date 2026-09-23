@@ -6,6 +6,11 @@
 -- 3. Recreates public_confirm_enrollment so a confirmation is rejected
 --    (code = 'course_full') once the course date is fully booked.
 --    Time limits (response_days) still apply as before.
+--
+-- NOTE: variables are assigned with ":=" on purpose. The Supabase SQL editor
+-- mistakes plpgsql select-into-variable for a new table and its "enable RLS"
+-- fix breaks the function body. This file creates no tables: if the RLS
+-- warning still appears, choose "Run without RLS".
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -49,10 +54,10 @@ DECLARE
     v_max   INT;
     v_count INT;
 BEGIN
-    SELECT c.max_capacity INTO v_max FROM courses c WHERE c.id = p_course_id;
-    IF NOT FOUND THEN
+    IF NOT EXISTS (SELECT 1 FROM courses c WHERE c.id = p_course_id) THEN
         RETURN;
     END IF;
+    v_max := (SELECT c.max_capacity FROM courses c WHERE c.id = p_course_id);
 
     v_count := CASE WHEN p_course_date IS NULL THEN 0
                     ELSE public.count_confirmed_for_date(p_course_id, p_course_date) END;
@@ -92,23 +97,28 @@ BEGIN
 
     -- Lock the course row: serialises concurrent confirmations for the same
     -- course so two people can't both take the last place.
-    SELECT max_capacity INTO v_max FROM courses WHERE id = p_course_id FOR UPDATE;
+    PERFORM 1 FROM courses WHERE id = p_course_id FOR UPDATE;
     IF NOT FOUND THEN
         RETURN jsonb_build_object('success', false, 'message', 'Invalid course identifier.');
     END IF;
+    v_max := (SELECT max_capacity FROM courses WHERE id = p_course_id);
 
     -- Locate student
     IF p_student_id IS NOT NULL THEN
-        SELECT id INTO v_student_id
-        FROM students
-        WHERE id = p_student_id
-          AND lower(trim(email)) = lower(trim(p_email));
+        v_student_id := (
+            SELECT id
+            FROM students
+            WHERE id = p_student_id
+              AND lower(trim(email)) = lower(trim(p_email))
+        );
     ELSE
-        SELECT id INTO v_student_id
-        FROM students
-        WHERE lower(trim(email)) = lower(trim(p_email))
-        ORDER BY created_at DESC
-        LIMIT 1;
+        v_student_id := (
+            SELECT id
+            FROM students
+            WHERE lower(trim(email)) = lower(trim(p_email))
+            ORDER BY created_at DESC
+            LIMIT 1
+        );
     END IF;
 
     IF v_student_id IS NULL THEN
