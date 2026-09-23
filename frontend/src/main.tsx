@@ -7,6 +7,9 @@ import { AuthProvider } from './contexts/AuthContext'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 import ErrorBoundary from './components/ErrorBoundary'
 import { PublicPageFallback, AppFallback } from './components/ui/PageFallbacks'
+// Self-hosted variable fonts (bundled under /assets, no third-party request or preload)
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 
 // Early preconnect to Supabase for faster mobile RPC connections
