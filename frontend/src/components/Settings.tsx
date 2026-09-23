@@ -112,7 +112,7 @@ export default function Settings() {
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
     const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
-    const previewBody = buildEmailBodyHtml(previewCourseName, '15 Mar 2026', linkStr, config, 7, inviteTemplateTab === 'high_english', 12);
+    const previewBody = buildEmailBodyHtml(previewCourseName, '15 Mar 2026', linkStr, config, 7, inviteTemplateTab === 'high_english');
     const previewSubject = buildEmailSubject(previewCourseName, '15 Mar 2026', config);
 
     // Status template preview

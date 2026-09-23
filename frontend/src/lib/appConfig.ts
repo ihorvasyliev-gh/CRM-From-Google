@@ -418,8 +418,7 @@ export function buildEmailBodyHtml(
     confirmationLink?: string, 
     customConfig?: AppConfig, 
     responseDays?: number,
-    requiresEnglish: boolean = false,
-    maxCapacity?: number | null
+    requiresEnglish: boolean = false
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
@@ -471,16 +470,13 @@ export function buildEmailBodyHtml(
 </table>`;
 
     const days = responseDays ?? 7;
-    const capacityLine = maxCapacity && maxCapacity > 0
-        ? `This course date has only <strong>${maxCapacity} places</strong>, allocated on a first-come, first-served basis.`
-        : 'Places on this course are allocated on a first-come, first-served basis.';
     const capacityNoticeHtml = `<!-- Limited Places Notice -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
   <tr>
     <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-      <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please confirm as soon as possible</div>
-      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">${capacityLine} Once all places are taken, confirmation for this date will close — even if your ${days}-day response window has not yet expired.</div>
-      <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> Demand for our courses is high, and a confirmed place is held for you instead of someone else. If you confirm but do not attend without a valid reason, you will be given <strong>lower priority for future courses</strong>. If your plans change, please let us know as early as possible so we can offer your place to another participant.</div>
+      <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please read before you confirm</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">Places on this course are allocated on a first-come, first-served basis. Once all places are taken, confirmation for this date will close — even if your ${days}-day response window has not yet expired.</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> If you confirm but don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>. If you can no longer attend, simply reply to this email as early as possible so we can offer your place to someone else.</div>
     </td>
   </tr>
 </table>`;

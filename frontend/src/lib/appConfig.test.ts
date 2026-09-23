@@ -69,19 +69,19 @@ describe('appConfig', () => {
             expect(result).toContain('feel confident with your English');
         });
 
-        it('always includes the limited places notice with the course capacity', () => {
-            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, false, 12);
+        it('always includes the limited places notice without the number of places', () => {
+            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, false);
             expect(result).toContain('Limited places');
-            expect(result).toContain('12 places');
+            expect(result).not.toMatch(/\d+ places/);
             expect(result).toContain('5-day response window');
         });
 
-        it('warns that no-shows without a valid reason get lower priority', () => {
+        it('warns that unannounced no-shows may not be offered the course again', () => {
             const english = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, true);
             const standard = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, false);
             for (const result of [english, standard]) {
-                expect(result).toContain('do not attend without a valid reason');
-                expect(result).toContain('lower priority for future courses');
+                expect(result).toContain("don't attend without letting us know in advance");
+                expect(result).toContain('may not be offered a place on this course again');
             }
         });
 

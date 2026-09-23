@@ -187,8 +187,7 @@ export function useInviteFlow({
         }
 
         const requiresEnglish = Boolean(first?.courses?.requires_english);
-        const maxCapacity = first?.courses?.max_capacity ?? null;
-        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays, requiresEnglish, maxCapacity);
+        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays, requiresEnglish);
 
         try {
             const blobHtml = new Blob([htmlBody], { type: "text/html" });
