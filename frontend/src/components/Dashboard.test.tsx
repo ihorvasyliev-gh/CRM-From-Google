@@ -1,50 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { cleanVariant } from '../lib/types';
+import { mergeCoursePills } from './Dashboard/dashboardUtils';
 
 describe('Dashboard Activity Grouping Logic', () => {
-    function groupStudentEnrollments(enrollments: Array<{
-        id: string;
-        courseName: string;
-        courseVariant: string | null;
-        status: string;
-    }>) {
-        const courseGroups = new Map<string, typeof enrollments>();
-        for (const en of enrollments) {
-            const groupKey = `${en.courseName}:::${en.status}`;
-            const existing = courseGroups.get(groupKey) || [];
-            existing.push(en);
-            courseGroups.set(groupKey, existing);
-        }
-
-        return Array.from(courseGroups.entries()).map(([_, ens]) => {
-            const courseName = ens[0].courseName;
-            const status = ens[0].status;
-            const variants = ens
-                .map(en => cleanVariant(courseName, en.courseVariant))
-                .filter((v, idx, self) => v && self.indexOf(v) === idx);
-
-            const first = ens[0];
-            return {
-                id: first.id,
-                courseName,
-                courseVariant: variants.length > 0 ? variants.join(', ') : null,
-                status,
-            };
-        }).sort((a, b) => {
-            const STATUS_PRIORITY: Record<string, number> = {
-                confirmed: 1,
-                invited: 2,
-                completed: 3,
-                requested: 4,
-                withdrawn: 5,
-                rejected: 6,
-            };
-            const pA = STATUS_PRIORITY[a.status] || 99;
-            const pB = STATUS_PRIORITY[b.status] || 99;
-            if (pA !== pB) return pA - pB;
-            return a.courseName.localeCompare(b.courseName);
-        });
-    }
+    const groupStudentEnrollments = mergeCoursePills;
 
     it('separates confirmed and requested variants for the same course and prioritizes confirmed first', () => {
         const studentEnrollments = [
@@ -85,7 +43,7 @@ describe('Dashboard Activity Grouping Logic', () => {
     });
 });
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Dashboard from './Dashboard';
 import { vi } from 'vitest';
@@ -187,7 +145,7 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         expect(expiredHeaders.length).toBeGreaterThan(0);
 
         // Upcoming Cohorts card
-        const cohortHeaders = await screen.findAllByText(/Upcoming Cohorts by Date/i, {}, { timeout: 4000 });
+        const cohortHeaders = await screen.findAllByText(/Upcoming Cohorts/i, {}, { timeout: 4000 });
         expect(cohortHeaders.length).toBeGreaterThan(0);
         expect(screen.getAllByText(/First Aid/i).length).toBeGreaterThan(0);
 
@@ -210,6 +168,26 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
             courseId: 'crs-3',
             courseDate: futureCohortDate,
         });
+    });
+
+    it('filters the activity feed with the search box', async () => {
+        renderDashboard();
+
+        const search = await screen.findByRole('searchbox', { name: /Search activity/i }, { timeout: 4000 });
+        await screen.findAllByRole('button', { name: /Jane Smith/i }, { timeout: 4000 });
+        fireEvent.change(search, { target: { value: 'first aid' } });
+
+        const feed = within(screen.getByText('Recent Activity').closest('section')!);
+        await waitFor(() => expect(feed.queryByRole('button', { name: 'Jane Smith' })).not.toBeInTheDocument());
+        expect(feed.getByRole('button', { name: 'Alice Wonder' })).toBeInTheDocument();
+    });
+
+    it('shows contextual KPI hints derived from enrollments', async () => {
+        renderDashboard();
+
+        // Bob's request is 10 days old -> stale; Alice's cohort starts in 5 days
+        expect(await screen.findByText(/1 waiting over 7 days/i, {}, { timeout: 4000 })).toBeInTheDocument();
+        expect(screen.getByText(/1 starting within 7 days/i)).toBeInTheDocument();
     });
 
     it('handles clicking KPI cards to navigate to enrollments with status filter', async () => {

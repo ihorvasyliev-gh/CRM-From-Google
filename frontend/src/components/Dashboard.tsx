@@ -1,16 +1,22 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, UserPlus, BookOpen, GraduationCap, Sparkles, Clock } from 'lucide-react';
+import { useMemo, useState, useEffect, useDeferredValue, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, UserPlus, BookOpen, KanbanSquare, Clock, RefreshCw, ArrowRight, type LucideIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
-import { cleanVariant } from '../lib/types';
-import DashboardKPIs from './Dashboard/DashboardKPIs';
+import DashboardKPIs, { type KpiHint, type KpiKey } from './Dashboard/DashboardKPIs';
 import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
 import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
 import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
-import DashboardActivityFeed, { type ActivityFilter, type GroupedActivity } from './Dashboard/DashboardActivityFeed';
+import DashboardActivityFeed, { type ActivityFilter } from './Dashboard/DashboardActivityFeed';
 import StatusBreakdownCard from './Dashboard/StatusBreakdownCard';
-import { calculateExpiredInvites, groupUpcomingCohorts } from './Dashboard/dashboardUtils';
+import {
+    buildActivityGroups,
+    calculateExpiredInvites,
+    countStaleRequests,
+    daysBetween,
+    groupUpcomingCohorts,
+    localDateKey,
+} from './Dashboard/dashboardUtils';
 import { useIsMobile } from '../hooks/useScreenSize';
 
 export interface DashboardProps {
@@ -24,30 +30,51 @@ export interface DashboardProps {
     onAddEnrollment?: () => void;
 }
 
-function localDateKey(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string; time: number } {
-    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
-    if (!dateStr) {
-        const now = new Date();
-        return { dateKey: localDateKey(now), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
-    }
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) {
-        const now = new Date();
-        return { dateKey: localDateKey(now), dateLabel: now.toLocaleDateString('en-IE', dateOpts), time: now.getTime() };
-    }
-    return {
-        // Group by the user's local calendar day (not UTC) so late-evening activity lands on the right day
-        dateKey: localDateKey(d),
-        dateLabel: d.toLocaleDateString('en-IE', dateOpts),
-        time: d.getTime(),
-    };
-}
-
 const VALID_FILTERS: ActivityFilter[] = ['all', 'requested', 'invited', 'confirmed', 'completed'];
+const ACTIVITY_PAGE_SIZE = 20;
+
+function greeting(hour: number): string {
+    if (hour < 5) return 'Good evening';
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+}
+
+function updatedLabel(updatedAt: number, now: number): string {
+    if (!updatedAt) return '';
+    const mins = Math.floor((now - updatedAt) / 60_000);
+    if (mins < 1) return 'Updated just now';
+    if (mins < 60) return `Updated ${mins}m ago`;
+    return `Updated ${Math.floor(mins / 60)}h ago`;
+}
+
+interface QuickAction {
+    key: string;
+    label: string;
+    icon: LucideIcon;
+    onClick: () => void;
+    primary?: boolean;
+}
+
+function QuickActionButton({ action, compact = false }: { action: QuickAction; compact?: boolean }) {
+    const Icon = action.icon;
+    return (
+        <button
+            type="button"
+            onClick={action.onClick}
+            className={`flex items-center gap-1.5 flex-shrink-0 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer ${
+                compact ? 'h-9 px-3' : 'h-9 px-3.5'
+            } ${
+                action.primary
+                    ? 'bg-brand-500 hover:bg-brand-600 text-white shadow-glow-sm'
+                    : 'bg-surface hover:bg-surface-elevated text-primary border border-border-subtle hover:border-border-strong shadow-card'
+            }`}
+        >
+            <Icon size={14} className={action.primary ? '' : 'text-brand-500'} />
+            <span>{action.label}</span>
+        </button>
+    );
+}
 
 export default function Dashboard({
     onNavigate,
@@ -58,6 +85,8 @@ export default function Dashboard({
     onAddEnrollment,
 }: DashboardProps) {
     const isMobile = useIsMobile();
+    const queryClient = useQueryClient();
+
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>(() => {
         try {
             const stored = localStorage.getItem('dashboardActivityFilter') as ActivityFilter;
@@ -66,6 +95,9 @@ export default function Dashboard({
             return 'all';
         }
     });
+    const [activitySearch, setActivitySearch] = useState('');
+    const deferredSearch = useDeferredValue(activitySearch);
+    const [activityLimit, setActivityLimit] = useState(ACTIVITY_PAGE_SIZE);
 
     useEffect(() => {
         try {
@@ -75,11 +107,27 @@ export default function Dashboard({
         }
     }, [activityFilter]);
 
+    // Reset paging whenever the feed query changes
+    useEffect(() => {
+        setActivityLimit(ACTIVITY_PAGE_SIZE);
+    }, [activityFilter, deferredSearch]);
+
+    // Re-render every 30s so the "Updated x ago" label stays fresh
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNow(Date.now()), 30_000);
+        return () => clearInterval(id);
+    }, []);
+
     const handleAddStudent = () => (onAddStudent ? onAddStudent() : onNavigate?.('students'));
     const handleAddEnrollment = () => (onAddEnrollment ? onAddEnrollment() : onNavigate?.('enrollments'));
 
     // Stats counts — staleTime 30s
-    const { data: stats = { students: 0, courses: 0, enrollments: 0 }, isLoading: statsLoading } = useQuery({
+    const {
+        data: stats = { students: 0, courses: 0, enrollments: 0 },
+        isLoading: statsLoading,
+        isFetching: statsFetching,
+    } = useQuery({
         queryKey: ['dashboard_stats'],
         queryFn: async () => {
             const [studRes, courseRes, enrollRes] = await Promise.all([
@@ -97,15 +145,25 @@ export default function Dashboard({
     });
 
     // Reuse the global ['enrollments'] cache (staleTime 30_000)
-    const { data: allEnrollments = [], isLoading: enrollmentsLoading } = useQuery({
+    const {
+        data: allEnrollments = [],
+        isLoading: enrollmentsLoading,
+        isFetching: enrollmentsFetching,
+        dataUpdatedAt,
+    } = useQuery({
         queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments,
         staleTime: 30_000,
     });
 
     const loading = statsLoading || enrollmentsLoading;
+    const refreshing = !loading && (statsFetching || enrollmentsFetching);
 
-    // Operational KPI counts & breakdown
+    const handleRefresh = () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+    };
+
     const statusCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const e of allEnrollments) {
@@ -114,448 +172,153 @@ export default function Dashboard({
         return counts;
     }, [allEnrollments]);
 
-    const statusBreakdown = statusCounts;
-
-    // Expired invites & upcoming cohorts
     const expiredInvites = useMemo(() => calculateExpiredInvites(allEnrollments), [allEnrollments]);
     const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
+    const staleRequests = useMemo(() => countStaleRequests(allEnrollments), [allEnrollments]);
 
-    // Filtered recent enrollments
-    const filteredRecent = useMemo(() => {
-        const mappedEnrollments = allEnrollments.map((en: any) => {
-            const time = en.created_at ? new Date(en.created_at).getTime() : 0;
-            return {
-                id: en.id,
-                student_id: en.student_id,
-                course_id: en.course_id,
-                status: en.status,
-                created_at: en.created_at,
-                timestamp: isNaN(time) ? 0 : time,
-                updated_at: en.updated_at,
-                course_variant: en.course_variant,
-                students: en.students ? { first_name: en.students.first_name, last_name: en.students.last_name } : null,
-                courses: en.courses ? { name: en.courses.name } : null,
-            };
-        });
+    const { groups: groupedActivity, total: totalActivityGroups } = useMemo(
+        () => buildActivityGroups(allEnrollments, { filter: activityFilter, search: deferredSearch, limit: activityLimit }),
+        [allEnrollments, activityFilter, deferredSearch, activityLimit],
+    );
 
-        const targetList = activityFilter === 'all'
-            ? mappedEnrollments
-            : mappedEnrollments.filter((en: any) => en.status === activityFilter);
+    const filterCounts = useMemo((): Record<ActivityFilter, number> => ({
+        all: allEnrollments.length,
+        requested: statusCounts.requested || 0,
+        invited: statusCounts.invited || 0,
+        confirmed: statusCounts.confirmed || 0,
+        completed: statusCounts.completed || 0,
+    }), [allEnrollments.length, statusCounts]);
 
-        return targetList.sort((a: any, b: any) => b.timestamp - a.timestamp);
-    }, [allEnrollments, activityFilter]);
-
-    // Index enrollments by student_id for fast history lookup
-    const enrollmentsByStudent = useMemo(() => {
-        const map = new Map<string, typeof allEnrollments>();
-        for (const e of allEnrollments) {
-            const sid = e.student_id;
-            if (!sid) continue;
-            let list = map.get(sid);
-            if (!list) {
-                list = [];
-                map.set(sid, list);
-            }
-            list.push(e);
-        }
-        return map;
-    }, [allEnrollments]);
-
-    // Group enrollments by student + day
-    const groupedActivity = useMemo((): GroupedActivity[] => {
-        const groupMap = new Map<string, GroupedActivity>();
-
-        for (const en of filteredRecent) {
-            const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
-            const studentId = en.student_id || en.id;
-            const { dateKey, dateLabel } = parseSafeDate(en.created_at);
-            const groupKey = `${studentId}__${dateKey}`;
-
-            if (!groupMap.has(groupKey)) {
-                groupMap.set(groupKey, {
-                    key: groupKey,
-                    studentName,
-                    studentId,
-                    date: dateKey,
-                    dateLabel,
-                    enrollments: [],
-                    previousEnrollments: [],
-                });
-            }
-
-            const group = groupMap.get(groupKey)!;
-            group.enrollments.push({
-                id: en.id,
-                courseId: en.course_id,
-                courseName: en.courses?.name || 'Unknown Course',
-                courseVariant: en.course_variant,
-                status: en.status,
-            });
-        }
-
-        let allGroupsList = Array.from(groupMap.values()).sort((a, b) => b.date.localeCompare(a.date));
-
-        if (activityFilter !== 'all') {
-            allGroupsList = allGroupsList.filter(g => g.enrollments.some(en => en.status === activityFilter));
-        }
-
-        const visibleGroups = allGroupsList.slice(0, 50);
-
-        for (const group of visibleGroups) {
-            const studentAllEn = enrollmentsByStudent.get(group.studentId) || [];
-
-            const hasPriorEnrollments = studentAllEn.some(en => {
-                const { dateKey } = parseSafeDate(en.created_at);
-                return dateKey < group.date;
-            });
-            group.isNew = !hasPriorEnrollments;
-
-            const otherDaysMap = new Map<string, {
-                dateLabel: string;
-                enrollments: {
-                    id: string;
-                    courseId?: string;
-                    courseName: string;
-                    courseVariant: string | null;
-                    status: string;
-                }[];
-            }>();
-
-            for (const en of studentAllEn) {
-                const { dateKey, dateLabel } = parseSafeDate(en.created_at);
-                if (dateKey === group.date) {
-                    continue;
-                }
-                const courseName = en.courses?.name || 'Unknown Course';
-                if (!otherDaysMap.has(dateKey)) {
-                    otherDaysMap.set(dateKey, {
-                        dateLabel,
-                        enrollments: [],
-                    });
-                }
-                const dayData = otherDaysMap.get(dateKey)!;
-                dayData.enrollments.push({
-                    id: en.id,
-                    courseId: en.course_id,
-                    courseName,
-                    courseVariant: en.course_variant,
-                    status: en.status,
-                });
-            }
-
-            const sortedDates = Array.from(otherDaysMap.keys()).sort((a, b) => b.localeCompare(a));
-            for (const dKey of sortedDates) {
-                const dayData = otherDaysMap.get(dKey)!;
-
-                const otherCourseGroups = new Map<string, typeof dayData.enrollments>();
-                for (const en of dayData.enrollments) {
-                    const grpKey = `${en.courseName}:::${en.status}`;
-                    const existing = otherCourseGroups.get(grpKey) || [];
-                    existing.push(en);
-                    otherCourseGroups.set(grpKey, existing);
-                }
-
-                const groupedOtherEnrollments = Array.from(otherCourseGroups.entries()).map(([_, ens]) => {
-                    const courseName = ens[0].courseName;
-                    const status = ens[0].status;
-                    const variants = ens
-                        .map(en => cleanVariant(courseName, en.courseVariant))
-                        .filter((v, idx, self) => v && self.indexOf(v) === idx);
-                    const first = ens[0];
-                    return {
-                        id: first.id,
-                        courseId: first.courseId,
-                        courseName,
-                        courseVariant: variants.length > 0 ? variants.join(', ') : null,
-                        status,
-                    };
-                }).sort((a, b) => {
-                    const STATUS_PRIORITY: Record<string, number> = {
-                        confirmed: 1,
-                        invited: 2,
-                        completed: 3,
-                        requested: 4,
-                        withdrawn: 5,
-                        rejected: 6,
-                    };
-                    const pA = STATUS_PRIORITY[a.status] || 99;
-                    const pB = STATUS_PRIORITY[b.status] || 99;
-                    if (pA !== pB) return pA - pB;
-                    return a.courseName.localeCompare(b.courseName);
-                });
-
-                for (const en of groupedOtherEnrollments) {
-                    group.previousEnrollments.push({
-                        id: en.id,
-                        courseId: en.courseId,
-                        courseName: en.courseName,
-                        courseVariant: en.courseVariant,
-                        status: en.status,
-                        dateLabel: dayData.dateLabel,
-                    });
-                }
-            }
-
-            const courseGroups = new Map<string, typeof group.enrollments>();
-            for (const en of group.enrollments) {
-                const grpKey = `${en.courseName}:::${en.status}`;
-                const existing = courseGroups.get(grpKey) || [];
-                existing.push(en);
-                courseGroups.set(grpKey, existing);
-            }
-
-            group.enrollments = Array.from(courseGroups.entries()).map(([_, ens]) => {
-                const courseName = ens[0].courseName;
-                const status = ens[0].status;
-                const variants = ens
-                    .map(en => cleanVariant(courseName, en.courseVariant))
-                    .filter((v, idx, self) => v && self.indexOf(v) === idx);
-
-                const first = ens[0];
-                return {
-                    id: first.id,
-                    courseId: first.courseId,
-                    courseName,
-                    courseVariant: variants.length > 0 ? variants.join(', ') : null,
-                    status,
-                };
-            }).sort((a, b) => {
-                const STATUS_PRIORITY: Record<string, number> = {
-                    confirmed: 1,
-                    invited: 2,
-                    completed: 3,
-                    requested: 4,
-                    withdrawn: 5,
-                    rejected: 6,
-                };
-                const pA = STATUS_PRIORITY[a.status] || 99;
-                const pB = STATUS_PRIORITY[b.status] || 99;
-                if (pA !== pB) return pA - pB;
-                return a.courseName.localeCompare(b.courseName);
-            });
-        }
-
-        return visibleGroups;
-    }, [filteredRecent, activityFilter, enrollmentsByStudent]);
-
-    // Badge counts per activity filter
-    const filterCounts = useMemo(() => {
-        const counts: Record<ActivityFilter, number> = {
-            all: 0,
-            requested: 0,
-            invited: 0,
-            confirmed: 0,
-            completed: 0,
+    // Contextual one-liners under each KPI number
+    const kpiHints = useMemo(() => {
+        const hints: Partial<Record<KpiKey, KpiHint>> = {
+            students: { text: `${stats.enrollments} enrollments · ${stats.courses} courses` },
         };
+        if (staleRequests > 0) hints.requested = { text: `${staleRequests} waiting over 7 days`, tone: 'alert' };
+        const overdue = expiredInvites.filter(i => i.isExpired).length;
+        if (overdue > 0) hints.invited = { text: `${overdue} past response deadline`, tone: 'alert' };
+        const todayKey = localDateKey(new Date());
+        const startingSoon = upcomingCohorts
+            .filter(c => daysBetween(todayKey, c.date) <= 7)
+            .reduce((acc, c) => acc + c.confirmedCount, 0);
+        if (startingSoon > 0) hints.confirmed = { text: `${startingSoon} starting within 7 days`, tone: 'positive' };
+        return hints;
+    }, [stats, staleRequests, expiredInvites, upcomingCohorts]);
 
-        for (const en of allEnrollments) {
-            if (en.status === 'requested') counts.requested++;
-            else if (en.status === 'invited') counts.invited++;
-            else if (en.status === 'confirmed') counts.confirmed++;
-            else if (en.status === 'completed') counts.completed++;
-        }
+    const quickActions: QuickAction[] = [
+        { key: 'student', label: 'Student', icon: UserPlus, onClick: handleAddStudent, primary: true },
+        { key: 'enroll', label: 'Enroll', icon: Plus, onClick: handleAddEnrollment },
+        { key: 'course', label: 'Course', icon: BookOpen, onClick: () => onNavigate?.('courses', { openCreate: true }) },
+        { key: 'board', label: 'Board', icon: KanbanSquare, onClick: () => onNavigate?.('enrollments') },
+    ];
 
-        counts.all = allEnrollments.length;
-        counts.all = Math.min(counts.all, 50);
-        counts.requested = Math.min(counts.requested, 50);
+    const today = new Date(now);
+    const header = (
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+            <div className="min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight">{greeting(today.getHours())}</h2>
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+                    <span>{today.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                    {dataUpdatedAt > 0 && (
+                        <>
+                            <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
+                            <span>{refreshing ? 'Refreshing…' : updatedLabel(dataUpdatedAt, now)}</span>
+                        </>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        disabled={loading || refreshing}
+                        aria-label="Refresh dashboard"
+                        title="Refresh"
+                        className="p-1 rounded-md text-muted hover:text-brand-500 hover:bg-brand-500/10 disabled:opacity-50 transition-colors cursor-pointer"
+                    >
+                        <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                    </button>
+                </div>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 pb-0.5">
+                {quickActions.map(a => (
+                    <QuickActionButton key={a.key} action={a} compact={isMobile} />
+                ))}
+            </div>
+        </div>
+    );
 
-        return counts;
-    }, [allEnrollments]);
+    const approvalsBanner: ReactNode = pendingApprovalsCount && pendingApprovalsCount > 0 ? (
+        <div className="flex items-center justify-between gap-3 p-3 pl-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+            <div className="flex items-center gap-3 min-w-0">
+                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex-shrink-0">
+                    <Clock size={16} />
+                </span>
+                <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-primary">
+                        {pendingApprovalsCount} course completion request{pendingApprovalsCount > 1 ? 's' : ''} awaiting approval
+                    </p>
+                    <p className="text-[11px] text-muted hidden sm:block">Review them to update student outcomes</p>
+                </div>
+            </div>
+            <button
+                type="button"
+                onClick={onOpenApprovals}
+                className="flex items-center gap-1 h-8 px-3 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer flex-shrink-0"
+            >
+                Review <ArrowRight size={13} />
+            </button>
+        </div>
+    ) : null;
+
+    const kpis = (
+        <DashboardKPIs stats={stats} statusCounts={statusCounts} onNavigate={onNavigate} loading={loading} hints={kpiHints} />
+    );
+    const cohorts = <UpcomingCohortsCard cohorts={upcomingCohorts} onNavigate={onNavigate} />;
+    const expired = (
+        <ExpiredInvitesCard items={expiredInvites} onNavigate={onNavigate} onOpenStudentDetail={onOpenStudentDetail} />
+    );
+    const statusBreakdown = <StatusBreakdownCard statusBreakdown={statusCounts} loading={loading} onNavigate={onNavigate} />;
+    const activity = (
+        <DashboardActivityFeed
+            groupedActivity={groupedActivity}
+            activityFilter={activityFilter}
+            setActivityFilter={setActivityFilter}
+            filterCounts={filterCounts}
+            onNavigate={onNavigate}
+            onOpenStudentDetail={onOpenStudentDetail}
+            loading={loading}
+            search={activitySearch}
+            onSearchChange={setActivitySearch}
+            totalGroups={totalActivityGroups}
+            onShowMore={() => setActivityLimit(l => l + ACTIVITY_PAGE_SIZE)}
+        />
+    );
 
     return (
         <div className="w-full space-y-4 sm:space-y-6">
-            {/* Pending Approvals Notice if any */}
-            {pendingApprovalsCount && pendingApprovalsCount > 0 ? (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300">
-                    <div className="flex items-center gap-2 text-xs font-bold">
-                        <Clock size={15} />
-                        <span>{pendingApprovalsCount} course completion request{pendingApprovalsCount > 1 ? 's' : ''} awaiting approval</span>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onOpenApprovals}
-                        className="px-2.5 py-1 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-                    >
-                        Review
-                    </button>
-                </div>
-            ) : null}
+            {header}
+            {approvalsBanner}
+            {kpis}
 
-            {/* Mobile View (1023px and below) — only one layout is mounted to avoid rendering everything twice */}
+            {/* Only one layout is mounted to avoid rendering everything twice */}
             {isMobile ? (
-            <div className="block lg:hidden space-y-4">
-                {/* 1. Top banner: Registration Link */}
-                <RegistrationLinkCard variant="compact" />
-
-                {/* 2. Operational KPIs */}
-                <DashboardKPIs
-                    stats={stats}
-                    statusCounts={statusCounts}
-                    onNavigate={onNavigate}
-                    loading={loading}
-                />
-
-                {/* 3. Quick Action Chips */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    <button
-                        type="button"
-                        onClick={handleAddStudent}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
-                    >
-                        <UserPlus size={14} className="text-brand-500" />
-                        <span>+ Student</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleAddEnrollment}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
-                    >
-                        <Plus size={14} className="text-brand-500" />
-                        <span>+ Enroll</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onNavigate?.('enrollments')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-xs font-semibold text-primary transition-all shadow-xs flex-shrink-0 cursor-pointer"
-                    >
-                        <GraduationCap size={14} className="text-brand-500" />
-                        <span>Board</span>
-                    </button>
+                <div className="space-y-4">
+                    {expired}
+                    {cohorts}
+                    {activity}
+                    {statusBreakdown}
+                    <RegistrationLinkCard variant="compact" />
                 </div>
-
-                {/* 4. Needs Attention: Expired Invites */}
-                <ExpiredInvitesCard
-                    items={expiredInvites}
-                    onNavigate={onNavigate}
-                    onOpenStudentDetail={onOpenStudentDetail}
-                />
-
-                {/* 5. Upcoming Cohorts */}
-                <UpcomingCohortsCard
-                    cohorts={upcomingCohorts}
-                    onNavigate={onNavigate}
-                />
-
-                {/* 6. Activity Stream */}
-                <DashboardActivityFeed
-                    groupedActivity={groupedActivity}
-                    activityFilter={activityFilter}
-                    setActivityFilter={setActivityFilter}
-                    filterCounts={filterCounts}
-                    onNavigate={onNavigate}
-                    onOpenStudentDetail={onOpenStudentDetail}
-                    loading={loading}
-                />
-            </div>
             ) : (
-            /* Desktop View (1024px+) */
-            <div className="hidden lg:grid lg:grid-cols-12 gap-6">
-                {/* Top Row: Operational KPIs */}
-                <div className="lg:col-span-12">
-                    <DashboardKPIs
-                        stats={stats}
-                        statusCounts={statusCounts}
-                        onNavigate={onNavigate}
-                        loading={loading}
-                    />
-                </div>
-
-                {/* Left Column (8 cols): Upcoming Cohorts & Activity Feed */}
-                <div className="lg:col-span-8 space-y-6">
-                    <UpcomingCohortsCard
-                        cohorts={upcomingCohorts}
-                        onNavigate={onNavigate}
-                    />
-                    <DashboardActivityFeed
-                        groupedActivity={groupedActivity}
-                        activityFilter={activityFilter}
-                        setActivityFilter={setActivityFilter}
-                        filterCounts={filterCounts}
-                        onNavigate={onNavigate}
-                        onOpenStudentDetail={onOpenStudentDetail}
-                        loading={loading}
-                    />
-                </div>
-
-                {/* Right Column (4 cols): Registration Card, Expired Invites, Quick Actions, Status Breakdown */}
-                <div className="lg:col-span-4 space-y-6">
-                    <RegistrationLinkCard variant="card" />
-
-                    <ExpiredInvitesCard
-                        items={expiredInvites}
-                        onNavigate={onNavigate}
-                        onOpenStudentDetail={onOpenStudentDetail}
-                    />
-
-                    {/* Quick Actions Card */}
-                    <div className="p-4 rounded-2xl bg-surface border border-border-subtle shadow-card">
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <Sparkles size={14} className="text-brand-500" /> Quick Actions
-                        </h3>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={handleAddStudent}
-                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
-                            >
-                                <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors">
-                                    <UserPlus size={14} />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="block text-xs font-semibold text-primary group-hover:text-brand-500 transition-colors">+ Student</span>
-                                    <span className="block text-[10px] text-muted truncate">New record</span>
-                                </div>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => onNavigate?.('courses', { openCreate: true })}
-                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
-                            >
-                                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-600 group-hover:bg-violet-500 group-hover:text-white transition-colors">
-                                    <BookOpen size={14} />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="block text-xs font-semibold text-primary group-hover:text-violet-600 transition-colors">+ Course</span>
-                                    <span className="block text-[10px] text-muted truncate">Manage catalog</span>
-                                </div>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleAddEnrollment}
-                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
-                            >
-                                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                                    <Plus size={14} />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="block text-xs font-semibold text-primary group-hover:text-emerald-600 transition-colors">+ Enroll</span>
-                                    <span className="block text-[10px] text-muted truncate">New registration</span>
-                                </div>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => onNavigate?.('enrollments')}
-                                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/30 text-left transition-all group cursor-pointer"
-                            >
-                                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                                    <GraduationCap size={14} />
-                                </div>
-                                <div className="min-w-0">
-                                    <span className="block text-xs font-semibold text-primary group-hover:text-amber-600 transition-colors">Open Kanban</span>
-                                    <span className="block text-[10px] text-muted truncate">Board view</span>
-                                </div>
-                            </button>
-                        </div>
+                <div className="grid grid-cols-12 gap-6 items-start">
+                    <div className="col-span-8 space-y-6 min-w-0">
+                        {cohorts}
+                        {activity}
                     </div>
-
-                    {/* Status Breakdown */}
-                    <StatusBreakdownCard
-                        statusBreakdown={statusBreakdown}
-                        loading={loading}
-                        onNavigate={onNavigate}
-                    />
+                    <div className="col-span-4 space-y-6 min-w-0">
+                        {expired}
+                        {statusBreakdown}
+                        <RegistrationLinkCard variant="card" />
+                    </div>
                 </div>
-            </div>
             )}
         </div>
     );

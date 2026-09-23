@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { calculateExpiredInvites, groupUpcomingCohorts } from './dashboardUtils';
+import {
+    buildActivityGroups,
+    calculateExpiredInvites,
+    countStaleRequests,
+    groupUpcomingCohorts,
+    relativeDayLabel,
+    untilLabel,
+} from './dashboardUtils';
 
 describe('dashboardUtils - calculateExpiredInvites', () => {
     it('correctly identifies expired and expiring (<48h) invites and sorts by overdue urgency', () => {
@@ -189,5 +196,75 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
         const cohorts = groupUpcomingCohorts(enrollments, '2026-09-01');
         expect(cohorts).toHaveLength(1);
         expect(cohorts[0].courseName).toBe('Unknown Course');
+    });
+});
+
+describe('dashboardUtils - buildActivityGroups', () => {
+    const en = (id: string, student: string, course: string, status: string, created: string, variant: string | null = null) => ({
+        id,
+        student_id: student,
+        course_id: `c-${course}`,
+        status,
+        created_at: created,
+        course_variant: variant,
+        students: { first_name: student.toUpperCase(), last_name: 'Test' },
+        courses: { name: course },
+    });
+
+    const data = [
+        en('1', 'a', 'SafePass', 'requested', '2026-09-10T10:00:00'),
+        en('2', 'a', 'SafePass', 'requested', '2026-09-10T11:00:00', 'Ukrainian'),
+        en('3', 'a', 'First Aid', 'completed', '2026-08-01T10:00:00'),
+        en('4', 'b', 'Forklift', 'confirmed', '2026-09-12T10:00:00'),
+    ];
+
+    it('groups by student + day (newest first), merges pills and attaches history', () => {
+        const { groups, total } = buildActivityGroups(data);
+        expect(total).toBe(3);
+        expect(groups.map(g => g.key)).toEqual(['b__2026-09-12', 'a__2026-09-10', 'a__2026-08-01']);
+
+        const aSep = groups[1];
+        expect(aSep.enrollments).toHaveLength(1);
+        expect(aSep.enrollments[0].courseVariant).toBe('Ukrainian, English');
+        expect(aSep.isNew).toBe(false);
+        expect(aSep.previousEnrollments.map(p => p.courseName)).toEqual(['First Aid']);
+
+        expect(groups[2].isNew).toBe(true);
+    });
+
+    it('filters by status, searches by student or course, and limits results', () => {
+        expect(buildActivityGroups(data, { filter: 'confirmed' }).groups.map(g => g.studentId)).toEqual(['b']);
+        expect(buildActivityGroups(data, { search: 'first aid' }).groups.map(g => g.key)).toEqual(['a__2026-08-01']);
+        expect(buildActivityGroups(data, { search: 'B test' }).groups.map(g => g.studentId)).toEqual(['b']);
+
+        const limited = buildActivityGroups(data, { limit: 1 });
+        expect(limited.groups).toHaveLength(1);
+        expect(limited.total).toBe(3);
+    });
+});
+
+describe('dashboardUtils - labels & metrics', () => {
+    it('formats relative day labels', () => {
+        expect(relativeDayLabel('2026-09-10', '10 Sep', '2026-09-10')).toBe('Today');
+        expect(relativeDayLabel('2026-09-09', '09 Sep', '2026-09-10')).toBe('Yesterday');
+        expect(relativeDayLabel('2026-09-07', '07 Sep', '2026-09-10')).toBe('3d ago');
+        expect(relativeDayLabel('2026-08-01', '01 Aug', '2026-09-10')).toBe('01 Aug');
+    });
+
+    it('formats time-until labels across month boundaries', () => {
+        expect(untilLabel('2026-09-10', '2026-09-10')).toBe('Today');
+        expect(untilLabel('2026-09-11', '2026-09-10')).toBe('Tomorrow');
+        expect(untilLabel('2026-10-02', '2026-09-28')).toBe('In 4 days');
+    });
+
+    it('counts stale requests older than the threshold', () => {
+        const now = new Date('2026-09-20T12:00:00Z').getTime();
+        const enrollments = [
+            { status: 'requested', created_at: '2026-09-01T12:00:00Z' },
+            { status: 'requested', created_at: '2026-09-18T12:00:00Z' },
+            { status: 'invited', created_at: '2026-09-01T12:00:00Z' },
+            { status: 'requested', created_at: null },
+        ];
+        expect(countStaleRequests(enrollments, 7, now)).toBe(1);
     });
 });

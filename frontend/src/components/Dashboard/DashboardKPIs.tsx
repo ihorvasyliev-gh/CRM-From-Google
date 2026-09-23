@@ -1,22 +1,49 @@
-import { Users, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { Users, Clock, Send, CheckCircle2, ArrowUpRight, type LucideIcon } from 'lucide-react';
+
+export type KpiKey = 'students' | 'requested' | 'invited' | 'confirmed';
+
+export interface KpiHint {
+    text: string;
+    /** 'alert' highlights the hint (e.g. overdue items), 'neutral' keeps it muted. */
+    tone?: 'alert' | 'neutral' | 'positive';
+}
 
 export interface DashboardKPIsProps {
     stats: { students: number; courses: number; enrollments: number };
     statusCounts: Record<string, number>;
     onNavigate?: (tab: string, filter?: any) => void;
     loading?: boolean;
+    /** Optional contextual line under each number (overrides the default sub-label). */
+    hints?: Partial<Record<KpiKey, KpiHint>>;
 }
 
-export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading = false }: DashboardKPIsProps) {
-    const kpis = [
+interface KpiDef {
+    key: KpiKey;
+    label: string;
+    subLabel: string;
+    value: number;
+    icon: LucideIcon;
+    iconClass: string;
+    accentClass: string;
+    onClick: () => void;
+}
+
+const HINT_TONE: Record<NonNullable<KpiHint['tone']>, string> = {
+    alert: 'text-danger font-semibold',
+    positive: 'text-success font-semibold',
+    neutral: 'text-muted',
+};
+
+export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading = false, hints = {} }: DashboardKPIsProps) {
+    const kpis: KpiDef[] = [
         {
             key: 'students',
             label: 'Total Students',
             subLabel: 'Active in CRM',
             value: stats?.students ?? 0,
             icon: Users,
-            colorClass: 'text-brand-500 bg-brand-500/10 border-brand-500/20',
-            accentGradient: 'from-brand-500 to-brand-600',
+            iconClass: 'text-brand-500 bg-brand-500/10',
+            accentClass: 'bg-brand-500',
             onClick: () => onNavigate?.('students'),
         },
         {
@@ -25,8 +52,8 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
             subLabel: 'Awaiting review',
             value: statusCounts?.['requested'] || 0,
             icon: Clock,
-            colorClass: 'text-warning bg-warning/10 border-warning/20',
-            accentGradient: 'from-amber-500 to-amber-600',
+            iconClass: 'text-warning bg-warning/15',
+            accentClass: 'bg-warning',
             onClick: () => onNavigate?.('enrollments', { status: 'requested' }),
         },
         {
@@ -35,8 +62,8 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
             subLabel: 'Sent to students',
             value: statusCounts?.['invited'] || 0,
             icon: Send,
-            colorClass: 'text-info bg-info/10 border-info/20',
-            accentGradient: 'from-sky-500 to-blue-600',
+            iconClass: 'text-info bg-info/15',
+            accentClass: 'bg-info',
             onClick: () => onNavigate?.('enrollments', { status: 'invited' }),
         },
         {
@@ -45,39 +72,48 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
             subLabel: 'Ready for training',
             value: statusCounts?.['confirmed'] || 0,
             icon: CheckCircle2,
-            colorClass: 'text-success bg-success/10 border-success/20',
-            accentGradient: 'from-emerald-500 to-teal-600',
+            iconClass: 'text-success bg-success/15',
+            accentClass: 'bg-success',
             onClick: () => onNavigate?.('enrollments', { status: 'confirmed' }),
         },
     ];
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
             {kpis.map(card => {
                 const Icon = card.icon;
+                const hint = hints[card.key];
                 return (
                     <button
                         type="button"
                         key={card.key}
                         onClick={card.onClick}
                         disabled={loading}
-                        className="relative overflow-hidden p-3 sm:p-4 rounded-2xl bg-surface border border-border-subtle hover:border-border-strong/60 transition-all duration-300 shadow-xs hover:shadow-md text-left group active:scale-[0.98] cursor-pointer"
+                        className="group relative overflow-hidden flex flex-col text-left p-3.5 sm:p-5 rounded-2xl bg-surface border border-border-subtle shadow-card hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border-strong transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:cursor-default disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
                     >
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] sm:text-[11px] font-bold text-muted uppercase tracking-wider truncate">
-                                {card.label}
+                        {/* Coloured accent strip */}
+                        <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${card.accentClass} opacity-80`} />
+
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2 min-w-0">
+                                <span className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex-shrink-0 ${card.iconClass}`}>
+                                    <Icon size={15} />
+                                </span>
+                                <span className="text-[11px] sm:text-xs font-semibold text-muted truncate">{card.label}</span>
                             </span>
-                            <div className={`p-1.5 sm:p-2 rounded-xl border ${card.colorClass} group-hover:scale-110 transition-transform`}>
-                                <Icon size={16} />
-                            </div>
+                            <ArrowUpRight
+                                size={15}
+                                aria-hidden
+                                className="hidden sm:block text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all flex-shrink-0"
+                            />
                         </div>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-xl sm:text-2xl lg:text-3xl font-mono font-bold text-primary tracking-tight">
-                                {loading ? '—' : card.value}
-                            </span>
-                        </div>
-                        <span className="text-[10px] sm:text-xs text-muted block truncate mt-0.5">
-                            {card.subLabel}
+
+                        <span className="mt-3 text-2xl sm:text-[32px] leading-none font-bold text-primary tracking-tight tabular-nums">
+                            {loading ? '—' : card.value}
+                        </span>
+
+                        <span className={`mt-2 text-[11px] sm:text-xs truncate ${hint && !loading ? HINT_TONE[hint.tone ?? 'neutral'] : 'text-muted'}`}>
+                            {hint && !loading ? hint.text : card.subLabel}
                         </span>
                     </button>
                 );

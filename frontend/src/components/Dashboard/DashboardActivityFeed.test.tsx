@@ -121,7 +121,7 @@ describe('DashboardActivityFeed', () => {
             />
         );
 
-        const requestedFilterBtn = screen.getByRole('button', { name: /Requested \(2\)/i });
+        const requestedFilterBtn = screen.getByRole('button', { name: /Requested\s*2/i });
         fireEvent.click(requestedFilterBtn);
         expect(mockSetFilter).toHaveBeenCalledWith('requested');
     });
@@ -154,8 +154,15 @@ describe('DashboardActivityFeed', () => {
 
         expect(screen.getByText('Charlie Brown')).toBeInTheDocument();
         expect(screen.getByText('Forklift')).toBeInTheDocument();
-        expect(screen.getByText('SafePass')).toBeInTheDocument();
         expect(screen.getByText('04 Sep')).toBeInTheDocument();
+
+        // History is collapsed by default and expands on demand
+        expect(screen.queryByText('SafePass')).not.toBeInTheDocument();
+        const toggle = screen.getByRole('button', { name: /History · 1 earlier/i });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        expect(screen.getByText('SafePass')).toBeInTheDocument();
         expect(screen.getByText('12 Aug')).toBeInTheDocument();
     });
 
@@ -217,7 +224,77 @@ describe('DashboardActivityFeed', () => {
         );
 
         expect(screen.getByText('Partial Student')).toBeInTheDocument();
-        expect(screen.getByText('All (0)')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /All\s*0/ })).toBeInTheDocument();
+    });
+});
+
+describe('DashboardActivityFeed - search & paging', () => {
+    const group = (i: number): GroupedActivity => ({
+        key: `g${i}`,
+        studentName: `Student ${i}`,
+        studentId: `s${i}`,
+        date: '2026-08-01',
+        dateLabel: '01 Aug',
+        enrollments: [{ id: `e${i}`, courseId: 'c1', courseName: 'SafePass', courseVariant: null, status: 'requested' }],
+        previousEnrollments: [],
+    });
+
+    it('reports search changes and can clear the search', () => {
+        const onSearchChange = vi.fn();
+        render(
+            <DashboardActivityFeed
+                groupedActivity={[group(1)]}
+                activityFilter="all"
+                setActivityFilter={vi.fn()}
+                filterCounts={{ all: 1, requested: 1, invited: 0, confirmed: 0, completed: 0 }}
+                search="stu"
+                onSearchChange={onSearchChange}
+            />
+        );
+
+        fireEvent.change(screen.getByRole('searchbox', { name: /Search activity/i }), { target: { value: 'student 1' } });
+        expect(onSearchChange).toHaveBeenCalledWith('student 1');
+
+        fireEvent.click(screen.getByRole('button', { name: /Clear search/i }));
+        expect(onSearchChange).toHaveBeenCalledWith('');
+    });
+
+    it('offers a clear-filters action when nothing matches', () => {
+        const onSearchChange = vi.fn();
+        const setFilter = vi.fn();
+        render(
+            <DashboardActivityFeed
+                groupedActivity={[]}
+                activityFilter="invited"
+                setActivityFilter={setFilter}
+                filterCounts={{ all: 0, requested: 0, invited: 0, confirmed: 0, completed: 0 }}
+                search="zzz"
+                onSearchChange={onSearchChange}
+            />
+        );
+
+        expect(screen.getByText(/Nothing matches/i)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+        expect(onSearchChange).toHaveBeenCalledWith('');
+        expect(setFilter).toHaveBeenCalledWith('all');
+    });
+
+    it('shows a "Show more" button when more groups are available', () => {
+        const onShowMore = vi.fn();
+        render(
+            <DashboardActivityFeed
+                groupedActivity={[group(1), group(2)]}
+                activityFilter="all"
+                setActivityFilter={vi.fn()}
+                filterCounts={{ all: 5, requested: 5, invited: 0, confirmed: 0, completed: 0 }}
+                totalGroups={5}
+                onShowMore={onShowMore}
+            />
+        );
+
+        expect(screen.getByText(/Showing 2 of 5/i)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Show more \(3 remaining\)/i }));
+        expect(onShowMore).toHaveBeenCalled();
     });
 });
 
