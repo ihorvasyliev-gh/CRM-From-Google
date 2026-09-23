@@ -131,15 +131,15 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-brand-50/30 to-background dark:via-brand-950/20 flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
-            {/* Animated orbs - optimized for GPU */}
-            <div className="hidden sm:block absolute top-20 left-20 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl animate-orb1 transform-gpu pointer-events-none" />
-            <div className="hidden sm:block absolute bottom-20 right-20 w-96 h-96 bg-brand-400/10 rounded-full blur-3xl animate-orb2 transform-gpu pointer-events-none" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] bg-brand-600/5 rounded-full blur-2xl sm:blur-3xl transform-gpu pointer-events-none" />
+            {/* Ambient orbs: radial gradients (no filter: blur) moved by transform only — composited, no repaints */}
+            <div aria-hidden className="orb absolute top-4 left-0 sm:top-6 sm:left-6 w-[300px] h-[300px] sm:w-[440px] sm:h-[440px] text-brand-500/[0.14] animate-orb1 transform-gpu" />
+            <div aria-hidden className="orb absolute bottom-4 right-0 sm:bottom-6 sm:right-6 w-[340px] h-[340px] sm:w-[520px] sm:h-[520px] text-violet-500/[0.11] animate-orb2 transform-gpu" />
+            <div aria-hidden className="orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[640px] sm:h-[640px] text-brand-600/[0.07]" />
 
             <div className="relative w-full max-w-md animate-scaleIn">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-brand-400 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 animate-glow">
+                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-brand-400 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 ring-1 ring-inset ring-white/15">
                         <Sparkles size={28} />
                     </div>
                     <h1 className="text-3xl font-bold text-primary mb-1">Course CRM</h1>
@@ -147,7 +147,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-surface/60 dark:bg-white/5 backdrop-blur-2xl border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8 min-h-[380px] flex flex-col justify-start">
+                <div className="bg-surface/80 dark:bg-white/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8 min-h-[380px] flex flex-col justify-start">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
                             <div role="alert" className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">

@@ -82,7 +82,7 @@ describe('StudentDetail Component', () => {
         expect(backdrop?.className).toContain('sm:justify-end');
 
         // The inner card must have sm:animate-slideInRight to slide in from screen edge without translate(-50%) glitch
-        const card = screen.getByText('John Doe').closest('.bg-surface-elevated');
+        const card = screen.getByText('John Doe').closest('.animate-slideUp');
         expect(card).not.toBeNull();
         expect(card?.className).toContain('sm:animate-slideInRight');
         expect(card?.className).toContain('animate-slideUp');

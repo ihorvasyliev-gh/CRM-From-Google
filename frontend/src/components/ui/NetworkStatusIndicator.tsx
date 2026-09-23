@@ -55,14 +55,16 @@ function IndicatorView({ showLabel = false, className = '', state }: Props & { s
             >
                 <span className="relative flex h-2 w-2 items-center justify-center">
                     {status === 'online' && (
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        // Pings a few times when the connection comes (back) online, then rests —
+                        // an endless ping kept the compositor animating on every page.
+                        <span className="animate-ping-few absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     )}
                     {isReconnecting ? (
                         <RefreshCw className="h-2.5 w-2.5 animate-spin text-amber-500" />
                     ) : (
                         <span className={`relative inline-flex rounded-full h-2 w-2 ${
                             status === 'online'
-                                ? 'bg-emerald-500'
+                                ? 'bg-emerald-500 shadow-[0_0_0_3px_rgb(16_185_129/0.18)]'
                                 : status === 'reconnecting'
                                 ? 'bg-amber-500'
                                 : 'bg-red-500'

@@ -20,7 +20,7 @@ interface PipelineVelocityTabProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="glass dark:glass-dark p-3 rounded-xl shadow-lg border border-border-subtle backdrop-blur-xl z-50">
+            <div className="bg-surface-elevated/[0.97] p-3 rounded-xl shadow-lg border border-border-subtle z-50">
                 <p className="text-xs font-semibold text-primary mb-1.5">{label}</p>
                 {payload.map((entry: any, index: number) => (
                     <p key={`item-${index}`} className="text-xs font-medium flex items-center gap-2">

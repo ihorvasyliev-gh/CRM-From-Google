@@ -132,7 +132,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                 visible ? 'animate-slideInRight opacity-100 translate-x-0' : 'opacity-0 translate-x-5'
             }`}
         >
-            <div className={`${s.bg} border rounded-2xl shadow-2xl shadow-black/20 overflow-hidden backdrop-blur-md`}>
+            <div className={`${s.bg} border rounded-2xl shadow-2xl shadow-black/20 overflow-hidden`}>
                 <div className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-shrink-0">{s.icon}</div>
                     <span className="text-sm font-medium text-primary flex-1 leading-snug break-words">

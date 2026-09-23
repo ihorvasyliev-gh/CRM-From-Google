@@ -293,7 +293,7 @@ export default function DashboardActivityFeed({
                 <div className="flex-1 min-h-0 overflow-y-auto -mx-2 px-0 lg:max-h-[720px]">
                     {sections.map(section => (
                         <div key={section.date}>
-                            <div className="sticky top-0 z-10 flex items-center gap-2 px-2 pt-2 pb-1 bg-surface/95 backdrop-blur-sm">
+                            <div className="sticky top-0 z-10 flex items-center gap-2 px-2 pt-2 pb-1 bg-surface">
                                 <span className="text-[11px] font-semibold text-primary" title={section.date}>
                                     {section.label}
                                 </span>

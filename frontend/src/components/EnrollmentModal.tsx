@@ -258,7 +258,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
                 {/* Header */}
-                <div className="sticky top-0 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
+                <div className="sticky top-0 bg-surface-elevated border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">

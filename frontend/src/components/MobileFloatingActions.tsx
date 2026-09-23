@@ -37,7 +37,7 @@ export default function MobileFloatingActions({
             {/* Speed Dial Backdrop */}
             {open && (
                 <div
-                    className="fixed inset-0 bg-black/40 backdrop-blur-xs z-10 animate-fadeIn"
+                    className="fixed inset-0 bg-black/40 z-10 animate-fadeIn"
                     onClick={() => setOpen(false)}
                 />
             )}

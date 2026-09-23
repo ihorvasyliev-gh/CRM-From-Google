@@ -257,7 +257,7 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
             {/* Slide-over drawer */}
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-surface border-l border-border-subtle shadow-2xl flex flex-col transform transition-transform duration-300 animate-slideInRight">
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-surface/95 backdrop-blur-sm border-b border-border-subtle px-6 py-4 flex items-center justify-between flex-shrink-0">
+                <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle px-6 py-4 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-3 min-w-0">
                         {studentDetail && (
                             <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(studentDetail.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-border-subtle shadow-md flex-shrink-0`}>

@@ -521,7 +521,7 @@ export default function StudentLookup() {
                         ) : (
                             <div className="flex-1 flex flex-col min-h-0 bg-surface-elevated rounded-3xl border border-border-subtle shadow-card overflow-hidden animate-slideInRight transform-gpu">
                                 {/* Details Header */}
-                                <div className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-5 py-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-10 bg-surface-elevated border-b border-border-subtle px-5 py-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(studentDetail.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-background shadow-md`}>
                                             {(studentDetail.first_name?.[0] || '').toUpperCase()}{(studentDetail.last_name?.[0] || '').toUpperCase()}

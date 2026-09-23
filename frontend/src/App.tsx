@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Suspense, useTransition, useRef } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
+import { flushSync } from 'react-dom';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
@@ -177,12 +178,24 @@ function App() {
     }, [darkMode]);
 
     const toggleDarkMode = useCallback(() => {
-        if (typeof document !== 'undefined' && 'startViewTransition' in document) {
-            (document as any).startViewTransition(() => {
-                setDarkMode(prev => !prev);
-            });
+        const root = document.documentElement;
+        const next = !root.classList.contains('dark');
+        // Swap the class synchronously so the view transition snapshots the finished theme
+        // (a plain setState would commit after the snapshot and cross-fade to the old one).
+        const apply = () => {
+            root.classList.toggle('dark', next);
+            flushSync(() => setDarkMode(next));
+        };
+        // Suppress the per-element colour transitions while the theme flips
+        root.classList.add('theme-switching');
+        const done = () => requestAnimationFrame(() => root.classList.remove('theme-switching'));
+        const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
+        if (doc.startViewTransition && !reduceMotion) {
+            doc.startViewTransition(apply).finished.finally(done);
         } else {
-            setDarkMode(prev => !prev);
+            apply();
+            done();
         }
     }, []);
 
@@ -367,6 +380,55 @@ function App() {
         }
     }, []);
 
+    // Warm the code of the other admin tabs once the browser is idle, so the first visit to a
+    // tab doesn't wait on a chunk download (touch devices never get the hover prefetch above).
+    // Heavy chunks (charts, docx) are skipped on data-saver / slow connections.
+    useEffect(() => {
+        if (!user || isViewer) return;
+        const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+        if (conn?.saveData || /(^|-)2g$/.test(conn?.effectiveType ?? '')) return;
+        const slow = conn?.effectiveType === '3g';
+        const loaders: Array<() => Promise<unknown>> = [
+            () => import('./components/Dashboard'),
+            () => import('./components/StudentList'),
+            () => import('./components/EnrollmentBoard'),
+            () => import('./components/CourseList'),
+            () => import('./components/OutcomesList'),
+            () => import('./components/StudentDetailDrawer'),
+            ...(slow ? [] : [
+                () => import('./components/Settings'),
+                () => import('./components/Analytics'),
+                () => import('./components/DocumentGenerator'),
+            ]),
+        ];
+        const w = window as Window & {
+            requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+            cancelIdleCallback?: (id: number) => void;
+        };
+        let cancelled = false;
+        let handle: number | undefined;
+        const schedule = (cb: () => void) => {
+            handle = w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 4000 }) : window.setTimeout(cb, 1500);
+        };
+        // One chunk per idle slot so prewarming never competes with user interaction
+        const next = () => {
+            const load = loaders.shift();
+            if (cancelled || !load) return;
+            load().catch(() => { /* real navigation retries via lazyWithRetry */ }).finally(() => {
+                if (!cancelled) schedule(next);
+            });
+        };
+        const start = window.setTimeout(() => schedule(next), 2500);
+        return () => {
+            cancelled = true;
+            window.clearTimeout(start);
+            if (handle !== undefined) {
+                if (w.cancelIdleCallback) w.cancelIdleCallback(handle);
+                else window.clearTimeout(handle);
+            }
+        };
+    }, [user, isViewer]);
+
     const navigate = useCallback((tab: string, state?: any) => {
         setSidebarOpen(false);
         startTransition(() => {
@@ -515,18 +577,18 @@ function App() {
     return (
         <NetworkStatusProvider>
         <TooltipProvider delayDuration={100}>
-            <div className="h-screen w-full bg-background text-primary flex transition-colors duration-300 ease-in-out relative overflow-hidden">
+            <div className="h-screen w-full bg-background text-primary flex relative overflow-hidden">
                 {/* Subtle radial glow in Dark Mode */}
                 {darkMode && (
                     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-brand-500/10 rounded-full blur-[120px] opacity-50" />
+                        <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1100px] h-[1100px] max-w-[160vw] max-h-[160vw] text-brand-500/[0.07]" />
                     </div>
                 )}
 
                 {/* Mobile overlay */}
                 {sidebarOpen && !isViewer && (
                     <div
-                        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden animate-fadeIn"
+                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-30 lg:hidden animate-fadeIn"
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
@@ -542,7 +604,7 @@ function App() {
                     {/* Logo */}
                     <div className="h-16 px-4 flex items-center justify-between flex-shrink-0">
                         <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25 animate-glow flex-shrink-0">
+                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/30 ring-1 ring-inset ring-white/15 flex-shrink-0">
                                 C
                             </div>
                             <div className="min-w-0">
@@ -649,7 +711,7 @@ function App() {
                         </button>
 
                         <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-elevated rounded-lg border border-border-subtle/50">
-                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm flex-shrink-0">
+                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm flex-shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -717,10 +779,10 @@ function App() {
                     )}
                     {/* Viewer Top Header (Glassmorphism) */}
                     {isViewer && (
-                        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-3 sm:px-6 py-3 flex items-center justify-between gap-2 transition-colors min-w-0">
+                        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-3 sm:px-6 py-3 flex items-center justify-between gap-2 transition-colors min-w-0">
                             <div className="flex items-center gap-2 sm:gap-6 min-w-0">
                                 <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 flex-shrink-0 animate-glow">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/30 ring-1 ring-inset ring-white/15 flex-shrink-0">
                                         C
                                     </div>
                                     <div className="min-w-0">
@@ -803,7 +865,7 @@ function App() {
                                 </button>
 
                                 <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-surface-elevated rounded-xl border border-border-subtle/50">
-                                    <div className="w-6 h-6 bg-gradient-to-br from-brand-500 to-accent-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-background shadow-sm">
+                                    <div className="w-6 h-6 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-background shadow-sm">
                                         {(user?.email?.[0] || 'V').toUpperCase()}
                                     </div>
                                     <span className="text-xs font-semibold text-primary/80 truncate max-w-[120px]">{user?.email}</span>
@@ -824,7 +886,7 @@ function App() {
 
                     {/* Mobile Header (Glassmorphism) */}
                     {!isViewer && (
-                        <header className="lg:hidden h-12 bg-background/70 backdrop-blur-xl border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
+                        <header className="lg:hidden h-12 bg-background/95 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
                             <button
                                 onClick={() => setSidebarOpen(true)}
                                 className="text-muted hover:text-primary transition p-1 rounded-lg hover:bg-surface-elevated"
@@ -862,7 +924,7 @@ function App() {
 
                     {/* Desktop Floating Header (Glassmorphism) */}
                     {!isViewer && (
-                        <header className="hidden lg:block sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border-subtle/60 px-4 sm:px-6 lg:px-8 py-3 transition-colors">
+                        <header className="hidden lg:block sticky top-0 z-20 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-4 sm:px-6 lg:px-8 py-3 transition-colors">
                             <div className="w-full flex flex-row items-center justify-between">
                                 <div className="animate-fadeIn flex items-center gap-3">
                                     <h2 className="text-xl font-bold text-primary tracking-tight">

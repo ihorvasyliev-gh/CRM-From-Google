@@ -392,7 +392,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-surface-elevated/95 backdrop-blur-sm border-b border-border-subtle px-5 py-3.5 sm:py-4">
+                <div className="sticky top-0 z-10 bg-surface-elevated border-b border-border-subtle px-5 py-3.5 sm:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>

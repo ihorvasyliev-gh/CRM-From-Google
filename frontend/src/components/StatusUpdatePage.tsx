@@ -92,8 +92,8 @@ export default function StatusUpdatePage() {
         <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4 relative overflow-hidden">
             {/* Background glow - optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] bg-violet-500/10 rounded-full blur-[40px] sm:blur-[100px] opacity-40 sm:opacity-50" />
-                <div className="absolute bottom-1/4 right-1/4 w-[280px] sm:w-[350px] h-[280px] sm:h-[350px] bg-purple-500/8 rounded-full blur-[30px] sm:blur-[80px] opacity-25 sm:opacity-30" />
+                <div className="orb absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] sm:w-[700px] sm:h-[700px] text-violet-500/[0.06]" />
+                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[520px] sm:h-[520px] text-purple-500/[0.035]" />
             </div>
 
             <div className="w-full max-w-md relative z-10">

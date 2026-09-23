@@ -1170,7 +1170,7 @@ export default function DocumentGenerator() {
                                 <div className="overflow-x-auto max-h-80 overflow-y-auto">
                                     <table className="w-full text-sm">
                                         <thead className="sticky top-0 z-10">
-                                            <tr className="bg-surface backdrop-blur-sm">
+                                            <tr className="bg-surface">
                                                 <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">#</th>
                                                 <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Name</th>
                                                 <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Email</th>

@@ -618,7 +618,7 @@ const EnrollmentCard = function EnrollmentCard({
             {showQuickMove && createPortal(
                 isSmallScreen ? (
                     <div
-                        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 backdrop-blur-xs animate-fadeIn"
+                        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 animate-fadeIn"
                         onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
                         onPointerDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}

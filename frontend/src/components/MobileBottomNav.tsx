@@ -59,7 +59,7 @@ export default function MobileBottomNav({
             <>
                 <nav 
                     aria-label="Mobile Navigation"
-                    className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-border-subtle/80 px-3 py-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+                    className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/[0.97] border-t border-border-subtle/80 px-3 py-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
                 >
                     <div className="flex items-center justify-around max-w-md mx-auto">
                         <button
@@ -114,7 +114,7 @@ export default function MobileBottomNav({
 
                 {/* More Drawer for Viewer */}
                 {moreOpen && (
-                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs animate-fadeIn lg:hidden" onClick={() => setMoreOpen(false)}>
+                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fadeIn lg:hidden" onClick={() => setMoreOpen(false)}>
                         <div 
                             className="w-full max-w-lg bg-surface-elevated border-t border-border-subtle rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-2xl animate-slideUp"
                             onClick={e => e.stopPropagation()}
@@ -167,7 +167,7 @@ export default function MobileBottomNav({
         <>
             <nav 
                 aria-label="Mobile Navigation"
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-border-subtle/80 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.375rem)] shadow-[0_-4px_24px_rgba(0,0,0,0.1)] transition-colors"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/[0.97] border-t border-border-subtle/80 px-2 py-1 pb-[max(env(safe-area-inset-bottom),0.375rem)] shadow-[0_-4px_24px_rgba(0,0,0,0.1)] transition-colors"
             >
                 <div className="flex items-center justify-around max-w-lg mx-auto">
                     <button
@@ -248,7 +248,7 @@ export default function MobileBottomNav({
             {/* More Drawer Sheet */}
             {moreOpen && (
                 <div 
-                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-xs animate-fadeIn lg:hidden"
+                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fadeIn lg:hidden"
                     onClick={() => setMoreOpen(false)}
                 >
                     <div 

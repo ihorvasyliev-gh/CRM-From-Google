@@ -402,13 +402,13 @@ export default function ConfirmationPage() {
         <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-indigo-500/30 selection:text-indigo-200">
             {/* Ambient background glow optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[540px] h-[340px] sm:h-[540px] bg-indigo-500/12 rounded-full blur-[60px] sm:blur-[120px] opacity-70" />
-                <div className="absolute bottom-1/4 right-1/4 w-[240px] sm:w-[380px] h-[240px] sm:h-[380px] bg-purple-500/10 rounded-full blur-[50px] sm:blur-[90px] opacity-60" />
+                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-indigo-500/[0.09]" />
+                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/[0.065]" />
             </div>
 
             {/* Main Card */}
             <div className="w-full max-w-md relative z-10 my-auto py-4">
-                <div className="bg-[#141417]/95 backdrop-blur-md rounded-2xl border border-zinc-800/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
+                <div className="bg-[#141417]/95 rounded-2xl border border-zinc-800/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
 
                     {/* ─── Loading Skeleton ─── */}
                     {state === 'loading' && (

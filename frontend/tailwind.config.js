@@ -68,7 +68,6 @@ export default {
                 'slideUp': 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
                 'slideUpCenter': 'slideUpCenter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
                 'slideDown': 'slideDown 0.25s ease-out',
-                'glow': 'glow 2s ease-in-out infinite',
                 'countUp': 'countUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both',
             },
             keyframes: {
@@ -120,14 +119,17 @@ export default {
                     from: { opacity: '0', transform: 'translateY(-10px)' },
                     to: { opacity: '1', transform: 'translateY(0)' },
                 },
-                glow: {
-                    '0%, 100%': { boxShadow: '0 0 20px rgba(99, 102, 241, 0.15)' },
-                    '50%': { boxShadow: '0 0 30px rgba(99, 102, 241, 0.3)' },
-                },
                 countUp: {
                     from: { opacity: '0', transform: 'translateY(10px)' },
                     to: { opacity: '1', transform: 'translateY(0)' },
                 },
+            },
+            transitionProperty: {
+                /* `transition-all` is used on ~370 elements. A literal `all` also animates
+                 * padding, gap, font-size, margins… so toggling density or resizing turned into
+                 * hundreds of per-frame layout passes. Keep every property that is actually meant
+                 * to animate (colours, opacity, shadows, transforms, progress-bar sizes). */
+                all: 'color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, translate, scale, rotate, filter, backdrop-filter, width, height, max-height, max-width',
             },
             transitionTimingFunction: {
                 'spring': 'var(--ease-spring-out, cubic-bezier(0.34, 1.56, 0.64, 1))',

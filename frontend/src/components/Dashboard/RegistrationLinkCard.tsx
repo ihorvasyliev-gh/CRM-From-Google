@@ -61,8 +61,8 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
     return (
         <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-card bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 ${className}`}>
             {/* Decorative glow */}
-            <div aria-hidden className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-white/10 blur-2xl" />
-            <div aria-hidden className="absolute -bottom-12 -left-6 w-28 h-28 rounded-full bg-white/10 blur-2xl" />
+            <div aria-hidden className="orb absolute -top-20 -right-20 w-56 h-56 text-white/[0.14]" />
+            <div aria-hidden className="orb absolute -bottom-[88px] -left-[46px] w-48 h-48 text-white/[0.12]" />
 
             <div className="relative flex items-center gap-3">
                 <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 flex-shrink-0">
