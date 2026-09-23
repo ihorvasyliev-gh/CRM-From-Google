@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import StudentDetailDrawer from './StudentDetailDrawer';
+import { GlobalToaster } from './Toast';
 import { supabase } from '../lib/supabase';
 
 vi.mock('../lib/supabase', () => ({
@@ -20,6 +21,7 @@ function renderWithClient(ui: React.ReactElement) {
     return render(
         <QueryClientProvider client={queryClient}>
             {ui}
+            <GlobalToaster />
         </QueryClientProvider>
     );
 }
@@ -88,229 +90,178 @@ describe('StudentDetailDrawer Component', () => {
         ],
     };
 
+    function mockRpc() {
+        (supabase.rpc as any).mockImplementation((rpcName: string) => {
+            if (rpcName === 'get_student_detail_restricted') {
+                return Promise.resolve({ data: mockDetail, error: null });
+            }
+            return Promise.resolve({ data: null, error: null });
+        });
+    }
+
     it('renders null when studentId is null', () => {
-        const onClose = vi.fn();
-        const { container } = renderWithClient(<StudentDetailDrawer studentId={null} onClose={onClose} />);
+        const { container } = render(
+            <QueryClientProvider client={new QueryClient()}>
+                <StudentDetailDrawer studentId={null} onClose={vi.fn()} />
+            </QueryClientProvider>
+        );
         expect(container.firstChild).toBeNull();
     });
 
     it('fetches and displays student name, contacts, and registration date', async () => {
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
+        mockRpc();
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
 
-        // Wait for details
-        await waitFor(() => {
-            expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-        });
-
+        expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
         expect(screen.getByText('jane.doe@example.com')).toBeInTheDocument();
         expect(screen.getByText('+353871234567')).toBeInTheDocument();
         expect(screen.getByText('10 Main Street, Cork')).toBeInTheDocument();
         expect(screen.getByText('T12AB34')).toBeInTheDocument();
+        expect(screen.getByText(/Registered 10\/01\/2026/)).toBeInTheDocument();
     });
 
-    it('triggers copy action on contact field click with toast feedback', async () => {
-        const writeTextMock = vi.fn().mockResolvedValue(undefined);
-        Object.assign(navigator, {
-            clipboard: {
-                writeText: writeTextMock,
-            },
-        });
+    it('offers one-tap contact actions (email, call, WhatsApp)', async () => {
+        mockRpc();
+        renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
+        await screen.findByText('Jane Doe');
 
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
+        expect(screen.getByRole('link', { name: /^Email$/ })).toHaveAttribute('href', 'mailto:jane.doe@example.com');
+        expect(screen.getByRole('link', { name: /^Call$/ }).getAttribute('href')).toMatch(/^tel:/);
+        expect(screen.getByRole('link', { name: /WhatsApp/ }).getAttribute('href')).toMatch(/wa\.me/);
+    });
+
+    it('copies a contact field on click with toast feedback', async () => {
+        const writeTextMock = vi.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+        mockRpc();
 
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
+        await screen.findByText('Jane Doe');
 
-        await waitFor(() => {
-            expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-        });
-
-        // Click email to copy
         fireEvent.click(screen.getByText('jane.doe@example.com'));
         expect(writeTextMock).toHaveBeenCalledWith('jane.doe@example.com');
-
-        // Toast feedback should appear
-        await waitFor(() => {
-            expect(screen.getByText(/copied to clipboard/i)).toBeInTheDocument();
-        });
+        expect(await screen.findByText('Email copied')).toBeInTheDocument();
     });
 
-    it('displays course enrollments with clean variant, status badge, queue position, and dates', async () => {
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
+    it('displays enrollments (active first) with clean variant, status badge, queue position and notes', async () => {
+        mockRpc();
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
 
-        await waitFor(() => {
-            expect(screen.getByText('Digital Skills Beginners')).toBeInTheDocument();
-            expect(screen.getByText('Barista Training')).toBeInTheDocument();
-        });
+        await screen.findByText('Barista Training');
+        const titles = screen.getAllByRole('heading', { level: 4 }).map(h => h.textContent);
+        expect(titles).toEqual(['Barista Training', 'Digital Skills Beginners']);
 
-        // Variant cleaned from "Digital Skills (Morning)" -> "Morning"
         expect(screen.getByText(/Morning/)).toBeInTheDocument();
-
-        // Queue position #3 for requested course
-        expect(screen.getByText(/#3/)).toBeInTheDocument();
-
-        // Notes rendered
+        expect(screen.getByText('#3')).toBeInTheDocument();
         expect(screen.getByText('Requested online class if possible')).toBeInTheDocument();
+        expect(screen.getAllByLabelText('Enrollment progress')).toHaveLength(2);
     });
 
     it('displays course flags/notes section with created dates', async () => {
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
+        mockRpc();
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
 
-        await waitFor(() => {
-            expect(screen.getByText('Basic English')).toBeInTheDocument();
-            expect(screen.getByText('Needs level A2 re-assessment')).toBeInTheDocument();
-        });
+        expect(await screen.findByText('Basic English')).toBeInTheDocument();
+        expect(screen.getByText('Needs level A2 re-assessment')).toBeInTheDocument();
+        expect(screen.getByText('02/01/2026')).toBeInTheDocument();
     });
 
-    it('opens date picker modal on Request Completion and submits mutation', async () => {
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            if (rpcName === 'request_course_completion') {
-                return Promise.resolve({ data: { success: true, updated_count: 1 }, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
+    it('opens the completion modal (defaulting to the course day) and submits the request', async () => {
+        mockRpc();
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} />);
+        await screen.findByText('Barista Training');
+
+        // Both active enrollments can be completed; the confirmed one is listed first
+        fireEvent.click(screen.getAllByRole('button', { name: /Request Completion/i })[0]);
+
+        const dialog = await screen.findByRole('dialog', { name: 'Request completion' });
+        expect(dialog).toHaveTextContent('Barista Training');
+        expect(screen.getByLabelText('Completion date')).toHaveValue('2026-01-15');
+
+        fireEvent.click(screen.getByRole('button', { name: /Submit request/i }));
 
         await waitFor(() => {
-            expect(screen.getByText('Barista Training')).toBeInTheDocument();
+            expect(supabase.rpc).toHaveBeenCalledWith('request_course_completion', {
+                p_enrollment_ids: ['en-2'],
+                p_completed_date: '2026-01-15',
+            });
         });
+        expect(await screen.findByText(/waiting for admin approval/i)).toBeInTheDocument();
+    });
 
-        // Find Request Completion button
-        const completionBtn = screen.getByRole('button', { name: /Mark Completed|Request Completion/i });
-        fireEvent.click(completionBtn);
+    it('opens the course roster from an enrollment', async () => {
+        mockRpc();
+        const onOpenCourse = vi.fn();
+        renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={vi.fn()} onOpenCourse={onOpenCourse} />);
+        await screen.findByText('Barista Training');
 
-        // Date picker modal should appear
-        expect(screen.getByText('Mark Course Completion')).toBeInTheDocument();
-        const submitBtn = screen.getByRole('button', { name: /Submit Request/i });
-        fireEvent.click(submitBtn);
+        fireEvent.click(screen.getAllByRole('button', { name: /Open course/i })[0]);
+        expect(onOpenCourse).toHaveBeenCalledWith('c-2');
+    });
 
-        await waitFor(() => {
-            expect(supabase.rpc).toHaveBeenCalledWith(
-                'request_course_completion',
-                expect.objectContaining({
-                    p_enrollment_ids: ['en-2'],
-                })
-            );
-        });
+    it('steps through the list with the arrows and ↑ / ↓ keys', async () => {
+        mockRpc();
+        const onPrev = vi.fn();
+        const onNext = vi.fn();
+        renderWithClient(
+            <StudentDetailDrawer studentId="st-101" onClose={vi.fn()} onPrev={onPrev} onNext={onNext} position={{ index: 1, total: 5 }} />
+        );
+        await screen.findByText('Jane Doe');
+
+        expect(screen.getByText('2 / 5')).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText('Next student'));
+        expect(onNext).toHaveBeenCalledTimes(1);
+
+        fireEvent.keyDown(window, { key: 'ArrowUp' });
+        expect(onPrev).toHaveBeenCalledTimes(1);
+        fireEvent.keyDown(window, { key: 'j' });
+        expect(onNext).toHaveBeenCalledTimes(2);
     });
 
     it('calls onClose when close button is clicked', async () => {
+        mockRpc();
         const onClose = vi.fn();
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
+        await screen.findByText('Jane Doe');
 
-        await waitFor(() => {
-            expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-        });
-
-        const closeBtn = screen.getByLabelText('Close drawer');
-        fireEvent.click(closeBtn);
+        fireEvent.click(screen.getByLabelText('Close drawer'));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it('calls onClose when backdrop overlay is clicked', async () => {
+        mockRpc();
         const onClose = vi.fn();
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
+        await screen.findByText('Jane Doe');
 
-        await waitFor(() => {
-            expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-        });
-
-        const backdrop = screen.getByTestId('drawer-backdrop');
-        fireEvent.click(backdrop);
+        fireEvent.click(screen.getByTestId('drawer-backdrop'));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it('calls onClose when Escape key is pressed', async () => {
+        mockRpc();
         const onClose = vi.fn();
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
+        await screen.findByText('Jane Doe');
 
-        await waitFor(() => {
-            expect(screen.getByText('Jane Doe')).toBeInTheDocument();
-        });
-
-        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+        fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it('closes inner completion modal on Escape without closing the drawer', async () => {
+        mockRpc();
         const onClose = vi.fn();
-        (supabase.rpc as any).mockImplementation((rpcName: string) => {
-            if (rpcName === 'get_student_detail_restricted') {
-                return Promise.resolve({ data: mockDetail, error: null });
-            }
-            return Promise.resolve({ data: null, error: null });
-        });
-
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
+        await screen.findByText('Barista Training');
 
-        await waitFor(() => {
-            expect(screen.getByText('Barista Training')).toBeInTheDocument();
-        });
+        fireEvent.click(screen.getAllByRole('button', { name: /Request Completion/i })[0]);
+        expect(await screen.findByRole('dialog', { name: 'Request completion' })).toBeInTheDocument();
 
-        // Open completion modal
-        const completionBtn = screen.getByRole('button', { name: /Mark Completed|Request Completion/i });
-        fireEvent.click(completionBtn);
-
-        expect(screen.getByText('Mark Course Completion')).toBeInTheDocument();
-
-        // First Escape closes the modal, NOT the drawer
-        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
-
-        expect(screen.queryByText('Mark Course Completion')).not.toBeInTheDocument();
+        fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+        expect(screen.queryByRole('dialog', { name: 'Request completion' })).not.toBeInTheDocument();
         expect(onClose).not.toHaveBeenCalled();
 
-        // Second Escape closes the drawer
-        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+        fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 });

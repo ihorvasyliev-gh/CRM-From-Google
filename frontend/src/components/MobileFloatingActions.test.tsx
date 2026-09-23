@@ -31,20 +31,16 @@ describe('MobileFloatingActions Component', () => {
         expect(handleAddStudent).toHaveBeenCalledTimes(1);
     });
 
-    it('triggers search directly in viewer mode', () => {
-        const handleAddStudent = vi.fn();
-        const handleSearch = vi.fn();
-
-        render(
+    it('renders nothing in viewer mode (search lives in the bottom dock)', () => {
+        const { container } = render(
             <MobileFloatingActions
-                onOpenAddStudent={handleAddStudent}
-                onOpenCommandPalette={handleSearch}
+                onOpenAddStudent={vi.fn()}
+                onOpenCommandPalette={vi.fn()}
                 isViewer={true}
             />
         );
 
-        const fab = screen.getByLabelText('Quick Search');
-        fireEvent.click(fab);
-        expect(handleSearch).toHaveBeenCalledTimes(1);
+        expect(container).toBeEmptyDOMElement();
+        expect(screen.queryByLabelText('Quick Search')).not.toBeInTheDocument();
     });
 });

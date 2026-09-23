@@ -4,6 +4,7 @@ import { useModalBehavior } from '../hooks/useModalBehavior';
 interface Props {
     open: boolean;
     onClose: () => void;
+    isViewer?: boolean;
 }
 
 interface ShortcutCategory {
@@ -14,11 +15,40 @@ interface ShortcutCategory {
     }>;
 }
 
-export default function KeyboardShortcutsModal({ open, onClose }: Props) {
+export default function KeyboardShortcutsModal({ open, onClose, isViewer = false }: Props) {
     useModalBehavior(open, onClose);
     if (!open) return null;
 
-    const categories: ShortcutCategory[] = [
+    const categories: ShortcutCategory[] = isViewer ? [
+        {
+            title: 'Global & Navigation',
+            shortcuts: [
+                { keys: ['Ctrl', 'K'], description: 'Search students & courses' },
+                { keys: ['1', '–', '3'], description: 'Go to Home, Students, Courses' },
+                { keys: ['/'], description: 'Focus the search bar on this page' },
+                { keys: ['?'], description: 'Open this cheat sheet' },
+                { keys: ['Esc'], description: 'Close a panel, clear a search or selection' },
+                { keys: ['Ctrl', 'Shift', 'D'], description: 'Toggle theme (dark / light)' },
+            ],
+        },
+        {
+            title: 'Lists & Rosters',
+            shortcuts: [
+                { keys: ['↑', '↓'], description: 'Move between rows' },
+                { keys: ['Enter'], description: 'Open the student' },
+                { keys: ['Space'], description: 'Select / deselect a roster row' },
+                { keys: ['Shift', 'Click'], description: 'Select a range of students' },
+                { keys: ['Click', 'Email'], description: '1-click copy email or phone' },
+            ],
+        },
+        {
+            title: 'Student Panel',
+            shortcuts: [
+                { keys: ['↑', '↓'], description: 'Previous / next student in the list (also K / J)' },
+                { keys: ['Esc'], description: 'Close the panel' },
+            ],
+        },
+    ] : [
         {
             title: 'Global & Navigation',
             shortcuts: [

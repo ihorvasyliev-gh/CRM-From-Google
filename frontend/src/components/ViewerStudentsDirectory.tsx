@@ -1,128 +1,69 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
-import { useDebounce } from '../hooks/useDebounce';
-import { ViewerCourse, getAvatarGradient, cleanVariant } from '../lib/types';
-import { formatDateDMY } from '../lib/dateUtils';
-import StudentDetailDrawer from './StudentDetailDrawer';
 import {
-    Search, X, Star, Clock, Send, CheckCircle, GraduationCap,
-    XCircle, MessageSquare, ChevronRight, ChevronLeft, Calendar,
-    Mail, Phone, RotateCcw, Users, AlertCircle
+    ArrowDownUp, BookOpen, Calendar, ChevronLeft, ChevronRight, MessageSquare, RefreshCw, Star, Users,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { cleanVariant, type ViewerStudentDirectoryItem } from '../lib/types';
+import { formatDateDMY } from '../lib/dateUtils';
+import { useViewerCourses } from './Viewer/useViewerData';
+import { useUrlParams, useUrlSearchInput } from './Viewer/useUrlParams';
+import { usePublishStudentList, useStudentDrawer } from './Viewer/studentDrawer';
+import {
+    Avatar, Button, ContactActions, CopyText, EmptyState, ErrorState, FilterChip, PageHeader, PriorityStar,
+    SearchField, Segmented, SelectField, SkeletonRows, StatusBadge, type SegmentOption,
+} from './Viewer/ViewerUI';
+import { handleRowArrowKeys } from './Viewer/viewerMeta';
+import { fullName, pluralize, relativeDay } from './Viewer/viewerUtils';
 
-export interface ViewerStudentDirectoryItem {
-    student_id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string | null;
-    address: string | null;
-    eircode: string | null;
-    dob: string | null;
-    created_at: string;
-    primary_course_name: string | null;
-    primary_course_id: string | null;
-    primary_status: string | null;
-    primary_course_variant: string | null;
-    primary_queue_position: number | null;
-    is_priority: boolean;
-    total_enrollments: number;
-    notes_count: number;
-    total_count: number;
-}
-
+export type { ViewerStudentDirectoryItem };
 export type SortOption = 'date_desc' | 'date_asc' | 'queue' | 'name_asc';
 export type StatusFilterOption = 'all' | 'requested' | 'invited' | 'confirmed' | 'completed';
 
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactElement; className: string }> = {
-    requested: {
-        label: 'Requested',
-        icon: <Clock size={12} />,
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
-    },
-    invited: {
-        label: 'Invited',
-        icon: <Send size={12} />,
-        className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20',
-    },
-    confirmed: {
-        label: 'Confirmed',
-        icon: <CheckCircle size={12} />,
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
-    },
-    completed: {
-        label: 'Completed',
-        icon: <GraduationCap size={12} />,
-        className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20',
-    },
-    rejected: {
-        label: 'Rejected',
-        icon: <XCircle size={12} />,
-        className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20',
-    },
-    withdrawn: {
-        label: 'Withdrawn',
-        icon: <XCircle size={12} />,
-        className: 'bg-muted/10 text-muted border-border-subtle',
-    },
-};
-
-const STATUS_TABS: { key: StatusFilterOption; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'requested', label: 'Requested' },
-    { key: 'invited', label: 'Invited' },
-    { key: 'confirmed', label: 'Confirmed' },
-    { key: 'completed', label: 'Completed' },
+const STATUS_OPTIONS: SegmentOption<StatusFilterOption>[] = [
+    { value: 'all', label: 'All' },
+    { value: 'requested', label: 'In queue', dot: 'bg-amber-500' },
+    { value: 'invited', label: 'Invited', dot: 'bg-sky-500' },
+    { value: 'confirmed', label: 'Confirmed', dot: 'bg-emerald-500' },
+    { value: 'completed', label: 'Completed', dot: 'bg-violet-500' },
+];
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+    { value: 'date_desc', label: 'Newest first' },
+    { value: 'date_asc', label: 'Oldest first' },
+    { value: 'queue', label: 'Queue position' },
+    { value: 'name_asc', label: 'Name A–Z' },
 ];
 
 const PAGE_SIZE = 50;
 
 export default function ViewerStudentsDirectory() {
-    const [search, setSearch] = useState('');
-    const debouncedSearch = useDebounce(search, 250);
+    const { get, setParams } = useUrlParams();
+    const drawer = useStudentDrawer();
+    const search = useUrlSearchInput('q', { page: null });
 
-    const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
-    const [selectedStatus, setSelectedStatus] = useState<StatusFilterOption>('all');
-    const [priorityOnly, setPriorityOnly] = useState<boolean>(false);
-    const [sortBy, setSortBy] = useState<SortOption>('date_desc');
-    const [page, setPage] = useState<number>(1);
+    const courseId = get('course') || 'all';
+    const status = (STATUS_OPTIONS.some(o => o.value === get('status')) ? get('status') : 'all') as StatusFilterOption;
+    const priorityOnly = get('priority') === '1';
+    const sortBy = (SORT_OPTIONS.some(o => o.value === get('sort')) ? get('sort') : 'date_desc') as SortOption;
+    const page = Math.max(1, parseInt(get('page', '1'), 10) || 1);
+    const committedSearch = search.committed;
 
-    const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+    const { data: courses = [] } = useViewerCourses();
 
-    // Fetch active courses for the course filter dropdown
-    const { data: courses = [] } = useQuery<ViewerCourse[]>({
-        queryKey: ['viewer-courses'],
-        queryFn: async () => {
-            const { data, error } = await supabase.rpc('get_viewer_courses');
-            if (error) throw error;
-            return (data || []) as ViewerCourse[];
-        },
-    });
-
-    // Fetch students directory based on active filters
     const {
         data: students = [],
-        isLoading: isLoadingStudents,
-        isFetching: isFetchingStudents,
-        isError: isStudentsError,
-        error: studentsError,
-        refetch: refetchStudents,
+        isLoading,
+        isFetching,
+        isPlaceholderData,
+        error,
+        refetch,
     } = useQuery<ViewerStudentDirectoryItem[]>({
-        queryKey: [
-            'viewer-students-directory',
-            debouncedSearch.trim(),
-            selectedCourseId,
-            selectedStatus,
-            priorityOnly,
-            sortBy,
-            page,
-        ],
+        queryKey: ['viewer_students_directory', committedSearch, courseId, status, priorityOnly, sortBy, page],
         queryFn: async () => {
             const { data, error } = await supabase.rpc('get_viewer_students_directory', {
-                p_search: debouncedSearch.trim() || null,
-                p_course_id: selectedCourseId === 'all' ? null : selectedCourseId,
-                p_status: selectedStatus === 'all' ? null : selectedStatus,
+                p_search: committedSearch || null,
+                p_course_id: courseId === 'all' ? null : courseId,
+                p_status: status === 'all' ? null : status,
                 p_priority_only: priorityOnly,
                 p_sort_by: sortBy,
                 p_limit: PAGE_SIZE,
@@ -131,580 +72,232 @@ export default function ViewerStudentsDirectory() {
             if (error) throw error;
             return (data || []) as ViewerStudentDirectoryItem[];
         },
-        // Keep showing the current page while the next page / search result loads (no skeleton flash)
+        // Keep the current page on screen while the next page / search result loads
         placeholderData: keepPreviousData,
     });
 
-    const isFiltered = Boolean(
-        search.trim() ||
-        selectedCourseId !== 'all' ||
-        selectedStatus !== 'all' ||
-        priorityOnly ||
-        sortBy !== 'date_desc'
-    );
-
-    const handleResetFilters = () => {
-        setSearch('');
-        setSelectedCourseId('all');
-        setSelectedStatus('all');
-        setPriorityOnly(false);
-        setSortBy('date_desc');
-        setPage(1);
-    };
+    usePublishStudentList(students.map(s => s.student_id));
 
     const totalCount = students.length > 0 ? Number(students[0].total_count) : 0;
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const from = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const to = Math.min(page * PAGE_SIZE, totalCount);
+
+    // Scroll back to the top of the list when the page changes
+    const topRef = useRef<HTMLDivElement>(null);
+    const prevPage = useRef(page);
+    useEffect(() => {
+        if (prevPage.current !== page) topRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+        prevPage.current = page;
+    }, [page]);
+
+    const setFilter = (patch: Record<string, string | number | boolean | null>) => setParams({ ...patch, page: null });
+    const goToPage = (p: number) => setParams({ page: p <= 1 ? null : p });
+
+    const selectedCourse = courses.find(c => c.id === courseId);
+    const isFiltered = !!(search.value.trim() || courseId !== 'all' || status !== 'all' || priorityOnly || sortBy !== 'date_desc');
+    const resetFilters = () => {
+        search.setValue('');
+        setParams({ q: null, course: null, status: null, priority: null, sort: null, page: null });
+    };
 
     return (
-        <div className="max-w-7xl mx-auto w-full min-w-0 py-1 sm:py-4 space-y-6">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-2xl border border-brand-200 dark:border-brand-500/20">
-                            <Users size={24} />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary">
-                                Students Directory
-                            </h1>
-                            <p className="text-sm text-muted">
-                                Search and inspect participant enrollments, queue positions and notes
-                            </p>
-                        </div>
+        <div ref={topRef} className="max-w-7xl mx-auto w-full min-w-0 space-y-4 animate-fadeIn scroll-mt-20">
+            <PageHeader
+                title="Students"
+                subtitle={
+                    isLoading ? 'Loading…' : error ? 'Failed to load' : (
+                        <span className="inline-flex items-center gap-2">
+                            {pluralize(totalCount, 'student')}{isFiltered ? ' match' : ''}
+                            {isFetching && <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" title="Updating…" />}
+                        </span>
+                    )
+                }
+                actions={
+                    <Button onClick={() => refetch()} aria-label="Refresh students" title="Refresh">
+                        <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+                        <span className="hidden sm:inline">Refresh</span>
+                    </Button>
+                }
+            />
+
+            {/* Toolbar */}
+            <div className="space-y-2">
+                <SearchField
+                    value={search.value}
+                    onChange={search.setValue}
+                    onClear={search.clear}
+                    placeholder="Search by name, email, phone or eircode…"
+                    ariaLabel="Search students"
+                    onEnter={() => { if (students.length === 1) drawer.open(students[0].student_id); }}
+                />
+                <div className="flex flex-col md:flex-row gap-2">
+                    <Segmented className="self-start" ariaLabel="Status filter" options={STATUS_OPTIONS} value={status} onChange={v => setFilter({ status: v === 'all' ? null : v })} />
+                    <div className="flex gap-2 flex-1 min-w-0">
+                        <SelectField label="Course filter" value={courseId} onChange={v => setFilter({ course: v === 'all' ? null : v })} className="flex-1 min-w-0 md:max-w-[260px]" icon={<BookOpen size={13} />}>
+                            <option value="all">All courses</option>
+                            {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </SelectField>
+                        <button
+                            type="button"
+                            aria-pressed={priorityOnly}
+                            onClick={() => setFilter({ priority: priorityOnly ? null : '1' })}
+                            className={`h-9 px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 border whitespace-nowrap transition-all ${
+                                priorityOnly ? 'priority-badge' : 'bg-surface text-muted hover:text-primary border-border-subtle'
+                            }`}
+                            title="Show priority students only"
+                        >
+                            <Star size={13} className={priorityOnly ? 'fill-amber-400 text-amber-500' : ''} />
+                            <span className="hidden sm:inline">Priority</span>
+                        </button>
+                        <SelectField label="Sort by" value={sortBy} onChange={v => setFilter({ sort: v === 'date_desc' ? null : v })} className="w-40 shrink-0" icon={<ArrowDownUp size={13} />}>
+                            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </SelectField>
                     </div>
                 </div>
-
-                {/* Results count pill */}
-                <div className="flex items-center gap-2 self-start md:self-auto">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-elevated border border-border-subtle text-muted shadow-sm">
-                        {isLoadingStudents ? (
-                            <span className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
-                                Loading directory...
-                            </span>
-                        ) : isStudentsError ? (
-                            <span className="text-red-600 dark:text-red-400">
-                                Failed to load
-                            </span>
-                        ) : (
-                            <span>
-                                Showing {totalCount} student{totalCount === 1 ? '' : 's'}
-                            </span>
-                        )}
-                    </span>
-                    {isFetchingStudents && !isLoadingStudents && (
-                        <span className="w-2 h-2 rounded-full bg-brand-500 animate-ping" title="Updating..." />
-                    )}
-                </div>
+                {isFiltered && (
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                        {search.value.trim() && <FilterChip label={`"${search.value.trim()}"`} onRemove={search.clear} />}
+                        {selectedCourse && <FilterChip label={selectedCourse.name} onRemove={() => setFilter({ course: null })} />}
+                        {status !== 'all' && <FilterChip label={STATUS_OPTIONS.find(o => o.value === status)?.label} onRemove={() => setFilter({ status: null })} />}
+                        {priorityOnly && <FilterChip label="Priority" onRemove={() => setFilter({ priority: null })} />}
+                        {sortBy !== 'date_desc' && <FilterChip label={SORT_OPTIONS.find(o => o.value === sortBy)?.label} onRemove={() => setFilter({ sort: null })} />}
+                        <button type="button" onClick={resetFilters} className="ml-1 font-semibold text-brand-600 dark:text-brand-400 hover:underline">
+                            Reset filters
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Filter Bar */}
-            <div className="bg-surface rounded-2xl border border-border-subtle p-4 shadow-card space-y-4">
-                {/* Top row: Search input */}
-                <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                    <input
-                        type="text"
-                        data-page-search=""
-                        autoComplete="off"
-                        value={search}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Escape' && search) {
-                                e.preventDefault();
-                                setSearch('');
-                                setPage(1);
-                            }
-                        }}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setPage(1);
-                        }}
-                        placeholder="Search students by name, email, phone, eircode..."
-                        className="w-full pl-10 pr-10 py-2.5 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
-                    />
-                    {search && (
-                        <button
-                            type="button"
-                            aria-label="Clear search"
-                            onClick={() => {
-                                setSearch('');
-                                setPage(1);
-                            }}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary rounded-full hover:bg-surface transition-colors"
-                        >
-                            <X size={16} />
-                        </button>
-                    )}
-                </div>
-
-                {/* Bottom row: Filter Controls */}
-                <div className="flex flex-wrap items-center gap-3">
-                    {/* Course Filter Dropdown */}
-                    <div className="min-w-[180px] flex-1 sm:flex-initial">
-                        <select
-                            aria-label="Course filter"
-                            value={selectedCourseId}
-                            onChange={(e) => {
-                                setSelectedCourseId(e.target.value);
-                                setPage(1);
-                            }}
-                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
-                        >
-                            <option value="all">All Courses</option>
-                            {courses.map((course) => (
-                                <option key={course.id} value={course.id}>
-                                    {course.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Status Filter Tabs/Pills */}
-                    <div className="flex items-center gap-1 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto scrollbar-none max-w-full">
-                        {STATUS_TABS.map((tab) => {
-                            const active = selectedStatus === tab.key;
-                            return (
-                                <button
-                                    key={tab.key}
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedStatus(tab.key);
-                                        setPage(1);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                                        active
-                                            ? 'bg-brand-600 text-white shadow-sm'
-                                            : 'text-muted hover:text-primary hover:bg-surface'
-                                    }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Priority Toggle Button */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setPriorityOnly((prev) => !prev);
-                            setPage(1);
-                        }}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border whitespace-nowrap cursor-pointer ${
-                            priorityOnly
-                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
-                                : 'bg-surface-elevated text-muted hover:text-primary border-border-subtle hover:bg-surface'
-                        }`}
-                    >
-                        <Star size={13} className={priorityOnly ? 'fill-amber-400 text-amber-500' : ''} />
-                        <span>⭐ Priority Only</span>
-                    </button>
-
-                    {/* Sort Dropdown */}
-                    <div className="min-w-[150px] flex-1 sm:flex-initial">
-                        <select
-                            aria-label="Sort by"
-                            value={sortBy}
-                            onChange={(e) => {
-                                setSortBy(e.target.value as SortOption);
-                                setPage(1);
-                            }}
-                            className="w-full px-3 py-2 bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
-                        >
-                            <option value="date_desc">Newest First</option>
-                            <option value="date_asc">Oldest First</option>
-                            <option value="queue">Queue Position</option>
-                            <option value="name_asc">Name A-Z</option>
-                        </select>
-                    </div>
-
-                    {/* Reset Filters Button */}
-                    {isFiltered && (
-                        <button
-                            type="button"
-                            onClick={handleResetFilters}
-                            className="px-3 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
-                        >
-                            <RotateCcw size={13} />
-                            <span>Reset Filters</span>
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Main Content Area */}
-            {isLoadingStudents ? (
-                /* Loading Skeletons */
-                <div className="space-y-3">
-                    {/* Desktop Table Skeleton */}
-                    <div className="hidden md:block bg-surface rounded-2xl border border-border-subtle overflow-hidden p-4 space-y-4">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                            <div key={i} className="flex items-center gap-4 animate-pulse">
-                                <div className="w-10 h-10 rounded-full bg-muted/20 shrink-0" />
-                                <div className="flex-1 space-y-2">
-                                    <div className="h-4 bg-muted/20 rounded w-1/4" />
-                                    <div className="h-3 bg-muted/20 rounded w-1/3" />
-                                </div>
-                                <div className="w-32 h-6 bg-muted/20 rounded-xl" />
-                                <div className="w-24 h-6 bg-muted/20 rounded-xl" />
-                                <div className="w-24 h-4 bg-muted/20 rounded" />
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Mobile Cards Skeleton */}
-                    <div className="md:hidden space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="bg-surface rounded-2xl border border-border-subtle p-4 space-y-3 animate-pulse">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-muted/20 shrink-0" />
-                                    <div className="flex-1 space-y-2">
-                                        <div className="h-4 bg-muted/20 rounded w-1/2" />
-                                        <div className="h-3 bg-muted/20 rounded w-1/3" />
-                                    </div>
-                                </div>
-                                <div className="h-4 bg-muted/20 rounded w-2/3" />
-                                <div className="h-6 bg-muted/20 rounded w-1/4" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : isStudentsError ? (
-                /* Error State Card */
-                <div className="bg-surface rounded-3xl border border-rose-200 dark:border-rose-500/20 p-8 sm:p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
-                    <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
-                        <AlertCircle size={32} />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-primary">
-                            Failed to load students directory
-                        </h3>
-                        <p className="text-sm text-muted mt-1">
-                            {studentsError instanceof Error ? studentsError.message : 'An unexpected error occurred while loading participants.'}
-                        </p>
-                    </div>
-                    <div>
-                        <button
-                            type="button"
-                            onClick={() => refetchStudents()}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
-                        >
-                            <RotateCcw size={15} />
-                            <span>Retry</span>
-                        </button>
-                    </div>
-                </div>
+            {/* Results */}
+            {isLoading ? (
+                <SkeletonRows rows={8} />
+            ) : error ? (
+                <ErrorState title="Failed to load students" error={error} onRetry={() => refetch()} />
             ) : students.length === 0 ? (
-                /* Empty State */
-                <div className="bg-surface rounded-3xl border border-border-subtle p-12 text-center max-w-lg mx-auto space-y-4 shadow-card">
-                    <div className="w-16 h-16 rounded-full bg-muted/10 text-muted mx-auto flex items-center justify-center">
-                        <Users size={32} />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-primary">
-                            {isFiltered ? 'No students match your selected filters' : 'No students found in the database'}
-                        </h3>
-                        <p className="text-sm text-muted mt-1">
-                            {isFiltered
-                                ? 'Try searching for something else or reset your filter criteria to see participants.'
-                                : 'There are currently no participants registered in the system.'}
-                        </p>
-                    </div>
-                    {isFiltered && (
-                        <div>
-                            <button
-                                type="button"
-                                onClick={handleResetFilters}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer"
-                            >
-                                <RotateCcw size={15} />
-                                <span>Reset Filters</span>
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <EmptyState
+                    icon={<Users size={22} />}
+                    title={isFiltered ? 'No students match these filters' : 'No students yet'}
+                    description={isFiltered ? 'Try a different search or reset the filters.' : 'Students will appear here once they register.'}
+                    action={isFiltered ? <Button variant="primary" onClick={resetFilters}>Reset filters</Button> : undefined}
+                />
             ) : (
                 <>
-                    {/* Desktop Data Table */}
-                    <div className="hidden md:block bg-surface rounded-2xl border border-border-subtle overflow-hidden shadow-card">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-border-subtle bg-surface-elevated/50 text-xs font-semibold text-muted uppercase tracking-wider">
-                                    <th scope="col" className="px-5 py-3.5">Student</th>
-                                    <th scope="col" className="px-5 py-3.5">Primary Course & Status</th>
-                                    <th scope="col" className="px-5 py-3.5">Queue & Priority</th>
-                                    <th scope="col" className="px-5 py-3.5">Registration Date</th>
-                                    <th scope="col" className="px-5 py-3.5 text-center">Notes</th>
-                                    <th scope="col" className="px-5 py-3.5 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border-subtle text-sm">
-                                {students.map((student) => {
-                                    const gradient = getAvatarGradient(student.student_id);
-                                    const initials = `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase();
-                                    const statusConfig = student.primary_status ? STATUS_CONFIG[student.primary_status] : null;
-                                    const variant = student.primary_course_name && student.primary_course_variant
-                                        ? cleanVariant(student.primary_course_name, student.primary_course_variant)
-                                        : null;
-
-                                    return (
-                                        <tr
-                                            key={student.student_id}
-                                            data-testid="student-row"
-                                            onClick={() => setSelectedStudentId(student.student_id)}
-                                            className="hover:bg-surface-elevated/60 transition-colors cursor-pointer group"
-                                        >
-                                            {/* Student Column: Avatar + Name + Contact */}
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-full bg-gradient-to-tr ${gradient} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
-                                                        {initials}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <div className="font-semibold text-primary group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors truncate">
-                                                            {student.first_name} {student.last_name}
-                                                        </div>
-                                                        <div className="flex items-center gap-3 text-xs text-muted mt-0.5">
-                                                            {student.email && (
-                                                                <span className="flex items-center gap-1 truncate" title={student.email}>
-                                                                    <Mail size={12} className="shrink-0" />
-                                                                    <span className="truncate">{student.email}</span>
-                                                                </span>
-                                                            )}
-                                                            {student.phone && (
-                                                                <span className="flex items-center gap-1 shrink-0">
-                                                                    <Phone size={12} className="shrink-0" />
-                                                                    <span>{student.phone}</span>
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Primary Course & Status Badge */}
-                                            <td className="px-5 py-4">
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className="font-medium text-primary text-xs">
-                                                            {student.primary_course_name || 'No course'}
-                                                        </span>
-                                                        {variant && (
-                                                            <span className="text-[11px] text-muted bg-surface-elevated px-2 py-0.5 rounded-md border border-border-subtle">
-                                                                {variant}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        {statusConfig ? (
-                                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusConfig.className}`}>
-                                                                {statusConfig.icon}
-                                                                <span>{statusConfig.label}</span>
-                                                            </span>
-                                                        ) : student.primary_status ? (
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-surface-elevated border border-border-subtle text-muted capitalize">
-                                                                {student.primary_status}
-                                                            </span>
-                                                        ) : null}
-
-                                                        {student.total_enrollments > 1 && (
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-500/20">
-                                                                +{student.total_enrollments - 1} more
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Queue & Priority */}
-                                            <td className="px-5 py-4">
-                                                <div className="flex flex-col gap-1 items-start">
-                                                    {student.is_priority && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20">
-                                                            <Star size={11} className="fill-amber-400 text-amber-500" />
-                                                            <span>⭐ Priority</span>
-                                                        </span>
-                                                    )}
-                                                    {student.primary_status === 'requested' && student.primary_queue_position != null ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
-                                                            <Clock size={11} />
-                                                            <span>#{student.primary_queue_position} in queue</span>
-                                                        </span>
-                                                    ) : !student.is_priority ? (
-                                                        <span className="text-xs text-muted">—</span>
-                                                    ) : null}
-                                                </div>
-                                            </td>
-
-                                            {/* Registration Date */}
-                                            <td className="px-5 py-4 whitespace-nowrap text-xs text-muted">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Calendar size={13} className="text-muted shrink-0" />
-                                                    <span>{formatDateDMY(student.created_at)}</span>
-                                                </div>
-                                            </td>
-
-                                            {/* Notes Indicator */}
-                                            <td className="px-5 py-4 text-center whitespace-nowrap">
-                                                {student.notes_count > 0 ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-surface-elevated border border-border-subtle text-primary shadow-xs">
-                                                        <MessageSquare size={12} className="text-brand-500" />
-                                                        <span>{student.notes_count}</span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-xs text-muted">—</span>
-                                                )}
-                                            </td>
-
-                                            {/* Actions */}
-                                            <td className="px-5 py-4 text-right whitespace-nowrap">
-                                                <span className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400 group-hover:translate-x-0.5 transition-transform">
-                                                    <span>View Details</span>
-                                                    <ChevronRight size={14} />
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Mobile Cards View */}
-                    <div className="md:hidden space-y-3">
-                        {students.map((student) => {
-                            const gradient = getAvatarGradient(student.student_id);
-                            const initials = `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase();
-                            const statusConfig = student.primary_status ? STATUS_CONFIG[student.primary_status] : null;
-                            const variant = student.primary_course_name && student.primary_course_variant
-                                ? cleanVariant(student.primary_course_name, student.primary_course_variant)
-                                : null;
-
-                            return (
-                                <div
-                                    key={student.student_id}
-                                    data-testid="student-row"
-                                    onClick={() => setSelectedStudentId(student.student_id)}
-                                    className="bg-surface rounded-2xl border border-border-subtle p-4 shadow-card space-y-3 hover:bg-surface-elevated/50 transition-colors cursor-pointer active:scale-[0.99]"
-                                >
-                                    {/* Top row: Avatar, Name, Priority & Notes */}
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-11 h-11 rounded-full bg-gradient-to-tr ${gradient} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
-                                                {initials}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h3 className="font-bold text-primary text-sm truncate">
-                                                    {student.first_name} {student.last_name}
-                                                </h3>
-                                                <p className="text-xs text-muted truncate">
-                                                    {student.email}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            {student.is_priority && (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20">
-                                                    <Star size={10} className="fill-amber-400 text-amber-500" />
-                                                </span>
-                                            )}
-                                            {student.notes_count > 0 && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-surface-elevated border border-border-subtle text-primary">
-                                                    <MessageSquare size={11} className="text-brand-500" />
-                                                    <span>{student.notes_count}</span>
-                                                </span>
-                                            )}
-                                            <ChevronRight size={16} className="text-muted" />
-                                        </div>
-                                    </div>
-
-                                    {/* Course info */}
-                                    <div className="bg-surface-elevated/60 rounded-xl p-2.5 border border-border-subtle space-y-1.5">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className="text-xs font-semibold text-primary truncate">
-                                                {student.primary_course_name || 'No course assigned'}
-                                            </span>
-                                            {variant && (
-                                                <span className="text-[10px] text-muted shrink-0">
-                                                    {variant}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            {statusConfig && (
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${statusConfig.className}`}>
-                                                    {statusConfig.icon}
-                                                    <span>{statusConfig.label}</span>
-                                                </span>
-                                            )}
-                                            {student.total_enrollments > 1 && (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-500/20">
-                                                    +{student.total_enrollments - 1} more
-                                                </span>
-                                            )}
-                                            {student.primary_status === 'requested' && student.primary_queue_position != null && (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
-                                                    <Clock size={10} />
-                                                    <span>#{student.primary_queue_position} in queue</span>
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Footer: Date & Phone */}
-                                    <div className="flex items-center justify-between text-xs text-muted pt-1 border-t border-border-subtle/50">
-                                        <span className="flex items-center gap-1">
-                                            <Calendar size={12} />
-                                            <span>Registered: {formatDateDMY(student.created_at)}</span>
-                                        </span>
-                                        {student.phone && (
-                                            <span className="flex items-center gap-1">
-                                                <Phone size={12} />
-                                                <span>{student.phone}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Pagination Controls */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
-                            <button
-                                type="button"
-                                disabled={page <= 1}
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                            >
-                                <ChevronLeft size={14} />
-                                <span>Previous</span>
-                            </button>
-                            <span className="text-xs font-medium text-muted">
-                                Page <strong className="text-primary">{page}</strong> of <strong className="text-primary">{totalPages}</strong>
-                            </span>
-                            <button
-                                type="button"
-                                disabled={page >= totalPages}
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface border border-border-subtle text-primary hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                            >
-                                <span>Next</span>
-                                <ChevronRight size={14} />
-                            </button>
+                    <div className={`bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
+                        <div className="hidden md:flex items-center gap-3 px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-[11px] font-bold uppercase tracking-wider text-muted">
+                            <span className="flex-1 pl-12">Student</span>
+                            <span className="hidden lg:block w-36">Phone</span>
+                            <span className="w-[30%]">Course & status</span>
+                            <span className="w-28">Registered</span>
+                            <span className="w-[88px]" />
                         </div>
+                        <div data-row-list className="divide-y divide-border-subtle">
+                            {students.map(s => (
+                                <StudentRow key={s.student_id} student={s} onOpen={() => drawer.open(s.student_id)} active={drawer.currentId === s.student_id} />
+                            ))}
+                        </div>
+                    </div>
+
+                    {totalPages > 1 && (
+                        <nav className="flex items-center justify-between gap-3" aria-label="Pagination">
+                            <span className="text-xs text-muted">
+                                <strong className="text-primary tabular-nums">{from}–{to}</strong> of <span className="tabular-nums">{totalCount}</span>
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <Button size="sm" onClick={() => goToPage(page - 1)} disabled={page <= 1} aria-label="Previous page">
+                                    <ChevronLeft size={14} /> <span className="hidden sm:inline">Previous</span>
+                                </Button>
+                                <span className="px-2 text-xs font-medium text-muted tabular-nums">
+                                    Page <strong className="text-primary">{page}</strong> of <strong className="text-primary">{totalPages}</strong>
+                                </span>
+                                <Button size="sm" onClick={() => goToPage(page + 1)} disabled={page >= totalPages} aria-label="Next page">
+                                    <span className="hidden sm:inline">Next</span> <ChevronRight size={14} />
+                                </Button>
+                            </div>
+                        </nav>
                     )}
                 </>
             )}
+        </div>
+    );
+}
 
-            {/* Slide-over Drawer Integration */}
-            <StudentDetailDrawer
-                studentId={selectedStudentId}
-                onClose={() => setSelectedStudentId(null)}
-            />
+function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirectoryItem; onOpen: () => void; active: boolean }) {
+    const name = fullName(student);
+    const variant = student.primary_course_name && student.primary_course_variant
+        ? cleanVariant(student.primary_course_name, student.primary_course_variant)
+        : null;
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.target !== e.currentTarget) return;
+        if (handleRowArrowKeys(e)) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+    };
+
+    return (
+        <div
+            data-row
+            data-testid="student-row"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={onKeyDown}
+            aria-label={`Open ${name}`}
+            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-none focus-visible:bg-brand-500/5 ${
+                active ? 'bg-brand-500/[0.07]' : 'hover:bg-surface-elevated/60'
+            }`}
+        >
+            <Avatar id={student.student_id} person={student} />
+
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-sm text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{name}</span>
+                    {student.is_priority && <PriorityStar />}
+                    {student.notes_count > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-muted" title={`${pluralize(student.notes_count, 'note')}`}>
+                            <MessageSquare size={11} className="text-brand-500" />{student.notes_count}
+                        </span>
+                    )}
+                </div>
+                <div className="text-xs text-muted flex items-center gap-2 min-w-0">
+                    <CopyText value={student.email} label="Email" className="min-w-0" />
+                    {student.phone && <CopyText value={student.phone} label="Phone" className="lg:hidden shrink-0 hidden sm:block">· {student.phone}</CopyText>}
+                </div>
+                {/* Mobile: course & status */}
+                <div className="md:hidden flex items-center gap-1.5 mt-1.5 min-w-0">
+                    <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
+                    <span className="text-[11px] text-muted truncate">{student.primary_course_name}</span>
+                    {student.total_enrollments > 1 && <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 shrink-0">+{student.total_enrollments - 1}</span>}
+                </div>
+            </div>
+
+            <div className="hidden lg:block w-36 text-xs text-muted truncate">
+                {student.phone ? <CopyText value={student.phone} label="Phone" /> : <span className="text-muted/50">—</span>}
+            </div>
+
+            <div className="hidden md:block w-[30%] min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs font-medium text-primary truncate">{student.primary_course_name || <span className="text-muted">No course</span>}</span>
+                    {variant && <span className="text-[10px] text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                    <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
+                    {student.total_enrollments > 1 && (
+                        <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400" title="Enrolled in other courses too">
+                            +{student.total_enrollments - 1} more
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            <div className="hidden md:block w-28 text-xs">
+                <div className="text-primary inline-flex items-center gap-1"><Calendar size={11} className="text-muted" />{formatDateDMY(student.created_at)}</div>
+                <div className="text-[11px] text-muted">{relativeDay(student.created_at.slice(0, 10))}</div>
+            </div>
+
+            <div className="flex items-center justify-end gap-1 md:w-[88px] shrink-0">
+                <ContactActions phone={student.phone} name={name} className="hidden xl:flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
+                <ChevronRight size={16} className="text-muted/60 group-hover:text-muted" />
+            </div>
         </div>
     );
 }

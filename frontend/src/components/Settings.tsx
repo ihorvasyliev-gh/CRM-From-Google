@@ -6,6 +6,7 @@ import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubjec
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import UserRolesSection from './UserRolesSection';
 import { toast } from '../lib/toast';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
@@ -1021,6 +1022,9 @@ export default function Settings() {
                     </div>
                 </div>
             </section>
+
+            {/* ═══ Users & Roles ═══ */}
+            <UserRolesSection />
 
             {/* ═══ Info Footer ═══ */}
             <div className="flex items-center gap-2 text-xs text-muted px-1">

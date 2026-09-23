@@ -61,7 +61,7 @@ describe('MobileBottomNav Component', () => {
         expect(handleNavigate).toHaveBeenCalledWith('analytics');
     });
 
-    it('renders viewer mode navigation with Students, Courses, Search, and More', () => {
+    it('renders viewer mode navigation with Home, Students, Courses, Search, and More', () => {
         const handleNavigate = vi.fn();
         const handleCommandPalette = vi.fn();
         const handleToggleDark = vi.fn();
@@ -85,6 +85,7 @@ describe('MobileBottomNav Component', () => {
             />
         );
 
+        expect(screen.getByText('Home')).toBeInTheDocument();
         expect(screen.getByText('Students')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
         expect(screen.getByText('Search')).toBeInTheDocument();
@@ -99,6 +100,9 @@ describe('MobileBottomNav Component', () => {
 
         fireEvent.click(screen.getByText('Courses'));
         expect(handleNavigate).toHaveBeenCalledWith('courses');
+
+        fireEvent.click(screen.getByText('Home'));
+        expect(handleNavigate).toHaveBeenCalledWith('home');
 
         fireEvent.click(screen.getByText('Search'));
         expect(handleCommandPalette).toHaveBeenCalled();

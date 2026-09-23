@@ -187,6 +187,27 @@ export interface NonDuplicate {
     created_at?: string;
 }
 
+export interface ViewerStudentDirectoryItem {
+    student_id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string | null;
+    address: string | null;
+    eircode: string | null;
+    dob: string | null;
+    created_at: string;
+    primary_course_name: string | null;
+    primary_course_id: string | null;
+    primary_status: string | null;
+    primary_course_variant: string | null;
+    primary_queue_position: number | null;
+    is_priority: boolean;
+    total_enrollments: number;
+    notes_count: number;
+    total_count: number;
+}
+
 export interface ViewerUpcomingCourse {
     course_id: string;
     course_name: string;

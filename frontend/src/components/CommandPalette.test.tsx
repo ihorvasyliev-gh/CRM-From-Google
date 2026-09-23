@@ -216,8 +216,9 @@ describe('CommandPalette Component', () => {
                 />
             );
 
-            expect(screen.getByText('Students Directory')).toBeInTheDocument();
-            expect(screen.getByText('Course Monitor')).toBeInTheDocument();
+            expect(screen.getByText('Home')).toBeInTheDocument();
+            expect(screen.getByText('Students')).toBeInTheDocument();
+            expect(screen.getByText('Courses')).toBeInTheDocument();
             expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
             expect(screen.queryByText('Enrollments')).not.toBeInTheDocument();
             expect(screen.queryByText('Pending Approvals')).not.toBeInTheDocument();
@@ -289,7 +290,7 @@ describe('CommandPalette Component', () => {
             expect(courseItem).toBeInTheDocument();
 
             fireEvent.click(courseItem);
-            expect(mockNavigate).toHaveBeenCalledWith('courses', { courseId: 'c-1' });
+            expect(mockNavigate).toHaveBeenCalledWith('courses/c-1');
             expect(mockClose).toHaveBeenCalledTimes(1);
         });
     });

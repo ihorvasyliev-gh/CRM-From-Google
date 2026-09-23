@@ -16,6 +16,9 @@ import { setupSleepAndWakeListener } from '../lib/realtimeSync';
  *
  * Mount this hook **once** at the App level.
  */
+// Viewer portal caches that depend on enrollment rows
+const VIEWER_ENROLLMENT_KEYS = ['viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail'];
+
 export function useGlobalRealtimeSync() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
@@ -70,7 +73,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'enrollments' },
                 (payload) => {
                     console.log('Realtime update: enrollments changed', payload);
-                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts']);
+                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', ...VIEWER_ENROLLMENT_KEYS]);
                 }
             )
             // ─── Students ───────────────────────────────────
@@ -79,7 +82,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'students' },
                 (payload) => {
                     console.log('Realtime update: students changed', payload);
-                    queueInvalidation(['students', 'dashboard_stats']);
+                    queueInvalidation(['students', 'dashboard_stats', 'viewer_students_directory', 'viewer_course_roster', 'restricted_student_detail']);
                 }
             )
             // ─── Courses ────────────────────────────────────
@@ -88,7 +91,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'courses' },
                 (payload) => {
                     console.log('Realtime update: courses changed', payload);
-                    queueInvalidation(['courses', 'doc_courses', 'dashboard_stats']);
+                    queueInvalidation(['courses', 'doc_courses', 'dashboard_stats', 'viewer_courses', 'viewer_upcoming_courses']);
                 }
             )
             // ─── Employment Status ───────────────────────────

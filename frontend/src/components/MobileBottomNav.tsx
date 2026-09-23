@@ -17,7 +17,8 @@ import {
     Clock, 
     LogOut, 
     X,
-    Search
+    Search,
+    Home
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
@@ -62,37 +63,33 @@ export default function MobileBottomNav({
                     className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/[0.97] border-t border-border-subtle/80 px-3 py-1.5 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
                 >
                     <div className="flex items-center justify-around max-w-md mx-auto">
-                        <button
-                            onClick={() => onNavigate('students')}
-                            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 min-w-[64px] ${
-                                activeTab === 'lookup' || activeTab === 'students'
-                                    ? 'text-brand-600 dark:text-brand-400 font-bold'
-                                    : 'text-muted hover:text-primary'
-                            }`}
-                        >
-                            <div className={`p-1 rounded-lg transition-transform ${activeTab === 'lookup' || activeTab === 'students' ? 'bg-brand-500/10 scale-110' : ''}`}>
-                                <Users size={19} />
-                            </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">Students</span>
-                        </button>
-
-                        <button
-                            onClick={() => onNavigate('courses')}
-                            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-200 min-w-[64px] ${
-                                activeTab === 'courses'
-                                    ? 'text-brand-600 dark:text-brand-400 font-bold'
-                                    : 'text-muted hover:text-primary'
-                            }`}
-                        >
-                            <div className={`p-1 rounded-lg transition-transform ${activeTab === 'courses' ? 'bg-brand-500/10 scale-110' : ''}`}>
-                                <BookOpen size={19} />
-                            </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">Courses</span>
-                        </button>
+                        {([
+                            { key: 'home', label: 'Home', icon: Home },
+                            { key: 'students', label: 'Students', icon: Users },
+                            { key: 'courses', label: 'Courses', icon: BookOpen },
+                        ] as const).map(item => {
+                            const Icon = item.icon;
+                            const active = activeTab === item.key || (item.key === 'students' && activeTab === 'lookup');
+                            return (
+                                <button
+                                    key={item.key}
+                                    onClick={() => onNavigate(item.key)}
+                                    aria-current={active ? 'page' : undefined}
+                                    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[60px] ${
+                                        active ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-muted hover:text-primary'
+                                    }`}
+                                >
+                                    <div className={`p-1 rounded-lg transition-transform ${active ? 'bg-brand-500/10 scale-110' : ''}`}>
+                                        <Icon size={19} />
+                                    </div>
+                                    <span className="text-[10px] tracking-tight mt-0.5">{item.label}</span>
+                                </button>
+                            );
+                        })}
 
                         <button
                             onClick={onOpenCommandPalette}
-                            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[64px]"
+                            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[60px]"
                         >
                             <div className="p-1">
                                 <Search size={19} />
@@ -102,7 +99,7 @@ export default function MobileBottomNav({
 
                         <button
                             onClick={() => setMoreOpen(true)}
-                            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[64px]"
+                            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[60px]"
                         >
                             <div className="p-1">
                                 <MoreHorizontal size={19} />

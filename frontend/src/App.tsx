@@ -40,9 +40,12 @@ const Settings = lazyWithRetry(() => import('./components/Settings'));
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
+const ViewerHome = lazyWithRetry(() => import('./components/ViewerHome'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
-import UpcomingCoursesPopover from './components/UpcomingCoursesPopover';
+import ViewerHeader from './components/Viewer/ViewerHeader';
+import { VIEWER_TABS, type ViewerTab } from './components/Viewer/viewerMeta';
+import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/studentDrawer';
 import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 const NAV_ITEMS = [
@@ -102,12 +105,19 @@ function App() {
     // Prewarm heavy route component chunks during browser idle time so tab clicks have zero delay
     useEffect(() => {
         if (!user) return;
-        const prewarm = () => {
-            import('./components/Dashboard');
-            import('./components/EnrollmentBoard');
-            import('./components/StudentList');
-            import('./components/CourseList');
-        };
+        const prewarm = user.app_metadata?.role === 'viewer'
+            ? () => {
+                import('./components/ViewerHome');
+                import('./components/ViewerStudentsDirectory');
+                import('./components/ViewerCourses');
+                import('./components/StudentDetailDrawer');
+            }
+            : () => {
+                import('./components/Dashboard');
+                import('./components/EnrollmentBoard');
+                import('./components/StudentList');
+                import('./components/CourseList');
+            };
         if (typeof window !== 'undefined') {
             if ('requestIdleCallback' in window) {
                 const handle = (window as any).requestIdleCallback(prewarm, { timeout: 2000 });
@@ -123,7 +133,9 @@ function App() {
     const navigateFn = useNavigate();
     const [, startTransition] = useTransition();
     const isViewer = user?.app_metadata?.role === 'viewer';
-    const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'students';
+    const viewerTab: ViewerTab = location.pathname.startsWith('/courses')
+        ? 'courses'
+        : location.pathname.startsWith('/students') ? 'students' : 'home';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && !isViewer);
@@ -135,7 +147,7 @@ function App() {
             return;
         }
         const page = isViewer
-            ? (activeTab === 'courses' ? 'Course Monitor' : 'Students Directory')
+            ? (VIEWER_TABS.find(t => t.key === activeTab)?.label || 'Home')
             : (PAGE_TITLES[activeTab] || 'Dashboard');
         const prefix = !isViewer && pendingApprovalsCount > 0 ? `(${pendingApprovalsCount}) ` : '';
         document.title = `${prefix}${page} · Course CRM`;
@@ -151,7 +163,8 @@ function App() {
     const [globalEnrollModalOpen, setGlobalEnrollModalOpen] = useState(false);
     const [globalEnrollStudentId, setGlobalEnrollStudentId] = useState<string | undefined>();
     const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
-    const [viewerSelectedStudentId, setViewerSelectedStudentId] = useState<string | null>(null);
+    const viewerDrawer = useStudentDrawer();
+    const viewerListIds = useVisibleStudentIds();
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
@@ -436,10 +449,6 @@ function App() {
         });
     }, [navigateFn]);
 
-    const handleSelectUpcomingCourse = useCallback((courseId: string, courseDate?: string) => {
-        navigate('courses', { courseId, courseDate });
-    }, [navigate]);
-
     // Called from child components (e.g., StudentDetail, Dashboard) to navigate with filters
     const handleNavigate = useCallback((tab: string, filter?: any) => {
         setSidebarOpen(false);
@@ -509,6 +518,13 @@ function App() {
                 if (!isViewer && (e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey) {
                     e.preventDefault();
                     setGlobalAddStudentOpen(true);
+                    return;
+                }
+
+                // 1-3 -> Viewer tab navigation
+                if (isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '3') {
+                    e.preventDefault();
+                    navigate(VIEWER_TABS[parseInt(e.key, 10) - 1].key);
                     return;
                 }
 
@@ -777,111 +793,19 @@ function App() {
                             </div>
                         </div>
                     )}
-                    {/* Viewer Top Header (Glassmorphism) */}
                     {isViewer && (
-                        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-3 sm:px-6 py-3 flex items-center justify-between gap-2 transition-colors min-w-0">
-                            <div className="flex items-center gap-2 sm:gap-6 min-w-0">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/30 ring-1 ring-inset ring-white/15 flex-shrink-0">
-                                        C
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h1 className="text-sm font-bold text-primary tracking-tight truncate">
-                                            Course CRM
-                                        </h1>
-                                        <p className="text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer Portal</p>
-                                    </div>
-                                </div>
-
-                                {/* Viewer Navigation Switcher (mobile uses the bottom nav instead) */}
-                                <div className="hidden lg:flex items-center gap-1 bg-surface-elevated/70 p-1 rounded-xl border border-border-subtle">
-                                    <button
-                                        onClick={() => navigate('students')}
-                                        onMouseEnter={() => handleTabMouseEnter('students')}
-                                        onMouseLeave={handleTabMouseLeave}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                            activeTab === 'students'
-                                                ? 'bg-brand-500 text-white shadow-sm'
-                                                : 'text-muted hover:text-primary hover:bg-surface'
-                                        }`}
-                                    >
-                                        <Users size={14} />
-                                        <span>Students Directory</span>
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('courses')}
-                                        onMouseEnter={() => handleTabMouseEnter('courses')}
-                                        onMouseLeave={handleTabMouseLeave}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                            activeTab === 'courses'
-                                                ? 'bg-brand-500 text-white shadow-sm'
-                                                : 'text-muted hover:text-primary hover:bg-surface'
-                                        }`}
-                                    >
-                                        <BookOpen size={14} />
-                                        <span>Course Monitor</span>
-                                    </button>
-                                </div>
-
-                                {/* Upcoming Courses Dropdown Popover */}
-                                <UpcomingCoursesPopover onSelectCourse={handleSelectUpcomingCourse} />
-                            </div>
-
-                            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-                                <button
-                                    onClick={() => setCommandPaletteOpen(true)}
-                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
-                                    title="Quick search (Ctrl+K)"
-                                >
-                                    <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
-                                    <span className="hidden sm:inline">Search</span>
-                                    <kbd className="px-1.5 py-0.2 text-[9px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded group-hover:border-brand-500/30">Ctrl K</kbd>
-                                </button>
-
-                                <NetworkStatusIndicator />
-
-                                <button
-                                    onClick={() => setShortcutsModalOpen(true)}
-                                    className="hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
-                                    title="Keyboard Shortcuts (?)"
-                                >
-                                    <HelpCircle size={17} />
-                                </button>
-
-                                <button
-                                    onClick={toggleDensity}
-                                    className={`hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
-                                    title={density === 'compact' ? 'Switch to Comfortable View' : 'Switch to Compact View'}
-                                >
-                                    <Rows3 size={17} />
-                                </button>
-
-                                <button
-                                    onClick={toggleDarkMode}
-                                    className="hidden lg:block p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
-                                    title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                                >
-                                    {darkMode ? <Sun size={17} /> : <Moon size={17} />}
-                                </button>
-
-                                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-surface-elevated rounded-xl border border-border-subtle/50">
-                                    <div className="w-6 h-6 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-background shadow-sm">
-                                        {(user?.email?.[0] || 'V').toUpperCase()}
-                                    </div>
-                                    <span className="text-xs font-semibold text-primary/80 truncate max-w-[120px]">{user?.email}</span>
-                                    <span className="text-[9px] bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold px-1.5 py-0.5 rounded uppercase">Viewer</span>
-                                </div>
-
-                                <button
-                                    onClick={signOut}
-                                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all shadow-sm"
-                                    title="Sign Out"
-                                >
-                                    <LogOut size={14} />
-                                    <span className="hidden sm:inline">Sign Out</span>
-                                </button>
-                            </div>
-                        </header>
+                        <ViewerHeader
+                            activeTab={viewerTab}
+                            onNavigate={tab => navigate(tab)}
+                            onOpenSearch={() => setCommandPaletteOpen(true)}
+                            onOpenShortcuts={() => setShortcutsModalOpen(true)}
+                            darkMode={darkMode}
+                            toggleDarkMode={toggleDarkMode}
+                            density={density}
+                            toggleDensity={toggleDensity}
+                            userEmail={user.email}
+                            onSignOut={signOut}
+                        />
                     )}
 
                     {/* Mobile Header (Glassmorphism) */}
@@ -1009,10 +933,12 @@ function App() {
                             <Routes>
                                 {isViewer ? (
                                     <>
+                                        <Route path="/home" element={<ViewerHome onOpenSearch={() => setCommandPaletteOpen(true)} />} />
                                         <Route path="/students" element={<ViewerStudentsDirectory />} />
-                                        <Route path="/courses" element={<ViewerCourses initialCourseId={location.state?.courseId} initialDate={location.state?.courseDate} />} />
+                                        <Route path="/courses" element={<ViewerCourses />} />
+                                        <Route path="/courses/:courseId" element={<ViewerCourses />} />
                                         <Route path="/lookup" element={<Navigate to="/students" replace />} />
-                                        <Route path="*" element={<Navigate to="/students" replace />} />
+                                        <Route path="*" element={<Navigate to="/home" replace />} />
                                     </>
                                 ) : (
                                     <>
@@ -1090,7 +1016,7 @@ function App() {
                 onNavigate={handleNavigate}
                 onOpenStudentDetail={student => {
                     if (isViewer) {
-                        setViewerSelectedStudentId(student.id);
+                        viewerDrawer.open(student.id);
                     } else {
                         setGlobalStudentDetail(student);
                     }
@@ -1110,6 +1036,7 @@ function App() {
             <KeyboardShortcutsModal
                 open={shortcutsModalOpen}
                 onClose={() => setShortcutsModalOpen(false)}
+                isViewer={isViewer}
             />
 
             {/* Global Add Student Modal */}
@@ -1140,15 +1067,24 @@ function App() {
                 />
             )}
 
-            {/* Viewer Student Detail Drawer */}
-            {isViewer && viewerSelectedStudentId && (
-                <Suspense fallback={null}>
-                    <StudentDetailDrawer
-                        studentId={viewerSelectedStudentId}
-                        onClose={() => setViewerSelectedStudentId(null)}
-                    />
-                </Suspense>
-            )}
+            {/* Viewer Student Detail Drawer (URL driven: ?student=<id>) */}
+            {isViewer && viewerDrawer.currentId && (() => {
+                const idx = viewerListIds.indexOf(viewerDrawer.currentId);
+                const prevId = idx > 0 ? viewerListIds[idx - 1] : undefined;
+                const nextId = idx >= 0 && idx < viewerListIds.length - 1 ? viewerListIds[idx + 1] : undefined;
+                return (
+                    <Suspense fallback={null}>
+                        <StudentDetailDrawer
+                            studentId={viewerDrawer.currentId}
+                            onClose={viewerDrawer.close}
+                            onPrev={prevId ? () => viewerDrawer.open(prevId) : undefined}
+                            onNext={nextId ? () => viewerDrawer.open(nextId) : undefined}
+                            position={idx >= 0 ? { index: idx, total: viewerListIds.length } : undefined}
+                            onOpenCourse={(courseId: string) => navigateFn(`/courses/${courseId}`)}
+                        />
+                    </Suspense>
+                );
+            })()}
 
             {/* Global Student Detail Modal */}
             {!isViewer && globalStudentDetail && (

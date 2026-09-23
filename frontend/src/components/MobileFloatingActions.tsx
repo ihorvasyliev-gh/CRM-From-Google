@@ -18,19 +18,8 @@ export default function MobileFloatingActions({
     const [open, setOpen] = useState(false);
     useModalBehavior(open, () => setOpen(false));
 
-    // If viewer, FAB opens Quick Search directly
-    if (isViewer) {
-        return (
-            <button
-                onClick={onOpenCommandPalette}
-                className="lg:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-30 w-12 h-12 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-brand-500/30 transition-all"
-                title="Quick Search"
-                aria-label="Quick Search"
-            >
-                <Search size={20} />
-            </button>
-        );
-    }
+    // Viewers have Search in the bottom dock; a FAB would only cover list rows and the bulk action bar
+    if (isViewer) return null;
 
     return (
         <div className="lg:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-30">

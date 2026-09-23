@@ -63,7 +63,10 @@ describe('useGlobalRealtimeSync', () => {
         act(() => { vi.advanceTimersByTime(250); });
 
         expect(invalidatedKeys().sort()).toEqual(
-            ['course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'students'].sort()
+            [
+                'course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'students',
+                'viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail',
+            ].sort()
         );
     });
 

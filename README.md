@@ -180,7 +180,7 @@ CRM-From-Google/
 │   └── vite.config.ts            # Vite configuration & chunking strategy
 ├── supabase/                     # Database migrations & schemas
 │   ├── schema.sql                # Base database schema definitions
-│   └── [01-57]_*.sql             # Sequential migrations (RPCs, indexes, RLS, features)
+│   └── [01-58]_*.sql             # Sequential migrations (RPCs, indexes, RLS, features)
 ├── google-apps-script/           # Google Workspace automation
 │   ├── Code.gs                   # CRM Sheets integration & form sync
 │   └── EmploymentFormSync.gs     # Graduate outcomes Google Form sync
@@ -231,7 +231,7 @@ cd CRM-From-Google
 1. Open your project dashboard on [Supabase](https://supabase.com/).
 2. Navigate to the **SQL Editor**.
 3. Run [supabase/schema.sql](supabase/schema.sql) to set up core tables and baseline RLS policies.
-4. Apply the migrations in [supabase/](supabase/) sequentially from `01` through `57`.
+4. Apply the migrations in [supabase/](supabase/) sequentially from `01` through `58`.
 5. Navigate to **Storage** and create a public bucket named `templates` for document and certificate files.
 
 ---

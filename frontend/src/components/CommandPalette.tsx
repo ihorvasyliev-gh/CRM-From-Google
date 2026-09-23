@@ -259,8 +259,9 @@ export default function CommandPalette({
             });
         } else {
             const viewerNavs = [
-                { id: 'nav-students', title: 'Students Directory', subtitle: 'Search and browse student history & contacts', tab: 'students', icon: <Users size={17} /> },
-                { id: 'nav-courses', title: 'Course Monitor', subtitle: 'View course attendees & request completions', tab: 'courses', icon: <BookOpen size={17} /> },
+                { id: 'nav-home', title: 'Home', subtitle: 'Upcoming sessions & what needs attention', tab: 'home', icon: <LayoutDashboard size={17} />, shortcut: '1' },
+                { id: 'nav-students', title: 'Students', subtitle: 'Search and browse student history & contacts', tab: 'students', icon: <Users size={17} />, shortcut: '2' },
+                { id: 'nav-courses', title: 'Courses', subtitle: 'Course rosters, dates & completion requests', tab: 'courses', icon: <BookOpen size={17} />, shortcut: '3' },
             ];
             viewerNavs.forEach(nav => {
                 if (!q || nav.title.toLowerCase().includes(q) || nav.subtitle.toLowerCase().includes(q)) {
@@ -270,6 +271,7 @@ export default function CommandPalette({
                         subtitle: nav.subtitle,
                         category: 'Navigation',
                         icon: nav.icon,
+                        shortcut: nav.shortcut,
                         onSelect: () => {
                             onNavigate(nav.tab);
                             onClose();
@@ -371,7 +373,7 @@ export default function CommandPalette({
                 icon: <BookOpen size={17} className="text-brand-400" />,
                 onSelect: () => {
                     if (isViewer) {
-                        onNavigate('courses', { courseId: c.id });
+                        onNavigate(`courses/${c.id}`);
                     } else {
                         onNavigate('enrollments', { courseId: c.id });
                     }
