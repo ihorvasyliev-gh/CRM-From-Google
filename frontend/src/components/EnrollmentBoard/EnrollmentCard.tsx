@@ -49,17 +49,8 @@ function getRelativeTime(isoDate: string): string {
 // Shared class strings for the compact card layout
 const iconBtnBase = 'w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors';
 const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surface-elevated`;
+const contactBtn = 'w-6 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors flex-shrink-0';
 const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium flex-shrink-0 whitespace-nowrap';
-
-// Left accent border per status
-const STATUS_LEFT_BORDER: Record<string, string> = {
-    requested: 'border-l-warning',
-    invited:   'border-l-info',
-    confirmed: 'border-l-success',
-    completed: 'border-l-[oklch(var(--status-completed))]',
-    withdrawn: 'border-l-muted',
-    rejected:  'border-l-danger',
-};
 
 const EnrollmentCard = function EnrollmentCard({
     enrollment,
@@ -232,8 +223,23 @@ const EnrollmentCard = function EnrollmentCard({
         return 'ok';
     }, [status, enrollment.invited_at, enrollment.response_days, now]);
 
-    const leftBorder = STATUS_LEFT_BORDER[status] || 'border-l-border-subtle';
     const fullName = `${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`.trim();
+    const initials = `${enrollment.students?.first_name?.[0] || ''}${enrollment.students?.last_name?.[0] || ''}`.toUpperCase() || '?';
+
+    // Date shown on the card: the one that matters for the current stage; the full history goes in the tooltip
+    const stageDate = status === 'completed' && enrollment.completed_date
+        ? <><GraduationCap size={10} />{formatShortDate(enrollment.completed_date)}</>
+        : status === 'confirmed' && enrollment.confirmed_date
+            ? <><CheckCircle size={10} />{formatShortDate(enrollment.confirmed_date)}</>
+            : status === 'invited' && enrollment.invited_date
+                ? <><Send size={10} />{formatShortDate(enrollment.invited_date)}</>
+                : <>{formatShortDate(enrollment.created_at)} · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</>;
+    const dateTooltip = [
+        `Added ${formatDateLong(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
+        enrollment.invited_date && `Invited ${formatDateLong(enrollment.invited_date)}`,
+        enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
+        enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
+    ].filter(Boolean).join('\n');
 
     return (
         <div
@@ -241,7 +247,7 @@ const EnrollmentCard = function EnrollmentCard({
             style={style}
             {...(isOverlay || isMobile ? {} : attributes)}
             {...(isOverlay || isMobile ? {} : listeners)}
-            className={`group relative enrollment-card cv-auto-card px-2 py-1.5 md:px-2.5 md:py-2 rounded-lg md:rounded-xl border border-l-[3px] ${leftBorder} ${
+            className={`group relative enrollment-card cv-auto-card flex items-start gap-2.5 p-2 md:p-2.5 rounded-lg md:rounded-xl border ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
                     : isMobile
@@ -257,234 +263,197 @@ const EnrollmentCard = function EnrollmentCard({
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}
         >
-            {/* Row 1: Checkbox, Name & Actions */}
-            <div className="flex items-center gap-1.5 min-w-0">
-                {/* Checkbox */}
-                <div
-                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0 ${
-                        isSelected
-                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                            : 'border-border-strong group-hover:border-brand-500/50 bg-background'
-                    }`}
-                >
-                    {isSelected && <Check size={11} strokeWidth={3} />}
-                </div>
-
-                {/* Name */}
-                <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
-                    {fullName}
-                </p>
-
-                {/* Actions: state indicators always visible, the rest revealed on hover (desktop) */}
-                <div className="card-actions-col flex items-center flex-shrink-0 -my-1 -mr-1">
-                    {/* Secondary actions — hover only on desktop */}
-                    <div className="flex items-center lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
-                        {!enrollment.notes && (
-                            <CustomTooltip content="Add note">
-                                <button
-                                    aria-label="Add Note"
-                                    onClick={handleStartEditNote}
-                                    className={iconBtn}
-                                >
-                                    <Pencil size={13} />
-                                </button>
-                            </CustomTooltip>
-                        )}
-
-                        {onMoveStatus && (
-                            <CustomTooltip content="Move status">
-                                <button
-                                    ref={quickMoveBtnRef}
-                                    aria-label="Move status"
-                                    onClick={handleOpenQuickMove}
-                                    className={showQuickMove
-                                        ? `${iconBtnBase} text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10`
-                                        : iconBtn}
-                                >
-                                    <ArrowRightLeft size={13} />
-                                </button>
-                            </CustomTooltip>
-                        )}
-
-                        <CustomTooltip content="View student details">
-                            <button
-                                aria-label="View Student Details"
-                                onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                                className={iconBtn}
-                            >
-                                <Info size={13} />
-                            </button>
-                        </CustomTooltip>
-
-                        {studentFlags.length === 0 && (
-                            <CustomTooltip content="Flag student (e.g. failed a course)">
-                                <button
-                                    aria-label="Flag student"
-                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                    className={`${iconBtnBase} text-muted/60 hover:text-orange-500 hover:bg-surface-elevated`}
-                                >
-                                    <AlertTriangle size={13} />
-                                </button>
-                            </CustomTooltip>
-                        )}
-                    </div>
-
-                    {/* ⚠ Student Flags — always visible when set */}
-                    {studentFlags.length > 0 && (
-                        <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
-                            <button
-                                aria-label="Student flags"
-                                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                className={`${iconBtnBase} text-orange-500 hover:text-orange-600 hover:bg-orange-500/10`}
-                            >
-                                <AlertTriangle size={13} strokeWidth={2.5} />
-                            </button>
-                        </CustomTooltip>
-                    )}
-
-                    {/* Star Priority — visible when set */}
-                    <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"}>
-                        <button
-                            aria-label={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                togglePriority(enrollment.id, !!enrollment.is_priority);
-                            }}
-                            className={`${iconBtnBase} ${enrollment.is_priority
-                                ? 'text-warning hover:bg-warning/10'
-                                : 'text-muted/60 hover:text-warning hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100'
-                            }`}
-                        >
-                            <Star size={13} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                        </button>
-                    </CustomTooltip>
-                </div>
-            </div>
-
-            {/* Row 2: Course, queue, completed courses, stage dates/timer — and request date on the right */}
-            <div className="mt-1 pl-[22px] flex items-center gap-1 flex-wrap min-w-0">
-                {/* Course Pill */}
-                <span
-                    title={getCoursePill(enrollment)}
-                    className={`card-pill inline-flex items-center h-5 text-[11px] leading-none font-semibold px-1.5 rounded-md ${cfg.pillBg} truncate max-w-full select-none`}
-                >
-                    {getCoursePill(enrollment)}
-                </span>
-
-                {/* Queue Number */}
+            {/* Avatar — initials, doubles as the selection checkbox; queue position sits on its corner */}
+            <div
+                aria-hidden="true"
+                className={`relative w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-[13px] font-extrabold select-none transition-colors ${
+                    isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg
+                }`}
+            >
+                {isSelected ? (
+                    <Check size={16} strokeWidth={3} />
+                ) : (
+                    <>
+                        <span className="group-hover:opacity-0 transition-opacity">{initials}</span>
+                        <span className="absolute inset-0 m-auto w-4 h-4 rounded border-2 border-current opacity-0 group-hover:opacity-60 transition-opacity" />
+                    </>
+                )}
                 {status === 'requested' && queuePosition !== undefined && (
                     <span
                         title="Position in queue for this course"
-                        className="card-pill inline-flex items-center justify-center h-5 px-1.5 text-[11px] leading-none font-bold font-mono rounded-md bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 flex-shrink-0 select-none"
+                        className="card-pill absolute -bottom-1.5 -right-2 px-1 min-w-[18px] h-[15px] inline-flex items-center justify-center text-[9.5px] leading-none font-extrabold font-mono rounded-md border-2 border-surface bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                     >
                         #{queuePosition}
                     </span>
                 )}
-
-                {/* 🥇 Completed Courses Badge */}
-                {completedCourses.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
-                        title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                        className="card-pill inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[11px] leading-none font-bold rounded-md text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
-                    >
-                        <Award size={11} strokeWidth={2.5} className="flex-shrink-0" />
-                        <span className="leading-none">{completedCourses.length}</span>
-                    </button>
-                )}
-
-                {enrollment.invited_date && enrollment.status !== 'completed' && (
-                    <span title={`Invited ${formatDateLong(enrollment.invited_date)}`} className={`${metaChip} text-status-invited bg-info/10`}>
-                        <Send size={10} />
-                        {formatShortDate(enrollment.invited_date)}
-                    </span>
-                )}
-                {enrollment.confirmed_date && enrollment.status !== 'completed' && (
-                    <span title={`Confirmed ${formatDateLong(enrollment.confirmed_date)}`} className={`${metaChip} text-status-confirmed bg-success/10`}>
-                        <CheckCircle size={10} />
-                        {formatShortDate(enrollment.confirmed_date)}
-                    </span>
-                )}
-                {enrollment.completed_date && enrollment.status === 'completed' && (
-                    <span title={`Completed ${formatDateLong(enrollment.completed_date)}`} className={`${metaChip} text-status-completed bg-[oklch(var(--status-completed)/0.1)]`}>
-                        <GraduationCap size={10} />
-                        {formatShortDate(enrollment.completed_date)}
-                    </span>
-                )}
-
-                {/* Invitation Timer */}
-                {status === 'invited' && (() => {
-                    const invitedAt = enrollment.invited_at;
-                    if (!invitedAt) return null;
-                    const days = enrollment.response_days ?? 7;
-                    const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-                    const remaining = deadline - now;
-
-                    if (remaining <= 0) {
-                        const invitedDate = new Date(invitedAt).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-                        return (
-                            <span className={`${metaChip} bg-red-500/10 text-red-600 dark:text-red-400 font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                <Timer size={10} strokeWidth={2.5} />
-                                Expired
-                            </span>
-                        );
-                    }
-
-                    const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                    const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
-                    const isUrgent = timerLevel === 'urgent';
-                    return (
-                        <span
-                            className={`${metaChip} ${isUrgent
-                                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 animate-pulse-timer'
-                                : 'bg-surface-elevated text-primary/80'
-                            }`}
-                            title={`${timerText} remaining (${days}-day deadline)`}
-                        >
-                            <Timer size={10} />
-                            {timerText}
-                        </span>
-                    );
-                })()}
-
-                {/* Request date — pushed to the right */}
-                <span
-                    className="card-info ml-auto pl-1 text-[11px] text-primary/55 whitespace-nowrap tabular-nums flex-shrink-0"
-                    title={`Added ${formatDateLong(enrollment.created_at)} · ${getRelativeTime(enrollment.created_at)}`}
-                >
-                    {formatShortDate(enrollment.created_at)}
-                    <span className="text-primary/30"> · </span>
-                    {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}
-                </span>
             </div>
 
-            {/* Row 3: Contacts (Phone + WhatsApp & Email) */}
-            {(enrollment.students?.phone || enrollment.students?.email) && (
-                <div className="card-contact mt-1 pl-[22px] flex items-center gap-2 text-xs text-primary/90 min-w-0">
+            <div className="flex-1 min-w-0">
+                {/* Row 1: Name, timer & actions */}
+                <div className="flex items-center gap-1 min-w-0">
+                    <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
+                        {fullName}
+                    </p>
+
+                    {/* Invitation Timer */}
+                    {status === 'invited' && enrollment.invited_at && (() => {
+                        const days = enrollment.response_days ?? 7;
+                        const deadline = new Date(enrollment.invited_at).getTime() + days * 24 * 60 * 60 * 1000;
+                        const remaining = deadline - now;
+
+                        if (remaining <= 0) {
+                            const invitedDate = new Date(enrollment.invited_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                            return (
+                                <span className={`${metaChip} bg-red-500/10 text-red-600 dark:text-red-400 font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                    <Timer size={10} strokeWidth={2.5} />
+                                    Expired
+                                </span>
+                            );
+                        }
+
+                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
+                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                        return (
+                            <span
+                                className={`${metaChip} ${timerLevel === 'urgent'
+                                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 animate-pulse-timer'
+                                    : 'bg-info/10 text-status-invited'
+                                }`}
+                                title={`${timerText} remaining (${days}-day deadline)`}
+                            >
+                                <Timer size={10} />
+                                {timerText}
+                            </span>
+                        );
+                    })()}
+
+                    <div className="card-actions-col flex items-center flex-shrink-0 -my-1 -mr-1">
+                        {/* Secondary actions — revealed on hover (always visible on touch screens) */}
+                        <div className="flex items-center lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+                            {!enrollment.notes && (
+                                <CustomTooltip content="Add note">
+                                    <button aria-label="Add Note" onClick={handleStartEditNote} className={iconBtn}>
+                                        <Pencil size={13} />
+                                    </button>
+                                </CustomTooltip>
+                            )}
+
+                            {onMoveStatus && (
+                                <CustomTooltip content="Move status">
+                                    <button
+                                        ref={quickMoveBtnRef}
+                                        aria-label="Move status"
+                                        onClick={handleOpenQuickMove}
+                                        className={showQuickMove
+                                            ? `${iconBtnBase} text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10`
+                                            : iconBtn}
+                                    >
+                                        <ArrowRightLeft size={13} />
+                                    </button>
+                                </CustomTooltip>
+                            )}
+
+                            <CustomTooltip content="View student details">
+                                <button
+                                    aria-label="View Student Details"
+                                    onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
+                                    className={iconBtn}
+                                >
+                                    <Info size={13} />
+                                </button>
+                            </CustomTooltip>
+
+                            {studentFlags.length === 0 && (
+                                <CustomTooltip content="Flag student (e.g. failed a course)">
+                                    <button
+                                        aria-label="Flag student"
+                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                        className={`${iconBtnBase} text-muted/60 hover:text-orange-500 hover:bg-surface-elevated`}
+                                    >
+                                        <AlertTriangle size={13} />
+                                    </button>
+                                </CustomTooltip>
+                            )}
+                        </div>
+
+                        {/* ⚠ Student Flags — always visible when set */}
+                        {studentFlags.length > 0 && (
+                            <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
+                                <button
+                                    aria-label="Student flags"
+                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                                    className={`${iconBtnBase} text-orange-500 hover:text-orange-600 hover:bg-orange-500/10`}
+                                >
+                                    <AlertTriangle size={13} strokeWidth={2.5} />
+                                </button>
+                            </CustomTooltip>
+                        )}
+
+                        {/* Star Priority — always visible when set */}
+                        <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"}>
+                            <button
+                                aria-label={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    togglePriority(enrollment.id, !!enrollment.is_priority);
+                                }}
+                                className={`${iconBtnBase} ${enrollment.is_priority
+                                    ? 'text-warning hover:bg-warning/10'
+                                    : 'text-muted/60 hover:text-warning hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100'
+                                }`}
+                            >
+                                <Star size={13} fill={enrollment.is_priority ? "currentColor" : "none"} />
+                            </button>
+                        </CustomTooltip>
+                    </div>
+                </div>
+
+                {/* Row 2: Course (coloured text) & completed-courses badge */}
+                <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
+                    <span
+                        title={getCoursePill(enrollment)}
+                        className={`min-w-0 truncate text-[11.5px] font-semibold ${cfg.color}`}
+                    >
+                        {getCoursePill(enrollment)}
+                    </span>
+                    {completedCourses.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
+                            title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
+                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
+                        >
+                            <Award size={10} strokeWidth={2.5} className="flex-shrink-0" />
+                            {completedCourses.length}
+                        </button>
+                    )}
+                </div>
+
+                {/* Row 3: Contacts & date */}
+                <div className="card-contact mt-1.5 flex items-center gap-0.5 text-xs min-w-0">
                     {enrollment.students?.phone && (() => {
                         const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
                         const telUrl = formatPhoneForCall(enrollment.students.phone);
                         return (
-                            <div className="flex items-center gap-1 flex-shrink-0">
+                            <>
                                 {telUrl ? (
                                     <a
                                         href={telUrl}
                                         onClick={e => e.stopPropagation()}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors flex-shrink-0 mr-1"
                                         title="Click to call"
                                     >
                                         <Phone size={11} className="flex-shrink-0 text-primary/50" />
                                         <span>{enrollment.students.phone}</span>
                                     </a>
                                 ) : (
-                                    <div className="flex items-center gap-1 tabular-nums">
+                                    <span className="flex items-center gap-1 tabular-nums text-primary flex-shrink-0 mr-1">
                                         <Phone size={11} className="flex-shrink-0 text-primary/50" />
-                                        <span>{enrollment.students.phone}</span>
-                                    </div>
+                                        {enrollment.students.phone}
+                                    </span>
                                 )}
                                 {waUrl && (
                                     <CustomTooltip content="Chat on WhatsApp">
@@ -495,48 +464,52 @@ const EnrollmentCard = function EnrollmentCard({
                                             onClick={e => e.stopPropagation()}
                                             onPointerDown={e => e.stopPropagation()}
                                             onTouchStart={e => e.stopPropagation()}
-                                            className="flex items-center justify-center w-[18px] h-[18px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 rounded transition-all active:scale-95 flex-shrink-0"
+                                            className={`${contactBtn} text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15`}
                                             aria-label="Chat on WhatsApp"
                                         >
-                                            <MessageSquare size={11} />
+                                            <MessageSquare size={13} />
                                         </a>
                                     </CustomTooltip>
                                 )}
-                            </div>
+                            </>
                         );
                     })()}
 
                     {enrollment.students?.email && (
-                        <div className="flex items-center gap-1 min-w-0">
-                            <Mail size={11} className="flex-shrink-0 text-primary/50" />
+                        <CustomTooltip content={enrollment.students.email}>
                             <a
                                 href={`mailto:${enrollment.students.email}`}
                                 onClick={e => e.stopPropagation()}
                                 onPointerDown={e => e.stopPropagation()}
-                                touch-action="manipulation"
                                 onTouchStart={e => e.stopPropagation()}
-                                className="text-primary/70 hover:underline hover:text-brand-600 dark:hover:text-brand-400 transition-colors truncate"
-                                title={`Send email to ${enrollment.students.email}`}
+                                className={`${contactBtn} text-primary/60 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-surface-elevated`}
+                                aria-label={`Send email to ${enrollment.students.email}`}
                             >
-                                {enrollment.students.email}
+                                <Mail size={13} />
                             </a>
-                        </div>
+                        </CustomTooltip>
                     )}
-                </div>
-            )}
 
-            {/* Row 4: Note (only when present) — full width, one line; hover shows the whole text */}
-            {enrollment.notes && !isEditingNote && (
-                <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
-                    <button
-                        onClick={handleStartEditNote}
-                        className="card-note mt-1 ml-[22px] w-[calc(100%-22px)] flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
-                    >
-                        <Pencil size={10} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                        <span className="truncate">{enrollment.notes}</span>
-                    </button>
-                </CustomTooltip>
-            )}
+                    {/* Stage date — the most relevant date for the current status; all dates in the tooltip */}
+                    <CustomTooltip content={dateTooltip}>
+                        <span className="card-info ml-auto text-[11px] text-primary/50 whitespace-nowrap tabular-nums flex-shrink-0 flex items-center gap-1">
+                            {stageDate}
+                        </span>
+                    </CustomTooltip>
+                </div>
+
+                {/* Row 4: Note (only when present) — one line; hover shows the whole text */}
+                {enrollment.notes && !isEditingNote && (
+                    <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
+                        <button
+                            onClick={handleStartEditNote}
+                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
+                        >
+                            <Pencil size={10} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span className="truncate">{enrollment.notes}</span>
+                        </button>
+                    </CustomTooltip>
+                )}
 
             {/* Inline Quick Note Editor */}
             {isEditingNote && (
@@ -584,7 +557,7 @@ const EnrollmentCard = function EnrollmentCard({
 
             {/* Pending Completion Approval Highlight */}
             {enrollment.completion_request_status === 'pending' && (
-                <div className="mt-1 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-amber-700 dark:text-amber-300 text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
+                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-amber-700 dark:text-amber-300 text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
                     <Clock size={11} className="flex-shrink-0" />
                     <span className="truncate">
                         Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
@@ -592,6 +565,8 @@ const EnrollmentCard = function EnrollmentCard({
                     </span>
                 </div>
             )}
+
+            </div>
 
             {/* Completed Courses Modal in Portal */}
             {showCompleted && createPortal(
