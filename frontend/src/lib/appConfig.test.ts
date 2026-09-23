@@ -204,6 +204,7 @@ describe('appConfig', () => {
             expect(html).toContain('bgcolor="#0284c7"');
             expect(html).toContain('What we will ask');
             expect(html).toContain('full-time or part-time');
+            expect(html).toContain('reply to this email with your answers');
             expect(html).not.toMatch(/#7c3aed|#faf5ff/i);
             expect(html).not.toMatch(/\{status(Details|Button|Link)\}/);
         });

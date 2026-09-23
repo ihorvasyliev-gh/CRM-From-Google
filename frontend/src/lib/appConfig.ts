@@ -67,10 +67,11 @@ export const DEFAULT_CONFIG: AppConfig = {
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? Your answers help us see what difference our courses make and plan better ones for future participants.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our courses make and plan better ones for future participants.</p>
 {statusDetails}
 {statusButton}
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, just reply to this email — we are happy to help.</p>
+<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, let us know in your reply — we are happy to help.</p>
 <p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
     statusEmailSubjectFormat: 'How are things going since your course? (1-minute update)',
     includeLogosInEmails: false,
@@ -575,7 +576,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
           <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Is it full-time or part-time?</td>
         </tr>
       </table>
-      <div style="font-size:13px;color:#0369a1;font-weight:bold;line-height:20px;margin-top:10px;">&#9201; Takes less than a minute</div>
+      <div style="font-size:13px;color:#0369a1;font-weight:bold;line-height:20px;margin-top:10px;">&#9201; Takes less than a minute &mdash; online or by replying to this email</div>
     </td>
   </tr>
 </table>`;
