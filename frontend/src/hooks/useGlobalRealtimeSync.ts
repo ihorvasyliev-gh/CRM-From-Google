@@ -22,6 +22,8 @@ export function useGlobalRealtimeSync() {
     const activeChannelRef = useRef<any>(null);
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const subscribeChannelRef = useRef<() => void>(() => {});
+    const lastResyncRef = useRef<number>(0);
+    const pendingResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const subscribeChannel = useCallback(() => {
         if (!user) return;
@@ -81,6 +83,9 @@ export function useGlobalRealtimeSync() {
                 }
             )
             .subscribe((status, err) => {
+                // Ignore late status callbacks from channels we already replaced/removed —
+                // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.
+                if (activeChannelRef.current !== channel) return;
                 if (status === 'SUBSCRIBED') {
                     console.log('global_sync channel subscribed successfully');
                     if (retryTimeoutRef.current) {
@@ -110,13 +115,31 @@ export function useGlobalRealtimeSync() {
     useEffect(() => {
         if (!user) return;
 
+        // Data was just fetched on mount — don't resync again on the very next focus event
+        lastResyncRef.current = Date.now();
         subscribeChannel();
 
-        // Listen for sleep/wake and custom reconnect events to resync data & channels
+        // Listen for sleep/wake and custom reconnect events to resync data & channels.
+        // Focus/visibility fire very often (every alt-tab), so they only trigger a resync when the
+        // data is reasonably old; sleep gaps, network recovery and explicit reconnects always resync.
+        // Bursts (focus + visibilitychange fire together) are coalesced into a single refetch.
+        const SOFT_RESYNC_MIN_INTERVAL_MS = 60_000;
         const handleResync = (reason?: string) => {
-            console.log(`[useGlobalRealtimeSync] Resyncing active queries and channel (source: ${reason || 'unknown'})`);
-            queryClient.invalidateQueries({ type: 'active' });
-            subscribeChannelRef.current?.();
+            const isSoft = reason === 'focus' || reason === 'visibility';
+            if (isSoft && Date.now() - lastResyncRef.current < SOFT_RESYNC_MIN_INTERVAL_MS) return;
+            if (pendingResyncRef.current) return;
+
+            pendingResyncRef.current = setTimeout(() => {
+                pendingResyncRef.current = null;
+                lastResyncRef.current = Date.now();
+                console.log(`[useGlobalRealtimeSync] Resyncing active queries (source: ${reason || 'unknown'})`);
+                queryClient.invalidateQueries({ type: 'active' });
+
+                const channelState = activeChannelRef.current?.state;
+                if (!isSoft || channelState !== 'joined') {
+                    subscribeChannelRef.current?.();
+                }
+            }, 300);
         };
 
         const cleanupWake = setupSleepAndWakeListener((reason) => handleResync(reason));
@@ -127,6 +150,10 @@ export function useGlobalRealtimeSync() {
         return () => {
             cleanupWake();
             window.removeEventListener('crm:realtime-reconnect', handleCustomReconnect);
+            if (pendingResyncRef.current) {
+                clearTimeout(pendingResyncRef.current);
+                pendingResyncRef.current = null;
+            }
             if (retryTimeoutRef.current) {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;

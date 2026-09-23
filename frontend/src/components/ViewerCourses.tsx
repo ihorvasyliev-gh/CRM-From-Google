@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ViewerCourse, ViewerCourseRosterItem, getAvatarGradient, cleanVariant } from '../lib/types';
@@ -45,6 +46,7 @@ export default function ViewerCourses({ initialCourseId, initialDate }: { initia
 
     // Date Modal state
     const [dateModalOpen, setDateModalOpen] = useState(false);
+    useModalBehavior(dateModalOpen, () => setDateModalOpen(false));
     const [completionTargetIds, setCompletionTargetIds] = useState<string[]>([]);
     const [selectedDate, setSelectedDate] = useState<string>(() => todayISO());
     const [toast, setToast] = useState<ToastData | null>(null);

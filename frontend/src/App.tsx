@@ -12,7 +12,7 @@ import { fetchGraduatesFn } from './hooks/useOutcomes';
 import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
-import { Student, StudentFormData } from './lib/types';
+import { Student, StudentPayload } from './lib/types';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import StudentModal from './components/StudentModal';
@@ -23,6 +23,10 @@ import MobileFloatingActions from './components/MobileFloatingActions';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
+import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
+import { GlobalToaster } from './components/Toast';
+import { toast } from './lib/toast';
+import { isAnyModalOpen, useModalBehavior } from './hooks/useModalBehavior';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -51,6 +55,9 @@ const NAV_ITEMS = [
     { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration' },
 ];
 
+const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
+const NOTIF_BANNER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+
 const PAGE_TITLES: Record<string, string> = {
     dashboard: 'Dashboard',
     students: 'Students',
@@ -71,9 +78,16 @@ function App() {
     useConfirmationNotifier();
     useGlobalRealtimeSync();
 
-    // Show notification permission banner once if not yet decided/subscribed
+    // Show notification permission banner once if not yet decided/subscribed (and not dismissed recently)
     useEffect(() => {
         const checkPushSubscription = async () => {
+            let dismissedAt = 0;
+            try {
+                dismissedAt = parseInt(localStorage.getItem(NOTIF_BANNER_DISMISSED_KEY) || '0', 10) || 0;
+            } catch {
+                // storage unavailable — just show the banner
+            }
+            if (Date.now() - dismissedAt < NOTIF_BANNER_SNOOZE_MS) return;
             if (isNotificationSupported() && getNotificationPermission() === 'default') {
                 const isSubscribed = await isUserSubscribed();
                 if (!isSubscribed) {
@@ -111,13 +125,30 @@ function App() {
     const viewerTab = location.pathname.startsWith('/courses') ? 'courses' : 'students';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
-    const { count: pendingApprovalsCount } = usePendingApprovalsCount(!isViewer);
+    const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && !isViewer);
+
+    // Browser tab title follows the current page (and shows pending approvals)
+    useEffect(() => {
+        if (!user) {
+            document.title = 'Course CRM';
+            return;
+        }
+        const page = isViewer
+            ? (activeTab === 'courses' ? 'Course Monitor' : 'Students Directory')
+            : (PAGE_TITLES[activeTab] || 'Dashboard');
+        const prefix = !isViewer && pendingApprovalsCount > 0 ? `(${pendingApprovalsCount}) ` : '';
+        document.title = `${prefix}${page} · Course CRM`;
+    }, [user, isViewer, activeTab, pendingApprovalsCount]);
+
+    // Escape closes the mobile sidebar drawer
+    useModalBehavior(sidebarOpen, () => setSidebarOpen(false));
 
     // Global Modal & Palette States
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
     const [globalAddStudentOpen, setGlobalAddStudentOpen] = useState(false);
     const [globalEnrollModalOpen, setGlobalEnrollModalOpen] = useState(false);
+    const [globalEnrollStudentId, setGlobalEnrollStudentId] = useState<string | undefined>();
     const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
     const [viewerSelectedStudentId, setViewerSelectedStudentId] = useState<string | null>(null);
 
@@ -131,14 +162,17 @@ function App() {
         return true; // Default to dark as requested
     });
 
-    // Apply dark mode class to root element
+    // Apply dark mode class to root element (+ keep the mobile browser chrome colour in sync)
     useEffect(() => {
-        if (darkMode) {
-            document.documentElement.classList.add('dark');
-            window.localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            window.localStorage.setItem('theme', 'light');
+        document.documentElement.classList.toggle('dark', darkMode);
+        // index.html pins a light boot background for light-theme users; React owns theming from here
+        document.documentElement.removeAttribute('data-boot-theme');
+        document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', darkMode ? '#09090b' : '#fbfcfd');
+        try {
+            window.localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+        } catch {
+            // ignore storage errors (private mode)
         }
     }, [darkMode]);
 
@@ -161,12 +195,11 @@ function App() {
     });
 
     useEffect(() => {
-        if (density === 'compact') {
-            document.documentElement.classList.add('density-compact');
-            window.localStorage.setItem('view_density', 'compact');
-        } else {
-            document.documentElement.classList.remove('density-compact');
-            window.localStorage.setItem('view_density', 'comfortable');
+        document.documentElement.classList.toggle('density-compact', density === 'compact');
+        try {
+            window.localStorage.setItem('view_density', density);
+        } catch {
+            // ignore storage errors (private mode)
         }
     }, [density]);
 
@@ -349,22 +382,18 @@ function App() {
     const handleNavigate = useCallback((tab: string, filter?: any) => {
         setSidebarOpen(false);
         startTransition(() => {
-            if (tab === 'enrollments' && filter) {
-                navigateFn(`/${tab}`, { state: filter });
-            } else {
-                navigateFn(`/${tab}`);
-            }
+            navigateFn(`/${tab}`, filter ? { state: filter } : undefined);
         });
     }, [navigateFn]);
 
     const handleOpenStudentDetail = useCallback(async (studentId: string) => {
         try {
             const { data, error } = await supabase.from('students').select('*').eq('id', studentId).single();
-            if (!error && data) {
-                setGlobalStudentDetail(data);
-            }
+            if (error || !data) throw error || new Error('Student not found');
+            setGlobalStudentDetail(data);
         } catch (e) {
             console.error('Failed to load student details', e);
+            toast.error('Could not open student details');
         }
     }, []);
 
@@ -377,8 +406,9 @@ function App() {
             const isInput = target && (
                 target.tagName === 'INPUT' ||
                 target.tagName === 'TEXTAREA' ||
+                target.tagName === 'SELECT' ||
                 target.isContentEditable ||
-                target.classList.contains('ql-editor')
+                target.classList?.contains('ql-editor')
             );
 
             // Ctrl+K or Cmd+K: Open Command Palette
@@ -388,8 +418,8 @@ function App() {
                 return;
             }
 
-            // Non-input hotkeys
-            if (!isInput) {
+            // Non-input hotkeys (disabled while a modal/drawer is open so they can't act "behind" it)
+            if (!isInput && !isAnyModalOpen() && !e.repeat) {
                 // ? or Shift+/ -> Open Shortcuts Modal
                 if (e.key === '?' || (e.shiftKey && e.key === '/')) {
                     e.preventDefault();
@@ -397,11 +427,16 @@ function App() {
                     return;
                 }
 
-                // / -> Focus Search Input
+                // / -> Focus the current page's search input (falls back to the first visible text input)
                 if (e.key === '/') {
-                    e.preventDefault();
-                    const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+                    const isVisible = (el: HTMLElement) => el.offsetParent !== null || el.getClientRects().length > 0;
+                    const candidates = [
+                        ...Array.from(document.querySelectorAll<HTMLInputElement>('main input[data-page-search]')),
+                        ...Array.from(document.querySelectorAll<HTMLInputElement>('main input[type="text"], main input[type="search"]')),
+                    ];
+                    const searchInput = candidates.find(isVisible);
                     if (searchInput) {
+                        e.preventDefault();
                         searchInput.focus();
                         searchInput.select();
                     }
@@ -445,11 +480,18 @@ function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [user, isViewer, toggleDarkMode, toggleDensity, navigate]);
 
-    const handleSaveNewStudent = async (formData: StudentFormData) => {
+    const handleSaveNewStudent = async (formData: StudentPayload) => {
         const { id: _id, ...rest } = formData;
         const { error } = await supabase.from('students').insert([rest]);
-        if (error) throw new Error(error.message);
+        if (error) {
+            if (error.message.includes('duplicate') || error.message.includes('unique')) {
+                throw new Error('A student with this name and email already exists');
+            }
+            throw new Error(error.message);
+        }
         queryClient.invalidateQueries({ queryKey: ['students'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+        toast.success(`${rest.first_name} ${rest.last_name} added`);
         setGlobalAddStudentOpen(false);
     };
 
@@ -471,6 +513,7 @@ function App() {
     }
 
     return (
+        <NetworkStatusProvider>
         <TooltipProvider delayDuration={100}>
             <div className="h-screen w-full bg-background text-primary flex transition-colors duration-300 ease-in-out relative overflow-hidden">
                 {/* Subtle radial glow in Dark Mode */}
@@ -645,18 +688,29 @@ function App() {
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                     onClick={async () => {
-                                        if (user) {
-                                            await subscribeUserToPush(user.id);
-                                        }
                                         setShowNotifBanner(false);
+                                        if (user) {
+                                            const ok = await subscribeUserToPush(user.id);
+                                            if (ok) toast.success('Notifications enabled');
+                                            else toast.error('Notifications were not enabled (permission denied or unsupported)');
+                                        }
                                     }}
                                     className="px-3 py-1 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
                                 >
                                     Enable
                                 </button>
                                 <button
-                                    onClick={() => setShowNotifBanner(false)}
-                                    className="text-muted hover:text-primary transition-colors"
+                                    onClick={() => {
+                                        setShowNotifBanner(false);
+                                        try {
+                                            localStorage.setItem(NOTIF_BANNER_DISMISSED_KEY, String(Date.now()));
+                                        } catch {
+                                            // ignore
+                                        }
+                                    }}
+                                    aria-label="Dismiss"
+                                    title="Remind me later"
+                                    className="text-muted hover:text-primary transition-colors p-1 rounded-md"
                                 >
                                     <X size={14} />
                                 </button>
@@ -911,6 +965,8 @@ function App() {
                                                     onOpenStudentDetail={handleOpenStudentDetail}
                                                     pendingApprovalsCount={pendingApprovalsCount}
                                                     onOpenApprovals={() => setApprovalsModalOpen(true)}
+                                                    onAddStudent={() => setGlobalAddStudentOpen(true)}
+                                                    onAddEnrollment={() => setGlobalEnrollModalOpen(true)}
                                                 />
                                             }
                                         />
@@ -955,11 +1011,17 @@ function App() {
                 isViewer={isViewer}
             />
 
-            {/* Admin Approvals Modal */}
-            <PendingApprovalsModal
-                open={approvalsModalOpen}
-                onClose={() => setApprovalsModalOpen(false)}
-            />
+            {/* Admin Approvals Modal (lazy chunk — only mounted when opened so it never suspends the whole app) */}
+            {approvalsModalOpen && (
+                <Suspense fallback={null}>
+                    <PendingApprovalsModal
+                        open={true}
+                        onClose={() => setApprovalsModalOpen(false)}
+                    />
+                </Suspense>
+            )}
+
+            <GlobalToaster />
 
             {/* Global Command Palette */}
             <CommandPalette
@@ -1008,8 +1070,13 @@ function App() {
                         queryClient.invalidateQueries({ queryKey: ['enrollments'] });
                         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
                         queryClient.invalidateQueries({ queryKey: ['courses'] });
+                        toast.success('Enrollment created');
                     }}
-                    onClose={() => setGlobalEnrollModalOpen(false)}
+                    preselectedStudentId={globalEnrollStudentId}
+                    onClose={() => {
+                        setGlobalEnrollModalOpen(false);
+                        setGlobalEnrollStudentId(undefined);
+                    }}
                 />
             )}
 
@@ -1029,9 +1096,15 @@ function App() {
                     student={globalStudentDetail}
                     onClose={() => setGlobalStudentDetail(null)}
                     onNavigate={handleNavigate}
+                    onStudentUpdated={setGlobalStudentDetail}
+                    onEnroll={() => {
+                        setGlobalEnrollStudentId(globalStudentDetail.id);
+                        setGlobalEnrollModalOpen(true);
+                    }}
                 />
             )}
         </TooltipProvider>
+        </NetworkStatusProvider>
     );
 }
 

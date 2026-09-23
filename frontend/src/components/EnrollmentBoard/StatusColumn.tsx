@@ -83,9 +83,12 @@ const StatusColumn = function StatusColumn({
         return () => observer.disconnect();
     }, [items.length, visibleCount]);
 
-    // Reset visibleCount when items change significantly (filter change)
+    // Reset the lazy-render window when the list changes (filters, search) — but not while the user
+    // is scrolled down: realtime updates also produce a new array and would otherwise yank cards away.
     useEffect(() => {
-        setVisibleCount(50);
+        if ((scrollContainerRef.current?.scrollTop ?? 0) < 100) {
+            setVisibleCount(50);
+        }
     }, [items]);
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {

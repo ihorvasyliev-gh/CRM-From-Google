@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useRequestCompletion } from '../hooks/useApprovals';
@@ -159,10 +160,15 @@ export default function StudentDetailDrawer({ studentId, onClose }: StudentDetai
 
     const requestCompletionMutation = useRequestCompletion();
 
+    // Register in the shared modal stack (suppresses page hotkeys behind the drawer, restores focus).
+    // Escape itself is handled below so the inner completion modal closes first.
+    useModalBehavior(true, onClose, { closeOnEscape: false });
+
     // Keyboard listener for Escape
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
+            // Skip if something on top (command palette, inline editor) already handled it
+            if (e.key === 'Escape' && !e.defaultPrevented) {
                 if (completionModalOpen) {
                     setCompletionModalOpen(false);
                     setTargetEnrollment(null);

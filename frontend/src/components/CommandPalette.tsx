@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Student, Course, getAvatarGradient } from '../lib/types';
-import { matchesSearch } from '../lib/searchUtils';
+import { matchesSearch, buildStudentSearchFilters } from '../lib/searchUtils';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
     Briefcase, FileText, PieChart, Settings as SettingsIcon,
@@ -62,6 +63,8 @@ export default function CommandPalette({
     const initialStudentsRef = useRef<Student[]>([]);
 
     const queryClient = useQueryClient();
+
+    useModalBehavior(open, onClose);
 
     // Reset query & focus input on open
     useEffect(() => {
@@ -132,7 +135,8 @@ export default function CommandPalette({
                 } else {
                     const promises: PromiseLike<any>[] = [];
                     if (needsCourses) {
-                        promises.push(supabase.from('courses').select('*').order('name').limit(50));
+                        // Full list: this result is written to the shared ['courses'] cache used by the Courses page
+                        promises.push(supabase.from('courses').select('*').order('name'));
                     }
                     promises.push(supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30));
 
@@ -201,11 +205,9 @@ export default function CommandPalette({
                     })) as Student[]);
                 }
             } else {
-                const parts = trimmed.split(/\s+/);
                 let q = supabase.from('students').select('*').limit(20);
-                parts.forEach((part: string) => {
-                    const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
-                    q = q.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
+                buildStudentSearchFilters(trimmed).forEach(filter => {
+                    q = q.or(filter);
                 });
 
                 const { data } = await q;
@@ -467,7 +469,7 @@ export default function CommandPalette({
             />
 
             {/* Modal Dialog */}
-            <div className="relative w-full max-w-xl bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
+            <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
                 {/* Search Input Bar */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle bg-surface/50">
                     <Search size={19} className="text-muted flex-shrink-0" />

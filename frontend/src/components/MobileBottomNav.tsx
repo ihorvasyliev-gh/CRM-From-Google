@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import { 
     LayoutDashboard, 
     GraduationCap, 
@@ -51,6 +52,7 @@ export default function MobileBottomNav({
     userEmail
 }: MobileBottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
+    useModalBehavior(moreOpen, () => setMoreOpen(false));
 
     if (isViewer) {
         return (

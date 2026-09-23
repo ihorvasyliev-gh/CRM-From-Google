@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
 import Toast, { ToastData } from './Toast';
+import { useModalBehavior } from '../hooks/useModalBehavior';
+import { formatDateDMY } from '../lib/dateUtils';
 import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
     Calendar, CheckSquare, Square, Loader2, AlertCircle
@@ -14,11 +16,8 @@ interface PendingApprovalsModalProps {
 
 function formatDate(dateStr: string | null | undefined) {
     if (!dateStr) return null;
-    try {
-        return new Date(dateStr).toLocaleDateString('en-IE');
-    } catch {
-        return dateStr;
-    }
+    // Date-only values must not shift a day in negative UTC offsets
+    return formatDateDMY(dateStr) || dateStr;
 }
 
 function formatDateTime(dateTimeStr: string | null | undefined) {
@@ -40,6 +39,9 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     const [rejectionTargetId, setRejectionTargetId] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState<string>('');
     const [toast, setToast] = useState<ToastData | null>(null);
+
+    useModalBehavior(open, onClose);
+    useModalBehavior(!!rejectionTargetId, () => setRejectionTargetId(null));
 
     if (!open) return null;
 
@@ -123,7 +125,10 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+        <div
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleIn">
                 {/* Header */}
                 <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0 bg-surface-elevated/40">
@@ -306,7 +311,10 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
             {/* Rejection Prompt Modal */}
             {rejectionTargetId && (
-                <div className="fixed inset-0 z-60 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+                <div
+                    className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+                    onClick={e => { if (e.target === e.currentTarget) setRejectionTargetId(null); }}
+                >
                     <div className="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3 animate-scaleIn">
                         <div className="flex items-center gap-2.5 text-red-500">
                             <AlertCircle size={20} />
@@ -316,6 +324,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                             Provide an optional reason for rejecting this request. The requester will see this note.
                         </p>
                         <textarea
+                            autoFocus
                             placeholder="Reason (optional, e.g. Student missed final test)..."
                             value={rejectionReason}
                             onChange={e => setRejectionReason(e.target.value)}

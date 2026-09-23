@@ -26,6 +26,11 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
     const retryAttemptRef = useRef<number>(0);
     const isMountedRef = useRef<boolean>(true);
     const reconnectRef = useRef<() => Promise<void>>(() => Promise.resolve());
+    const realtimeConnectedRef = useRef<boolean>(true);
+
+    useEffect(() => {
+        realtimeConnectedRef.current = realtimeConnected;
+    }, [realtimeConnected]);
 
     // Clean up channel safely
     const cleanupChannel = useCallback(() => {
@@ -51,9 +56,12 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
         cleanupChannel();
 
         try {
-            const channel = supabase.channel('system_health')
-                .subscribe((status, err) => {
+            const channel = supabase.channel('system_health');
+            // Assign before subscribing so status callbacks can tell current vs. replaced channels apart
+            activeChannelRef.current = channel;
+            channel.subscribe((status, err) => {
                     if (!isMountedRef.current) return;
+                    if (activeChannelRef.current !== channel) return;
 
                     if (status === 'SUBSCRIBED') {
                         setRealtimeConnected(true);
@@ -82,8 +90,6 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
                         }
                     }
                 });
-
-            activeChannelRef.current = channel;
         } catch (err) {
             console.error('[useNetworkSyncStatus] Failed to subscribe system_health:', err);
             if (isMountedRef.current) {
@@ -144,6 +150,8 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
     useEffect(() => {
         const cleanupWakeListener = setupSleepAndWakeListener(
             (reason) => {
+                // A healthy connection doesn't need to be torn down on every focus / tab switch
+                if ((reason === 'focus' || reason === 'visibility') && realtimeConnectedRef.current) return;
                 console.log(`[useNetworkSyncStatus] Resuming from ${reason}. Re-establishing connection...`);
                 reconnect();
             },

@@ -1,10 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
-import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary } from '../lib/contactUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
+import { formatDateDMY, todayISO } from '../lib/dateUtils';
+import { STATUS_CONFIG } from '../lib/statusConfig';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 import MergeModal from './MergeModal';
 import Toast, { ToastData } from './Toast';
 
@@ -56,6 +59,7 @@ function InlineEditField({
     label,
     onSaved,
     onCopy,
+    onError,
     extraActions,
 }: {
     value: string;
@@ -67,11 +71,14 @@ function InlineEditField({
     label: string;
     onSaved: (field: string, value: string) => void;
     onCopy: (value: string, label: string) => void;
+    onError?: (message: string) => void;
     extraActions?: React.ReactNode;
 }) {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(value);
     const [saving, setSaving] = useState(false);
+    // Enter saves and then the input blurs — guard so the same edit is never written twice
+    const savingRef = useRef(false);
 
     // Keep state in sync with external value prop changes
     useEffect(() => {
@@ -79,66 +86,53 @@ function InlineEditField({
     }, [value]);
 
     async function handleSave() {
-        if (editValue === value) {
+        if (savingRef.current) return;
+        if (editValue.trim() === value.trim()) {
+            setEditValue(value);
             setEditing(false);
             return;
         }
+        savingRef.current = true;
         setSaving(true);
 
-        let cleanValue = editValue;
+        let cleanValue = editValue.trim();
         if (field === 'phone') {
-            let formattedPhone = editValue.replace(/[^\d+]/g, '');
-            if (formattedPhone) {
-                if (formattedPhone.startsWith('00')) {
-                    formattedPhone = '+' + formattedPhone.substring(2);
-                } else if (!formattedPhone.startsWith('+')) {
-                    if (formattedPhone.startsWith('353') || formattedPhone.startsWith('380') || formattedPhone.startsWith('44')) {
-                        formattedPhone = '+' + formattedPhone;
-                    } else if (formattedPhone.startsWith('8') && formattedPhone.length === 9) {
-                        formattedPhone = '+353' + formattedPhone;
-                    } else if (formattedPhone.startsWith('08')) {
-                        formattedPhone = '+353' + formattedPhone.substring(1);
-                    } else if (formattedPhone.startsWith('07') && formattedPhone.length === 11) {
-                        formattedPhone = '+44' + formattedPhone.substring(1);
-                    } else {
-                        const uaCodes = ['050', '066', '095', '099', '067', '068', '096', '097', '098', '063', '073', '093', '091', '092', '094'];
-                        let isUa = false;
-                        for (const code of uaCodes) {
-                            if (formattedPhone.startsWith(code) && formattedPhone.length === 10) {
-                                formattedPhone = '+38' + formattedPhone;
-                                isUa = true;
-                                break;
-                            }
-                        }
-                        if (!isUa) {
-                            if (formattedPhone.startsWith('0')) {
-                                formattedPhone = '+353' + formattedPhone.substring(1);
-                            } else if (formattedPhone.length >= 10) {
-                                formattedPhone = '+' + formattedPhone;
-                            }
-                        }
-                    }
-                }
-                cleanValue = formattedPhone;
-            }
+            cleanValue = normalizePhone(editValue);
         } else if (field === 'email') {
             cleanValue = editValue.trim().toLowerCase();
+        } else if (field === 'eircode') {
+            cleanValue = editValue.trim().toUpperCase();
         }
 
-        const { error } = await supabase
-            .from('students')
-            .update({ [field]: cleanValue || null })
-            .eq('id', studentId);
-        if (!error) {
-            onSaved(field, cleanValue);
+        try {
+            const { error } = await supabase
+                .from('students')
+                .update({ [field]: cleanValue || null })
+                .eq('id', studentId);
+            if (error) {
+                setEditValue(value);
+                onError?.(error.message.includes('duplicate') || error.message.includes('unique')
+                    ? `Another student already uses this ${label.toLowerCase()}`
+                    : `Failed to update ${label.toLowerCase()}`);
+            } else {
+                onSaved(field, cleanValue);
+            }
+        } finally {
+            savingRef.current = false;
+            setSaving(false);
+            setEditing(false);
         }
-        setSaving(false);
-        setEditing(false);
     }
 
     function handleKeyDown(e: React.KeyboardEvent) {
-        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSave();
+        }
         if (e.key === 'Escape') {
+            // Cancel the edit only — don't let the drawer close
+            e.preventDefault();
+            e.stopPropagation();
             setEditValue(value);
             setEditing(false);
         }
@@ -212,10 +206,34 @@ function InlineEditField({
 
 export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const queryClient = useQueryClient();
-    const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
     const [toast, setToast] = useState<ToastData | null>(null);
+    const [busyEnrollmentId, setBusyEnrollmentId] = useState<string | null>(null);
+
+    useModalBehavior(true, onClose);
+
+    // Keyed under ['enrollments', …] so every global enrollments invalidation (realtime sync,
+    // board actions, new enrollment modal) refreshes this drawer automatically.
+    const enrollmentsKey = ['enrollments', 'by_student', student.id] as const;
+    const { data: enrollments = [], isLoading: enrollmentsLoading, refetch: fetchEnrollments } = useQuery({
+        queryKey: enrollmentsKey,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('enrollments')
+                .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_date, completed_at, pending_completion_date, completion_request_status, completion_requested_at, completion_requested_by, completion_rejection_reason, courses(name)')
+                .eq('student_id', student.id)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return (data || []) as unknown as Enrollment[];
+        },
+        staleTime: 10_000,
+    });
+
+    const setEnrollments = useCallback((updater: (prev: Enrollment[]) => Enrollment[]) => {
+        queryClient.setQueryData<Enrollment[]>(enrollmentsKey, (old = []) => updater(old));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [queryClient, student.id]);
 
     const handleCopyField = (value: string, label: string) => {
         if (!value) return;
@@ -267,27 +285,21 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     const approveMutation = useApproveCompletion();
     const rejectMutation = useRejectCompletion();
 
-    const fetchEnrollments = useCallback(async () => {
-        const { data } = await supabase
-            .from('enrollments')
-            .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_date, completed_at, pending_completion_date, completion_request_status, completion_requested_at, completion_requested_by, completion_rejection_reason, courses(name)')
-            .eq('student_id', student.id)
-            .order('created_at', { ascending: false });
-        if (data) setEnrollments(data as unknown as Enrollment[]);
-    }, [student.id]);
-
-    useEffect(() => {
-        fetchEnrollments();
-    }, [fetchEnrollments]);
+    const invalidateRelated = () => {
+        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+        queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+    };
 
     async function handleUpdateStatus(id: string, newStatus: string) {
+        if (busyEnrollmentId) return;
         const updatePayload: Record<string, string | null | boolean> = { status: newStatus };
         const currentEnrollment = enrollments.find(e => e.id === id);
         if (newStatus === 'confirmed') {
             updatePayload.confirmed_at = new Date().toISOString();
         }
         if (newStatus === 'completed') {
-            updatePayload.completed_date = currentEnrollment?.confirmed_date || new Date().toISOString().split('T')[0];
+            updatePayload.completed_date = currentEnrollment?.confirmed_date || todayISO();
             updatePayload.completed_at = new Date().toISOString();
             if (currentEnrollment && !currentEnrollment.confirmed_at) {
                 updatePayload.confirmed_at = new Date().toISOString();
@@ -301,60 +313,67 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             updatePayload.confirmed_at = null;
         }
 
-        if (newStatus === 'completed' || newStatus === 'withdrawn') {
-            if (!currentEnrollment || !currentEnrollment.course_id) return;
+        const label = STATUS_CONFIG[newStatus]?.label || newStatus;
+        setBusyEnrollmentId(id);
+        try {
+            if (newStatus === 'completed' || newStatus === 'withdrawn') {
+                if (!currentEnrollment || !currentEnrollment.course_id) return;
 
-            const relatedEnrollments = enrollments.filter(e =>
-                e.course_id === currentEnrollment.course_id
-            );
+                const relatedIds = enrollments
+                    .filter(e => e.course_id === currentEnrollment.course_id)
+                    .map(e => e.id);
 
-            const relatedIds = relatedEnrollments.map(e => e.id);
+                const { error } = await supabase
+                    .from('enrollments')
+                    .update(updatePayload)
+                    .in('id', relatedIds);
 
-            const { error } = await supabase
-                .from('enrollments')
-                .update(updatePayload)
-                .in('id', relatedIds);
+                if (error) throw error;
+                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, ...updatePayload, status: newStatus } as Enrollment : e));
+            } else {
+                const { error } = await supabase
+                    .from('enrollments')
+                    .update(updatePayload)
+                    .eq('id', id);
 
-            if (!error) {
-                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, status: newStatus } : e));
-                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                if (error) throw error;
+                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updatePayload, status: newStatus } as Enrollment : e));
             }
-        } else {
-            const { error } = await supabase
-                .from('enrollments')
-                .update(updatePayload)
-                .eq('id', id);
-
-            if (!error) {
-                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
-                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            }
+            setToast({ message: `Marked as ${label.toLowerCase()}`, type: 'success' });
+            invalidateRelated();
+        } catch {
+            setToast({ message: `Failed to mark as ${label.toLowerCase()}`, type: 'error' });
+        } finally {
+            setBusyEnrollmentId(null);
         }
     }
 
     async function handleDeleteEnrollment(id: string) {
-        const { error } = await supabase
-            .from('enrollments')
-            .delete()
-            .eq('id', id);
-
-        if (!error) {
+        if (busyEnrollmentId) return;
+        setBusyEnrollmentId(id);
+        try {
+            const { error } = await supabase
+                .from('enrollments')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
             setEnrollments(prev => prev.filter(e => e.id !== id));
             setConfirmDeleteId(null);
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+            setToast({ message: 'Enrollment deleted', type: 'success' });
+            invalidateRelated();
+        } catch {
+            setToast({ message: 'Failed to delete enrollment', type: 'error' });
+        } finally {
+            setBusyEnrollmentId(null);
         }
     }
 
     // Handle inline edit save
     function handleFieldSaved(field: string, value: string) {
         const updated = { ...student, [field]: value || null };
-        if (onStudentUpdated) {
-            onStudentUpdated(updated as Student);
-        }
+        onStudentUpdated?.(updated as Student);
+        queryClient.invalidateQueries({ queryKey: ['students'] });
+        setToast({ message: 'Saved', type: 'success' });
     }
 
     // Navigate to enrollments filtered by course
@@ -445,6 +464,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                onError={message => setToast({ message, type: 'error' })}
                             />
                             <InlineEditField
                                 icon={<Phone size={14} />}
@@ -455,6 +475,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                onError={message => setToast({ message, type: 'error' })}
                                 extraActions={
                                     student.phone ? (
                                         <div className="flex items-center gap-1">
@@ -490,6 +511,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                onError={message => setToast({ message, type: 'error' })}
                                 extraActions={
                                     student.address && formatGoogleMapsUrl(student.address) ? (
                                         <a
@@ -512,6 +534,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                onError={message => setToast({ message, type: 'error' })}
                                 extraActions={
                                     student.eircode && formatGoogleMapsUrl(student.eircode) ? (
                                         <a
@@ -530,12 +553,13 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 icon={<Calendar size={14} />}
                                 label="Date of Birth"
                                 value={student.dob || ''}
-                                displayValue={student.dob ? new Date(student.dob).toLocaleDateString('en-IE') : ''}
+                                displayValue={student.dob ? formatDateDMY(student.dob) : ''}
                                 field="dob"
                                 type="date"
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
+                                onError={message => setToast({ message, type: 'error' })}
                             />
                         </div>
                     </div>
@@ -543,9 +567,26 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                     {/* Enrollments — with clickable course names */}
                     <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Enrollments</h3>
-                        {enrollments.length === 0 ? (
+                        {enrollmentsLoading ? (
+                            <div className="space-y-2.5" aria-busy="true">
+                                {[0, 1].map(i => (
+                                    <div key={i} className="p-3 rounded-xl bg-surface/50 border border-border-subtle animate-pulse space-y-2">
+                                        <div className="h-4 w-40 rounded bg-surface-elevated" />
+                                        <div className="h-3 w-24 rounded bg-surface-elevated" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : enrollments.length === 0 ? (
                             <div className="text-center py-6">
                                 <p className="text-sm text-muted">No enrollments yet</p>
+                                {onEnroll && (
+                                    <button
+                                        onClick={onEnroll}
+                                        className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                    >
+                                        + Enroll in a course
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-2.5">
@@ -566,7 +607,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                 )}
                                             </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
-                                                {STATUS_BADGE[en.status]?.icon} {en.status}
+                                                {STATUS_BADGE[en.status]?.icon} {STATUS_CONFIG[en.status]?.label || en.status}
                                             </span>
                                         </div>
 
@@ -575,7 +616,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-2 text-xs animate-pulse">
                                                 <span className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
                                                     <Clock size={12} />
-                                                    Completion requested for <strong>{en.pending_completion_date ? new Date(en.pending_completion_date).toLocaleDateString('en-IE') : 'Today'}</strong>
+                                                    Completion requested for <strong>{en.pending_completion_date ? formatDateDMY(en.pending_completion_date) : 'Today'}</strong>
                                                     {en.completion_requested_by ? ` (${en.completion_requested_by})` : ''}
                                                 </span>
                                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -613,7 +654,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             </div>
                                         )}
 
-                                        <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                                        <div className={`flex items-center gap-1.5 sm:opacity-60 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ${busyEnrollmentId === en.id ? 'pointer-events-none opacity-50' : ''}`}>
                                             {/* Actions */}
                                             {en.status !== 'completed' && (
                                                 <button

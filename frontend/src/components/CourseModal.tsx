@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, BookOpen } from 'lucide-react';
 import { Course } from '../lib/types';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 
 interface Props {
     open: boolean;
@@ -23,8 +24,18 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         }
     }, [open, course]);
 
+    const requestClose = () => {
+        if (saving) return;
+        const dirty = name.trim() !== (course?.name || '').trim() || requiresEnglish !== Boolean(course?.requires_english);
+        if (dirty && !window.confirm('Discard unsaved changes?')) return;
+        onClose();
+    };
+
+    useModalBehavior(open, requestClose);
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        if (saving) return;
         if (!name.trim()) {
             setError('Course name is required');
             return;
@@ -51,8 +62,8 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-md bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
+            <div role="dialog" aria-modal="true" aria-labelledby="course-modal-title" className="relative w-full max-w-md bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated">
                     <div className="flex items-center justify-between">
@@ -60,9 +71,9 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             <div className="p-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl text-violet-600 dark:text-violet-400">
                                 <BookOpen size={18} />
                             </div>
-                            <h2 className="text-lg font-bold text-primary">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
+                            <h2 id="course-modal-title" className="text-lg font-bold text-primary">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
+                        <button type="button" onClick={requestClose} aria-label="Close" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -80,7 +91,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                         <input
                             type="text"
                             placeholder="e.g. Security, First Aid"
-                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted"
+                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted"
                             value={name}
                             onChange={e => setName(e.target.value)}
                             autoFocus
@@ -97,6 +108,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setRequiresEnglish(false)}
+                                aria-pressed={!requiresEnglish}
                                 className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
                                     !requiresEnglish
                                         ? 'bg-emerald-500/10 border-emerald-500/40 text-primary'
@@ -118,6 +130,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setRequiresEnglish(true)}
+                                aria-pressed={requiresEnglish}
                                 className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
                                     requiresEnglish
                                         ? 'bg-blue-500/10 border-blue-500/40 text-primary'
@@ -141,7 +154,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                     <div className="flex gap-3 pt-2">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={requestClose}
                             className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
                         >
                             Cancel

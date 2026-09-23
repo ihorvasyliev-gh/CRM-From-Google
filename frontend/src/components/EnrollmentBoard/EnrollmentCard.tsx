@@ -11,6 +11,7 @@ import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
 import { CustomTooltip } from '../ui/Tooltip';
+import { useModalBehavior } from '../../hooks/useModalBehavior';
 
 interface EnrollmentCardProps {
     enrollment: EnrollmentRow;
@@ -84,6 +85,9 @@ const EnrollmentCard = function EnrollmentCard({
     const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
     const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
+    useModalBehavior(showCompleted, () => setShowCompleted(false));
+    useModalBehavior(showQuickMove, () => setShowQuickMove(false));
 
     useEffect(() => {
         if (isEditingNote && noteInputRef.current) {

@@ -1,3 +1,5 @@
+import { normalizePhone } from './contactUtils';
+
 // ─── Shared Type Definitions ─────────────────────────────────
 // Single source of truth for all domain types used across components.
 
@@ -109,6 +111,34 @@ export interface StudentFormData {
     address: string;
     eircode: string;
     dob: string;
+}
+
+/** Cleaned student data ready to be written to the database (empty optional fields → null). */
+export interface StudentPayload {
+    id?: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    eircode: string | null;
+    dob: string | null;
+}
+
+/** Converts raw form input into a clean DB payload. */
+export function toStudentPayload(form: StudentFormData): StudentPayload {
+    const email = form.email.trim().toLowerCase();
+    const phone = normalizePhone(form.phone);
+    return {
+        ...(form.id ? { id: form.id } : {}),
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        email: email || null,
+        phone: phone || null,
+        address: form.address.trim() || null,
+        eircode: form.eircode.trim().toUpperCase() || null,
+        dob: form.dob || null,
+    };
 }
 
 export interface DocumentTemplate {

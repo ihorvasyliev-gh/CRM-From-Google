@@ -1,5 +1,6 @@
 import React from 'react';
-import { useNetworkSyncStatus } from '../../hooks/useNetworkSyncStatus';
+import { useNetworkSyncStatus, type NetworkSyncStatus } from '../../hooks/useNetworkSyncStatus';
+import { useSharedNetworkStatus } from '../../contexts/NetworkStatusContext';
 import { CustomTooltip } from './Tooltip';
 import { RefreshCw } from 'lucide-react';
 
@@ -8,8 +9,19 @@ interface Props {
     className?: string;
 }
 
-export default function NetworkStatusIndicator({ showLabel = false, className = '' }: Props) {
-    const { status, statusText, reconnect, isReconnecting } = useNetworkSyncStatus();
+export default function NetworkStatusIndicator(props: Props) {
+    const shared = useSharedNetworkStatus();
+    return shared ? <IndicatorView {...props} state={shared} /> : <StandaloneIndicator {...props} />;
+}
+
+/** Fallback when rendered outside <NetworkStatusProvider> (e.g. isolated tests). */
+function StandaloneIndicator(props: Props) {
+    const state = useNetworkSyncStatus();
+    return <IndicatorView {...props} state={state} />;
+}
+
+function IndicatorView({ showLabel = false, className = '', state }: Props & { state: NetworkSyncStatus }) {
+    const { status, statusText, reconnect, isReconnecting } = state;
     const isInteractive = status !== 'online';
 
     const handleClick = () => {

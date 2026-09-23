@@ -53,6 +53,16 @@ export function useBulkActions({
         });
     }, []);
 
+    /** Removes an id from the selection if present (never adds it, unlike toggleSelect). */
+    const deselect = useCallback((id: string) => {
+        setSelectedIds(prev => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
+    }, []);
+
     const selectAllInList = useCallback((items: EnrollmentRow[]) => {
         setSelectedIds(prev => {
             const allSelected = items.every(i => prev.has(i.id));
@@ -63,7 +73,8 @@ export function useBulkActions({
     }, []);
 
     const clearSelection = useCallback(() => {
-        setSelectedIds(new Set());
+        // Keep the same Set instance when already empty so memoized columns don't re-render
+        setSelectedIds(prev => (prev.size === 0 ? prev : new Set()));
     }, []);
 
     const bulkUpdateMutation = useMutation({
@@ -373,6 +384,7 @@ export function useBulkActions({
         selectedIds,
         generatingDocs,
         toggleSelect,
+        deselect,
         selectAllInList,
         clearSelection,
         bulkUpdateStatus,

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { buildStudentSearchFilters } from '../lib/searchUtils';
 import { Student } from '../lib/types';
 import { X, Loader2, Search, GitMerge, Check, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useModalBehavior } from '../hooks/useModalBehavior';
 
 interface Props {
     open: boolean;
@@ -23,6 +25,10 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     const [error, setError] = useState('');
     const [markingNonDuplicate, setMarkingNonDuplicate] = useState(false);
     const [editedFields, setEditedFields] = useState<Partial<Student>>({});
+
+    useModalBehavior(open, () => {
+        if (!merging && !markingNonDuplicate) onClose();
+    });
 
     useEffect(() => {
         if (open) {
@@ -45,34 +51,36 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             setSearchResults([]);
             return;
         }
+        let active = true;
         const delayDebounce = setTimeout(async () => {
             setSearching(true);
             setError('');
             try {
-                const cleanQuery = searchQuery.trim();
-                const parts = cleanQuery.split(/\s+/);
                 let query = supabase
                     .from('students')
                     .select('*')
                     .neq('id', sourceStudent.id)
                     .limit(5);
 
-                parts.forEach((part: string) => {
-                    query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%`);
+                buildStudentSearchFilters(searchQuery).forEach(filter => {
+                    query = query.or(filter);
                 });
 
                 const { data, error: err } = await query;
 
                 if (err) throw err;
-                setSearchResults(data || []);
+                if (active) setSearchResults(data || []);
             } catch (e: any) {
                 console.error(e);
             } finally {
-                setSearching(false);
+                if (active) setSearching(false);
             }
         }, 300);
 
-        return () => clearTimeout(delayDebounce);
+        return () => {
+            active = false;
+            clearTimeout(delayDebounce);
+        };
     }, [searchQuery, sourceStudent.id, targetStudent]);
 
     if (!open) return null;
@@ -92,6 +100,8 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
         if (!targetStudent || !duplicateId || !primaryStudent || !duplicateStudent) return;
         setMerging(true);
         setError('');
+        // If a later step fails, put the duplicate's email back so nothing is silently lost
+        let clearedDuplicateEmail: string | null | undefined;
         try {
             // 1. If any fields were edited/copied, save them to the primary profile first
             if (Object.keys(editedFields).length > 0) {
@@ -105,6 +115,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                     .eq('id', duplicateId);
                 
                 if (clearEmailError) throw clearEmailError;
+                clearedDuplicateEmail = duplicateStudent.email ?? null;
 
                 const { error: updateError } = await supabase
                     .from('students')
@@ -133,6 +144,9 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             if (onSuccess) onSuccess();
             onClose();
         } catch (err: any) {
+            if (clearedDuplicateEmail) {
+                await supabase.from('students').update({ email: clearedDuplicateEmail }).eq('id', duplicateId);
+            }
             setError(err.message || 'Failed to merge students');
         } finally {
             setMerging(false);
@@ -165,8 +179,8 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-2xl bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={merging || markingNonDuplicate ? undefined : onClose} />
+            <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated flex-shrink-0">
                     <div className="flex items-center justify-between">

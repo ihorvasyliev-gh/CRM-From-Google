@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
-import { Student, StudentFormData, getAvatarGradient } from '../lib/types';
+import { Student, StudentFormData, StudentPayload, getAvatarGradient } from '../lib/types';
 import { useDebounce } from '../hooks/useDebounce';
+import SearchInput from './ui/SearchInput';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
-import { formatDateLong } from '../lib/dateUtils';
+import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
+import { buildStudentSearchFilters } from '../lib/searchUtils';
 
 const PAGE_SIZE = 30;
 
@@ -44,11 +46,8 @@ async function fetchStudentsPage({ pageParam = 0, queryKey }: any) {
     let query = supabase.from('students').select('*', { count: 'exact' }).order('created_at', { ascending: false });
 
     if (search) {
-        const cleanSearch = search.trim();
-        const parts = cleanSearch.split(/\s+/);
-        parts.forEach((part: string) => {
-            const normalizedEircodePart = part.replace(/\s+/g, '').toUpperCase();
-            query = query.or(`first_name.ilike.%${part}%,last_name.ilike.%${part}%,email.ilike.%${part}%,phone.ilike.%${part}%,normalized_eircode.ilike.%${normalizedEircodePart}%`);
+        buildStudentSearchFilters(search).forEach(filter => {
+            query = query.or(filter);
         });
     }
 
@@ -72,7 +71,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         isLoading: loading,
         fetchNextPage,
         hasNextPage,
-        isFetchingNextPage
+        isFetchingNextPage,
+        isFetching,
+        isError,
+        refetch,
     } = useInfiniteQuery({
         queryKey: ['students', debouncedSearch],
         queryFn: fetchStudentsPage,
@@ -86,6 +88,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     }, [data]);
 
     const totalCount = data?.pages[0]?.count || 0;
+    const searchPending = search.trim() !== debouncedSearch.trim() || (isFetching && !isFetchingNextPage && !!debouncedSearch);
 
     const [studentModalOpen, setStudentModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<StudentFormData | null>(null);
@@ -142,14 +145,20 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         queryClient.invalidateQueries({ queryKey: ['students'] });
     }, [queryClient, debouncedSearch]);
 
-    async function handleSaveStudent(formData: StudentFormData) {
+    async function handleSaveStudent(formData: StudentPayload) {
         if (formData.id) {
             const { id, ...rest } = formData;
-            const { error } = await supabase.from('students').update(rest).eq('id', id);
-            if (error) throw new Error(error.message);
-            updateStudentInCache({ ...formData } as Student);
+            const { data: updated, error } = await supabase.from('students').update(rest).eq('id', id).select().maybeSingle();
+            if (error) {
+                if (error.message.includes('duplicate') || error.message.includes('unique')) {
+                    throw new Error('A student with this name and email already exists');
+                }
+                throw new Error(error.message);
+            }
+            const merged = (updated || { ...detailStudent, ...formData }) as Student;
+            updateStudentInCache(merged);
             if (detailStudent?.id === id) {
-                setDetailStudent({ ...detailStudent, ...rest } as Student);
+                setDetailStudent(prev => (prev ? { ...prev, ...merged } : prev));
             }
             setToast({ message: 'Student updated', type: 'success' });
         } else {
@@ -172,6 +181,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             setToast({ message: 'Failed to delete student', type: 'error' });
         } else {
             removeStudentFromCache(deleteTarget.id);
+            // Enrollments are cascade-deleted together with the student
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             if (detailStudent?.id === deleteTarget.id) setDetailStudent(null);
             setToast({ message: 'Student deleted', type: 'success' });
         }
@@ -205,7 +217,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between">
                     <div className="hidden md:flex items-center gap-3">
-                        <div className="p-2 bg-brand-50 rounded-xl text-brand-600">
+                        <div className="p-2 bg-brand-500/10 rounded-xl text-brand-600 dark:text-brand-400">
                             <Users size={20} />
                         </div>
                         <div>
@@ -216,16 +228,14 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                        <div className="relative flex-1 sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Search by name, email, phone or eircode..."
-                                className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
+                        <SearchInput
+                            wrapperClassName="flex-1 sm:w-72"
+                            placeholder="Search by name, email, phone or eircode..."
+                            value={search}
+                            onChange={setSearch}
+                            loading={searchPending}
+                            aria-label="Search students"
+                        />
                         <button
                             onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
                             className="flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
@@ -279,9 +289,27 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                         <div className="w-16 h-16 bg-surface-elevated border border-border-subtle shadow-sm rounded-full flex items-center justify-center mx-auto mb-4">
                             <Users size={28} className="text-muted" />
                         </div>
-                        <p className="text-lg font-semibold text-primary">No students found</p>
-                        <p className="text-sm text-muted mt-1">{search ? 'Try adjusting your search' : 'Add your first student to get started'}</p>
-                        {!search && (
+                        <p className="text-lg font-semibold text-primary">{isError ? 'Could not load students' : 'No students found'}</p>
+                        <p className="text-sm text-muted mt-1">
+                            {isError ? 'Check your connection and try again' : search ? `Nothing matches "${search.trim()}"` : 'Add your first student to get started'}
+                        </p>
+                        {isError && (
+                            <button
+                                onClick={() => refetch()}
+                                className="mt-4 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all active:scale-[0.98]"
+                            >
+                                Retry
+                            </button>
+                        )}
+                        {!isError && search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                className="mt-4 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
+                            >
+                                <X size={14} /> Clear search
+                            </button>
+                        )}
+                        {!isError && !search && (
                             <button
                                 onClick={() => { setEditingStudent(null); setStudentModalOpen(true); }}
                                 className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
@@ -378,7 +406,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                         <div className="flex items-center gap-1.5 ml-auto flex-wrap">
                                             {student.dob && (
                                                 <span className="text-[11px] text-muted bg-surface-elevated px-2 py-0.5 rounded-md border border-border-subtle">
-                                                    DOB: {student.dob}
+                                                    DOB: {formatDateDMY(student.dob)}
                                                 </span>
                                             )}
                                             {student.eircode && (
@@ -408,8 +436,12 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                     {displayedStudents.map(student => (
                                             <tr
                                                 key={student.id}
-                                                className="cv-auto-row hover:bg-brand-50/30 cursor-pointer transition-all group"
+                                                className="cv-auto-row hover:bg-brand-500/5 focus-visible:bg-brand-500/5 cursor-pointer transition-all group outline-none"
                                                 onClick={() => setDetailStudent(student)}
+                                                tabIndex={0}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter' && e.target === e.currentTarget) setDetailStudent(student);
+                                                }}
                                             >
                                                 <td className="px-5 py-3.5">
                                                     <div className="flex items-center gap-3">
@@ -423,7 +455,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 <td className="px-5 py-3.5 text-muted hidden md:table-cell">{student.phone}</td>
                                                 <td className="px-5 py-3.5 text-muted hidden lg:table-cell">{student.eircode}</td>
                                                 <td className="px-5 py-3.5">
-                                                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 opacity-100 transition-all" onClick={e => e.stopPropagation()}>
                                                         <button
                                                             onClick={() => openEdit(student)}
                                                             className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"

@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Search, Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
+import SearchInput from './ui/SearchInput';
 import { Course, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -22,7 +23,8 @@ interface EnrollmentCount {
 }
 
 async function fetchCourses(): Promise<Course[]> {
-    const { data } = await supabase.from('courses').select('*').order('name');
+    const { data, error } = await supabase.from('courses').select('*').order('name');
+    if (error) throw error;
     return (data || []) as Course[];
 }
 
@@ -31,10 +33,11 @@ async function fetchCourses(): Promise<Course[]> {
 function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     // Always define all segments so the legend is always rendered (consistent card height)
     const segments = [
-        { key: 'completed', color: '#10b981', count: counts?.completed ?? 0, label: 'Completed' },
-        { key: 'confirmed', color: '#06b6d4', count: counts?.confirmed ?? 0, label: 'Confirmed' },
-        { key: 'invited', color: '#3b82f6', count: counts?.invited ?? 0, label: 'Invited' },
-        { key: 'requested', color: '#f59e0b', count: counts?.requested ?? 0, label: 'Requested' },
+        // Same colour language as the enrollment board / status pills everywhere else
+        { key: 'completed', color: 'var(--color-completed)', count: counts?.completed ?? 0, label: 'Completed' },
+        { key: 'confirmed', color: 'var(--color-confirmed)', count: counts?.confirmed ?? 0, label: 'Confirmed' },
+        { key: 'invited', color: 'var(--color-invited)', count: counts?.invited ?? 0, label: 'Invited' },
+        { key: 'requested', color: 'var(--color-requested)', count: counts?.requested ?? 0, label: 'Requested' },
         { key: 'withdrawn', color: '#94a3b8', count: counts?.withdrawn ?? 0, label: 'Withdrawn' },
         { key: 'rejected', color: '#f87171', count: counts?.rejected ?? 0, label: 'Rejected' },
     ];
@@ -54,13 +57,13 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                     height: '8px',
                     borderRadius: '9999px',
                     overflow: 'hidden',
-                    backgroundColor: 'var(--color-surface-elevated, #2a2a3a)',
+                    backgroundColor: 'oklch(var(--bg-surface-elevated))',
                     width: '100%',
                 }}
             >
                 {barTotal === 0 ? (
                     // Empty bar placeholder so bar height is always consistent
-                    <div style={{ flex: 1, backgroundColor: 'var(--color-surface-elevated, #2a2a3a)' }} />
+                    <div style={{ flex: 1, backgroundColor: 'oklch(var(--border-subtle))' }} />
                 ) : (
                     visible.map((s, i) => {
                         const isLast = i === visible.length - 1;
@@ -83,7 +86,7 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                 {segments.map(s => {
                     if (!alwaysShow.has(s.key) && s.count === 0) return null;
                     return (
-                        <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--color-text-muted, #9ca3af)', fontWeight: 500 }}>
+                        <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'oklch(var(--text-muted))', fontWeight: 500 }}>
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color, flexShrink: 0, display: 'inline-block' }} />
                             {s.count} {s.label}
                         </span>
@@ -166,6 +169,17 @@ export default function CourseList() {
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
 
+    // Dashboard "+ Course" quick action lands here with { openCreate: true }
+    const location = useLocation();
+    useEffect(() => {
+        if ((location.state as { openCreate?: boolean } | null)?.openCreate) {
+            setEditingCourse(null);
+            setModalOpen(true);
+            // Clear the flag so a refresh / back navigation doesn't reopen the modal
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, [location.state, location.pathname, navigate]);
+
     // Helper to update courses cache optimistically
     const setCourses = useCallback((updater: (prev: Course[]) => Course[]) => {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
@@ -245,7 +259,7 @@ export default function CourseList() {
             <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between">
                     <div className="hidden md:flex items-center gap-3">
-                        <div className="p-2 bg-violet-50 rounded-xl text-violet-600">
+                        <div className="p-2 bg-violet-500/10 rounded-xl text-violet-600 dark:text-violet-400">
                             <BookOpen size={20} />
                         </div>
                         <div>
@@ -256,16 +270,13 @@ export default function CourseList() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                        <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Search courses..."
-                                className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
+                        <SearchInput
+                            wrapperClassName="flex-1 sm:w-64"
+                            placeholder="Search courses..."
+                            value={search}
+                            onChange={setSearch}
+                            aria-label="Search courses"
+                        />
                         <button
                             onClick={() => { setEditingCourse(null); setModalOpen(true); }}
                             className="flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
@@ -309,13 +320,24 @@ export default function CourseList() {
                         <BookOpen size={28} className="text-muted" />
                     </div>
                     <p className="text-lg font-semibold text-primary">No courses found</p>
-                    <p className="text-sm text-muted mt-1">Create your first course to get started</p>
-                    <button
-                        onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                        className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
-                    >
-                        <Plus size={16} /> Add Course
-                    </button>
+                    <p className="text-sm text-muted mt-1">
+                        {search.trim() ? `Nothing matches "${search.trim()}"` : 'Create your first course to get started'}
+                    </p>
+                    {search.trim() ? (
+                        <button
+                            onClick={() => setSearch('')}
+                            className="mt-4 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
+                        >
+                            Clear search
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => { setEditingCourse(null); setModalOpen(true); }}
+                            className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
+                        >
+                            <Plus size={16} /> Add Course
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -323,10 +345,18 @@ export default function CourseList() {
                         const counts = enrollmentCounts[course.id];
                         const gradient = getAvatarGradient(course.id);
                         return (
-                            <div 
-                                key={course.id} 
+                            <div
+                                key={course.id}
+                                role="link"
+                                tabIndex={0}
+                                aria-label={`Open ${course.name} on the enrollment board`}
                                 onClick={() => navigate('/enrollments', { state: { courseId: course.id } })}
-                                className="bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group cursor-pointer"
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && e.target === e.currentTarget) {
+                                        navigate('/enrollments', { state: { courseId: course.id } });
+                                    }
+                                }}
+                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-none bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group cursor-pointer"
                             >
                                 {/* Gradient top accent */}
                                 <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
@@ -345,7 +375,7 @@ export default function CourseList() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                                 className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
