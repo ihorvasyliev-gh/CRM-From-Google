@@ -414,7 +414,8 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
 /** Build the email body HTML by replacing placeholders. */
 export function buildEmailBodyHtml(
     courseTitle: string, 
-    date: string, 
+    /** One formatted date, or several for a multi-date invite (the student picks one). */
+    date: string | string[], 
     confirmationLink?: string, 
     customConfig?: AppConfig, 
     responseDays?: number,
@@ -422,7 +423,17 @@ export function buildEmailBodyHtml(
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
-    const buttonText = requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place';
+    const dateList = Array.isArray(date) ? date.filter(Boolean) : [date];
+    const isMultiDate = dateList.length > 1;
+    const buttonText = isMultiDate
+        ? (requiresEnglish ? 'I Am Confident in English — Choose My Date' : 'Choose My Date &amp; Confirm')
+        : (requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place');
+    const dateRowHtml = isMultiDate
+        ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Choose one of the dates</div>
+${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:4px;">🗓️ ${d}</div>`).join('\n')}
+            <div style="font-size:12px;color:#64748b;line-height:18px;margin-top:6px;">You will pick your preferred date on the confirmation page.</div>`
+        : `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
+            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:2px;">🗓️ ${dateList[0] ?? ''}</div>`;
     
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
@@ -437,8 +448,7 @@ export function buildEmailBodyHtml(
         </tr>
         <tr>
           <td style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
-            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:2px;">🗓️ ${date}</div>
+            ${dateRowHtml}
           </td>
         </tr>
       </table>
@@ -475,7 +485,7 @@ export function buildEmailBodyHtml(
   <tr>
     <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
       <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please read before you confirm</div>
-      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">Places on this course are allocated on a first-come, first-served basis. Once all places are taken, confirmation for this date will close — even if your ${days}-day response window has not yet expired.</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">Places on this course are allocated on a first-come, first-served basis. Once all places are taken, confirmation for ${isMultiDate ? "that date" : "this date"} will close — even if your ${days}-day response window has not yet expired.</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> If you confirm but don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>. If you can no longer attend, simply reply to this email as early as possible so we can offer your place to someone else.</div>
     </td>
   </tr>

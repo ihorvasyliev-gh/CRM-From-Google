@@ -13,6 +13,7 @@ export interface EnrollmentSnapshot {
     confirmed_date: string | null;
     confirmed_at: string | null;
     invited_date: string | null;
+    invited_dates: string[] | null;
     invited_at: string | null;
     completed_date: string | null;
     completed_at: string | null;
@@ -25,6 +26,7 @@ export function takeEnrollmentSnapshot(e: EnrollmentRow): EnrollmentSnapshot {
         confirmed_date: e.confirmed_date ?? null,
         confirmed_at: e.confirmed_at ?? null,
         invited_date: e.invited_date ?? null,
+        invited_dates: e.invited_dates ?? null,
         invited_at: e.invited_at ?? null,
         completed_date: e.completed_date ?? null,
         completed_at: e.completed_at ?? null,
@@ -123,6 +125,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             if (newStatus === 'requested' || newStatus === 'rejected') {
                 updatePayload.confirmed_date = null;
                 updatePayload.invited_date = null;
+                updatePayload.invited_dates = null;
                 updatePayload.invited_at = null;
             }
 
@@ -175,6 +178,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
                     if (newStatus === 'requested' || newStatus === 'rejected') {
                         optimisticUpdate.confirmed_date = null;
                         optimisticUpdate.invited_date = null;
+                        optimisticUpdate.invited_dates = null;
                         optimisticUpdate.invited_at = null;
                     }
                     return { ...e, ...optimisticUpdate } as EnrollmentRow;

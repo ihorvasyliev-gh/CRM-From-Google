@@ -106,6 +106,23 @@ describe('appConfig', () => {
         });
     });
 
+    describe('buildEmailBodyHtml multi-date', () => {
+        it('lists every offered date and asks the student to choose', () => {
+            const dates = ['Wed, 14 Oct 2026', 'Thu, 15 Oct 2026', 'Fri, 16 Oct 2026'];
+            const result = buildEmailBodyHtml('Safe Pass', dates, 'https://example.com/c/abc', undefined, 7, false);
+            for (const d of dates) expect(result).toContain(d);
+            expect(result).toContain('Choose one of the dates');
+            expect(result).toContain('Choose My Date');
+            expect(result).not.toContain('Date &amp; Time');
+        });
+
+        it('keeps the single-date layout for one date', () => {
+            const result = buildEmailBodyHtml('Safe Pass', ['Wed, 14 Oct 2026'], 'https://example.com/c/abc', undefined, 7, false);
+            expect(result).toContain('Date &amp; Time');
+            expect(result).toContain('Confirm My Place');
+        });
+    });
+
     describe('buildEmailSubject', () => {
         it('replaces courseName and date placeholders', () => {
             const result = buildEmailSubject('React Native', 'Nov 5');

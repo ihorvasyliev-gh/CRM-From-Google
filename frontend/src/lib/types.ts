@@ -34,6 +34,8 @@ export interface Enrollment {
     confirmed_date: string | null;
     confirmed_at: string | null;
     invited_date: string | null;
+    /** Dates offered in a multi-date invitation (student picks one). Null for single-date invites. */
+    invited_dates?: string[] | null;
     invited_at: string | null;
     completed_date: string | null;
     completed_at: string | null;

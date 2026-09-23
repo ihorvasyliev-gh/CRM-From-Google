@@ -5,7 +5,7 @@ import { useDraggable, type DraggableAttributes, type DraggableSyntheticListener
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
-import { formatDateLong, formatShortDate } from '../../lib/dateUtils';
+import { formatDateChoiceList, formatDateLong, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -235,17 +235,26 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const fullName = `${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`.trim();
     const initials = `${enrollment.students?.first_name?.[0] || ''}${enrollment.students?.last_name?.[0] || ''}`.toUpperCase() || '?';
 
+    // Multi-date invitation: the student has not picked one of the offered dates yet
+    const offeredDates = status === 'invited' && enrollment.invited_dates && enrollment.invited_dates.length > 1
+        ? enrollment.invited_dates
+        : null;
+
     // Date shown on the card: the one that matters for the current stage; the full history goes in the tooltip
     const stageDate = status === 'completed' && enrollment.completed_date
         ? <><GraduationCap size={10} />{formatShortDate(enrollment.completed_date)}</>
         : status === 'confirmed' && enrollment.confirmed_date
             ? <><CheckCircle size={10} />{formatShortDate(enrollment.confirmed_date)}</>
+            : offeredDates
+                ? <><Send size={10} />{formatShortDateList(offeredDates)}</>
             : status === 'invited' && enrollment.invited_date
                 ? <><Send size={10} />{formatShortDate(enrollment.invited_date)}</>
                 : <>{formatShortDate(enrollment.created_at)} · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</>;
     const dateTooltip = [
         `Added ${formatDateLong(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
-        enrollment.invited_date && `Invited ${formatDateLong(enrollment.invited_date)}`,
+        offeredDates
+            ? `Invited — student picks one: ${formatDateChoiceList(offeredDates)}`
+            : enrollment.invited_date && `Invited ${formatDateLong(enrollment.invited_date)}`,
         enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
         enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
     ].filter(Boolean).join('\n');

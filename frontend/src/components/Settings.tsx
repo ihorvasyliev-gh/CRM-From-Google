@@ -59,6 +59,7 @@ export default function Settings() {
     }, []);
 
     const [inviteTemplateTab, setInviteTemplateTab] = useState<'high_english' | 'standard'>('high_english');
+    const [previewMultiDate, setPreviewMultiDate] = useState(false);
 
     const isValidHighEnglishTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
     const isValidStandardTemplate = (config.htmlEmailTemplateStandard || '').includes('{confirmationLink}') || (config.htmlEmailTemplateStandard || '').includes('{confirmationButton}');
@@ -113,8 +114,9 @@ export default function Settings() {
     // Preview with sample data
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
     const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
-    const previewBody = buildEmailBodyHtml(previewCourseName, '15 Mar 2026', linkStr, config, 7, inviteTemplateTab === 'high_english');
-    const previewSubject = buildEmailSubject(previewCourseName, '15 Mar 2026', config);
+    const previewDates = previewMultiDate ? ['Wed, 11 Mar 2026', 'Thu, 12 Mar 2026', 'Fri, 13 Mar 2026'] : '15 Mar 2026';
+    const previewBody = buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, 7, inviteTemplateTab === 'high_english');
+    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config);
 
     // Status template preview
     const statusLinkStr = `${window.location.origin}/status`;
@@ -613,6 +615,15 @@ export default function Settings() {
                                 <span>Live Responsive Preview ({inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'})</span>
                                 <span className="text-[10px] lowercase font-normal text-muted bg-surface-elevated px-2 py-0.5 rounded-md">updates in real-time</span>
                             </div>
+                            <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={previewMultiDate}
+                                    onChange={e => setPreviewMultiDate(e.target.checked)}
+                                    className="rounded border-border-subtle"
+                                />
+                                Preview multi-date invitation (student chooses a date)
+                            </label>
                             <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col shadow-inner">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>

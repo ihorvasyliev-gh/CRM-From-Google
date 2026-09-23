@@ -56,6 +56,11 @@ export default function ConfirmationPage() {
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [copiedCoordinatorEmail, setCopiedCoordinatorEmail] = useState(false);
     const [capacity, setCapacity] = useState<CapacityInfo | null>(null);
+    // Multi-date invitation: the dates offered (2+) and places left on each.
+    // In this mode `courseDate` holds the date the student picked ('' until chosen).
+    const [courseDates, setCourseDates] = useState<string[]>([]);
+    const [dateCapacity, setDateCapacity] = useState<Record<string, CapacityInfo | null>>({});
+    const isMultiDate = courseDates.length > 1;
 
     // Guard against double-click race conditions
     const submittingRef = useRef(false);
@@ -66,22 +71,17 @@ export default function ConfirmationPage() {
     /** Loads "X of Y places confirmed" for the course date. Returns true when fully booked. */
     const fetchCapacity = useCallback(async (id: string, date: string | null | undefined): Promise<boolean> => {
         if (!id || !date) { setCapacity(null); return false; }
-        try {
-            const { data, error } = await supabase.rpc('get_course_capacity', { p_course_id: id, p_course_date: date });
-            const row = !error && Array.isArray(data) ? data[0] : null;
-            if (!row || row.max_capacity == null) { setCapacity(null); return false; }
-            const info: CapacityInfo = {
-                max: row.max_capacity,
-                confirmed: row.confirmed_count ?? 0,
-                isFull: Boolean(row.is_full),
-            };
-            setCapacity(info);
-            return info.isFull;
-        } catch (err) {
-            // Capacity is informational; the server still enforces the limit on confirm
-            console.warn('get_course_capacity exception:', err);
-            return false;
-        }
+        const info = await loadCapacity(id, date);
+        setCapacity(info);
+        return Boolean(info?.isFull);
+    }, []);
+
+    /** Loads places for every offered date of a multi-date invite. Returns true when all are fully booked. */
+    const fetchDateCapacities = useCallback(async (id: string, dates: string[]): Promise<Record<string, CapacityInfo | null>> => {
+        const infos = await Promise.all(dates.map(d => loadCapacity(id, d)));
+        const byDate = Object.fromEntries(dates.map((d, i) => [d, infos[i]]));
+        setDateCapacity(byDate);
+        return byDate;
     }, []);
 
     const resolveToken = useCallback(async (token: string) => {
@@ -99,6 +99,16 @@ export default function ConfirmationPage() {
             const row = data[0];
             setCourseId(row.course_id);
             setCourseName(row.course_name);
+            const offered: string[] = Array.isArray(row.course_dates)
+                ? [...new Set<string>(row.course_dates.filter(Boolean))].sort()
+                : [];
+            if (offered.length > 1) {
+                setCourseDates(offered);
+                setCourseDate('');
+                const byDate = await fetchDateCapacities(row.course_id, offered);
+                setState(allDatesFull(offered, byDate) ? 'full' : 'form');
+                return;
+            }
             if (row.course_date) setCourseDate(row.course_date);
             const isFull = await fetchCapacity(row.course_id, row.course_date);
             setState(isFull ? 'full' : 'form');
@@ -106,7 +116,7 @@ export default function ConfirmationPage() {
             console.error('Token resolve exception:', err);
             setState('error');
         }
-    }, [fetchCapacity]);
+    }, [fetchCapacity, fetchDateCapacities]);
 
     const fetchCourseInfo = useCallback(async (id: string, date?: string) => {
         try {
@@ -159,20 +169,65 @@ export default function ConfirmationPage() {
     // Keep the places counter fresh while the person is deciding; close the
     // form as soon as the last place is taken.
     useEffect(() => {
-        if (state !== 'form' || !courseId || !courseDate || !capacity) return;
+        if (state !== 'form' || !courseId || isMultiDate || !courseDate || !capacity) return;
         const timer = setInterval(async () => {
             if (submittingRef.current) return;
             const isFull = await fetchCapacity(courseId, courseDate);
             if (isFull && !submittingRef.current) setState('full');
         }, CAPACITY_REFRESH_MS);
         return () => clearInterval(timer);
-    }, [state, courseId, courseDate, capacity, fetchCapacity]);
+    }, [state, courseId, courseDate, capacity, isMultiDate, fetchCapacity]);
+
+    // Multi-date: refresh every offered date; drop the chosen date if it fills up.
+    const hasLimitedDates = Object.values(dateCapacity).some(Boolean);
+    useEffect(() => {
+        if (state !== 'form' || !courseId || !isMultiDate || !hasLimitedDates) return;
+        const timer = setInterval(async () => {
+            if (submittingRef.current) return;
+            const byDate = await fetchDateCapacities(courseId, courseDates);
+            if (submittingRef.current) return;
+            if (allDatesFull(courseDates, byDate)) { setState('full'); return; }
+            if (courseDate && byDate[courseDate]?.isFull) {
+                setCourseDate('');
+                setInlineError('Sorry, the date you selected has just filled up. Please choose another date.');
+            }
+        }, CAPACITY_REFRESH_MS);
+        return () => clearInterval(timer);
+    }, [state, courseId, courseDate, courseDates, isMultiDate, hasLimitedDates, fetchDateCapacities]);
 
     /** Server rejected a confirmation because the course date filled up. */
-    function handleCourseFull() {
+    async function handleCourseFull() {
+        if (isMultiDate) {
+            // Another date may still have places: refresh and let the student pick again
+            const byDate = await fetchDateCapacities(courseId, courseDates);
+            if (courseDate && byDate[courseDate]) {
+                byDate[courseDate] = { ...byDate[courseDate]!, isFull: true };
+                setDateCapacity({ ...byDate });
+            }
+            if (allDatesFull(courseDates, byDate)) {
+                setInlineError('');
+                setState('full');
+                return;
+            }
+            setCourseDate('');
+            setInlineError('Sorry, the date you selected has just filled up. Please choose another date.');
+            setState('form');
+            return;
+        }
         setCapacity(prev => prev ? { ...prev, confirmed: Math.max(prev.confirmed, prev.max), isFull: true } : prev);
         setInlineError('');
         setState('full');
+    }
+
+    /** Extra RPC argument: the date picked from a multi-date invite. */
+    function chosenDateArg(): { p_course_date?: string } {
+        return isMultiDate && courseDate ? { p_course_date: courseDate } : {};
+    }
+
+    /** The date(s) the invitation is about, for emails to the coordinator. */
+    function invitationDatesLabel(): string {
+        if (isMultiDate) return courseDates.map(formatCourseDate).join(' / ');
+        return courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
     }
 
     function handleRetry() {
@@ -223,6 +278,11 @@ export default function ConfirmationPage() {
             return;
         }
 
+        if (isMultiDate && !courseDate) {
+            setInlineError('Please choose the date you would like to attend.');
+            return;
+        }
+
         if (submittingRef.current) return;
         submittingRef.current = true;
         setIsSubmitting(true);
@@ -246,6 +306,7 @@ export default function ConfirmationPage() {
                     p_email: trimmedEmail,
                     p_course_id: courseId,
                     p_student_id: null,
+                    ...chosenDateArg(),
                 });
                 if (error) {
                     setInlineError(error.message || 'Something went wrong. Please try again.');
@@ -255,7 +316,7 @@ export default function ConfirmationPage() {
                     setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you.');
                     setState('success');
                 } else if (data?.code === 'course_full') {
-                    handleCourseFull();
+                    await handleCourseFull();
                 } else {
                     setInlineError(data?.message || 'Confirmation failed.');
                 }
@@ -267,6 +328,7 @@ export default function ConfirmationPage() {
                     p_email: trimmedEmail,
                     p_course_id: courseId,
                     p_student_id: students[0].student_id,
+                    ...chosenDateArg(),
                 });
                 if (error) {
                     setInlineError(error.message || 'Something went wrong. Please try again.');
@@ -276,7 +338,7 @@ export default function ConfirmationPage() {
                     setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you.');
                     setState('success');
                 } else if (data?.code === 'course_full') {
-                    handleCourseFull();
+                    await handleCourseFull();
                 } else {
                     setInlineError(data?.message || 'Confirmation failed.');
                 }
@@ -322,6 +384,7 @@ export default function ConfirmationPage() {
                     p_email: trimmedEmail,
                     p_course_id: courseId,
                     p_student_id: studentId,
+                    ...chosenDateArg(),
                 });
                 results.push({
                     id: studentId,
@@ -353,7 +416,7 @@ export default function ConfirmationPage() {
                 setResultMessage(`Attendance confirmed for: ${confirmedNames}.${fullNote}`);
                 setState('success');
             } else if (results.some(r => r.code === 'course_full')) {
-                handleCourseFull();
+                await handleCourseFull();
             } else {
                 setInlineError(results[0]?.message || 'Operation failed.');
             }
@@ -374,7 +437,7 @@ export default function ConfirmationPage() {
 
     function getRescheduleMailtoUrl(): string {
         const subject = `Waiting list / Reschedule: ${courseName || 'Course'}`;
-        const dateFormatted = courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
+        const dateFormatted = invitationDatesLabel();
         const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
         const body = `Hello Igor,\n\nI am unable to attend the upcoming session for "${courseName}" on ${dateFormatted}.\n\nPlease keep me on the waiting list for future dates.\n\n${emailLine}Thank you!`;
         return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -382,7 +445,7 @@ export default function ConfirmationPage() {
 
     function getPriorityMailtoUrl(): string {
         const subject = `Priority for next course: ${courseName || 'Course'}`;
-        const dateFormatted = courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
+        const dateFormatted = invitationDatesLabel();
         const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
         const body = `Hello Igor,\n\nI received an invitation for "${courseName}" on ${dateFormatted}, but all places were already taken when I tried to confirm.\n\nI am still interested — please give me priority for the next available course date.\n\n${emailLine}Thank you!`;
         return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -390,7 +453,7 @@ export default function ConfirmationPage() {
 
     function getWithdrawMailtoUrl(): string {
         const subject = `Cancel registration: ${courseName || 'Course'}`;
-        const dateFormatted = courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
+        const dateFormatted = invitationDatesLabel();
         const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
         const body = `Hello Igor,\n\nI am no longer interested in attending "${courseName}" on ${dateFormatted}.\n\nPlease cancel my registration and remove me from the waiting list.\n\n${emailLine}Thank you!`;
         return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -507,7 +570,12 @@ export default function ConfirmationPage() {
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
                                             {courseName}
                                         </h2>
-                                        {courseDate && (
+                                        {isMultiDate ? (
+                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
+                                                <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                                <span>{courseDates.length} dates available — choose one below</span>
+                                            </div>
+                                        ) : courseDate && (
                                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
                                                 <Calendar size={14} className="text-indigo-400 shrink-0" />
                                                 <span>{formatCourseDate(courseDate)}</span>
@@ -515,11 +583,66 @@ export default function ConfirmationPage() {
                                         )}
                                     </div>
                                 </div>
-                                {capacity && <CapacityMeter capacity={capacity} />}
+                                {!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
                             </div>
 
                             {/* Form Body */}
                             <div className="p-5 sm:p-6 space-y-4">
+                                {isMultiDate && (
+                                    <fieldset>
+                                        <legend className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+                                            Choose Your Date
+                                        </legend>
+                                        <div className="space-y-2" role="radiogroup" aria-label="Course date">
+                                            {courseDates.map(d => {
+                                                const info = dateCapacity[d];
+                                                const isFull = Boolean(info?.isFull);
+                                                const isSelected = courseDate === d;
+                                                const placesText = placesLeftText(info);
+                                                const left = info ? Math.max(info.max - info.confirmed, 0) : null;
+                                                const almostFull = !isFull && left !== null && info && (left <= 3 || left / info.max <= 0.25);
+                                                return (
+                                                    <label
+                                                        key={d}
+                                                        data-testid="date-option"
+                                                        className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all touch-manipulation ${
+                                                            isFull
+                                                                ? 'border-zinc-800 bg-zinc-900/40 opacity-60 cursor-not-allowed'
+                                                                : isSelected
+                                                                    ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20 cursor-pointer'
+                                                                    : 'border-zinc-800 bg-[#09090B] hover:border-zinc-600 cursor-pointer'
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="radio"
+                                                            name="course-date"
+                                                            value={d}
+                                                            checked={isSelected}
+                                                            disabled={isFull || isSubmitting}
+                                                            onChange={() => { setCourseDate(d); setInlineError(''); }}
+                                                            className="w-4 h-4 border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0"
+                                                        />
+                                                        <span className={`flex-1 min-w-0 text-sm font-semibold ${isFull ? 'text-zinc-500 line-through' : 'text-white'}`}>
+                                                            {formatCourseDate(d)}
+                                                        </span>
+                                                        {placesText && (
+                                                            <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                                                                isFull
+                                                                    ? 'text-red-400 bg-red-500/10 border-red-500/25'
+                                                                    : almostFull
+                                                                        ? 'text-amber-300 bg-amber-500/10 border-amber-500/25'
+                                                                        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                                                            }`}>
+                                                                {placesText}
+                                                            </span>
+                                                        )}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </fieldset>
+                                )}
+
                                 <div>
                                     <label htmlFor="student-email" className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
                                         Confirm Your Email
@@ -586,7 +709,7 @@ export default function ConfirmationPage() {
                                 {/* Main Confirm CTA */}
                                 <button
                                     type="submit"
-                                    disabled={isSubmitting}
+                                    disabled={isSubmitting || (isMultiDate && !courseDate)}
                                     className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer mt-2"
                                 >
                                     {isSubmitting ? (
@@ -601,6 +724,9 @@ export default function ConfirmationPage() {
                                         </>
                                     )}
                                 </button>
+                                {isMultiDate && !courseDate && (
+                                    <p className="text-[11px] text-zinc-500 text-center -mt-1">Choose a date above to continue.</p>
+                                )}
 
                                 {/* Decline / Reschedule Option */}
                                 <div className="pt-2">
@@ -613,7 +739,7 @@ export default function ConfirmationPage() {
                                         className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/60 hover:bg-zinc-800/80 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-sm active:scale-[0.99] touch-manipulation cursor-pointer"
                                     >
                                         <CalendarX size={16} className="text-amber-400 shrink-0" />
-                                        <span>Can't make it to this date? Let us know</span>
+                                        <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
                                     </button>
                                 </div>
 
@@ -648,7 +774,16 @@ export default function ConfirmationPage() {
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
                                             {courseName}
                                         </h2>
-                                        {courseDate && (
+                                        {isMultiDate ? (
+                                            <div className="space-y-1 mt-1.5">
+                                                {courseDates.map(d => (
+                                                    <div key={d} className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium">
+                                                        <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                                        <span>{formatCourseDate(d)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : courseDate && (
                                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
                                                 <Calendar size={14} className="text-indigo-400 shrink-0" />
                                                 <span>{formatCourseDate(courseDate)}</span>
@@ -656,14 +791,16 @@ export default function ConfirmationPage() {
                                         )}
                                     </div>
                                 </div>
-                                {capacity && <CapacityMeter capacity={capacity} />}
+                                {!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
                             </div>
 
                             <div className="p-5 sm:p-6 space-y-4">
                                 <div>
-                                    <h3 className="text-base font-bold text-white">All places for this date have been taken</h3>
+                                    <h3 className="text-base font-bold text-white">
+                                        {isMultiDate ? 'All places for these dates have been taken' : 'All places for this date have been taken'}
+                                    </h3>
                                     <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
-                                        Sorry — this course date is now full, so confirmations are closed. If you're still interested,
+                                        {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed. If you're still interested,
                                         email the coordinator and you'll be given <strong className="text-zinc-200">priority for the next course</strong>.
                                     </p>
                                 </div>
@@ -857,6 +994,13 @@ export default function ConfirmationPage() {
                                 </div>
                             </div>
 
+                            {isMultiDate && courseDate && (
+                                <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium mb-3">
+                                    <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                    <span>Date: <span className="text-white">{formatCourseDate(courseDate)}</span></span>
+                                </div>
+                            )}
+
                             <p className="text-xs text-zinc-400 mb-3">
                                 Select who is confirming attendance:
                             </p>
@@ -1018,6 +1162,35 @@ export default function ConfirmationPage() {
 }
 
 // ─── Places counter ─────────────────────────────────────────
+
+/** Places for one course date, or null when the course has no limit (or the lookup failed). */
+async function loadCapacity(courseId: string, date: string): Promise<CapacityInfo | null> {
+    try {
+        const { data, error } = await supabase.rpc('get_course_capacity', { p_course_id: courseId, p_course_date: date });
+        const row = !error && Array.isArray(data) ? data[0] : null;
+        if (!row || row.max_capacity == null) return null;
+        return {
+            max: row.max_capacity,
+            confirmed: row.confirmed_count ?? 0,
+            isFull: Boolean(row.is_full),
+        };
+    } catch (err) {
+        // Capacity is informational; the server still enforces the limit on confirm
+        console.warn('get_course_capacity exception:', err);
+        return null;
+    }
+}
+
+function allDatesFull(dates: string[], byDate: Record<string, CapacityInfo | null>): boolean {
+    return dates.length > 0 && dates.every(d => byDate[d]?.isFull);
+}
+
+function placesLeftText(info: CapacityInfo | null | undefined): string | null {
+    if (!info) return null;
+    if (info.isFull) return 'Full';
+    const left = Math.max(info.max - info.confirmed, 0);
+    return `${left} ${left === 1 ? 'place' : 'places'} left`;
+}
 
 function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
     const { max, confirmed, isFull } = capacity;

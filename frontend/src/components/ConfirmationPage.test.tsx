@@ -220,3 +220,108 @@ describe('ConfirmationPage Component', () => {
         expect(await screen.findByText(/all places for this date have been taken/i)).toBeInTheDocument();
     });
 });
+
+describe('ConfirmationPage multi-date invitation', () => {
+    const DATES = ['2026-10-14', '2026-10-15', '2026-10-16'];
+
+    function mockMultiDate({ fullDates = [] as string[], confirm }: { fullDates?: string[]; confirm?: (args: any) => any } = {}) {
+        (supabase.rpc as any).mockImplementation(async (name: string, args: any) => {
+            if (name === 'resolve_confirmation_token') {
+                return {
+                    data: [{ course_id: 'c-1', course_date: DATES[0], course_name: 'Safe Pass', course_dates: DATES }],
+                    error: null,
+                } as any;
+            }
+            if (name === 'get_course_capacity') {
+                const full = fullDates.includes(args.p_course_date);
+                return { data: [{ max_capacity: 10, confirmed_count: full ? 10 : 4, is_full: full }], error: null } as any;
+            }
+            if (name === 'find_students_by_email') {
+                return { data: [{ student_id: 's1', first_name: 'A', last_name: 'B' }], error: null } as any;
+            }
+            if (name === 'public_confirm_enrollment') {
+                return { data: confirm ? confirm(args) : { success: true, message: 'Confirmed!' }, error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.history.pushState({}, 'Test', '/c/AbC1234');
+    });
+
+    it('lists every offered date with places left and requires choosing one', async () => {
+        mockMultiDate();
+        render(<ConfirmationPage />);
+
+        const options = await screen.findAllByTestId('date-option');
+        expect(options).toHaveLength(3);
+        expect(screen.getAllByText('6 places left')).toHaveLength(3);
+        for (const d of DATES) {
+            expect(supabase.rpc).toHaveBeenCalledWith('get_course_capacity', { p_course_id: 'c-1', p_course_date: d });
+        }
+
+        const input = screen.getByPlaceholderText(/enter registered email address/i);
+        fireEvent.change(input, { target: { value: 'a@b.com' } });
+        expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /none of these dates work for me/i })).toBeInTheDocument();
+    });
+
+    it('sends the chosen date and shows it on the success screen', async () => {
+        mockMultiDate();
+        render(<ConfirmationPage />);
+
+        const radios = await screen.findAllByRole('radio');
+        fireEvent.click(radios[1]);
+        fireEvent.change(screen.getByPlaceholderText(/enter registered email address/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('public_confirm_enrollment', {
+            p_email: 'a@b.com',
+            p_course_id: 'c-1',
+            p_student_id: 's1',
+            p_course_date: '2026-10-15',
+        });
+        expect(screen.getByText(/15 October 2026/)).toBeInTheDocument();
+    });
+
+    it('disables a fully booked date', async () => {
+        mockMultiDate({ fullDates: ['2026-10-14'] });
+        render(<ConfirmationPage />);
+
+        const radios = await screen.findAllByRole('radio');
+        expect(radios[0]).toBeDisabled();
+        expect(radios[1]).not.toBeDisabled();
+        expect(screen.getByText('Full')).toBeInTheDocument();
+    });
+
+    it('shows the fully booked view when every offered date is full', async () => {
+        mockMultiDate({ fullDates: DATES });
+        render(<ConfirmationPage />);
+
+        expect(await screen.findByText(/all places for these dates have been taken/i)).toBeInTheDocument();
+    });
+
+    it('asks to pick another date when the chosen one fills up during confirmation', async () => {
+        const fullDates: string[] = [];
+        mockMultiDate({
+            fullDates,
+            confirm: (args) => {
+                fullDates.push(args.p_course_date);
+                return { success: false, code: 'course_full', message: 'Full' };
+            },
+        });
+        render(<ConfirmationPage />);
+
+        const radios = await screen.findAllByRole('radio');
+        fireEvent.click(radios[0]);
+        fireEvent.change(screen.getByPlaceholderText(/enter registered email address/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/the date you selected has just filled up/i)).toBeInTheDocument();
+        await waitFor(() => expect(screen.getAllByRole('radio')[0]).toBeDisabled());
+        expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeDisabled();
+    });
+});

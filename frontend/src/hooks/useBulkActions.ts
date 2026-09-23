@@ -93,6 +93,7 @@ export function useBulkActions({
                     completed_date: e.completed_date,
                     completed_at: e.completed_at,
                     invited_date: e.invited_date,
+                    invited_dates: e.invited_dates ?? null,
                     invited_at: e.invited_at,
                 }));
 
@@ -110,6 +111,7 @@ export function useBulkActions({
             if (newStatus === 'requested' || newStatus === 'rejected') {
                 updatePayload.confirmed_date = null;
                 updatePayload.invited_date = null;
+                updatePayload.invited_dates = null;
                 updatePayload.invited_at = null;
             }
 
@@ -176,6 +178,7 @@ export function useBulkActions({
                             completed_date: snap.completed_date,
                             completed_at: snap.completed_at,
                             invited_date: snap.invited_date,
+                            invited_dates: snap.invited_dates,
                             invited_at: snap.invited_at,
                         }).eq('id', snap.id)
                     );

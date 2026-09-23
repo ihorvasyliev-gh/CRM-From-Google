@@ -5,6 +5,12 @@ import React from 'react';
 import { useInviteFlow } from './useInviteFlow';
 import type { EnrollmentRow } from './useEnrollments';
 
+const supabaseMocks = vi.hoisted(() => ({
+    update: vi.fn(),
+    upsert: vi.fn(),
+    rpc: vi.fn(),
+}));
+
 vi.mock('../lib/supabase', () => ({
     supabase: {
         from: () => ({
@@ -15,12 +21,19 @@ vi.mock('../lib/supabase', () => ({
                     })
                 })
             }),
-            upsert: () => Promise.resolve({ error: null }),
-            update: () => ({
-                in: () => Promise.resolve({ error: null })
-            })
+            upsert: (rows: unknown) => {
+                supabaseMocks.upsert(rows);
+                return Promise.resolve({ error: null });
+            },
+            update: (payload: unknown) => {
+                supabaseMocks.update(payload);
+                return { in: () => Promise.resolve({ error: null }) };
+            }
         }),
-        rpc: () => Promise.resolve({ data: 'token-xyz', error: null })
+        rpc: (name: string, args: unknown) => {
+            supabaseMocks.rpc(name, args);
+            return Promise.resolve({ data: 'token-xyz', error: null });
+        }
     }
 }));
 
@@ -236,5 +249,132 @@ describe('useInviteFlow getDateStats', () => {
         const stats = result.current.getDateStats('2026-09-01');
         expect(stats.pending).toBe(1);
         expect(stats.confirmed).toBe(0);
+    });
+});
+
+describe('useInviteFlow multi-date invitations', () => {
+    function createWrapper() {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } }
+        });
+        return ({ children }: { children: React.ReactNode }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+    }
+
+    function renderInviteFlow(enrollments: EnrollmentRow[] = mockEnrollments) {
+        return renderHook(() => useInviteFlow({
+            enrollments,
+            setEnrollments: vi.fn(),
+            clearSelection: vi.fn(),
+            showToast: vi.fn()
+        }), { wrapper: createWrapper() });
+    }
+
+    it('counts a multi-date invite as pending on every offered date', async () => {
+        const multi: EnrollmentRow = {
+            ...mockEnrollments[0],
+            id: 'en-multi',
+            invited_date: '2026-10-14',
+            invited_dates: ['2026-10-14', '2026-10-15'],
+            invited_at: new Date().toISOString(),
+        };
+        const { result } = renderInviteFlow([multi]);
+        await act(async () => {
+            result.current.openInviteModal(['en-multi'], false);
+        });
+        expect(result.current.getDateStats('2026-10-14').pending).toBe(1);
+        expect(result.current.getDateStats('2026-10-15').pending).toBe(1);
+        expect(result.current.getDateStats('2026-10-16').pending).toBe(0);
+    });
+
+    it('needs at least two dates before inviting', async () => {
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        act(() => result.current.setMultiDate(true));
+        expect(result.current.canInvite).toBe(false);
+
+        act(() => result.current.toggleInviteDate('2026-10-16'));
+        expect(result.current.canInvite).toBe(false);
+
+        act(() => result.current.toggleInviteDate('2026-10-14'));
+        expect(result.current.inviteDates).toEqual(['2026-10-14', '2026-10-16']);
+        expect(result.current.canInvite).toBe(true);
+
+        act(() => result.current.toggleInviteDate('2026-10-16'));
+        expect(result.current.inviteDates).toEqual(['2026-10-14']);
+    });
+
+    it('stores every offered date and keeps the earliest as invited_date', async () => {
+        supabaseMocks.update.mockClear();
+        supabaseMocks.upsert.mockClear();
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        act(() => {
+            result.current.setMultiDate(true);
+            result.current.toggleInviteDate('2026-10-15');
+            result.current.toggleInviteDate('2026-10-14');
+        });
+        await act(async () => {
+            await result.current.handleInviteWithDate();
+        });
+
+        await vi.waitFor(() => expect(supabaseMocks.update).toHaveBeenCalled());
+        expect(supabaseMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+            status: 'invited',
+            invited_date: '2026-10-14',
+            invited_dates: ['2026-10-14', '2026-10-15'],
+        }));
+        expect(supabaseMocks.upsert).toHaveBeenCalledWith([
+            { course_id: 'c-1', invite_date: '2026-10-14' },
+            { course_id: 'c-1', invite_date: '2026-10-15' },
+        ]);
+    });
+
+    it('clears invited_dates for a single-date invite', async () => {
+        supabaseMocks.update.mockClear();
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        act(() => result.current.setInviteDate('2026-10-20'));
+        await act(async () => {
+            await result.current.handleInviteWithDate();
+        });
+
+        await vi.waitFor(() => expect(supabaseMocks.update).toHaveBeenCalled());
+        expect(supabaseMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+            invited_date: '2026-10-20',
+            invited_dates: null,
+        }));
+    });
+
+    it('creates a multi-date confirmation token for Invite & Email', async () => {
+        supabaseMocks.rpc.mockClear();
+        vi.stubGlobal('ClipboardItem', class { constructor(public items: unknown) {} });
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        act(() => {
+            result.current.setMultiDate(true);
+            result.current.toggleInviteDate('2026-10-16');
+            result.current.toggleInviteDate('2026-10-14');
+            result.current.toggleInviteDate('2026-10-15');
+        });
+        await act(async () => {
+            await result.current.handleInviteAndEmail();
+        });
+
+        expect(supabaseMocks.rpc).toHaveBeenCalledWith('create_confirmation_token_multi', {
+            p_course_id: 'c-1',
+            p_course_dates: ['2026-10-14', '2026-10-15', '2026-10-16'],
+        });
+        expect(supabaseMocks.rpc).not.toHaveBeenCalledWith('create_confirmation_token', expect.anything());
+        vi.unstubAllGlobals();
     });
 });

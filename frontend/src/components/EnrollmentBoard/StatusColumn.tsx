@@ -256,7 +256,7 @@ export default memo(StatusColumn, (prev, next) => {
     for (let i = 0; i < prev.items.length; i++) {
         const a = prev.items[i];
         const b = next.items[i];
-        if (a.id !== b.id || a.status !== b.status || a.is_priority !== b.is_priority || a.notes !== b.notes || a.confirmed_date !== b.confirmed_date || a.invited_date !== b.invited_date || a.completed_date !== b.completed_date || a.response_days !== b.response_days) return false;
+        if (a.id !== b.id || a.status !== b.status || a.is_priority !== b.is_priority || a.notes !== b.notes || a.confirmed_date !== b.confirmed_date || a.invited_date !== b.invited_date || (a.invited_dates ?? []).join() !== (b.invited_dates ?? []).join() || a.completed_date !== b.completed_date || a.response_days !== b.response_days) return false;
     }
 
     for (const item of prev.items) {

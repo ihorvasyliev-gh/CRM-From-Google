@@ -1,4 +1,4 @@
-import { formatDateDMY, formatDateLong, formatShortDate, formatDayDateShort, formatDateSpaces } from './dateUtils';
+import { formatDateDMY, formatDateLong, formatShortDate, formatDayDateShort, formatDateSpaces, formatDateChoiceList, formatShortDateList, normalizeDateList } from './dateUtils';
 
 describe('dateUtils', () => {
     describe('formatDateDMY', () => {
@@ -72,5 +72,27 @@ describe('dateUtils', () => {
             expect(formatDateSpaces('invalid')).toBe('');
         });
     });
-});
 
+    describe('multi-date lists', () => {
+        it('normalizes, sorts and de-duplicates', () => {
+            expect(normalizeDateList(['2026-10-16', '2026-10-14T00:00:00', null, '2026-10-14'])).toEqual(['2026-10-14', '2026-10-16']);
+        });
+
+        it('writes month and year once for the same month', () => {
+            expect(formatDateChoiceList(['2026-10-16', '2026-10-14', '2026-10-15'])).toBe('Wed 14, Thu 15 or Fri 16 Oct 2026');
+        });
+
+        it('groups dates across months', () => {
+            expect(formatDateChoiceList(['2026-09-30', '2026-10-01'])).toBe('Wed 30 Sept or Thu 1 Oct 2026');
+        });
+
+        it('falls back to the long format for one date', () => {
+            expect(formatDateChoiceList(['2026-10-14'])).toBe(formatDateLong('2026-10-14'));
+        });
+
+        it('builds a compact chip label', () => {
+            expect(formatShortDateList(['2026-10-14', '2026-10-15', '2026-10-16'])).toBe('14/15/16 Oct');
+            expect(formatShortDateList(['2026-09-30', '2026-10-01'])).toBe('30 Sept / 1 Oct');
+        });
+    });
+});

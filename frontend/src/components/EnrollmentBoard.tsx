@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw, Loader2 } from 'lucide-react';
+import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw, Loader2, Plus, CalendarRange } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -13,7 +13,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
 import { cleanVariant, Student } from '../lib/types';
 import StudentDetail from './StudentDetail';
-import { formatDateLong, todayISO } from '../lib/dateUtils';
+import { formatDateLong, formatDayDateShort, todayISO } from '../lib/dateUtils';
 import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
 
 import FilterBar from './EnrollmentBoard/FilterBar';
@@ -931,13 +931,33 @@ export default function EnrollmentBoard({
                             <div>
                                 <h3 className="font-bold text-primary">Invite to Course</h3>
                                 <p className="text-xs text-muted mt-0.5">
-                                    {inviteFlow.inviteDateTarget.ids.length === 1
-                                        ? 'Select the date for this invitation'
-                                        : `Select the date for ${inviteFlow.inviteDateTarget.ids.length} invitations`
+                                    {inviteFlow.multiDate
+                                        ? 'Offer several dates — each student picks one'
+                                        : inviteFlow.inviteDateTarget.ids.length === 1
+                                            ? 'Select the date for this invitation'
+                                            : `Select the date for ${inviteFlow.inviteDateTarget.ids.length} invitations`
                                     }
                                 </p>
                             </div>
                         </div>
+
+                        <label className="flex items-start gap-3 mb-4 p-3 rounded-xl border border-border-subtle bg-surface cursor-pointer select-none hover:border-blue-300 transition-colors">
+                            <input
+                                type="checkbox"
+                                id="invite-multi-date"
+                                checked={inviteFlow.multiDate}
+                                onChange={e => inviteFlow.setMultiDate(e.target.checked)}
+                                className="mt-0.5 rounded border-border-subtle text-blue-600 focus:ring-blue-500/20"
+                            />
+                            <span className="min-w-0">
+                                <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                                    <CalendarRange size={14} className="text-blue-500" /> Multiple dates
+                                </span>
+                                <span className="block text-xs text-muted mt-0.5">
+                                    Same course in several groups — the student chooses a date on the confirmation page.
+                                </span>
+                            </span>
+                        </label>
 
                         {inviteFlow.savedInviteDates.length > 0 && (
                             <div className="mb-4">
@@ -945,12 +965,15 @@ export default function EnrollmentBoard({
                                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                                     {inviteFlow.savedInviteDates.map(d => {
                                         const stats = inviteFlow.getDateStats(d);
-                                        const isSelected = inviteFlow.inviteDate === d;
+                                        const isSelected = inviteFlow.multiDate
+                                            ? inviteFlow.inviteDates.includes(d)
+                                            : inviteFlow.inviteDate === d;
                                         return (
                                             <button
                                                 key={d}
                                                 type="button"
-                                                onClick={() => inviteFlow.setInviteDate(d)}
+                                                aria-pressed={isSelected}
+                                                onClick={() => inviteFlow.multiDate ? inviteFlow.toggleInviteDate(d) : inviteFlow.setInviteDate(d)}
                                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
                                                     isSelected
                                                         ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
@@ -958,9 +981,9 @@ export default function EnrollmentBoard({
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
+                                                    <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-sm' : 'rounded-full'} flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
                                                     <span className={`text-xs font-semibold truncate ${isSelected ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-primary'}`}>
-                                                        {formatDateLong(d)}
+                                                        {inviteFlow.multiDate ? formatDayDateShort(d) : formatDateLong(d)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -980,30 +1003,93 @@ export default function EnrollmentBoard({
                             </div>
                         )}
 
-                        <label className="block text-sm font-medium text-primary mb-1.5">
-                            {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
-                        </label>
-                        <input
-                            type="date"
-                            id="invite-date"
-                            name="inviteDate"
-                            value={inviteFlow.inviteDate}
-                            min={todayISO()}
-                            onChange={e => inviteFlow.setInviteDate(e.target.value)}
-                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
-                        />
-                        {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
-                            <div className="flex items-center gap-2 mt-1.5 px-1">
-                                <span className="text-[11px] text-muted">On this date:</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
-                                </span>
-                                <span className="text-border-subtle">•</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
-                                </span>
+                        {inviteFlow.multiDate ? (
+                            <div>
+                                <label htmlFor="invite-date" className="block text-sm font-medium text-primary mb-1.5">
+                                    {inviteFlow.savedInviteDates.length > 0 ? 'Or add a new date' : 'Add course dates'}
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="date"
+                                        id="invite-date"
+                                        name="inviteDate"
+                                        value={inviteFlow.inviteDate}
+                                        min={todayISO()}
+                                        onChange={e => inviteFlow.setInviteDate(e.target.value)}
+                                        className="flex-1 min-w-0 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => inviteFlow.toggleInviteDate(inviteFlow.inviteDate)}
+                                        disabled={!inviteFlow.inviteDate || inviteFlow.inviteDates.includes(inviteFlow.inviteDate)}
+                                        className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 px-3 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl transition-all"
+                                    >
+                                        <Plus size={14} /> Add
+                                    </button>
+                                </div>
+
+                                <div className="mt-3">
+                                    <div className="text-xs font-medium text-muted mb-1.5">
+                                        Offered dates ({inviteFlow.inviteDates.length})
+                                    </div>
+                                    {inviteFlow.inviteDates.length === 0 ? (
+                                        <p className="text-xs text-muted opacity-70">Select at least two dates.</p>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {inviteFlow.inviteDates.map(d => {
+                                                const stats = inviteFlow.getDateStats(d);
+                                                return (
+                                                    <span key={d} className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-500/30 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                                        {formatDayDateShort(d)}
+                                                        <span className="font-normal text-muted" title="Confirmed / pending on this date">
+                                                            {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} · {stats.pending}p
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            aria-label={`Remove ${formatDateLong(d)}`}
+                                                            onClick={() => inviteFlow.toggleInviteDate(d)}
+                                                            className="p-0.5 rounded hover:bg-blue-500/20"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {inviteFlow.inviteDates.length === 1 && (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">Add one more date, or switch off “Multiple dates”.</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                            <label className="block text-sm font-medium text-primary mb-1.5">
+                                {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
+                            </label>
+                            <input
+                                type="date"
+                                id="invite-date"
+                                name="inviteDate"
+                                value={inviteFlow.inviteDate}
+                                min={todayISO()}
+                                onChange={e => inviteFlow.setInviteDate(e.target.value)}
+                                className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
+                            />
+                            {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
+                                <div className="flex items-center gap-2 mt-1.5 px-1">
+                                    <span className="text-[11px] text-muted">On this date:</span>
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                        {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
+                                    </span>
+                                    <span className="text-border-subtle">•</span>
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                        {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
+                                    </span>
+                                </div>
+                            )}
                             </div>
                         )}
 
@@ -1038,14 +1124,14 @@ export default function EnrollmentBoard({
                             </button>
                             <button
                                 onClick={inviteFlow.handleInviteWithDate}
-                                disabled={!inviteFlow.inviteDate}
+                                disabled={!inviteFlow.canInvite}
                                 className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all shadow-sm"
                             >
                                 <Send size={14} /> Just Invite
                             </button>
                             <button
                                 onClick={inviteFlow.handleInviteAndEmail}
-                                disabled={!inviteFlow.inviteDate}
+                                disabled={!inviteFlow.canInvite}
                                 className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 rounded-xl transition-all shadow-sm"
                             >
                                 <Mail size={14} /> Invite & Email
