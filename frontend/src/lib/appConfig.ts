@@ -10,9 +10,9 @@ export interface ExcelColumn {
 }
 
 export interface AppConfig {
-    /** HTML Email body template for courses requiring high English. Supports placeholders: {courseDetails}, {confirmationButton}, {confirmationLink}, {responseDays} */
+    /** HTML Email body template for courses requiring high English. Supports placeholders: {courseDetails}, {capacityNotice}, {confirmationButton}, {confirmationLink}, {responseDays} */
     htmlEmailTemplate: string;
-    /** HTML Email body template for standard courses. Supports placeholders: {courseDetails}, {confirmationButton}, {confirmationLink}, {responseDays} */
+    /** HTML Email body template for standard courses. Supports placeholders: {courseDetails}, {capacityNotice}, {confirmationButton}, {confirmationLink}, {responseDays} */
     htmlEmailTemplateStandard: string;
     /** Email subject format. Supports placeholders: {courseName}, {date} */
     emailSubjectFormat: string;
@@ -40,9 +40,10 @@ export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
 export const DEFAULT_CONFIG: AppConfig = {
     htmlEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your suitability and attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
 {courseDetails}
 {englishWarning}
+{capacityNotice}
 {confirmationButton}
 <p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
 <ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -52,8 +53,9 @@ export const DEFAULT_CONFIG: AppConfig = {
 </ul>`,
     htmlEmailTemplateStandard: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
 {courseDetails}
+{capacityNotice}
 {confirmationButton}
 <p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
 <ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -98,6 +100,20 @@ export function getConfig(): AppConfig {
                 '{englishWarning}'
             );
         }
+
+        // MIGRATION: Upgrade the old "Spaces are limited ... within N days" sentence
+        // to the capacity-aware wording (confirm as soon as possible).
+        const upgradeLimitedSentence = (tpl?: string) => tpl
+            ?.replace(
+                'Spaces are limited, so please confirm your suitability and attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.',
+                'Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your suitability and attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.'
+            )
+            .replace(
+                'Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.',
+                'Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.'
+            );
+        if (saved.htmlEmailTemplate) saved.htmlEmailTemplate = upgradeLimitedSentence(saved.htmlEmailTemplate);
+        if (saved.htmlEmailTemplateStandard) saved.htmlEmailTemplateStandard = upgradeLimitedSentence(saved.htmlEmailTemplateStandard);
 
         if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
             saved.htmlEmailTemplateStandard = DEFAULT_CONFIG.htmlEmailTemplateStandard;
@@ -388,7 +404,8 @@ export function buildEmailBodyHtml(
     confirmationLink?: string, 
     customConfig?: AppConfig, 
     responseDays?: number,
-    requiresEnglish: boolean = false
+    requiresEnglish: boolean = false,
+    maxCapacity?: number | null
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
@@ -439,6 +456,20 @@ export function buildEmailBodyHtml(
   </tr>
 </table>`;
 
+    const days = responseDays ?? 7;
+    const capacityLine = maxCapacity && maxCapacity > 0
+        ? `This course date has only <strong>${maxCapacity} places</strong>, allocated on a first-come, first-served basis.`
+        : 'Places on this course are allocated on a first-come, first-served basis.';
+    const capacityNoticeHtml = `<!-- Limited Places Notice -->
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
+  <tr>
+    <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please confirm as soon as possible</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">${capacityLine} Once all places are taken, confirmation for this date will close — even if your ${days}-day response window has not yet expired.</div>
+    </td>
+  </tr>
+</table>`;
+
     const buttonHtml = confirmationLink
         ? `<!-- Action Button Container -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:22px 0;">
@@ -465,6 +496,15 @@ export function buildEmailBodyHtml(
     body = body.replace(/<p>\s*\{courseDetails\}\s*<\/p>/g, '{courseDetails}');
     body = body.replace(/<p>\s*\{englishWarning\}\s*<\/p>/g, '{englishWarning}');
     body = body.replace(/<p>\s*\{confirmationButton\}\s*<\/p>/g, '{confirmationButton}');
+    body = body.replace(/<p>\s*\{capacityNotice\}\s*<\/p>/g, '{capacityNotice}');
+
+    // Every invitation must mention limited places: inject the notice into
+    // custom templates that don't include the placeholder yet.
+    if (!body.includes('{capacityNotice}')) {
+        body = body.includes('{confirmationButton}')
+            ? body.replace('{confirmationButton}', '{capacityNotice}\n{confirmationButton}')
+            : `${body}\n{capacityNotice}`;
+    }
 
     // If template has plain text Important note before you confirm, replace it with the styled card
     if (requiresEnglish && body.includes('Important note before you confirm:') && !body.includes('{englishWarning}')) {
@@ -477,8 +517,9 @@ export function buildEmailBodyHtml(
     body = body
         .replace(/\{courseDetails\}/g, courseDetailsHtml)
         .replace(/\{englishWarning\}/g, requiresEnglish ? englishWarningHtml : '')
+        .replace(/\{capacityNotice\}/g, capacityNoticeHtml)
         .replace(/\{confirmationButton\}/g, buttonHtml)
-        .replace(/\{responseDays\}/g, String(responseDays ?? 7));
+        .replace(/\{responseDays\}/g, String(days));
 
     return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? false);
 }

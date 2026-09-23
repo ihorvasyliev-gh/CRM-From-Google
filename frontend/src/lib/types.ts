@@ -19,6 +19,8 @@ export interface Course {
     id: string;
     name: string;
     requires_english?: boolean;
+    /** Max confirmed participants per course date (null/undefined = unlimited) */
+    max_capacity?: number | null;
     created_at: string;
 }
 

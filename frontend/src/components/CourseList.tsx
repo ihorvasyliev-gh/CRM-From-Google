@@ -188,21 +188,22 @@ export default function CourseList() {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
     }, [queryClient]);
 
-    async function handleSave(data: { id?: string; name: string; requires_english?: boolean }) {
+    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null }) {
+        const maxCapacity = data.max_capacity ?? null;
         if (data.id) {
             const { error } = await supabase
                 .from('courses')
-                .update({ name: data.name, requires_english: data.requires_english ?? false })
+                .update({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity })
                 .eq('id', data.id);
             if (error) throw new Error(error.message);
-            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english } : c));
+            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity } : c));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase
                 .from('courses')
-                .insert({ name: data.name, requires_english: data.requires_english ?? false })
+                .insert({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity })
                 .select();
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
@@ -397,7 +398,7 @@ export default function CourseList() {
                                     </div>
 
                                     {/* Template Selection Pill */}
-                                    <div className="mb-3.5">
+                                    <div className="mb-3.5 flex flex-wrap items-center gap-2">
                                         <button
                                             type="button"
                                             onClick={(e) => handleToggleEnglish(course, e)}
@@ -410,6 +411,15 @@ export default function CourseList() {
                                         >
                                             <span className="text-xs">{course.requires_english ? '🇬🇧' : '🌐'}</span>
                                             <span>{course.requires_english ? 'High English' : 'Standard'}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
+                                            title={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-surface-elevated/70 border-border-subtle text-muted hover:text-primary hover:border-border-strong hover:bg-surface-elevated transition-all active:scale-95"
+                                        >
+                                            <Users size={12} />
+                                            <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
                                         </button>
                                     </div>
 

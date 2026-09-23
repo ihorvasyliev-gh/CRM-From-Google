@@ -93,6 +93,11 @@ export function useInviteFlow({
         return { pending, confirmed };
     }, [enrollments, targetCourseId]);
 
+    // Per-date participant limit of the course being invited to (null = unlimited)
+    const targetMaxCapacity = targetCourseId
+        ? enrollments.find(e => e.course_id === targetCourseId)?.courses?.max_capacity ?? null
+        : null;
+
     const inviteMutation = useMutation({
         mutationFn: async ({ ids, date, days }: { ids: string[], date: string, days: number }) => {
             const first = enrollments.find(e => ids.includes(e.id));
@@ -182,7 +187,8 @@ export function useInviteFlow({
         }
 
         const requiresEnglish = Boolean(first?.courses?.requires_english);
-        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays, requiresEnglish);
+        const maxCapacity = first?.courses?.max_capacity ?? null;
+        const htmlBody = buildEmailBodyHtml(courseName, dateFormatted, confirmLink, undefined, responseDays, requiresEnglish, maxCapacity);
 
         try {
             const blobHtml = new Blob([htmlBody], { type: "text/html" });
@@ -213,6 +219,7 @@ export function useInviteFlow({
         setResponseDays,
         savedInviteDates,
         targetCourseId,
+        targetMaxCapacity,
         fetchCourseDates,
         getDateStats,
         openInviteModal,

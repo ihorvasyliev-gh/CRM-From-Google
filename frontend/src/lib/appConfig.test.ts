@@ -69,6 +69,27 @@ describe('appConfig', () => {
             expect(result).toContain('feel confident with your English');
         });
 
+        it('always includes the limited places notice with the course capacity', () => {
+            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 5, false, 12);
+            expect(result).toContain('Limited places');
+            expect(result).toContain('12 places');
+            expect(result).toContain('5-day response window');
+        });
+
+        it('injects the limited places notice into custom templates without the placeholder', () => {
+            setConfig({ htmlEmailTemplateStandard: '<p>Hi</p>{confirmationButton}' });
+            const result = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm');
+            expect(result).toContain('Limited places');
+            expect(result.indexOf('Limited places')).toBeLessThan(result.indexOf('Confirm My Place'));
+        });
+
+        it('upgrades the old "Spaces are limited" sentence in saved templates', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({
+                htmlEmailTemplateStandard: '<p>Spaces are limited, so please confirm your attendance within <strong>{responseDays} days</strong> by clicking the button below or replying to this email.</p>{confirmationButton}',
+            }));
+            expect(getConfig().htmlEmailTemplateStandard).toContain('as soon as possible');
+        });
+
         it('does not include confirmation block if no link provided', () => {
             const result = buildEmailBodyHtml('Python 101', 'Oct 20');
             expect(result).not.toContain('Confirm My Place');

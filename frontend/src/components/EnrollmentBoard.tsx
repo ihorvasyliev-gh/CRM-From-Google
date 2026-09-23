@@ -966,7 +966,7 @@ export default function EnrollmentBoard({
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50" title="Confirmed students on this date">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                        {stats.confirmed} confirmed
+                                                        {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                                                     </span>
                                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
@@ -997,7 +997,7 @@ export default function EnrollmentBoard({
                                 <span className="text-[11px] text-muted">On this date:</span>
                                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed} confirmed
+                                    {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                                 </span>
                                 <span className="text-border-subtle">•</span>
                                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">

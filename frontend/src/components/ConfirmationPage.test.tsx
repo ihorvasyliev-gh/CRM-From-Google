@@ -153,4 +153,70 @@ describe('ConfirmationPage Component', () => {
 
         expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeInTheDocument();
     });
+
+    it('shows confirmed / max places for the course date', async () => {
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
+            if (name === 'get_public_course_info') {
+                return { data: [{ course_name: 'Python for Beginners' }], error: null } as any;
+            }
+            if (name === 'get_course_capacity') {
+                return { data: [{ max_capacity: 10, confirmed_count: 4, is_full: false }], error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+
+        render(<ConfirmationPage />);
+
+        const meter = await screen.findByTestId('capacity-meter');
+        expect(meter).toHaveTextContent('4 of 10 places confirmed');
+        expect(meter).toHaveTextContent('6 places left');
+        expect(supabase.rpc).toHaveBeenCalledWith('get_course_capacity', { p_course_id: 'test-course-123', p_course_date: '2026-10-15' });
+        expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeInTheDocument();
+    });
+
+    it('blocks confirmation when the course date is full and offers priority for the next course', async () => {
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
+            if (name === 'get_public_course_info') {
+                return { data: [{ course_name: 'Python for Beginners' }], error: null } as any;
+            }
+            if (name === 'get_course_capacity') {
+                return { data: [{ max_capacity: 10, confirmed_count: 10, is_full: true }], error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+
+        render(<ConfirmationPage />);
+
+        expect(await screen.findByText(/all places for this date have been taken/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /confirm my participation/i })).not.toBeInTheDocument();
+        const priorityLink = screen.getByRole('link', { name: /priority for the next course/i });
+        expect(priorityLink.getAttribute('href')).toContain('mailto:ivasyliev@partnershipcork.ie');
+        expect(priorityLink.getAttribute('href')).toContain('Priority');
+    });
+
+    it('switches to the fully booked view when the server reports course_full on confirm', async () => {
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
+            if (name === 'get_public_course_info') {
+                return { data: [{ course_name: 'Python for Beginners' }], error: null } as any;
+            }
+            if (name === 'get_course_capacity') {
+                return { data: [{ max_capacity: 10, confirmed_count: 9, is_full: false }], error: null } as any;
+            }
+            if (name === 'find_students_by_email') {
+                return { data: [{ student_id: 's1', first_name: 'A', last_name: 'B' }], error: null } as any;
+            }
+            if (name === 'public_confirm_enrollment') {
+                return { data: { success: false, code: 'course_full', message: 'Full' }, error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+
+        render(<ConfirmationPage />);
+
+        const input = await screen.findByPlaceholderText(/enter registered email address/i);
+        fireEvent.change(input, { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/all places for this date have been taken/i)).toBeInTheDocument();
+    });
 });

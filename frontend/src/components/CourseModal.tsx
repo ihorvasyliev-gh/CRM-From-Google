@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, BookOpen } from 'lucide-react';
+import { X, Loader2, BookOpen, Users } from 'lucide-react';
 import { Course } from '../lib/types';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 
 interface Props {
     open: boolean;
     course: Course | null;
-    onSave: (data: { id?: string; name: string; requires_english?: boolean }) => Promise<void>;
+    onSave: (data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null }) => Promise<void>;
     onClose: () => void;
 }
 
 export default function CourseModal({ open, course, onSave, onClose }: Props) {
     const [name, setName] = useState('');
     const [requiresEnglish, setRequiresEnglish] = useState(false);
+    const [maxCapacity, setMaxCapacity] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -20,13 +21,16 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         if (open) {
             setName(course?.name || '');
             setRequiresEnglish(Boolean(course?.requires_english));
+            setMaxCapacity(course?.max_capacity ? String(course.max_capacity) : '');
             setError('');
         }
     }, [open, course]);
 
     const requestClose = () => {
         if (saving) return;
-        const dirty = name.trim() !== (course?.name || '').trim() || requiresEnglish !== Boolean(course?.requires_english);
+        const dirty = name.trim() !== (course?.name || '').trim()
+            || requiresEnglish !== Boolean(course?.requires_english)
+            || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '');
         if (dirty && !window.confirm('Discard unsaved changes?')) return;
         onClose();
     };
@@ -40,10 +44,16 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
             setError('Course name is required');
             return;
         }
+        const capacityStr = maxCapacity.trim();
+        const capacity = capacityStr === '' ? null : Number(capacityStr);
+        if (capacity !== null && (!Number.isInteger(capacity) || capacity < 1)) {
+            setError('Max participants must be a whole number of at least 1 (or leave empty for unlimited)');
+            return;
+        }
         setSaving(true);
         setError('');
         try {
-            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish });
+            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish, max_capacity: capacity });
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -97,6 +107,27 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                             autoFocus
                             required
                         />
+                    </div>
+
+                    <div>
+                        <label htmlFor="course-max-capacity" className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Max Participants per Date</label>
+                        <div className="relative">
+                            <Users size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                            <input
+                                id="course-max-capacity"
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                step={1}
+                                placeholder="Unlimited"
+                                className="w-full pl-10 pr-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted"
+                                value={maxCapacity}
+                                onChange={e => setMaxCapacity(e.target.value)}
+                            />
+                        </div>
+                        <p className="text-[11px] text-muted mt-1.5">
+                            Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
+                        </p>
                     </div>
 
                     {/* Email Template Type Selection */}
