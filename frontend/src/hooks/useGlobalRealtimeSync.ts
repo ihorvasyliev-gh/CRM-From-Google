@@ -25,6 +25,31 @@ export function useGlobalRealtimeSync() {
     const lastResyncRef = useRef<number>(0);
     const pendingResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Realtime events arrive in bursts (a bulk action on 30 enrollments = 30 events). Each
+    // invalidation cancels the in-flight refetch and starts a new full-table fetch, so without
+    // coalescing a burst meant dozens of back-to-back requests and board re-renders.
+    const pendingKeysRef = useRef<Set<string>>(new Set());
+    const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const burstStartRef = useRef<number>(0);
+
+    const flushInvalidations = useCallback(() => {
+        flushTimerRef.current = null;
+        burstStartRef.current = 0;
+        const keys = Array.from(pendingKeysRef.current);
+        pendingKeysRef.current.clear();
+        keys.forEach(key => queryClient.invalidateQueries({ queryKey: [key], type: 'active' }));
+    }, [queryClient]);
+
+    const queueInvalidation = useCallback((keys: string[]) => {
+        keys.forEach(key => pendingKeysRef.current.add(key));
+        const now = Date.now();
+        if (!burstStartRef.current) burstStartRef.current = now;
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+        // Trailing 250ms debounce, but never hold updates back for more than ~1s during a long burst
+        const wait = now - burstStartRef.current >= 1000 ? 0 : 250;
+        flushTimerRef.current = setTimeout(flushInvalidations, wait);
+    }, [flushInvalidations]);
+
     const subscribeChannel = useCallback(() => {
         if (!user) return;
 
@@ -45,10 +70,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'enrollments' },
                 (payload) => {
                     console.log('Realtime update: enrollments changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['enrollments'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'], type: 'active' });
+                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts']);
                 }
             )
             // ─── Students ───────────────────────────────────
@@ -57,8 +79,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'students' },
                 (payload) => {
                     console.log('Realtime update: students changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['students'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
+                    queueInvalidation(['students', 'dashboard_stats']);
                 }
             )
             // ─── Courses ────────────────────────────────────
@@ -67,9 +88,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'courses' },
                 (payload) => {
                     console.log('Realtime update: courses changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['courses'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['doc_courses'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['dashboard_stats'], type: 'active' });
+                    queueInvalidation(['courses', 'doc_courses', 'dashboard_stats']);
                 }
             )
             // ─── Employment Status ───────────────────────────
@@ -78,8 +97,7 @@ export function useGlobalRealtimeSync() {
                 { event: '*', schema: 'public', table: 'employment_status' },
                 (payload) => {
                     console.log('Realtime update: employment_status changed', payload);
-                    queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'], type: 'active' });
-                    queryClient.invalidateQueries({ queryKey: ['analytics_employment_statuses_v1'], type: 'active' });
+                    queueInvalidation(['outcomes_graduates', 'analytics_employment_statuses_v1']);
                 }
             )
             .subscribe((status, err) => {
@@ -106,7 +124,7 @@ export function useGlobalRealtimeSync() {
             });
 
         activeChannelRef.current = channel;
-    }, [queryClient, user]);
+    }, [user, queueInvalidation]);
 
     useEffect(() => {
         subscribeChannelRef.current = subscribeChannel;
@@ -118,6 +136,7 @@ export function useGlobalRealtimeSync() {
         // Data was just fetched on mount — don't resync again on the very next focus event
         lastResyncRef.current = Date.now();
         subscribeChannel();
+        const pendingKeys = pendingKeysRef.current;
 
         // Listen for sleep/wake and custom reconnect events to resync data & channels.
         // Focus/visibility fire very often (every alt-tab), so they only trigger a resync when the
@@ -158,6 +177,12 @@ export function useGlobalRealtimeSync() {
                 clearTimeout(retryTimeoutRef.current);
                 retryTimeoutRef.current = null;
             }
+            if (flushTimerRef.current) {
+                clearTimeout(flushTimerRef.current);
+                flushTimerRef.current = null;
+            }
+            pendingKeys.clear();
+            burstStartRef.current = 0;
             if (activeChannelRef.current) {
                 supabase.removeChannel(activeChannelRef.current);
                 activeChannelRef.current = null;

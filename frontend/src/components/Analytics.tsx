@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, Suspense } from 'react';
+import { useState, useMemo, useCallback, useDeferredValue, startTransition, memo, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
@@ -26,12 +26,17 @@ import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
 
 import GlobalFilterBar, { type AnalyticsFilterState } from './Analytics/GlobalFilterBar';
-const PipelineVelocityTab = lazyWithRetry(() => import('./Analytics/PipelineVelocityTab'));
-const GeographyDemographicsTab = lazyWithRetry(() => import('./Analytics/GeographyDemographicsTab'));
-const CourseMatrixTab = lazyWithRetry(() => import('./Analytics/CourseMatrixTab'));
-const OutcomesTab = lazyWithRetry(() => import('./Analytics/OutcomesTab'));
-const DataExplorerTab = lazyWithRetry(() => import('./Analytics/DataExplorerTab'));
-const MultiCourseCompletersTab = lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab'));
+// memo(): opening a drill-down or the student drawer re-renders Analytics; the tabs (charts +
+// aggregations) only need to re-render when their data actually changes.
+const PipelineVelocityTab = memo(lazyWithRetry(() => import('./Analytics/PipelineVelocityTab')));
+const GeographyDemographicsTab = memo(lazyWithRetry(() => import('./Analytics/GeographyDemographicsTab')));
+const CourseMatrixTab = memo(lazyWithRetry(() => import('./Analytics/CourseMatrixTab')));
+const OutcomesTab = memo(lazyWithRetry(() => import('./Analytics/OutcomesTab')));
+const DataExplorerTab = memo(lazyWithRetry(() => import('./Analytics/DataExplorerTab')));
+const MultiCourseCompletersTab = memo(lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab')));
+
+const EMPTY_ENROLLMENTS: EnrollmentWithRelations[] = [];
+const EMPTY_STATUSES: any[] = [];
 import DrillDownModal from './Analytics/DrillDownModal';
 import { 
     calculateSpeedMetrics, 
@@ -73,12 +78,12 @@ export default function Analytics() {
     const [isExportingExcel, setIsExportingExcel] = useState(false);
 
     // 4. TanStack Data Queries
-    const { data: allEnrollments = [], isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
+    const { data: allEnrollments = EMPTY_ENROLLMENTS, isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
         queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments as any,
     });
 
-    const { data: employmentStatuses = [] } = useQuery({
+    const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -143,6 +148,18 @@ export default function Analytics() {
 
         return result;
     }, [allEnrollments, filters]);
+
+    // Tabs render from deferred copies: filter controls and KPI cards update instantly while the
+    // heavier chart/aggregation re-render happens in the background (and can be interrupted).
+    const deferredFiltered = useDeferredValue(filteredEnrollments);
+    const deferredAll = useDeferredValue(allEnrollments);
+    const isTabStale = deferredFiltered !== filteredEnrollments || deferredAll !== allEnrollments;
+
+    // Switching tabs may download a chunk and mount heavy charts — keep the current view
+    // interactive meanwhile instead of flashing the Suspense fallback.
+    const selectTab = useCallback((tab: AnalyticsTabId) => {
+        startTransition(() => setActiveTab(tab));
+    }, [setActiveTab]);
 
     // 6. High-level KPI Summary Calculations
     const kpiSummary = useMemo(() => {
@@ -337,7 +354,7 @@ export default function Analytics() {
 
                 {/* 5. Median Turnaround Speed */}
                 <div 
-                    onClick={() => setActiveTab('pipeline')}
+                    onClick={() => selectTab('pipeline')}
                     className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-indigo-500/40 hover:shadow-md transition-all group"
                 >
                     <div className="flex items-center justify-between">
@@ -352,7 +369,7 @@ export default function Analytics() {
 
                 {/* 6. Graduate Employment */}
                 <div 
-                    onClick={() => setActiveTab('outcomes')}
+                    onClick={() => selectTab('outcomes')}
                     className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-violet-500/40 hover:shadow-md transition-all group"
                 >
                     <div className="flex items-center justify-between">
@@ -374,7 +391,7 @@ export default function Analytics() {
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as AnalyticsTabId)}
+                            onClick={() => selectTab(tab.id as AnalyticsTabId)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                                 isActive
                                     ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20 scale-[1.01]'
@@ -389,7 +406,7 @@ export default function Analytics() {
             </div>
 
             {/* Active Sub-Tab View */}
-            <div className="min-h-[500px]">
+            <div className={`min-h-[500px] transition-opacity duration-200 ${isTabStale ? 'opacity-60' : ''}`}>
                 {isEnrollmentsLoading ? (
                     <div className="flex flex-col items-center justify-center py-24 text-muted space-y-3">
                         <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -404,28 +421,28 @@ export default function Analytics() {
                     }>
                         {activeTab === 'pipeline' && (
                             <PipelineVelocityTab
-                                enrollments={filteredEnrollments}
+                                enrollments={deferredFiltered}
                                 onDrillDown={handleDrillDown}
                             />
                         )}
 
                         {activeTab === 'geography' && (
                             <GeographyDemographicsTab
-                                enrollments={filteredEnrollments}
+                                enrollments={deferredFiltered}
                                 onDrillDown={handleDrillDown}
                             />
                         )}
 
                         {activeTab === 'courses' && (
                             <CourseMatrixTab
-                                enrollments={filteredEnrollments}
+                                enrollments={deferredFiltered}
                                 onDrillDown={handleDrillDown}
                             />
                         )}
 
                         {activeTab === 'outcomes' && (
                             <OutcomesTab
-                                enrollments={filteredEnrollments}
+                                enrollments={deferredFiltered}
                                 employmentStatuses={employmentStatuses}
                                 onDrillDown={handleDrillDown}
                             />
@@ -433,15 +450,15 @@ export default function Analytics() {
 
                         {activeTab === 'explorer' && (
                             <DataExplorerTab
-                                enrollments={filteredEnrollments}
+                                enrollments={deferredFiltered}
                                 onOpenStudent={handleOpenStudentDetail}
                             />
                         )}
 
                         {activeTab === 'multi-course' && (
                             <MultiCourseCompletersTab
-                                allEnrollments={allEnrollments}
-                                filteredEnrollments={filteredEnrollments}
+                                allEnrollments={deferredAll}
+                                filteredEnrollments={deferredFiltered}
                                 onOpenStudent={handleOpenStudentDetail}
                             />
                         )}

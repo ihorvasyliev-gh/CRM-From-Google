@@ -1,7 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable, type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
@@ -30,6 +30,17 @@ interface EnrollmentCardProps {
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: string) => void;
 }
 
+/** Props the thin draggable wrapper hands down to the (memoised) card body. */
+interface EnrollmentCardBodyProps extends EnrollmentCardProps {
+    isMobile: boolean;
+    isEditingNote: boolean;
+    setIsEditingNote: (editing: boolean) => void;
+    dragRef: (element: HTMLElement | null) => void;
+    dragAttributes: DraggableAttributes;
+    dragListeners: DraggableSyntheticListeners;
+    isDragging: boolean;
+}
+
 // --- п.7: Relative time helper ---
 function getRelativeTime(isoDate: string): string {
     const diff = Date.now() - new Date(isoDate).getTime();
@@ -52,7 +63,7 @@ const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surf
 const contactBtn = 'w-6 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors flex-shrink-0';
 const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium flex-shrink-0 whitespace-nowrap';
 
-const EnrollmentCard = function EnrollmentCard({
+const EnrollmentCardBody = function EnrollmentCardBody({
     enrollment,
     status,
     isSelected,
@@ -66,15 +77,20 @@ const EnrollmentCard = function EnrollmentCard({
     onFlagClick,
     isOverlay,
     onShowDetail,
-    onMoveStatus
-}: EnrollmentCardProps) {
+    onMoveStatus,
+    isMobile,
+    isEditingNote,
+    setIsEditingNote,
+    dragRef,
+    dragAttributes,
+    dragListeners,
+    isDragging,
+}: EnrollmentCardBodyProps) {
     const now = useNowMinute(status === 'invited');
-    const isMobile = useIsMobile();
     const isSmallScreen = useIsSmallScreen();
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
-        const [isEditingNote, setIsEditingNote] = useState(false);
     const [noteDraft, setNoteDraft] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -144,13 +160,6 @@ const EnrollmentCard = function EnrollmentCard({
     }, [showQuickMove, isSmallScreen]);
 
     const cfg = STATUS_CONFIG[status];
-    const draggableData = useMemo(() => ({ status }), [status]);
-
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: enrollment.id,
-        data: draggableData,
-        disabled: isOverlay || isMobile || isEditingNote
-    });
 
     const style = useMemo(() => ({
         opacity: isDragging && !isOverlay ? 0.3 : 1,
@@ -243,10 +252,10 @@ const EnrollmentCard = function EnrollmentCard({
 
     return (
         <div
-            ref={isOverlay || isMobile ? undefined : setNodeRef}
+            ref={isOverlay || isMobile ? undefined : dragRef}
             style={style}
-            {...(isOverlay || isMobile ? {} : attributes)}
-            {...(isOverlay || isMobile ? {} : listeners)}
+            {...(isOverlay || isMobile ? {} : dragAttributes)}
+            {...(isOverlay || isMobile ? {} : dragListeners)}
             className={`group relative enrollment-card cv-auto-card flex items-start gap-2.5 p-2 md:p-2.5 rounded-lg md:rounded-xl border ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
@@ -745,15 +754,55 @@ const EnrollmentCard = function EnrollmentCard({
     );
 };
 
-export default memo(EnrollmentCard, (prev, next) => {
+const sameCardData = (prev: EnrollmentCardProps, next: EnrollmentCardProps) =>
+    prev.enrollment === next.enrollment &&
+    prev.status === next.status &&
+    prev.isSelected === next.isSelected &&
+    prev.queuePosition === next.queuePosition &&
+    prev.isOverlay === next.isOverlay &&
+    prev.onUpdateNote === next.onUpdateNote &&
+    (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
+    (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0);
+
+const MemoCardBody = memo(EnrollmentCardBody, (prev, next) =>
+    sameCardData(prev, next) &&
+    prev.isMobile === next.isMobile &&
+    prev.isEditingNote === next.isEditingNote &&
+    prev.isDragging === next.isDragging &&
+    prev.dragRef === next.dragRef &&
+    prev.dragAttributes === next.dragAttributes &&
+    prev.dragListeners === next.dragListeners
+);
+
+/**
+ * Thin wrapper that owns the dnd-kit subscription. `useDraggable` re-renders every card whenever
+ * the drag context changes (drag start, hovering a new column, drop) — and the dragged card on every
+ * pointer move — bypassing `memo`. Keeping that here means only this few-line component re-renders;
+ * the heavy card body is skipped unless its own data or drag state actually changed.
+ */
+function EnrollmentCard(props: EnrollmentCardProps) {
+    const isMobile = useIsMobile();
+    const [isEditingNote, setIsEditingNote] = useState(false);
+    const draggableData = useMemo(() => ({ status: props.status }), [props.status]);
+
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: props.enrollment.id,
+        data: draggableData,
+        disabled: props.isOverlay || isMobile || isEditingNote
+    });
+
     return (
-        prev.enrollment === next.enrollment &&
-        prev.status === next.status &&
-        prev.isSelected === next.isSelected &&
-        prev.queuePosition === next.queuePosition &&
-        prev.isOverlay === next.isOverlay &&
-        prev.onUpdateNote === next.onUpdateNote &&
-        (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
-        (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0)
+        <MemoCardBody
+            {...props}
+            isMobile={isMobile}
+            isEditingNote={isEditingNote}
+            setIsEditingNote={setIsEditingNote}
+            dragRef={setNodeRef}
+            dragAttributes={attributes}
+            dragListeners={listeners}
+            isDragging={isDragging}
+        />
     );
-});
+}
+
+export default memo(EnrollmentCard, sameCardData);
