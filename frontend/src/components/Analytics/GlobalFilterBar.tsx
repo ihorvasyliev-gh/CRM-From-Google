@@ -1,6 +1,10 @@
 import { useState, useMemo } from 'react';
-import { useModalBehavior } from '../../hooks/useModalBehavior';
-import { Calendar, Filter, RotateCcw, Check, Sparkles, BookOpen, Layers, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Calendar, Filter, RotateCcw, Check, Sparkles, BookOpen, Layers } from 'lucide-react';
+import Modal from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { fieldCls, labelCls } from '../ui/styles';
+import { SelectField } from '../Viewer/ViewerUI';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
@@ -19,16 +23,20 @@ interface GlobalFilterBarProps {
     onFiltersChange: (newFilters: AnalyticsFilterState) => void;
     allEnrollments: EnrollmentWithRelations[];
     filteredEnrollments: EnrollmentWithRelations[];
+    /** Extra controls rendered at the end of the controls row (exports…). */
+    actions?: ReactNode;
 }
+
+const isoDaysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
 export default function GlobalFilterBar({
     filters,
     onFiltersChange,
     allEnrollments,
     filteredEnrollments,
+    actions,
 }: GlobalFilterBarProps) {
     const [showCustomModal, setShowCustomModal] = useState(false);
-    useModalBehavior(showCustomModal, () => setShowCustomModal(false));
     const [tempStart, setTempStart] = useState(filters.customStartDate);
     const [tempEnd, setTempEnd] = useState(filters.customEndDate);
 
@@ -67,8 +75,8 @@ export default function GlobalFilterBar({
 
     const handlePresetClick = (preset: AnalyticsFilterState['datePreset']) => {
         if (preset === 'custom') {
-            setTempStart(filters.customStartDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-            setTempEnd(filters.customEndDate || new Date().toISOString().slice(0, 10));
+            setTempStart(filters.customStartDate || isoDaysAgo(30));
+            setTempEnd(filters.customEndDate || isoDaysAgo(0));
             setShowCustomModal(true);
         } else {
             onFiltersChange({
@@ -113,215 +121,157 @@ export default function GlobalFilterBar({
         return { total, confirmed, completed, queue: requested + invited, uniqueStudents };
     }, [filteredEnrollments]);
 
+    const presets: { value: AnalyticsFilterState['datePreset']; label: string }[] = [
+        { value: 'all', label: 'All time' },
+        { value: '30', label: '30 days' },
+        { value: '90', label: '90 days' },
+        { value: '180', label: '6 months' },
+        { value: '365', label: '12 months' },
+    ];
+    const customLabel = filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate
+        ? `${formatDateDMY(filters.customStartDate)} – ${formatDateDMY(filters.customEndDate)}`
+        : 'Custom';
+    const share = allEnrollments.length > 0 ? Math.round((filteredEnrollments.length / allEnrollments.length) * 100) : 0;
+
     return (
-        <div className="bg-surface border border-border-subtle rounded-2xl p-4 shadow-sm space-y-3.5">
-            {/* Top row: Date Presets & Selectors */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                {/* Date Presets Group */}
-                <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl flex-wrap">
+        <div className="rounded-2xl bg-surface border border-border-subtle shadow-card">
+            {/* Controls */}
+            <div className="flex flex-wrap items-center gap-2 p-3 sm:p-3.5">
+                <div role="tablist" aria-label="Date range" className="flex items-center gap-0.5 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto scrollbar-none max-w-full shrink-0">
+                    {presets.map(p => {
+                        const active = filters.datePreset === p.value;
+                        return (
+                            <button
+                                key={p.value}
+                                type="button"
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => handlePresetClick(p.value)}
+                                className={`shrink-0 h-7 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                                    active ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
+                                }`}
+                            >
+                                {p.label}
+                            </button>
+                        );
+                    })}
                     <button
-                        onClick={() => handlePresetClick('all')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === 'all'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
-                        }`}
-                    >
-                        All Time
-                    </button>
-                    <button
-                        onClick={() => handlePresetClick('30')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === '30'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
-                        }`}
-                    >
-                        Last 30 Days
-                    </button>
-                    <button
-                        onClick={() => handlePresetClick('90')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === '90'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
-                        }`}
-                    >
-                        Last 90 Days
-                    </button>
-                    <button
-                        onClick={() => handlePresetClick('180')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === '180'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
-                        }`}
-                    >
-                        Last 6 Months
-                    </button>
-                    <button
-                        onClick={() => handlePresetClick('365')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === '365'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
-                        }`}
-                    >
-                        Last 12 Months
-                    </button>
-                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={filters.datePreset === 'custom'}
                         onClick={() => handlePresetClick('custom')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            filters.datePreset === 'custom'
-                                ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                : 'text-muted hover:text-primary'
+                        className={`shrink-0 flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                            filters.datePreset === 'custom' ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
                         }`}
                     >
                         <Calendar size={13} />
-                        {filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate ? (
-                            <span>{formatDateDMY(filters.customStartDate)} – {formatDateDMY(filters.customEndDate)}</span>
-                        ) : (
-                            <span>Custom Range</span>
-                        )}
+                        {customLabel}
                     </button>
                 </div>
 
-                {/* Dropdowns Group */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Course Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
-                        <BookOpen size={13} className="text-muted flex-shrink-0" />
-                        <select
-                            value={filters.courseId}
-                            onChange={(e) => onFiltersChange({ ...filters, courseId: e.target.value })}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none max-w-[170px] truncate"
-                        >
-                            <option value="all">All Courses</option>
-                            {availableCourses.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Variant Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
-                        <Layers size={13} className="text-muted flex-shrink-0" />
-                        <select
-                            value={filters.variant}
-                            onChange={(e) => onFiltersChange({ ...filters, variant: e.target.value })}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none max-w-[140px] truncate"
-                        >
-                            <option value="all">All Variants</option>
-                            {availableVariants.map(v => (
-                                <option key={v} value={v}>{v}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Priority Toggle */}
+                <div className="contents">
+                    <SelectField
+                        label="Course"
+                        icon={<BookOpen size={14} />}
+                        value={filters.courseId}
+                        onChange={v => onFiltersChange({ ...filters, courseId: v })}
+                        className="w-full sm:w-52"
+                    >
+                        <option value="all">All courses</option>
+                        {availableCourses.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </SelectField>
+                    <SelectField
+                        label="Variant"
+                        icon={<Layers size={14} />}
+                        value={filters.variant}
+                        onChange={v => onFiltersChange({ ...filters, variant: v })}
+                        className="w-full sm:w-40"
+                    >
+                        <option value="all">All variants</option>
+                        {availableVariants.map(v => (
+                            <option key={v} value={v}>{v}</option>
+                        ))}
+                    </SelectField>
                     <button
+                        type="button"
+                        aria-pressed={filters.priorityOnly}
                         onClick={() => onFiltersChange({ ...filters, priorityOnly: !filters.priorityOnly })}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all shadow-sm ${
+                        className={`flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-colors ${
                             filters.priorityOnly
-                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                                : 'bg-surface-elevated border-border-subtle text-muted hover:text-primary'
+                                ? 'bg-warning/10 border-warning/40 text-status-requested'
+                                : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
                         }`}
                     >
-                        <Sparkles size={13} className={filters.priorityOnly ? 'text-amber-500 fill-amber-500' : ''} />
-                        <span>Priority Only</span>
+                        <Sparkles size={13} className={filters.priorityOnly ? 'fill-current' : ''} />
+                        Priority only
                     </button>
-
-                    {/* Reset Button */}
                     {activeFiltersCount > 0 && (
-                        <button
-                            onClick={handleReset}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors"
-                            title="Reset all active filters"
-                        >
+                        <Button variant="ghost" size="md" onClick={handleReset} title="Reset all active filters">
                             <RotateCcw size={13} />
-                            <span>Reset ({activeFiltersCount})</span>
-                        </button>
+                            Reset ({activeFiltersCount})
+                        </Button>
                     )}
                 </div>
             </div>
 
-            {/* Bottom row: Slice summary banner */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-border-subtle/50 text-xs">
-                <div className="flex items-center gap-3 text-muted flex-wrap">
-                    <span className="flex items-center gap-1.5 font-bold text-primary">
+            {/* Scope summary */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3.5 sm:px-4 py-2 border-t border-border-subtle bg-surface-elevated/40 rounded-b-2xl text-xs">
+                <div className="flex items-center gap-x-3 gap-y-1 text-muted flex-wrap">
+                    <span className="flex items-center gap-1.5 font-semibold text-primary">
                         <Filter size={13} className="text-brand-500" />
-                        Active Scope:
+                        Scope
                     </span>
-                    <span className="text-primary font-bold">{sliceStats.total} <span className="font-normal text-muted">enrollments</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
-                    <span className="text-primary font-semibold">{sliceStats.uniqueStudents} <span className="font-normal text-muted">students</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{sliceStats.completed} <span className="font-normal text-muted">graduates</span></span>
-                    <span className="w-1 h-1 rounded-full bg-border-strong hidden sm:block" />
-                    <span className="text-amber-600 dark:text-amber-400 font-semibold">{sliceStats.queue} <span className="font-normal text-muted">in queue</span></span>
+                    <span><span className="font-semibold text-primary tabular-nums">{sliceStats.total}</span> enrollments</span>
+                    <span className="w-1 h-1 rounded-full bg-border-strong" />
+                    <span><span className="font-semibold text-primary tabular-nums">{sliceStats.uniqueStudents}</span> students</span>
+                    <span className="w-1 h-1 rounded-full bg-border-strong" />
+                    <span><span className="font-semibold text-status-confirmed tabular-nums">{sliceStats.completed}</span> graduates</span>
+                    <span className="w-1 h-1 rounded-full bg-border-strong" />
+                    <span><span className="font-semibold text-status-requested tabular-nums">{sliceStats.queue}</span> in queue</span>
                 </div>
-                
-                {allEnrollments.length > 0 && (
-                    <div className="text-[11px] text-muted">
-                        Showing {Math.round((filteredEnrollments.length / allEnrollments.length) * 100)}% of total database ({allEnrollments.length} total)
-                    </div>
-                )}
+                <div className="flex items-center gap-3 ml-auto">
+                    {allEnrollments.length > 0 && (
+                        <div className="flex items-center gap-2 text-[11px] text-muted">
+                            <span className="hidden sm:block w-16 h-1.5 rounded-full bg-border-subtle overflow-hidden">
+                                <span className="block h-full bg-brand-500 rounded-full" style={{ width: `${share}%` }} />
+                            </span>
+                            {share}% of {allEnrollments.length}
+                        </div>
+                    )}
+                    {actions && <div className="flex items-center gap-2">{actions}</div>}
+                </div>
             </div>
 
             {/* Custom Date Range Modal */}
-            {showCustomModal && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
-                    onClick={e => { if (e.target === e.currentTarget) setShowCustomModal(false); }}
-                >
-                    <div className="bg-surface border border-border-subtle rounded-2xl shadow-2xl p-5 max-w-sm w-full space-y-4 animate-scaleIn">
-                        <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-                            <h3 className="text-sm font-bold text-primary flex items-center gap-2">
-                                <Calendar size={16} className="text-brand-500" /> Select Custom Date Range
-                            </h3>
-                            <button onClick={() => setShowCustomModal(false)} className="p-1 rounded-lg text-muted hover:text-primary">
-                                <X size={16} />
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-[11px] font-bold text-muted uppercase tracking-wider block mb-1">Start Date</label>
-                                <input
-                                    type="date"
-                                    value={tempStart}
-                                    onChange={(e) => setTempStart(e.target.value)}
-                                    className="w-full bg-surface-elevated border border-border-subtle rounded-xl px-3 py-2 text-sm text-primary focus:outline-none focus:border-brand-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold text-muted uppercase tracking-wider block mb-1">End Date</label>
-                                <input
-                                    type="date"
-                                    value={tempEnd}
-                                    onChange={(e) => setTempEnd(e.target.value)}
-                                    className="w-full bg-surface-elevated border border-border-subtle rounded-xl px-3 py-2 text-sm text-primary focus:outline-none focus:border-brand-500"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
-                            <button
-                                onClick={() => setShowCustomModal(false)}
-                                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleApplyCustomDates}
-                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 transition-colors shadow-sm"
-                            >
-                                <Check size={14} /> Apply Range
-                            </button>
-                        </div>
+            <Modal
+                open={showCustomModal}
+                onClose={() => setShowCustomModal(false)}
+                title="Custom date range"
+                icon={Calendar}
+                size="sm"
+                labelId="custom-range-title"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowCustomModal(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleApplyCustomDates}>
+                            <Check size={14} /> Apply range
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    <div>
+                        <label htmlFor="range-start" className={labelCls}>Start date</label>
+                        <input id="range-start" type="date" value={tempStart} onChange={e => setTempStart(e.target.value)} className={fieldCls} />
+                    </div>
+                    <div>
+                        <label htmlFor="range-end" className={labelCls}>End date</label>
+                        <input id="range-end" type="date" value={tempEnd} onChange={e => setTempEnd(e.target.value)} className={fieldCls} />
                     </div>
                 </div>
-            )}
+            </Modal>
         </div>
     );
 }

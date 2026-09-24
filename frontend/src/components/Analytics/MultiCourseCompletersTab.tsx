@@ -1,11 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { 
-    Search, 
     Copy, 
     Check, 
     ExternalLink, 
-    ChevronLeft, 
-    ChevronRight, 
     Sparkles, 
     MapPin, 
     GraduationCap, 
@@ -21,6 +18,16 @@ import type { Student } from '../../lib/types';
 import { getAvatarGradient } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { copyEmailsToClipboard } from './analyticsUtils';
+import Card, { SectionHeader } from '../ui/Card';
+import Badge from '../ui/Badge';
+import StatTile from '../ui/StatTile';
+import { Button } from '../ui/Button';
+import SearchInput from '../ui/SearchInput';
+import Pagination from '../ui/Pagination';
+import { Segmented } from '../ui/Tabs';
+import { EmptyState } from '../ui/States';
+import { SelectField } from '../Viewer/ViewerUI';
+import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import {
     extractAvailableCompletedCourses,
     buildStudentMultiCourseProfiles,
@@ -178,424 +185,255 @@ export default function MultiCourseCompletersTab({
     };
 
     return (
-        <div className="space-y-6 animate-fadeIn">
-            {/* 1. Header & Course Selection Panel */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 space-y-5">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex-shrink-0">
-                                <Award size={20} />
-                            </div>
-                            <div>
-                                <h3 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
-                                    Multi-Course Graduate Finder
-                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
-                                        Cross-Course Intelligence
-                                    </span>
-                                </h3>
-                                <p className="text-xs text-muted mt-0.5">
-                                    Select multiple courses to identify graduates who completed specific combinations (e.g. Safe Pass & Security)
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Scope Switcher & Popular Preset */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={handleSelectSecurityAndSafePass}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 transition-all shadow-sm"
-                            title="Quick select Security + Safe Pass combination"
-                        >
-                            <Sparkles size={13} className="text-indigo-500" />
-                            <span>Preset: Security + Safe Pass</span>
-                        </button>
-
-                        <button
+        <div className="space-y-5 animate-fadeIn">
+            <SectionHeader
+                icon={Award}
+                tone="completed"
+                title="Multi-course completers"
+                description="Find graduates who completed a specific combination of courses (e.g. Safe Pass and Security)"
+                actions={
+                    <>
+                        <Button variant="brand-soft" onClick={handleSelectSecurityAndSafePass} title="Quick select Security + Safe Pass combination">
+                            <Sparkles size={13} />
+                            Security + Safe Pass
+                        </Button>
+                        <Button
+                            variant={useAllTimeData ? 'secondary' : 'brand-soft'}
                             onClick={() => setUseAllTimeData(!useAllTimeData)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors shadow-sm ${
-                                useAllTimeData 
-                                    ? 'bg-brand-500/10 text-brand-700 dark:text-brand-300 border-brand-500/30' 
-                                    : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary'
-                            }`}
                             title="Toggle between all-time CRM records or the global date filter"
                         >
                             <Calendar size={13} />
-                            <span>{useAllTimeData ? 'All-Time CRM Records' : 'Using Date Filter'}</span>
-                        </button>
-                    </div>
-                </div>
+                            {useAllTimeData ? 'All-time records' : 'Using date filter'}
+                        </Button>
+                    </>
+                }
+            />
 
-                {/* Course Selection Area */}
-                <div className="space-y-3 pt-2 border-t border-border-subtle/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-primary uppercase tracking-wider">
-                                Select Courses ({selectedCourseIds.length} Selected):
-                            </span>
-                            {selectedCourseIds.length > 0 && (
-                                <button
-                                    onClick={handleClearCourses}
-                                    className="text-[11px] text-muted hover:text-rose-500 flex items-center gap-1 transition-colors underline"
-                                >
-                                    <X size={11} /> Clear All
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Match Mode Switcher (ALL vs ANY) */}
-                        <div className="flex items-center bg-surface-elevated border border-border-subtle rounded-xl p-1 shadow-sm">
-                            <button
-                                onClick={() => { setMatchMode('all'); setCurrentPage(1); }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                    matchMode === 'all'
-                                        ? 'bg-brand-500 text-white shadow-sm'
-                                        : 'text-muted hover:text-primary'
-                                }`}
-                                title="Candidates must have completed ALL selected courses"
-                            >
-                                Completed ALL (AND)
-                            </button>
-                            <button
-                                onClick={() => { setMatchMode('any'); setCurrentPage(1); }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                    matchMode === 'any'
-                                        ? 'bg-brand-500 text-white shadow-sm'
-                                        : 'text-muted hover:text-primary'
-                                }`}
-                                title="Candidates who completed AT LEAST ONE selected course"
-                            >
-                                Completed ANY (OR)
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Course Search if many courses */}
-                    {availableCourses.length > 8 && (
-                        <div className="relative max-w-xs">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" size={13} />
-                            <input
-                                type="text"
-                                placeholder="Filter courses list..."
-                                value={courseSearch}
-                                onChange={(e) => setCourseSearch(e.target.value)}
-                                className="w-full pl-7 pr-3 py-1 bg-surface-elevated border border-border-subtle rounded-lg text-xs focus:outline-none focus:border-brand-500 text-primary"
-                            />
-                        </div>
-                    )}
-
-                    {/* Interactive Course Selection Badges */}
-                    <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
-                        {displayedCourses.map(course => {
-                            const isSelected = selectedCourseIds.includes(course.id);
-                            return (
-                                <button
-                                    key={course.id}
-                                    onClick={() => toggleCourse(course.id)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
-                                        isSelected
-                                            ? 'bg-brand-500 text-white border-brand-600 shadow-md shadow-brand-500/20 scale-[1.02]'
-                                            : 'bg-surface-elevated text-primary border-border-subtle hover:border-brand-500/40 hover:bg-black/5 dark:hover:bg-white/5'
-                                    }`}
-                                >
-                                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
-                                        isSelected ? 'bg-white text-brand-600 border-white' : 'border-border-strong bg-surface'
-                                    }`}>
-                                        {isSelected && <Check size={11} strokeWidth={3} />}
-                                    </div>
-                                    <span className="font-semibold">{course.name}</span>
-                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                                        isSelected
-                                            ? 'bg-white/20 text-white'
-                                            : 'bg-black/5 dark:bg-white/10 text-muted'
-                                    }`}>
-                                        {course.completedStudentsCount} grads
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* 2. Executive Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Matching Graduates</span>
-                        <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <GraduationCap size={15} />
-                        </div>
-                    </div>
-                    <p className="text-2xl font-black font-mono text-primary mt-1">
-                        {stats.totalMatching}
-                    </p>
-                    <span className="text-[10px] text-muted mt-0.5 block">
-                        {selectedCourseIds.length === 0 
-                            ? 'Students with ≥ 2 completed courses' 
-                            : (matchMode === 'all' ? `Completed all ${selectedCourseIds.length} courses` : `Completed at least 1 of ${selectedCourseIds.length}`)}
-                    </span>
-                </div>
-
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Cohort Share</span>
-                        <div className="p-1 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                            <Users size={15} />
-                        </div>
-                    </div>
-                    <p className="text-2xl font-black font-mono text-primary mt-1">
-                        {stats.percentage}%
-                    </p>
-                    <span className="text-[10px] text-muted mt-0.5 block">
-                        Of all CRM graduates ({studentProfiles.length} total)
-                    </span>
-                </div>
-
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Top Geographic Hub</span>
-                        <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                            <MapPin size={15} />
-                        </div>
-                    </div>
-                    <p className="text-xl font-black font-mono text-primary mt-1 truncate">
-                        {stats.topDistrict}
-                    </p>
-                    <span className="text-[10px] text-muted mt-0.5 block">
-                        Leading district for this combination
-                    </span>
-                </div>
-            </div>
-
-            {/* 3. Filter Bar & Global Actions */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Course selection */}
+            <Card
+                title="Courses"
+                icon={CheckCircle2}
+                subtitle={`${selectedCourseIds.length} selected · ${availableCourses.length} with graduates`}
+                action={
                     <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-primary">
-                            Graduates Roster ({filteredProfiles.length})
-                        </h4>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={handleCopyEmails}
-                            disabled={filteredProfiles.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-border-subtle bg-surface-elevated hover:bg-surface-elevated/80 disabled:opacity-40 transition-colors shadow-sm"
-                        >
-                            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                            <span>{copied ? 'Emails Copied!' : 'Copy Emails'}</span>
-                        </button>
-
-                        <button
-                            onClick={handleExportExcel}
-                            disabled={isExporting || filteredProfiles.length === 0}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm"
-                        >
-                            <FileSpreadsheet size={13} />
-                            <span>{isExporting ? 'Generating Excel...' : 'Export Excel (.xlsx)'}</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Search & District Row */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border-subtle/50">
-                    <div className="relative flex-1 min-w-[220px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search by student name, email, phone, eircode..."
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="w-full pl-8 pr-3 py-1.5 bg-surface-elevated border border-border-strong rounded-xl text-xs focus:outline-none focus:border-brand-500 text-primary"
+                        {selectedCourseIds.length > 0 && (
+                            <Button variant="ghost" size="sm" onClick={handleClearCourses}>
+                                <X size={13} /> Clear
+                            </Button>
+                        )}
+                        <Segmented<'all' | 'any'>
+                            ariaLabel="Match mode"
+                            value={matchMode}
+                            onChange={v => { setMatchMode(v); setCurrentPage(1); }}
+                            options={[
+                                { value: 'all', label: 'Completed all', title: 'Candidates must have completed ALL selected courses' },
+                                { value: 'any', label: 'Completed any', title: 'Candidates who completed AT LEAST ONE selected course' },
+                            ]}
                         />
                     </div>
-
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
-                        <MapPin size={13} className="text-muted flex-shrink-0" />
-                        <select
-                            value={districtFilter}
-                            onChange={(e) => {
-                                setDistrictFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none max-w-[160px] truncate"
-                        >
-                            <option value="all">All Districts</option>
-                            {availableDistricts.map(d => (
-                                <option key={d} value={d}>{d}</option>
-                            ))}
-                        </select>
-                    </div>
+                }
+            >
+                {availableCourses.length > 8 && (
+                    <SearchInput
+                        value={courseSearch}
+                        onChange={setCourseSearch}
+                        placeholder="Filter courses…"
+                        aria-label="Filter courses"
+                        wrapperClassName="max-w-xs mb-3"
+                    />
+                )}
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+                    {displayedCourses.map(course => {
+                        const isSelected = selectedCourseIds.includes(course.id);
+                        return (
+                            <button
+                                key={course.id}
+                                type="button"
+                                aria-pressed={isSelected}
+                                onClick={() => toggleCourse(course.id)}
+                                className={`flex items-center gap-2 h-8 pl-2 pr-2.5 rounded-lg text-xs font-medium border transition-colors ${
+                                    isSelected
+                                        ? 'bg-brand-500/10 text-brand-700 dark:text-brand-300 border-brand-500/40'
+                                        : 'bg-surface text-primary border-border-subtle hover:border-border-strong hover:bg-surface-elevated'
+                                }`}
+                            >
+                                <span className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                                    isSelected ? 'bg-brand-500 border-brand-500 text-white' : 'border-border-strong bg-surface'
+                                }`}>
+                                    {isSelected && <Check size={11} strokeWidth={3} />}
+                                </span>
+                                <span className="font-semibold">{course.name}</span>
+                                <span className="text-[10px] tabular-nums text-muted">{course.completedStudentsCount}</span>
+                            </button>
+                        );
+                    })}
                 </div>
+            </Card>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <StatTile
+                    label="Matching graduates"
+                    icon={GraduationCap}
+                    tone="success"
+                    value={stats.totalMatching}
+                    hint={selectedCourseIds.length === 0
+                        ? 'Students with 2+ completed courses'
+                        : (matchMode === 'all' ? `Completed all ${selectedCourseIds.length} courses` : `Completed at least 1 of ${selectedCourseIds.length}`)}
+                />
+                <StatTile label="Share of graduates" icon={Users} tone="brand" value={`${stats.percentage}%`} hint={`Of ${studentProfiles.length} graduates in CRM`} />
+                <StatTile label="Top district" icon={MapPin} tone="info" value={<span className="text-lg">{stats.topDistrict}</span>} hint="Leading area for this combination" />
             </div>
 
-            {/* 4. Interactive Table */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle overflow-hidden">
-                {paginatedProfiles.length === 0 ? (
-                    <div className="text-center py-16 px-4 space-y-2">
-                        <GraduationCap size={36} className="mx-auto text-muted/50" />
-                        <p className="text-sm font-bold text-primary">No graduates match this combination</p>
-                        <p className="text-xs text-muted max-w-sm mx-auto">
-                            {selectedCourseIds.length > 0 && matchMode === 'all'
-                                ? 'No student has completed all of the selected courses together. Try switching to "Completed ANY (OR)" mode or selecting different courses.'
-                                : 'Try changing your search keywords or district filter.'}
-                        </p>
+            {/* Roster */}
+            <Card
+                title="Graduate roster"
+                icon={Users}
+                subtitle={`${filteredProfiles.length} graduates`}
+                divided
+                flush
+                className="overflow-hidden"
+                action={
+                    <div className="flex items-center gap-2">
+                        <Button variant="secondary" size="sm" onClick={handleCopyEmails} disabled={filteredProfiles.length === 0}>
+                            {copied ? <Check size={13} className="text-status-confirmed" /> : <Copy size={13} />}
+                            <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy emails'}</span>
+                        </Button>
+                        <Button variant="success" size="sm" onClick={handleExportExcel} loading={isExporting} disabled={filteredProfiles.length === 0}>
+                            {!isExporting && <FileSpreadsheet size={13} />}
+                            <span className="hidden sm:inline">{isExporting ? 'Generating…' : 'Export Excel'}</span>
+                        </Button>
                     </div>
+                }
+            >
+                <div className="flex flex-wrap items-center gap-2 p-3 sm:p-3.5 border-b border-border-subtle">
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={v => {
+                            setSearchQuery(v);
+                            setCurrentPage(1);
+                        }}
+                        placeholder="Search name, email, phone, eircode…"
+                        aria-label="Search graduates"
+                        wrapperClassName="flex-1 min-w-[220px]"
+                    />
+                    <SelectField
+                        label="District"
+                        icon={<MapPin size={14} />}
+                        value={districtFilter}
+                        onChange={v => {
+                            setDistrictFilter(v);
+                            setCurrentPage(1);
+                        }}
+                        className="w-full sm:w-52"
+                    >
+                        <option value="all">All districts</option>
+                        {availableDistricts.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                        ))}
+                    </SelectField>
+                </div>
+
+                {paginatedProfiles.length === 0 ? (
+                    <EmptyState
+                        bare
+                        icon={<GraduationCap size={22} />}
+                        title="No graduates match this combination"
+                        description={selectedCourseIds.length > 0 && matchMode === 'all'
+                            ? 'No student has completed all of the selected courses. Try "Completed any" or pick different courses.'
+                            : 'Try changing your search keywords or district filter.'}
+                    />
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="border-b border-border-subtle bg-surface-elevated/50 font-bold text-muted uppercase tracking-wider text-[10px]">
-                                    <th className="py-3 px-4">Student</th>
-                                    <th className="py-3 px-4">Contact</th>
-                                    <th className="py-3 px-4">District / Area</th>
-                                    <th className="py-3 px-4">Completed Selected Courses</th>
-                                    <th className="py-3 px-4 text-center">Total Completed</th>
-                                    <th className="py-3 px-4 text-right">Actions</th>
+                    <div className={tableWrapCls}>
+                        <table className={tableCls}>
+                            <thead className={theadCls}>
+                                <tr>
+                                    <th className={thCls}>Student</th>
+                                    <th className={thCls}>Contact</th>
+                                    <th className={thCls}>District</th>
+                                    <th className={thCls}>Completed courses</th>
+                                    <th className={`${thCls} text-right`}>Total</th>
+                                    <th className={thCls}><span className="sr-only">Actions</span></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border-subtle/50">
-                                {paginatedProfiles.map(profile => {
-                                    return (
-                                        <tr 
-                                            key={profile.studentId}
-                                            className="hover:bg-surface-elevated/40 transition-colors group"
-                                        >
-                                            {/* Student Identity */}
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm bg-gradient-to-tr ${getAvatarGradient(profile.fullName)} flex-shrink-0`}>
-                                                        {profile.firstName ? profile.firstName[0] : 'S'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-primary group-hover:text-brand-500 transition-colors">
-                                                            {profile.fullName}
-                                                        </p>
-                                                        {profile.eircode && (
-                                                            <span className="text-[10px] font-mono text-muted">
-                                                                {profile.eircode}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                            <tbody className={tbodyCls}>
+                                {paginatedProfiles.map(profile => (
+                                    <tr key={profile.studentId} className={`${trCls} group`}>
+                                        <td className={tdCls}>
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[11px] bg-gradient-to-br ${getAvatarGradient(profile.fullName)} flex-shrink-0`}>
+                                                    {profile.firstName ? profile.firstName[0] : 'S'}
                                                 </div>
-                                            </td>
-
-                                            {/* Contact */}
-                                            <td className="py-3 px-4">
-                                                <div className="space-y-0.5">
-                                                    <p className="text-primary truncate max-w-[180px]" title={profile.email}>
-                                                        {profile.email || '—'}
-                                                    </p>
-                                                    <p className="text-muted font-mono text-[11px]">
-                                                        {profile.phone || '—'}
-                                                    </p>
+                                                <div className="min-w-0">
+                                                    <p className="text-[13px] font-semibold text-primary truncate">{profile.fullName}</p>
+                                                    {profile.eircode && <span className="text-[11px] text-muted">{profile.eircode}</span>}
                                                 </div>
-                                            </td>
-
-                                            {/* District */}
-                                            <td className="py-3 px-4">
-                                                <div>
-                                                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-elevated border border-border-subtle text-primary">
-                                                        {profile.district}
-                                                    </span>
-                                                    {profile.address && (
-                                                        <p className="text-[10px] text-muted truncate max-w-[160px] mt-0.5" title={profile.address}>
-                                                            {profile.address}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            {/* Completed Courses Detail */}
-                                            <td className="py-3 px-4">
-                                                <div className="flex flex-wrap gap-1.5 max-w-md">
-                                                    {Array.from(profile.completedCourses.values()).map(course => {
-                                                        const isSelectedMatch = selectedCourseIds.includes(course.courseId);
-                                                        const dateStr = course.completedDate ? formatDateDMY(course.completedDate) : 'Completed';
-                                                        
-                                                        return (
-                                                            <div
-                                                                key={course.courseId}
-                                                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border ${
-                                                                    isSelectedMatch
-                                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                                                                        : 'bg-surface-elevated text-muted border-border-subtle'
-                                                                }`}
-                                                            >
-                                                                <CheckCircle2 size={11} className={isSelectedMatch ? 'text-emerald-500' : 'text-muted'} />
-                                                                <span className="font-semibold text-primary">{course.courseName}</span>
-                                                                {course.variant && course.variant !== 'Default' && (
-                                                                    <span className="text-[9px] opacity-75 font-mono">({course.variant})</span>
-                                                                )}
-                                                                <span className="text-[9px] opacity-60 font-mono ml-0.5">{dateStr}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </td>
-
-                                            {/* Total Completed Badge */}
-                                            <td className="py-3 px-4 text-center">
-                                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full font-bold font-mono text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                                                    {profile.completedCount}
-                                                </span>
-                                            </td>
-
-                                            {/* Actions */}
-                                            <td className="py-3 px-4 text-right">
-                                                <button
-                                                    onClick={() => profile.student && onOpenStudent(profile.student)}
-                                                    disabled={!profile.student}
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors"
-                                                >
-                                                    <span>View</span>
-                                                    <ExternalLink size={12} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                            </div>
+                                        </td>
+                                        <td className={tdCls}>
+                                            <p className="text-xs text-primary truncate max-w-[200px]" title={profile.email}>{profile.email || '—'}</p>
+                                            <p className="text-[11px] text-muted tabular-nums">{profile.phone || '—'}</p>
+                                        </td>
+                                        <td className={tdCls}>
+                                            <Badge>{profile.district}</Badge>
+                                            {profile.address && (
+                                                <p className="text-[11px] text-muted truncate max-w-[180px] mt-1" title={profile.address}>{profile.address}</p>
+                                            )}
+                                        </td>
+                                        <td className={tdCls}>
+                                            <div className="flex flex-wrap gap-1.5 max-w-md">
+                                                {Array.from(profile.completedCourses.values()).map(course => {
+                                                    const isSelectedMatch = selectedCourseIds.includes(course.courseId);
+                                                    const dateStr = course.completedDate ? formatDateDMY(course.completedDate) : 'Completed';
+                                                    return (
+                                                        <span
+                                                            key={course.courseId}
+                                                            className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md text-[11px] border ${
+                                                                isSelectedMatch ? 'bg-success/10 border-success/30' : 'bg-surface-elevated border-border-subtle'
+                                                            }`}
+                                                        >
+                                                            <CheckCircle2 size={11} className={isSelectedMatch ? 'text-status-confirmed' : 'text-muted'} />
+                                                            <span className="font-semibold text-primary">{course.courseName}</span>
+                                                            {course.variant && course.variant !== 'Default' && (
+                                                                <span className="text-muted">({course.variant})</span>
+                                                            )}
+                                                            <span className="text-muted tabular-nums">{dateStr}</span>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        </td>
+                                        <td className={`${tdCls} text-right`}>
+                                            <Badge tone="completed" shape="pill" className="tabular-nums">{profile.completedCount}</Badge>
+                                        </td>
+                                        <td className={`${tdCls} text-right`}>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => profile.student && onOpenStudent(profile.student)}
+                                                disabled={!profile.student}
+                                                className="text-brand-600 dark:text-brand-400"
+                                            >
+                                                View
+                                                <ExternalLink size={12} />
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
                 )}
 
-                {/* Pagination Controls */}
-                {totalPages > 1 && (
-                    <div className="p-4 border-t border-border-subtle flex items-center justify-between text-xs text-muted">
-                        <div>
-                            Showing <span className="font-semibold text-primary">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                            <span className="font-semibold text-primary">{Math.min(currentPage * itemsPerPage, filteredProfiles.length)}</span> of{' '}
-                            <span className="font-semibold text-primary">{filteredProfiles.length}</span> graduates
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-elevated disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                            >
-                                <ChevronLeft size={14} />
-                            </button>
-                            <span className="px-2 font-mono text-xs text-primary font-bold">
-                                {currentPage} / {totalPages}
-                            </span>
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
-                                className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-elevated disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                            >
-                                <ChevronRight size={14} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                <Pagination
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredProfiles.length}
+                    pageSize={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    itemLabel="graduates"
+                />
+            </Card>
         </div>
     );
 }

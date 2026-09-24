@@ -196,7 +196,7 @@ function App() {
         // index.html pins a light boot background for light-theme users; React owns theming from here
         document.documentElement.removeAttribute('data-boot-theme');
         document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', darkMode ? '#09090b' : '#fbfcfd');
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', darkMode ? '#09090b' : '#f3f5f8');
         try {
             window.localStorage.setItem('theme', darkMode ? 'dark' : 'light');
         } catch {

@@ -1,5 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, Download, Copy, Check, ExternalLink, ChevronLeft, ChevronRight, Sparkles, MapPin } from 'lucide-react';
+import { Search, Filter, Download, Copy, Check, ExternalLink, MapPin } from 'lucide-react';
+import Card, { SectionHeader } from '../ui/Card';
+import Badge from '../ui/Badge';
+import { Button } from '../ui/Button';
+import SearchInput from '../ui/SearchInput';
+import Pagination from '../ui/Pagination';
+import { EmptyState } from '../ui/States';
+import { Avatar, PriorityStar, SelectField } from '../Viewer/ViewerUI';
+import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { normalizeCorkAddress, copyEmailsToClipboard, exportCustomCSV } from './analyticsUtils';
 import { cleanVariant, Student } from '../../lib/types';
@@ -97,188 +105,133 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
 
     return (
         <div className="space-y-5 animate-fadeIn">
-            {/* Header & Local Controls */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-base font-bold text-primary">
-                                Interactive Participant Explorer & Live Roster
-                            </h3>
-                            <span className="text-xs font-bold font-mono text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full border border-brand-500/20">
-                                {filteredRows.length} Matches
-                            </span>
-                        </div>
-                        <p className="text-xs text-muted mt-0.5">
-                            Search, filter, export, and inspect individual student profiles in the active cohort
-                        </p>
-                    </div>
+            <SectionHeader
+                icon={Search}
+                tone="brand"
+                title="Data explorer"
+                description="Search, filter and export individual participants in the current scope"
+                actions={
+                    <>
+                        <Button variant="secondary" onClick={handleCopyEmails} disabled={filteredRows.length === 0}>
+                            {copied ? <Check size={14} className="text-status-confirmed" /> : <Copy size={14} />}
+                            {copied ? 'Copied!' : 'Copy emails'}
+                        </Button>
+                        <Button variant="primary" onClick={handleExportCSV} disabled={filteredRows.length === 0}>
+                            <Download size={14} />
+                            Export CSV
+                        </Button>
+                    </>
+                }
+            />
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={handleCopyEmails}
-                            disabled={filteredRows.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-border-subtle bg-surface-elevated hover:bg-surface-elevated/80 disabled:opacity-40 transition-colors shadow-sm"
-                        >
-                            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                            <span>{copied ? 'Copied!' : 'Copy Emails'}</span>
-                        </button>
-                        <button
-                            onClick={handleExportCSV}
-                            disabled={filteredRows.length === 0}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition-colors shadow-sm"
-                        >
-                            <Download size={13} />
-                            <span>Export CSV</span>
-                        </button>
-                    </div>
+            <Card flush className="overflow-hidden">
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2 p-3 sm:p-3.5 border-b border-border-subtle">
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={v => {
+                            setSearchQuery(v);
+                            setCurrentPage(1);
+                        }}
+                        placeholder="Search name, email, phone, course…"
+                        aria-label="Search participants"
+                        wrapperClassName="flex-1 min-w-[220px]"
+                    />
+                    <SelectField
+                        label="Status"
+                        icon={<Filter size={14} />}
+                        value={statusFilter}
+                        onChange={v => {
+                            setStatusFilter(v);
+                            setCurrentPage(1);
+                        }}
+                        className="w-full sm:w-44"
+                    >
+                        <option value="all">All statuses</option>
+                        <option value="requested">Requested</option>
+                        <option value="invited">Invited</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="withdrawn">Withdrawn</option>
+                        <option value="rejected">Rejected</option>
+                    </SelectField>
+                    <SelectField
+                        label="District"
+                        icon={<MapPin size={14} />}
+                        value={districtFilter}
+                        onChange={v => {
+                            setDistrictFilter(v);
+                            setCurrentPage(1);
+                        }}
+                        className="w-full sm:w-52"
+                    >
+                        <option value="all">All districts</option>
+                        {availableDistricts.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                        ))}
+                    </SelectField>
+                    <Badge tone="brand" shape="pill" className="tabular-nums ml-auto">{filteredRows.length} matches</Badge>
                 </div>
 
-                {/* Filter Controls Row */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-border-subtle/50">
-                    {/* Search Input */}
-                    <div className="relative flex-1 min-w-[220px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search by student name, email, phone, course..."
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="w-full pl-8 pr-3 py-1.5 bg-surface-elevated border border-border-strong rounded-xl text-xs focus:outline-none focus:border-brand-500 text-primary"
-                        />
-                    </div>
-
-                    {/* Status Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
-                        <Filter size={13} className="text-muted flex-shrink-0" />
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => {
-                                setStatusFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none max-w-[140px]"
-                        >
-                            <option value="all">All Statuses</option>
-                            <option value="requested">Requested</option>
-                            <option value="invited">Invited</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="withdrawn">Withdrawn</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
-
-                    {/* District Filter */}
-                    <div className="flex items-center gap-1.5 bg-surface-elevated border border-border-subtle px-3 py-1.5 rounded-xl text-xs shadow-sm">
-                        <MapPin size={13} className="text-muted flex-shrink-0" />
-                        <select
-                            value={districtFilter}
-                            onChange={(e) => {
-                                setDistrictFilter(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="bg-transparent border-none text-primary font-medium focus:ring-0 cursor-pointer outline-none max-w-[160px] truncate"
-                        >
-                            <option value="all">All Districts</option>
-                            {availableDistricts.map(d => (
-                                <option key={d} value={d}>{d}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle overflow-hidden">
                 {paginatedRows.length === 0 ? (
-                    <div className="text-center py-16 text-muted text-xs">
-                        No participant records match the selected filters.
-                    </div>
+                    <EmptyState bare icon={<Search size={22} />} title="No participants found" description="No records match the selected filters." />
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                            <thead className="bg-surface-elevated text-[11px] uppercase font-bold tracking-wider text-muted border-b border-border-subtle">
+                    <div className={tableWrapCls}>
+                        <table className={tableCls}>
+                            <thead className={theadCls}>
                                 <tr>
-                                    <th className="py-3 px-4">Participant Name</th>
-                                    <th className="py-3 px-3">Contact</th>
-                                    <th className="py-3 px-3">District</th>
-                                    <th className="py-3 px-3">Course & Variant</th>
-                                    <th className="py-3 px-3 text-center">Status</th>
-                                    <th className="py-3 px-3">Date</th>
-                                    <th className="py-3 px-4 text-right">Action</th>
+                                    <th className={thCls}>Participant</th>
+                                    <th className={thCls}>Phone</th>
+                                    <th className={thCls}>District</th>
+                                    <th className={thCls}>Course</th>
+                                    <th className={thCls}>Status</th>
+                                    <th className={thCls}>Applied</th>
+                                    <th className={thCls}><span className="sr-only">Action</span></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border-subtle bg-surface">
-                                {paginatedRows.map((r) => {
-                                    const cfg = STATUS_CONFIG[r.status] || {
-                                        label: r.status,
-                                        pillBg: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
-                                    };
-
+                            <tbody className={tbodyCls}>
+                                {paginatedRows.map(r => {
+                                    const cfg = STATUS_CONFIG[r.status] || { label: r.status, pillBg: 'status-pill-withdrawn' };
                                     return (
-                                        <tr 
-                                            key={r.id}
-                                            className="hover:bg-brand-500/5 transition-colors group cursor-pointer"
-                                            onClick={() => r.student && onOpenStudent(r.student)}
-                                        >
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-primary text-[13px] group-hover:text-brand-600 transition-colors">
-                                                        {r.fullName}
-                                                    </span>
-                                                    {r.isPriority && (
-                                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                                            <Sparkles size={9} /> PRIORITY
-                                                        </span>
-                                                    )}
+                                        <tr key={r.id} className={`${trCls} group cursor-pointer`} onClick={() => r.student && onOpenStudent(r.student)}>
+                                            <td className={tdCls}>
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <Avatar id={r.student?.id || r.id} person={r.student || {}} size="sm" />
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-semibold text-primary text-[13px] truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                                                                {r.fullName}
+                                                            </span>
+                                                            {r.isPriority && <PriorityStar />}
+                                                        </div>
+                                                        <span className="block text-[11px] text-muted truncate max-w-[220px]">{r.email || '—'}</span>
+                                                    </div>
                                                 </div>
                                             </td>
-
-                                            <td className="py-3 px-3 text-muted">
-                                                <div className="flex flex-col">
-                                                    <span className="truncate max-w-[170px]">{r.email || '-'}</span>
-                                                    <span className="text-[10px] text-muted/70 font-mono">{r.phone || '-'}</span>
-                                                </div>
+                                            <td className={`${tdCls} text-muted text-xs tabular-nums whitespace-nowrap`}>{r.phone || '—'}</td>
+                                            <td className={tdCls}>
+                                                <Badge icon={<MapPin size={10} />}>{r.district}</Badge>
                                             </td>
-
-                                            <td className="py-3 px-3 text-primary">
-                                                <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-lg border border-border-subtle">
-                                                    <MapPin size={10} className="text-brand-500" />
-                                                    {r.district}
-                                                </span>
+                                            <td className={tdCls}>
+                                                <span className="block text-[13px] font-medium text-primary">{r.courseName}</span>
+                                                <span className="block text-[11px] text-muted">{r.variant}</span>
                                             </td>
-
-                                            <td className="py-3 px-3">
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-primary">{r.courseName}</span>
-                                                    <span className="text-[10px] text-muted">{r.variant}</span>
-                                                </div>
-                                            </td>
-
-                                            <td className="py-3 px-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${cfg.pillBg}`}>
+                                            <td className={tdCls}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${cfg.pillBg}`}>
                                                     {cfg.label}
                                                 </span>
                                             </td>
-
-                                            <td className="py-3 px-3 text-muted font-mono text-[11px]">
-                                                {r.createdDate}
-                                            </td>
-
-                                            <td className="py-3 px-4 text-right">
+                                            <td className={`${tdCls} text-muted text-xs tabular-nums whitespace-nowrap`}>{r.createdDate}</td>
+                                            <td className={`${tdCls} text-right`}>
                                                 <button
-                                                    onClick={(e) => {
+                                                    onClick={e => {
                                                         e.stopPropagation();
                                                         if (r.student) onOpenStudent(r.student);
                                                     }}
-                                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors p-1"
+                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-70 group-hover:opacity-100 transition-opacity"
                                                 >
                                                     <ExternalLink size={13} />
-                                                    <span>Open</span>
+                                                    Open
                                                 </button>
                                             </td>
                                         </tr>
@@ -289,38 +242,15 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                     </div>
                 )}
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between gap-4 p-4 border-t border-border-subtle text-xs bg-surface-elevated/20">
-                        <div className="text-muted font-medium text-[11px]">
-                            Showing <span className="font-semibold text-primary">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                            <span className="font-semibold text-primary">
-                                {Math.min(currentPage * itemsPerPage, filteredRows.length)}
-                            </span> of{' '}
-                            <span className="font-semibold text-primary">{filteredRows.length}</span> participants
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                disabled={currentPage === 1}
-                                className="p-1.5 rounded-xl border border-border-subtle bg-surface hover:bg-surface-elevated disabled:opacity-40 transition-colors"
-                            >
-                                <ChevronLeft size={14} />
-                            </button>
-                            <span className="font-semibold text-primary px-1.5 text-xs">
-                                {currentPage} / {totalPages}
-                            </span>
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                disabled={currentPage === totalPages}
-                                className="p-1.5 rounded-xl border border-border-subtle bg-surface hover:bg-surface-elevated disabled:opacity-40 transition-colors"
-                            >
-                                <ChevronRight size={14} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                <Pagination
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredRows.length}
+                    pageSize={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    itemLabel="participants"
+                />
+            </Card>
         </div>
     );
 }

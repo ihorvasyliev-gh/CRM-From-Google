@@ -9,38 +9,25 @@ import {
     XAxis, 
     YAxis, 
     CartesianGrid, 
-    Tooltip as RechartsTooltip, 
-    Legend,
+    Tooltip as RechartsTooltip,
     AreaChart,
     Area
 } from 'recharts';
 import { Briefcase, Mail, TrendingUp, Users, Clock, HelpCircle, Check, Send } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { copyEmailsToClipboard } from './analyticsUtils';
+import Card, { SectionHeader } from '../ui/Card';
+import StatTile from '../ui/StatTile';
+import { Button } from '../ui/Button';
+import { ChartTooltip } from '../ui/chart';
+import { CHART, axisProps, gridProps, tooltipCursor } from '../ui/chartTheme';
+import { calloutCls } from '../ui/styles';
 
 interface OutcomesTabProps {
     enrollments: EnrollmentWithRelations[];
     employmentStatuses: any[];
     onDrillDown: (title: string, data: EnrollmentWithRelations[]) => void;
 }
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-surface-elevated/[0.97] p-3 rounded-xl shadow-lg border border-border-subtle z-50">
-                <p className="text-xs font-semibold text-primary mb-1">{label || payload[0]?.payload?.name}</p>
-                {payload.map((entry: any, index: number) => (
-                    <p key={`item-${index}`} className="text-xs font-medium flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-                        <span className="text-muted">{entry.name}:</span> 
-                        <span className="text-primary font-bold font-mono">{entry.value}</span>
-                    </p>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
 
 export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDown }: OutcomesTabProps) {
     const [copiedPending, setCopiedPending] = useState(false);
@@ -135,9 +122,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Employment Type breakdown
         const employmentTypeData = [
-            { name: 'Full-time', value: fullTimeCount, color: '#10b981' },
-            { name: 'Part-time', value: partTimeCount, color: '#6366f1' },
-            { name: 'Unspecified', value: Math.max(0, workingCount - (fullTimeCount + partTimeCount)), color: '#94a3b8' }
+            { name: 'Full-time', value: fullTimeCount, color: CHART.emerald },
+            { name: 'Part-time', value: partTimeCount, color: CHART.brand },
+            { name: 'Unspecified', value: Math.max(0, workingCount - (fullTimeCount + partTimeCount)), color: CHART.neutral }
         ].filter(d => d.value > 0);
 
         // Top Fields of Work
@@ -157,9 +144,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
         // Tracking funnel summary
         const funnelData = [
-            { name: 'Total Graduates', value: totalGraduatesCount, color: '#6366f1', items: gradsList.map(g => g.enrollment) },
-            { name: 'Contacted', value: responded.length + pending.length, color: '#8b5cf6', items: [...responded, ...pending] },
-            { name: 'Responded', value: responded.length, color: '#10b981', items: responded }
+            { name: 'Total Graduates', value: totalGraduatesCount, color: CHART.brand, items: gradsList.map(g => g.enrollment) },
+            { name: 'Contacted', value: responded.length + pending.length, color: CHART.violet, items: [...responded, ...pending] },
+            { name: 'Responded', value: responded.length, color: CHART.emerald, items: responded }
         ];
 
         return {
@@ -194,143 +181,78 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
         setTimeout(() => setCopiedNotContacted(false), 2500);
     };
 
+    const empty = (text: string) => (
+        <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center gap-2">
+            <span className="w-10 h-10 rounded-xl bg-surface-elevated border border-border-subtle flex items-center justify-center text-muted">
+                <HelpCircle size={18} />
+            </span>
+            <p className="text-xs text-muted">{text}</p>
+        </div>
+    );
+
     return (
-        <div className="space-y-6 animate-fadeIn">
-            {/* 1. Header Metrics Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                {/* Total Graduates */}
-                <div 
-                    onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
-                >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-indigo-600" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Total Graduates</p>
-                            <p className="text-2xl font-mono font-bold text-primary">{graduateData.totalGraduates}</p>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                            <Users size={18} />
-                        </div>
-                    </div>
-                </div>
+        <div className="space-y-5 animate-fadeIn">
+            <SectionHeader
+                icon={Briefcase}
+                tone="success"
+                title="Graduate outcomes"
+                description="Survey coverage and employment results for graduates in the current scope"
+            />
 
-                {/* Response Rate */}
-                <div 
-                    onClick={() => onDrillDown('Graduates Who Responded', graduateData.respondedList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
-                >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Survey Response Rate</p>
-                            <p className="text-2xl font-mono font-bold text-primary">
-                                {graduateData.responseRate}% 
-                                <span className="text-xs text-muted font-normal ml-1">({graduateData.respondedCount})</span>
-                            </p>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                            <Mail size={18} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Employment Rate */}
-                <div 
-                    onClick={() => onDrillDown('Employed Graduates', graduateData.workingList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
-                >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Employment Rate</p>
-                            <p className="text-2xl font-mono font-bold text-primary">
-                                {graduateData.employmentRate}%
-                                <span className="text-xs text-muted font-normal ml-1">({graduateData.workingCount} employed)</span>
-                            </p>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <Briefcase size={18} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Pending Surveys */}
-                <div 
-                    onClick={() => onDrillDown('Pending Survey Follow-ups', graduateData.pendingList)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-4 relative overflow-hidden group card-hover cursor-pointer"
-                >
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
-                    <div className="flex items-start justify-between relative z-10">
-                        <div>
-                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Pending Responses</p>
-                            <p className="text-2xl font-mono font-bold text-primary">{graduateData.pendingList.length}</p>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                            <Clock size={18} />
-                        </div>
-                    </div>
-                </div>
+            {/* KPIs */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile label="Graduates" icon={Users} tone="brand" value={graduateData.totalGraduates} hint="Unique students" onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)} />
+                <StatTile label="Response rate" icon={Mail} tone="completed" value={`${graduateData.responseRate}%`} hint={`${graduateData.respondedCount} responded`} onClick={() => onDrillDown('Graduates Who Responded', graduateData.respondedList)} />
+                <StatTile label="Employment rate" icon={Briefcase} tone="success" value={`${graduateData.employmentRate}%`} hint={`${graduateData.workingCount} employed`} hintTone="positive" onClick={() => onDrillDown('Employed Graduates', graduateData.workingList)} />
+                <StatTile label="Pending responses" icon={Clock} tone="warning" value={graduateData.pendingList.length} hint="Survey sent, no reply yet" onClick={() => onDrillDown('Pending Survey Follow-ups', graduateData.pendingList)} />
             </div>
 
-            {/* 2. Charts Row 1: Types & Funnel */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Employment Type Donut Chart */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px]">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
-                        <Briefcase size={16} className="text-brand-500" /> Employment Type Split
-                    </h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <Card title="Employment type" icon={Briefcase} tone="success" subtitle={`${graduateData.workingCount} employed graduates`}>
                     {graduateData.employmentTypeData.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-muted">No employment type records reported yet.</p>
-                        </div>
+                        empty('No employment type records reported yet.')
                     ) : (
-                        <div className="flex-1 w-full relative">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={graduateData.employmentTypeData}
-                                        cx="50%"
-                                        cy="45%"
-                                        innerRadius={60}
-                                        outerRadius={90}
-                                        paddingAngle={3}
-                                        dataKey="value"
-                                        stroke="none"
-                                        className="outline-none"
-                                    >
-                                        {graduateData.employmentTypeData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip content={<CustomTooltip />} />
-                                    <Legend 
-                                        verticalAlign="bottom" 
-                                        iconType="circle"
-                                        formatter={(value: string, entry: any) => {
-                                            const itemVal = entry.payload.value;
-                                            const pct = graduateData.workingCount > 0 ? Math.round((itemVal / graduateData.workingCount) * 100) : 0;
-                                            return <span className="text-xs text-primary font-medium">{value} ({pct}%)</span>;
-                                        }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
+                            <div className="w-[190px] h-[190px] flex-shrink-0 relative">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie data={graduateData.employmentTypeData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" stroke="none">
+                                            {graduateData.employmentTypeData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip content={<ChartTooltip />} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                    <span className="text-2xl font-bold text-primary tabular-nums">{graduateData.workingCount}</span>
+                                    <span className="text-[11px] text-muted">employed</span>
+                                </div>
+                            </div>
+                            <ul className="flex-1 w-full space-y-2">
+                                {graduateData.employmentTypeData.map(d => {
+                                    const pct = graduateData.workingCount > 0 ? Math.round((d.value / graduateData.workingCount) * 100) : 0;
+                                    return (
+                                        <li key={d.name} className="flex items-center gap-2.5 px-2.5 py-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                            <span className="flex-1 text-[13px] text-primary">{d.name}</span>
+                                            <span className="text-[13px] font-semibold text-primary tabular-nums">{d.value}</span>
+                                            <span className="w-10 text-right text-[11px] text-muted tabular-nums">{pct}%</span>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
                         </div>
                     )}
-                </div>
+                </Card>
 
-                {/* Survey Coverage Funnel */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[350px] lg:col-span-2">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
-                        <Mail size={16} className="text-brand-500" /> Survey Reach & Response Funnel
-                    </h3>
-                    <div className="flex-1 w-full">
+                <Card title="Survey coverage" icon={Mail} tone="completed" subtitle="Graduates → contacted → responded">
+                    <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart 
-                                data={graduateData.funnelData} 
-                                layout="vertical" 
-                                margin={{ top: 0, right: 30, left: 20, bottom: 0 }}
+                            <BarChart
+                                data={graduateData.funnelData}
+                                layout="vertical"
+                                margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
                                 onClick={(data: any) => {
                                     if (data && data.activePayload && data.activePayload[0]) {
                                         const payload = data.activePayload[0].payload;
@@ -338,50 +260,28 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     }
                                 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
+                                <CartesianGrid {...gridProps} horizontal={false} vertical />
                                 <XAxis type="number" hide />
-                                <YAxis 
-                                    dataKey="name" 
-                                    type="category" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11, fontWeight: 500 }}
-                                    width={120}
-                                />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-chart-border, #e2e8f0)', opacity: 0.2 }} />
-                                <Bar 
-                                    dataKey="value" 
-                                    radius={[0, 6, 6, 0]} 
-                                    barSize={28}
-                                    className="cursor-pointer"
-                                >
+                                <YAxis dataKey="name" type="category" {...axisProps} width={110} />
+                                <RechartsTooltip content={<ChartTooltip />} cursor={tooltipCursor} />
+                                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24} className="cursor-pointer">
                                     {graduateData.funnelData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                </div>
-            </div>
+                </Card>
 
-            {/* 3. Charts Row 2: Fields & Timeline */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Top Fields of Work */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[340px] lg:col-span-2">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
-                        <TrendingUp size={16} className="text-brand-500" /> Top Fields & Industries of Employment
-                    </h3>
+                <Card title="Top fields of work" icon={TrendingUp} tone="success" subtitle="Employed graduates by field">
                     {graduateData.fieldsData.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-muted">No industry data reported yet.</p>
-                        </div>
+                        empty('No field of work records yet.')
                     ) : (
-                        <div className="flex-1 w-full">
+                        <div className="h-[240px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart 
-                                    data={graduateData.fieldsData} 
+                                <BarChart
+                                    data={graduateData.fieldsData}
                                     margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
                                     onClick={(data: any) => {
                                         if (data && data.activePayload && data.activePayload[0]) {
@@ -390,49 +290,25 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                         }
                                     }}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }}
-                                        dy={10}
-                                    />
-                                    <YAxis 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
-                                    />
-                                    <RechartsTooltip content={<CustomTooltip />} />
-                                    <Bar 
-                                        dataKey="count" 
-                                        name="Graduates" 
-                                        fill="#10b981" 
-                                        radius={[4, 4, 0, 0]} 
-                                        barSize={32} 
-                                        className="cursor-pointer"
-                                    />
+                                    <CartesianGrid {...gridProps} vertical={false} />
+                                    <XAxis dataKey="name" {...axisProps} dy={8} />
+                                    <YAxis {...axisProps} allowDecimals={false} />
+                                    <RechartsTooltip content={<ChartTooltip />} cursor={tooltipCursor} />
+                                    <Bar dataKey="count" name="Graduates" fill={CHART.emerald} radius={[4, 4, 0, 0]} barSize={28} className="cursor-pointer" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     )}
-                </div>
+                </Card>
 
-                {/* Job Starting Timeline */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[340px] lg:col-span-1">
-                    <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-4">
-                        <Clock size={16} className="text-brand-500" /> New Jobs Started Timeline
-                    </h3>
+                <Card title="New jobs started" icon={Clock} subtitle="By month employment began">
                     {graduateData.timelineData.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <HelpCircle className="text-muted w-8 h-8 mb-2 opacity-40" />
-                            <p className="text-xs text-muted">No timeline records submitted.</p>
-                        </div>
+                        empty('No timeline records submitted.')
                     ) : (
-                        <div className="flex-1 w-full">
+                        <div className="h-[240px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart 
-                                    data={graduateData.timelineData} 
+                                <AreaChart
+                                    data={graduateData.timelineData}
                                     margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
                                     onClick={(data: any) => {
                                         if (data && data.activePayload && data.activePayload[0]) {
@@ -443,86 +319,58 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 >
                                     <defs>
                                         <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor={CHART.emerald} stopOpacity={0.25} />
+                                            <stop offset="95%" stopColor={CHART.emerald} stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-chart-border, #e2e8f0)" opacity={0.5} />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
-                                        dy={10}
-                                    />
-                                    <YAxis 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{ fill: 'var(--color-chart-text, #64748b)', fontSize: 11 }} 
-                                    />
-                                    <RechartsTooltip content={<CustomTooltip />} />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="Started Work" 
-                                        stroke="#10b981" 
-                                        strokeWidth={2.5}
-                                        fillOpacity={1} 
-                                        fill="url(#colorJobs)" 
-                                        activeDot={{ r: 5, strokeWidth: 0, className: "cursor-pointer" }}
-                                    />
+                                    <CartesianGrid {...gridProps} vertical={false} />
+                                    <XAxis dataKey="name" {...axisProps} dy={8} />
+                                    <YAxis {...axisProps} allowDecimals={false} />
+                                    <RechartsTooltip content={<ChartTooltip />} />
+                                    <Area type="monotone" dataKey="Started Work" stroke={CHART.emerald} strokeWidth={2} fillOpacity={1} fill="url(#colorJobs)" activeDot={{ r: 4, strokeWidth: 0, className: 'cursor-pointer' }} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     )}
-                </div>
+                </Card>
             </div>
 
-            {/* 4. Targeted Follow-up Action Banners */}
+            {/* Follow-up actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Pending Follow-up */}
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex-shrink-0">
-                            <Clock size={20} />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Pending Survey Inquiries</h4>
+                <div className={`${calloutCls.warning} p-4 flex items-center justify-between gap-4`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-9 h-9 rounded-xl bg-warning/15 text-status-requested flex items-center justify-center flex-shrink-0">
+                            <Clock size={17} />
+                        </span>
+                        <div className="min-w-0">
+                            <h4 className="text-[13px] font-semibold text-primary">Pending survey replies</h4>
                             <p className="text-xs text-muted mt-0.5">
-                                <span className="font-semibold text-primary font-mono">{graduateData.pendingList.length} graduates</span> received survey but have not responded yet
+                                <span className="font-semibold text-primary tabular-nums">{graduateData.pendingList.length}</span> graduates received the survey but haven't replied
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleCopyPendingEmails}
-                        disabled={graduateData.pendingList.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
-                    >
+                    <Button variant="secondary" size="sm" onClick={handleCopyPendingEmails} disabled={graduateData.pendingList.length === 0}>
                         {copiedPending ? <Check size={14} /> : <Mail size={14} />}
-                        <span>{copiedPending ? 'Copied!' : 'Copy Emails'}</span>
-                    </button>
+                        {copiedPending ? 'Copied!' : 'Copy emails'}
+                    </Button>
                 </div>
 
-                {/* Not Contacted Follow-up */}
-                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl flex-shrink-0">
-                            <Send size={20} />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-xs text-primary uppercase tracking-wider">Not Yet Surveyed</h4>
+                <div className={`${calloutCls.brand} p-4 flex items-center justify-between gap-4`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                            <Send size={17} />
+                        </span>
+                        <div className="min-w-0">
+                            <h4 className="text-[13px] font-semibold text-primary">Not yet surveyed</h4>
                             <p className="text-xs text-muted mt-0.5">
-                                <span className="font-semibold text-primary font-mono">{graduateData.notContactedList.length} graduates</span> are ready for initial outcome check-in
+                                <span className="font-semibold text-primary tabular-nums">{graduateData.notContactedList.length}</span> graduates are ready for an outcome check-in
                             </p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleCopyNotContactedEmails}
-                        disabled={graduateData.notContactedList.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 transition-colors flex-shrink-0 shadow-sm"
-                    >
+                    <Button variant="primary" size="sm" onClick={handleCopyNotContactedEmails} disabled={graduateData.notContactedList.length === 0}>
                         {copiedNotContacted ? <Check size={14} /> : <Mail size={14} />}
-                        <span>{copiedNotContacted ? 'Copied!' : 'Copy Emails'}</span>
-                    </button>
+                        {copiedNotContacted ? 'Copied!' : 'Copy emails'}
+                    </Button>
                 </div>
             </div>
         </div>

@@ -1,6 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useModalBehavior } from '../../hooks/useModalBehavior';
-import { X, Search, Download, Mail, ChevronLeft, ChevronRight, Sparkles, User, ExternalLink, Check, MapPin } from 'lucide-react';
+import { Download, Mail, User, Users, ExternalLink, Check, MapPin } from 'lucide-react';
+import Modal from '../ui/Modal';
+import { Button, IconButton } from '../ui/Button';
+import SearchInput from '../ui/SearchInput';
+import Pagination from '../ui/Pagination';
+import { EmptyState } from '../ui/States';
+import { PriorityStar } from '../Viewer/ViewerUI';
+import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
@@ -21,8 +27,6 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
     const [currentPage, setCurrentPage] = useState(1);
     const [copiedCount, setCopiedCount] = useState<number | null>(null);
     const itemsPerPage = 8;
-
-    useModalBehavior(isOpen, onClose);
 
     // Each drill-down starts fresh (previously a new cohort could open on a stale page / search)
     useEffect(() => {
@@ -71,208 +75,135 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
         exportCustomCSV(filteredData, `cohort_${safeTitle}_${new Date().toISOString().slice(0, 10)}.csv`);
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-            <div 
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" 
-                onClick={onClose}
-            />
-            
-            <div role="dialog" aria-modal="true" className="relative bg-surface border border-border-subtle rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-scaleIn overflow-hidden">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-5 border-b border-border-subtle bg-surface-elevated gap-3">
-                    <div>
-                        <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
-                            {title}
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 font-mono">
-                                {data.length} records
-                            </span>
-                        </h2>
-                        <p className="text-xs text-muted mt-0.5">Explore, search, copy emails, or inspect student profiles</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <button
-                            onClick={handleCopyEmails}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 transition-all border border-brand-500/20"
-                            title="Copy email addresses to clipboard"
-                        >
-                            {copiedCount !== null ? (
-                                <>
-                                    <Check size={14} className="text-emerald-500" />
-                                    <span>Copied {copiedCount} emails!</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Mail size={14} />
-                                    <span>Copy Emails</span>
-                                </>
-                            )}
-                        </button>
-
-                        <button
-                            onClick={handleExportCohort}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-primary bg-surface hover:bg-surface-elevated transition-all border border-border-subtle shadow-sm"
-                            title="Export cohort to CSV"
-                        >
-                            <Download size={14} />
-                            <span>Export CSV</span>
-                        </button>
-
-                        <button 
-                            onClick={onClose}
-                            className="p-1.5 text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors ml-1"
-                        >
-                            <X size={18} />
-                        </button>
-                    </div>
+        <Modal
+            open={isOpen}
+            onClose={onClose}
+            title={title}
+            subtitle={`${data.length} records · search, copy emails or open a student profile`}
+            icon={Users}
+            size="3xl"
+            labelId="drilldown-title"
+            bodyClassName="!p-0"
+            headerAction={
+                <div className="hidden sm:flex items-center gap-2 mr-1">
+                    <Button variant="secondary" size="sm" onClick={handleCopyEmails} title="Copy email addresses to clipboard">
+                        {copiedCount !== null ? <Check size={14} className="text-status-confirmed" /> : <Mail size={14} />}
+                        {copiedCount !== null ? `Copied ${copiedCount}` : 'Copy emails'}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={handleExportCohort} title="Export cohort to CSV">
+                        <Download size={14} />
+                        CSV
+                    </Button>
                 </div>
-
-                {/* Toolbar */}
-                <div className="p-3 sm:px-5 border-b border-border-subtle bg-surface/50 flex items-center justify-between gap-3">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={15} />
-                        <input
-                            type="text"
-                            placeholder="Search by student name, email, district, course..."
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                            className="w-full pl-9 pr-4 py-1.5 bg-surface-elevated border border-border-subtle rounded-xl text-xs sm:text-sm text-primary focus:outline-none focus:border-brand-500"
-                        />
-                    </div>
-
-                    <div className="text-xs text-muted font-medium hidden sm:block">
-                        Showing {paginatedData.length} of {filteredData.length} entries
-                    </div>
+            }
+        >
+            <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3 border-b border-border-subtle">
+                <SearchInput
+                    value={searchQuery}
+                    onChange={v => {
+                        setSearchQuery(v);
+                        setCurrentPage(1);
+                    }}
+                    placeholder="Search name, email, district, course…"
+                    aria-label="Search records"
+                    wrapperClassName="flex-1 max-w-md"
+                />
+                <div className="flex sm:hidden items-center gap-1">
+                    <IconButton label="Copy emails" onClick={handleCopyEmails}>
+                        {copiedCount !== null ? <Check size={16} className="text-status-confirmed" /> : <Mail size={16} />}
+                    </IconButton>
+                    <IconButton label="Export CSV" onClick={handleExportCohort}>
+                        <Download size={16} />
+                    </IconButton>
                 </div>
-
-                {/* Content Table */}
-                <div className="flex-1 overflow-auto p-3 sm:p-5">
-                    {filteredData.length === 0 ? (
-                        <div className="text-center py-12 text-muted text-sm">
-                            <User size={32} className="mx-auto text-muted/40 mb-2" />
-                            {searchQuery ? 'No records match your search criteria.' : 'No records found for this cohort.'}
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto border border-border-subtle rounded-xl">
-                            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                                <thead className="bg-surface-elevated text-xs font-bold uppercase tracking-wider text-muted border-b border-border-subtle">
-                                    <tr>
-                                        <th className="py-2.5 px-3 sm:px-4">Student</th>
-                                        <th className="py-2.5 px-3 sm:px-4">Location</th>
-                                        <th className="py-2.5 px-3 sm:px-4">Course & Variant</th>
-                                        <th className="py-2.5 px-3 sm:px-4">Status</th>
-                                        <th className="py-2.5 px-3 sm:px-4">Date</th>
-                                        <th className="py-2.5 px-3 sm:px-4 text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border-subtle bg-surface">
-                                    {paginatedData.map((e) => {
-                                        const s = e.students;
-                                        const statusCfg = STATUS_CONFIG[e.status];
-                                        const norm = normalizeCorkAddress(s?.address || null, s?.eircode || null);
-
-                                        return (
-                                            <tr 
-                                                key={e.id}
-                                                className="hover:bg-brand-500/5 transition-colors group"
-                                            >
-                                                <td className="py-3 px-3 sm:px-4">
-                                                    <div 
-                                                        className="font-semibold text-primary flex items-center gap-1.5 cursor-pointer hover:text-brand-600 dark:hover:text-brand-400"
-                                                        onClick={() => s && onSelectStudent && onSelectStudent(s)}
-                                                    >
-                                                        <span>{s?.first_name} {s?.last_name}</span>
-                                                        {e.is_priority && (
-                                                            <span className="p-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400" title="Priority Student">
-                                                                <Sparkles size={11} />
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-[11px] text-muted flex items-center gap-2 mt-0.5">
-                                                        <span>{s?.email || 'No email'}</span>
-                                                        {s?.phone && <span className="font-mono">{s.phone}</span>}
-                                                    </div>
-                                                </td>
-
-                                                <td className="py-3 px-3 sm:px-4">
-                                                    <div className="flex items-center gap-1 font-medium text-primary text-xs">
-                                                        <MapPin size={12} className="text-brand-500 flex-shrink-0" />
-                                                        <span>{norm.microDistrict}</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-muted ml-4">
-                                                        {norm.macroRegion}
-                                                    </div>
-                                                </td>
-
-                                                <td className="py-3 px-3 sm:px-4">
-                                                    <div className="text-primary font-medium">{e.courses?.name || 'Unknown'}</div>
-                                                    <div className="text-[11px] text-muted">
-                                                        {cleanVariant(e.courses?.name || '', e.course_variant)}
-                                                    </div>
-                                                </td>
-
-                                                <td className="py-3 px-3 sm:px-4">
-                                                    <span className={`${statusCfg?.pillBg || 'bg-surface-elevated text-muted'} inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusCfg?.border || 'border-border-subtle'}`}>
-                                                        {statusCfg?.icon}
-                                                        {statusCfg?.label || e.status}
-                                                    </span>
-                                                </td>
-
-                                                <td className="py-3 px-3 sm:px-4 text-muted font-mono text-xs">
-                                                    {formatDateDMY(e.completed_date || e.confirmed_date || e.created_at)}
-                                                </td>
-
-                                                <td className="py-3 px-3 sm:px-4 text-right">
-                                                    {s && onSelectStudent ? (
-                                                        <button
-                                                            onClick={() => onSelectStudent(s)}
-                                                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 px-2 py-1 rounded-lg hover:bg-brand-500/10 transition-colors"
-                                                        >
-                                                            Open
-                                                            <ExternalLink size={12} />
-                                                        </button>
-                                                    ) : null}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between p-3 sm:px-5 border-t border-border-subtle bg-surface-elevated text-xs">
-                        <div className="text-muted">
-                            Page <span className="font-bold text-primary">{safePage}</span> of <span className="font-bold text-primary">{totalPages}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={safePage === 1}
-                                className="p-1.5 rounded-lg border border-border-subtle bg-surface disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-elevated transition-colors"
-                            >
-                                <ChevronLeft size={15} />
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={safePage === totalPages}
-                                className="p-1.5 rounded-lg border border-border-subtle bg-surface disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-elevated transition-colors"
-                            >
-                                <ChevronRight size={15} />
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
-        </div>
+
+            {filteredData.length === 0 ? (
+                <EmptyState
+                    bare
+                    icon={<User size={22} />}
+                    title={searchQuery ? 'No matching records' : 'No records'}
+                    description={searchQuery ? 'No records match your search criteria.' : 'No records found for this cohort.'}
+                />
+            ) : (
+                <div className={tableWrapCls}>
+                    <table className={tableCls}>
+                        <thead className={theadCls}>
+                            <tr>
+                                <th className={thCls}>Student</th>
+                                <th className={thCls}>Location</th>
+                                <th className={thCls}>Course</th>
+                                <th className={thCls}>Status</th>
+                                <th className={thCls}>Date</th>
+                                <th className={thCls}><span className="sr-only">Action</span></th>
+                            </tr>
+                        </thead>
+                        <tbody className={tbodyCls}>
+                            {paginatedData.map(e => {
+                                const s = e.students;
+                                const statusCfg = STATUS_CONFIG[e.status];
+                                const norm = normalizeCorkAddress(s?.address || null, s?.eircode || null);
+                                return (
+                                    <tr key={e.id} className={`${trCls} group`}>
+                                        <td className={tdCls}>
+                                            <button
+                                                type="button"
+                                                className="font-semibold text-[13px] text-primary flex items-center gap-1.5 hover:text-brand-600 dark:hover:text-brand-400 text-left"
+                                                onClick={() => s && onSelectStudent && onSelectStudent(s)}
+                                            >
+                                                {s?.first_name} {s?.last_name}
+                                                {e.is_priority && <PriorityStar />}
+                                            </button>
+                                            <div className="text-[11px] text-muted flex items-center gap-2 mt-0.5">
+                                                <span className="truncate max-w-[220px]">{s?.email || 'No email'}</span>
+                                                {s?.phone && <span className="tabular-nums">{s.phone}</span>}
+                                            </div>
+                                        </td>
+                                        <td className={tdCls}>
+                                            <div className="flex items-center gap-1 text-xs font-medium text-primary">
+                                                <MapPin size={12} className="text-muted flex-shrink-0" />
+                                                {norm.microDistrict}
+                                            </div>
+                                            <div className="text-[11px] text-muted ml-4">{norm.macroRegion}</div>
+                                        </td>
+                                        <td className={tdCls}>
+                                            <div className="text-[13px] text-primary font-medium">{e.courses?.name || 'Unknown'}</div>
+                                            <div className="text-[11px] text-muted">{cleanVariant(e.courses?.name || '', e.course_variant)}</div>
+                                        </td>
+                                        <td className={tdCls}>
+                                            <span className={`${statusCfg?.pillBg || 'status-pill-withdrawn'} inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap`}>
+                                                {statusCfg?.icon}
+                                                {statusCfg?.label || e.status}
+                                            </span>
+                                        </td>
+                                        <td className={`${tdCls} text-muted text-xs tabular-nums whitespace-nowrap`}>
+                                            {formatDateDMY(e.completed_date || e.confirmed_date || e.created_at)}
+                                        </td>
+                                        <td className={`${tdCls} text-right`}>
+                                            {s && onSelectStudent ? (
+                                                <Button variant="ghost" size="sm" onClick={() => onSelectStudent(s)} className="text-brand-600 dark:text-brand-400">
+                                                    Open
+                                                    <ExternalLink size={12} />
+                                                </Button>
+                                            ) : null}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            <Pagination
+                page={safePage}
+                totalPages={totalPages}
+                totalItems={filteredData.length}
+                pageSize={itemsPerPage}
+                onPageChange={setCurrentPage}
+                itemLabel="records"
+            />
+        </Modal>
     );
 }

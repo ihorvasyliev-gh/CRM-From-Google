@@ -7,9 +7,9 @@
 @layer base {
     :root {
         /* Light Theme - OKLCH (L C H) space-separated values */
-        --bg-background: 0.99 0.005 240;
-        --bg-surface: 0.96 0.008 240;
-        --bg-surface-elevated: 1 0 0;
+        --bg-background: 0.975 0.005 240;
+        --bg-surface: 1 0 0;
+        --bg-surface-elevated: 0.965 0.007 240;
 
         --text-primary: 0.16 0.015 240;
         --text-muted: 0.55 0.02 240;

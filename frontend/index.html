@@ -20,7 +20,7 @@
       -moz-osx-font-smoothing: grayscale;
     }
     html[data-boot-theme="light"], html[data-boot-theme="light"] body,
-    html[data-boot-theme="light"] #boot-splash { background-color: #fbfcfd !important; color: #18181b !important; }
+    html[data-boot-theme="light"] #boot-splash { background-color: #f3f5f8 !important; color: #18181b !important; }
     @media (prefers-reduced-motion: reduce) {
       #boot-splash .boot-spinner { animation-duration: 2s !important; }
     }
@@ -38,7 +38,7 @@
         if (!dark) {
           root.setAttribute('data-boot-theme', 'light');
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', '#fbfcfd');
+          if (meta) meta.setAttribute('content', '#f3f5f8');
         }
         if (localStorage.getItem('view_density') === 'compact') root.classList.add('density-compact');
       } catch (e) { /* storage unavailable */ }

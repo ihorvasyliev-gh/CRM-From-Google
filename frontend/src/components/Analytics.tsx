@@ -10,7 +10,6 @@ import {
     FileSpreadsheet, 
     Zap, 
     Clock, 
-    TrendingUp, 
     Briefcase, 
     CheckCircle2, 
     MapPin, 
@@ -24,6 +23,9 @@ import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { Student } from '../lib/types';
 import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
+import StatTile from './ui/StatTile';
+import { Button } from './ui/Button';
+import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
 
 import GlobalFilterBar, { type AnalyticsFilterState } from './Analytics/GlobalFilterBar';
 // memo(): opening a drill-down or the student drawer re-renders Analytics; the tabs (charts +
@@ -227,198 +229,112 @@ export default function Analytics() {
         exportCustomCSV(filteredEnrollments, `crm_analytics_export_${new Date().toISOString().slice(0, 10)}.csv`);
     };
 
-    const navTabs = [
-        { id: 'pipeline', label: '1. Pipeline & Velocity', icon: Zap },
-        { id: 'geography', label: '2. Geography & Demographics', icon: MapPin },
-        { id: 'courses', label: '3. Courses & Cohorts', icon: BookOpen },
-        { id: 'outcomes', label: '4. Graduate Outcomes', icon: Briefcase },
-        { id: 'explorer', label: '5. Data Explorer', icon: Search },
-        { id: 'multi-course', label: '6. Multi-Course Completers', icon: Award },
-    ] as const;
+    const navTabs: UnderlineTab<AnalyticsTabId>[] = [
+        { value: 'pipeline', label: 'Pipeline & velocity', icon: Zap },
+        { value: 'geography', label: 'Geography & demographics', icon: MapPin },
+        { value: 'courses', label: 'Courses & cohorts', icon: BookOpen },
+        { value: 'outcomes', label: 'Graduate outcomes', icon: Briefcase },
+        { value: 'explorer', label: 'Data explorer', icon: Search },
+        { value: 'multi-course', label: 'Multi-course completers', icon: Award },
+    ];
+
+    const loadingView = (label: string) => (
+        <div className="flex flex-col items-center justify-center py-24 text-muted gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
+            <p className="text-xs font-medium">{label}</p>
+        </div>
+    );
 
     return (
-        <div className="flex-1 flex flex-col space-y-6 pb-12 animate-fadeIn max-w-[1600px] mx-auto w-full">
-            {/* Top Header: Title & Global Export Actions */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-surface border border-border-subtle rounded-2xl p-5 shadow-sm">
-                <div>
-                    <div className="flex items-center gap-2.5">
-                        <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold flex-shrink-0">
-                            <TrendingUp size={22} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl sm:text-2xl font-black text-primary tracking-tight">
-                                    Analytics & Operational Intelligence
-                                </h1>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                                    Live CRM Data
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted mt-0.5">
-                                End-to-end applicant conversions, Cork geographic territorial heat, course performance & graduate employment tracking
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 self-stretch sm:self-auto flex-wrap">
-                    <button
-                        onClick={handleExportActiveCSV}
-                        disabled={filteredEnrollments.length === 0}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border border-border-subtle bg-surface-elevated hover:bg-surface-elevated/80 disabled:opacity-40 transition-colors shadow-sm"
-                    >
-                        <Download size={14} />
-                        <span>Export CSV</span>
-                    </button>
-                    
-                    <button
-                        onClick={handleExportExcel}
-                        disabled={isExportingExcel || filteredEnrollments.length === 0}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm"
-                    >
-                        <FileSpreadsheet size={14} />
-                        <span>{isExportingExcel ? 'Generating Workbook...' : 'Executive Excel (.xlsx)'}</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Global Filter Bar */}
+        <div className="flex-1 flex flex-col gap-5 sm:gap-6 pb-12 animate-fadeIn max-w-[1600px] mx-auto w-full">
+            {/* Filters + exports */}
             <GlobalFilterBar
                 filters={filters}
                 onFiltersChange={setFilters}
                 allEnrollments={allEnrollments}
                 filteredEnrollments={filteredEnrollments}
+                actions={
+                    <>
+                        <Button variant="secondary" size="sm" onClick={handleExportActiveCSV} disabled={filteredEnrollments.length === 0} title="Export the current scope as CSV">
+                            <Download size={14} />
+                            CSV
+                        </Button>
+                        <Button variant="success" size="sm" onClick={handleExportExcel} loading={isExportingExcel} disabled={filteredEnrollments.length === 0} title="Executive Excel report (.xlsx)">
+                            {!isExportingExcel && <FileSpreadsheet size={14} />}
+                            {isExportingExcel ? 'Generating…' : 'Excel report'}
+                        </Button>
+                    </>
+                }
             />
 
-            {/* Executive KPI Pulse Ribbon */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {/* 1. Total Applications */}
-                <div 
+            {/* KPI row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+                <StatTile
+                    label="Total pipeline"
+                    icon={Users}
+                    tone="brand"
+                    value={kpiSummary.total}
+                    hint={`${kpiSummary.completed + kpiSummary.confirmed} confirmed or graduated`}
+                    loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('All Active Scope Applications', filteredEnrollments)}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-brand-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Total Pipeline</span>
-                        <div className="p-1 rounded-lg bg-brand-500/10 text-brand-500"><Users size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-primary mt-1.5 leading-none">
-                        {kpiSummary.total}
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block">100% Inflow Stream</span>
-                </div>
-
-                {/* 2. Waiting Queue */}
-                <div 
+                />
+                <StatTile
+                    label="Waiting queue"
+                    icon={Clock}
+                    tone="warning"
+                    value={kpiSummary.requested}
+                    hint={`Avg ${kpiSummary.speed.avgDaysToInvite}d to invite`}
+                    loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Candidates In Waiting Queue', filteredEnrollments.filter(e => e.status === 'requested'))}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Waiting Queue</span>
-                        <div className="p-1 rounded-lg bg-amber-500/10 text-amber-500"><Clock size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-amber-500 mt-1.5 leading-none">
-                        {kpiSummary.requested}
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block">Avg {kpiSummary.speed.avgDaysToInvite}d to invite</span>
-                </div>
-
-                {/* 3. Confirmed Attendees */}
-                <div 
+                />
+                <StatTile
+                    label="In course"
+                    icon={CheckCircle2}
+                    tone="info"
+                    value={kpiSummary.confirmed}
+                    hint="Confirmed attendees"
+                    loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Confirmed Students', filteredEnrollments.filter(e => e.status === 'confirmed'))}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-sky-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">In-Course</span>
-                        <div className="p-1 rounded-lg bg-sky-500/10 text-sky-500"><CheckCircle2 size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-sky-500 mt-1.5 leading-none">
-                        {kpiSummary.confirmed}
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block">Confirmed attendees</span>
-                </div>
-
-                {/* 4. Completed Graduates */}
-                <div 
+                />
+                <StatTile
+                    label="Graduates"
+                    icon={GraduationCap}
+                    tone="success"
+                    value={kpiSummary.completed}
+                    hint={`${kpiSummary.successRate}% success rate`}
+                    hintTone="positive"
+                    loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Graduated Course Completers', filteredEnrollments.filter(e => e.status === 'completed'))}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-emerald-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Graduates</span>
-                        <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-500"><GraduationCap size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-emerald-500 mt-1.5 leading-none">
-                        {kpiSummary.completed}
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block font-mono">{kpiSummary.successRate}% Success Rate</span>
-                </div>
-
-                {/* 5. Median Turnaround Speed */}
-                <div 
+                />
+                <StatTile
+                    label="Avg full cycle"
+                    icon={Zap}
+                    tone="neutral"
+                    value={<>{kpiSummary.speed.avgTotalCycleDays}<span className="text-sm font-semibold text-muted ml-0.5">d</span></>}
+                    hint="Application → graduation"
+                    loading={isEnrollmentsLoading}
                     onClick={() => selectTab('pipeline')}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-indigo-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Avg Full Cycle</span>
-                        <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-500"><Zap size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-primary mt-1.5 leading-none">
-                        {kpiSummary.speed.avgTotalCycleDays}<span className="text-xs font-normal text-muted ml-0.5">d</span>
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block">App → Graduation</span>
-                </div>
-
-                {/* 6. Graduate Employment */}
-                <div 
+                />
+                <StatTile
+                    label="Employed"
+                    icon={Briefcase}
+                    tone="completed"
+                    value={`${kpiSummary.employmentRate}%`}
+                    hint={`${kpiSummary.workingCount} of ${kpiSummary.respondedCount} who responded`}
+                    loading={isEnrollmentsLoading}
                     onClick={() => selectTab('outcomes')}
-                    className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-3.5 cursor-pointer hover:border-violet-500/40 hover:shadow-md transition-all group"
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">Employed Rate</span>
-                        <div className="p-1 rounded-lg bg-violet-500/10 text-violet-500"><Briefcase size={14} /></div>
-                    </div>
-                    <p className="text-xl sm:text-2xl font-black font-mono text-violet-500 mt-1.5 leading-none">
-                        {kpiSummary.employmentRate}%
-                    </p>
-                    <span className="text-[10px] text-muted mt-1 block font-mono">{kpiSummary.workingCount} employed</span>
-                </div>
+                />
             </div>
 
-            {/* Modular Navigation Tabs Bar */}
-            <div className="bg-surface border border-border-subtle rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto shadow-sm">
-                {navTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => selectTab(tab.id as AnalyticsTabId)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                isActive
-                                    ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20 scale-[1.01]'
-                                    : 'text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5'
-                            }`}
-                        >
-                            <Icon size={15} />
-                            <span>{tab.label}</span>
-                        </button>
-                    );
-                })}
-            </div>
+            {/* Report navigation */}
+            <UnderlineTabs tabs={navTabs} value={activeTab} onChange={selectTab} ariaLabel="Analytics reports" className="-mb-1" />
 
-            {/* Active Sub-Tab View */}
+            {/* Active report */}
             <div className={`min-h-[500px] transition-opacity duration-200 ${isTabStale ? 'opacity-60' : ''}`}>
                 {isEnrollmentsLoading ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-muted space-y-3">
-                        <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                        <p className="text-xs font-semibold">Aggregating CRM intelligence & calculating metrics...</p>
-                    </div>
+                    loadingView('Aggregating CRM data…')
                 ) : (
-                    <Suspense fallback={
-                        <div className="flex flex-col items-center justify-center py-24 text-muted space-y-3">
-                            <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin" />
-                            <p className="text-xs font-semibold">Loading analytics view...</p>
-                        </div>
-                    }>
+                    <Suspense fallback={loadingView('Loading report…')}>
                         {activeTab === 'pipeline' && (
                             <PipelineVelocityTab
                                 enrollments={deferredFiltered}

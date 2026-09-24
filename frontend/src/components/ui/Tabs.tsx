@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -88,8 +89,17 @@ export function UnderlineTabs<T extends string>({
     className?: string;
     onHover?: (v: T) => void;
 }) {
+    const listRef = useRef<HTMLDivElement>(null);
+    // Keep the active tab visible when the strip scrolls horizontally (small screens)
+    useEffect(() => {
+        const el = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+        const list = listRef.current;
+        if (!el || !list || list.scrollWidth <= list.clientWidth) return;
+        list.scrollTo({ left: el.offsetLeft - list.clientWidth / 2 + el.offsetWidth / 2, behavior: 'smooth' });
+    }, [value]);
+
     return (
-        <div role="tablist" aria-label={ariaLabel} className={`flex items-center gap-1 border-b border-border-subtle overflow-x-auto scrollbar-none ${className}`}>
+        <div ref={listRef} role="tablist" aria-label={ariaLabel} className={`flex items-center gap-1 border-b border-border-subtle overflow-x-auto scrollbar-none ${className}`}>
             {tabs.map(tab => {
                 const active = tab.value === value;
                 const Icon = tab.icon;

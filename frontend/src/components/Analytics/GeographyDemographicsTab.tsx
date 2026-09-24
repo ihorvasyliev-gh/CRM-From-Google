@@ -4,10 +4,18 @@ import {
     PieChart, 
     Pie, 
     Cell, 
-    Tooltip as RechartsTooltip, 
-    Legend 
+    Tooltip as RechartsTooltip,
 } from 'recharts';
-import { MapPin, Search, ArrowRight, Navigation, Users, ShieldCheck, CheckCircle } from 'lucide-react';
+import { MapPin, ArrowRight, Navigation, Users, ShieldCheck, CheckCircle } from 'lucide-react';
+import Card, { SectionHeader } from '../ui/Card';
+import Badge from '../ui/Badge';
+import StatTile from '../ui/StatTile';
+import SearchInput from '../ui/SearchInput';
+import { Segmented } from '../ui/Tabs';
+import { EmptyState } from '../ui/States';
+import { ChartTooltip } from '../ui/chart';
+import { CHART_SERIES } from '../ui/chartTheme';
+import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { calculateGeographicFunnel } from './analyticsUtils';
 
@@ -17,24 +25,6 @@ interface GeographyDemographicsTabProps {
 }
 
 type ViewMode = 'micro' | 'macro';
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-surface-elevated/[0.97] p-3 rounded-xl shadow-lg border border-border-subtle z-50">
-                <p className="text-xs font-semibold text-primary mb-1">{label || payload[0]?.payload?.name}</p>
-                {payload.map((entry: any, index: number) => (
-                    <p key={`item-${index}`} className="text-xs font-medium flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-                        <span className="text-muted">{entry.name}:</span> 
-                        <span className="text-primary font-bold font-mono">{entry.value}</span>
-                    </p>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
 
 export default function GeographyDemographicsTab({ enrollments, onDrillDown }: GeographyDemographicsTabProps) {
     const [viewMode, setViewMode] = useState<ViewMode>('micro');
@@ -117,7 +107,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
             else { groups['51+'].count++; groups['51+'].enrollments.push(...enrollments); }
         });
 
-        const colors = ['#818cf8', '#a78bfa', '#ec4899', '#f43f5e', '#fb923c', '#94a3b8'];
+        const colors = CHART_SERIES;
         return Object.entries(groups)
             .filter(([_, data]) => data.count > 0)
             .map(([name, data], idx) => ({
@@ -156,326 +146,241 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
         };
     }, [uniqueStudentsData]);
 
+    const completeness = [
+        { label: 'Email address', value: dataCompleteness.withEmail, bar: 'bg-success' },
+        { label: 'Phone number', value: dataCompleteness.withPhone, bar: 'bg-brand-500' },
+        { label: 'Postal address', value: dataCompleteness.withAddress, bar: 'bg-info' },
+        { label: 'Eircode', value: dataCompleteness.withEircode, bar: 'bg-warning' },
+        { label: 'Date of birth', value: dataCompleteness.withDob, bar: 'bg-completed' },
+    ];
+    const ageTotal = ageData.reduce((sum, d) => sum + d.value, 0);
+
     return (
-        <div className="space-y-6 animate-fadeIn">
-            {/* 1. Geographic Intelligence Card */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col space-y-5">
-                {/* Header: Title, Controls & Search */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex-shrink-0">
-                            <MapPin size={24} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-base font-bold text-primary">
-                                    Geographic Intelligence & Cork Address Funnel
-                                </h3>
-                                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full font-mono">
-                                    {geoReport.microDistricts.length} Locations Mapped
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted mt-0.5">
-                                Normalized Cork City districts, satellite towns, and applicant completion rates
-                            </p>
-                        </div>
-                    </div>
+        <div className="space-y-5 animate-fadeIn">
+            <SectionHeader
+                icon={MapPin}
+                tone="brand"
+                title="Geography & demographics"
+                description="Normalised Cork districts, satellite towns and county areas with completion rates per location"
+                actions={<Badge tone="brand" shape="pill">{geoReport.microDistricts.length} locations mapped</Badge>}
+            />
 
-                    {/* Controls: Mode Switcher & Search */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                        {/* Micro / Macro Toggle */}
-                        <div className="flex items-center p-1 bg-black/5 dark:bg-white/5 rounded-xl border border-border-subtle/50">
-                            <button
-                                onClick={() => setViewMode('micro')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    viewMode === 'micro'
-                                        ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                        : 'text-muted hover:text-primary'
-                                }`}
-                            >
-                                Micro-Districts
-                            </button>
-                            <button
-                                onClick={() => setViewMode('macro')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    viewMode === 'macro'
-                                        ? 'bg-surface-elevated text-brand-600 dark:text-brand-400 shadow-sm border border-border-subtle'
-                                        : 'text-muted hover:text-primary'
-                                }`}
-                            >
-                                Macro-Zones
-                            </button>
-                        </div>
-
-                        {/* Search Input */}
-                        <div className="relative min-w-[200px]">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={14} />
-                            <input
-                                type="text"
-                                placeholder="Filter locations..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-surface-elevated border border-border-strong rounded-xl text-xs focus:outline-none focus:border-brand-500 text-primary"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Quick Geographic Metrics */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl p-3 flex items-center justify-between">
-                        <div>
-                            <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Top Inflow Location</span>
-                            <p className="text-xs font-bold text-primary mt-0.5 truncate max-w-[180px]">
-                                {geoReport.topInflowDistrict ? geoReport.topInflowDistrict.name : 'None'}
-                            </p>
-                        </div>
-                        {geoReport.topInflowDistrict && (
-                            <span className="text-xs font-bold font-mono text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-lg">
-                                {geoReport.topInflowDistrict.total} apps
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl p-3 flex items-center justify-between">
-                        <div>
-                            <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Highest Graduation Rate</span>
-                            <p className="text-xs font-bold text-primary mt-0.5 truncate max-w-[180px]">
-                                {geoReport.highestSuccessDistrict ? geoReport.highestSuccessDistrict.name : 'None'}
-                            </p>
-                        </div>
-                        {geoReport.highestSuccessDistrict && (
-                            <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg">
-                                {geoReport.highestSuccessDistrict.rate}% grad
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="bg-surface-elevated/40 border border-border-subtle rounded-xl p-3 flex items-center justify-between">
-                        <div>
-                            <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Territorial Distribution</span>
-                            <p className="text-xs font-bold text-primary mt-0.5">
-                                {cityPct}% City • {satellitePct}% Towns • {countyPct}% Co.
-                            </p>
-                        </div>
-                        <div className="p-1.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                            <Navigation size={14} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Address Funnel Table */}
-                <div className="border border-border-subtle rounded-xl overflow-hidden bg-surface-elevated/20">
-                    {activeList.length === 0 ? (
-                        <div className="text-center py-10 text-muted text-xs">
-                            {searchQuery ? 'No locations match your search query.' : 'No geographic data available.'}
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
-                            <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-surface-elevated text-[11px] uppercase font-bold tracking-wider text-muted border-b border-border-subtle sticky top-0 z-10 backdrop-blur-md">
-                                    <tr>
-                                        <th className="py-2.5 px-3.5">District / Zone</th>
-                                        {viewMode === 'micro' && <th className="py-2.5 px-3">Macro Zone</th>}
-                                        <th className="py-2.5 px-3 w-44">Applications</th>
-                                        <th className="py-2.5 px-3 text-center">Confirmed</th>
-                                        <th className="py-2.5 px-3 text-center">Graduates</th>
-                                        <th className="py-2.5 px-3 text-center">Success Rate</th>
-                                        <th className="py-2.5 px-3.5 text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border-subtle bg-surface">
-                                    {activeList.map((item, idx) => {
-                                        const sharePct = Math.round((item.total / maxTotal) * 100);
-                                        
-                                        // Status color for completion rate
-                                        let rateColorClass = 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
-                                        if (item.completionRate >= 65) {
-                                            rateColorClass = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20';
-                                        } else if (item.completionRate >= 40) {
-                                            rateColorClass = 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400 border border-brand-200 dark:border-brand-500/20';
-                                        }
-
-                                        return (
-                                            <tr 
-                                                key={`${item.name}-${idx}`}
-                                                className="hover:bg-brand-500/5 cursor-pointer transition-colors group"
-                                                onClick={() => onDrillDown(`Location: ${item.name}`, item.enrollments)}
-                                            >
-                                                <td className="py-2.5 px-3.5 font-bold text-primary flex items-center gap-2">
-                                                    <MapPin size={13} className="text-brand-500 flex-shrink-0" />
-                                                    <span className="truncate max-w-[160px] sm:max-w-[220px]">{item.name}</span>
-                                                </td>
-
-                                                {viewMode === 'micro' && (
-                                                    <td className="py-2.5 px-3 text-muted">
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-black/5 dark:bg-white/5 border border-border-subtle">
-                                                            {item.macroRegion || 'Other'}
-                                                        </span>
-                                                    </td>
-                                                )}
-
-                                                <td className="py-2.5 px-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-mono font-bold text-primary min-w-[24px]">{item.total}</span>
-                                                        <div className="flex-1 h-1.5 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="h-full bg-brand-500 rounded-full transition-all duration-300"
-                                                                style={{ width: `${sharePct}%` }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td className="py-2.5 px-3 text-center font-mono font-semibold text-sky-600 dark:text-sky-400">
-                                                    {item.confirmed}
-                                                </td>
-
-                                                <td className="py-2.5 px-3 text-center font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    {item.completed}
-                                                </td>
-
-                                                <td className="py-2.5 px-3 text-center">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${rateColorClass}`}>
-                                                        {item.completionRate}%
-                                                    </span>
-                                                </td>
-
-                                                <td className="py-2.5 px-3.5 text-right">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onDrillDown(`Location: ${item.name}`, item.enrollments);
-                                                        }}
-                                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 transition-colors"
-                                                    >
-                                                        View
-                                                        <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+            {/* Highlights */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <StatTile
+                    label="Top inflow location"
+                    icon={MapPin}
+                    tone="brand"
+                    accent={false}
+                    value={<span className="text-lg">{geoReport.topInflowDistrict ? geoReport.topInflowDistrict.name : '—'}</span>}
+                    hint={geoReport.topInflowDistrict ? `${geoReport.topInflowDistrict.total} applications` : 'No data'}
+                />
+                <StatTile
+                    label="Highest graduation rate"
+                    icon={CheckCircle}
+                    tone="success"
+                    accent={false}
+                    value={<span className="text-lg">{geoReport.highestSuccessDistrict ? geoReport.highestSuccessDistrict.name : '—'}</span>}
+                    hint={geoReport.highestSuccessDistrict ? `${geoReport.highestSuccessDistrict.rate}% graduated` : 'No data'}
+                    hintTone="positive"
+                />
+                <StatTile
+                    label="Territorial split"
+                    icon={Navigation}
+                    tone="info"
+                    accent={false}
+                    value={<span className="text-lg">{cityPct}% city</span>}
+                    hint={`${satellitePct}% satellite towns · ${countyPct}% county`}
+                />
             </div>
 
-            {/* 2. Demographics & Contact Database Health Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Age Demographics Donut */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col min-h-[360px]">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2">
-                            <Users size={16} className="text-brand-500" /> Student Age Distribution (DOB)
-                        </h3>
-                        <span className="text-xs font-semibold text-muted font-mono">{uniqueStudentsData.length} Students</span>
+            {/* Address funnel table */}
+            <Card
+                title="Applications by location"
+                icon={Navigation}
+                subtitle="Click a row to see its students"
+                divided
+                flush
+                action={
+                    <div className="hidden md:flex items-center gap-2">
+                        <Segmented<ViewMode>
+                            ariaLabel="Location granularity"
+                            value={viewMode}
+                            onChange={setViewMode}
+                            options={[
+                                { value: 'micro', label: 'Districts' },
+                                { value: 'macro', label: 'Zones' },
+                            ]}
+                        />
+                        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter locations…" aria-label="Filter locations" wrapperClassName="w-56" />
                     </div>
-
-                    <div className="flex-1 w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={ageData}
-                                    cx="50%"
-                                    cy="45%"
-                                    innerRadius={65}
-                                    outerRadius={95}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                    onClick={(data: any) => {
-                                        if (data && data.payload) {
-                                            onDrillDown(`Age Group: ${data.name}`, data.payload.items);
-                                        }
-                                    }}
-                                    className="cursor-pointer outline-none"
-                                >
-                                    {ageData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    iconType="circle"
-                                    formatter={(value: string) => <span className="text-[11px] text-primary font-medium mr-2">{value}</span>}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
+                }
+            >
+                <div className="md:hidden flex flex-col gap-2 p-3 border-b border-border-subtle">
+                    <Segmented<ViewMode>
+                        ariaLabel="Location granularity"
+                        value={viewMode}
+                        onChange={setViewMode}
+                        options={[
+                            { value: 'micro', label: 'Districts' },
+                            { value: 'macro', label: 'Zones' },
+                        ]}
+                    />
+                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter locations…" aria-label="Filter locations" />
                 </div>
+                {activeList.length === 0 ? (
+                    <EmptyState bare icon={<MapPin size={22} />} title={searchQuery ? 'No matching locations' : 'No geographic data'} description={searchQuery ? 'Try a different search term.' : 'Addresses will appear here once students have them on file.'} />
+                ) : (
+                    <div className={`${tableWrapCls} max-h-[420px] overflow-y-auto`}>
+                        <table className={tableCls}>
+                            <thead className={`${theadCls} sticky top-0 z-10`}>
+                                <tr>
+                                    <th className={thCls}>{viewMode === 'micro' ? 'District' : 'Zone'}</th>
+                                    {viewMode === 'micro' && <th className={thCls}>Zone</th>}
+                                    <th className={`${thCls} w-56`}>Applications</th>
+                                    <th className={`${thCls} text-right`}>Confirmed</th>
+                                    <th className={`${thCls} text-right`}>Graduates</th>
+                                    <th className={`${thCls} text-right`}>Success</th>
+                                    <th className={thCls}><span className="sr-only">Action</span></th>
+                                </tr>
+                            </thead>
+                            <tbody className={tbodyCls}>
+                                {activeList.map((item, idx) => {
+                                    const sharePct = Math.round((item.total / maxTotal) * 100);
+                                    const rateTone = item.completionRate >= 65 ? 'success' : item.completionRate >= 40 ? 'brand' : 'neutral';
+                                    return (
+                                        <tr
+                                            key={`${item.name}-${idx}`}
+                                            className={`${trCls} cursor-pointer group`}
+                                            onClick={() => onDrillDown(`Location: ${item.name}`, item.enrollments)}
+                                        >
+                                            <td className={`${tdCls} font-semibold text-primary`}>
+                                                <span className="flex items-center gap-2">
+                                                    <MapPin size={13} className="text-muted flex-shrink-0" />
+                                                    <span className="truncate max-w-[160px] sm:max-w-[240px]">{item.name}</span>
+                                                </span>
+                                            </td>
+                                            {viewMode === 'micro' && (
+                                                <td className={tdCls}>
+                                                    <Badge>{item.macroRegion || 'Other'}</Badge>
+                                                </td>
+                                            )}
+                                            <td className={tdCls}>
+                                                <div className="flex items-center gap-2.5">
+                                                    <span className="font-semibold text-primary tabular-nums w-7">{item.total}</span>
+                                                    <div className="flex-1 h-1.5 bg-border-subtle rounded-full overflow-hidden">
+                                                        <div className="h-full bg-brand-500 rounded-full" style={{ width: `${sharePct}%` }} />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className={`${tdCls} text-right tabular-nums text-status-invited font-medium`}>{item.confirmed}</td>
+                                            <td className={`${tdCls} text-right tabular-nums text-status-confirmed font-medium`}>{item.completed}</td>
+                                            <td className={`${tdCls} text-right`}>
+                                                <Badge tone={rateTone} shape="pill" className="tabular-nums">{item.completionRate}%</Badge>
+                                            </td>
+                                            <td className={`${tdCls} text-right`}>
+                                                <button
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        onDrillDown(`Location: ${item.name}`, item.enrollments);
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-70 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    View
+                                                    <ArrowRight size={12} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
 
-                {/* Database Quality & Contact Completeness */}
-                <div className="bg-surface rounded-2xl shadow-sm border border-border-subtle p-5 flex flex-col justify-between">
-                    <div>
-                        <h3 className="text-xs font-bold text-muted uppercase tracking-wider flex items-center gap-2 mb-2">
-                            <ShieldCheck size={16} className="text-brand-500" /> Contact Data Quality & Reachability Audit
-                        </h3>
-                        <p className="text-xs text-muted mb-4">
-                            Completeness coverage across <span className="font-semibold text-primary font-mono">{uniqueStudentsData.length}</span> unique student profiles
-                        </p>
-
-                        <div className="space-y-3.5">
-                            <div>
-                                <div className="flex justify-between text-xs font-medium mb-1">
-                                    <span className="text-primary font-semibold">Email Address Record</span>
-                                    <span className="font-bold font-mono">{dataCompleteness.withEmail}%</span>
-                                </div>
-                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${dataCompleteness.withEmail}%` }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between text-xs font-medium mb-1">
-                                    <span className="text-primary font-semibold">Phone Number Coverage</span>
-                                    <span className="font-bold font-mono">{dataCompleteness.withPhone}%</span>
-                                </div>
-                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${dataCompleteness.withPhone}%` }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between text-xs font-medium mb-1">
-                                    <span className="text-primary font-semibold">Postal Address Coverage</span>
-                                    <span className="font-bold font-mono">{dataCompleteness.withAddress}%</span>
-                                </div>
-                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-sky-500 rounded-full transition-all duration-500" style={{ width: `${dataCompleteness.withAddress}%` }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between text-xs font-medium mb-1">
-                                    <span className="text-primary font-semibold">Eircode Geo-Tagging</span>
-                                    <span className="font-bold font-mono">{dataCompleteness.withEircode}%</span>
-                                </div>
-                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${dataCompleteness.withEircode}%` }} />
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between text-xs font-medium mb-1">
-                                    <span className="text-primary font-semibold">Date of Birth (Age Profiling)</span>
-                                    <span className="font-bold font-mono">{dataCompleteness.withDob}%</span>
-                                </div>
-                                <div className="h-2 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${dataCompleteness.withDob}%` }} />
-                                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Age distribution */}
+                <Card title="Age distribution" icon={Users} subtitle={`${uniqueStudentsData.length} students · from date of birth`}>
+                    <div className="flex flex-col sm:flex-row items-center gap-6">
+                        <div className="w-[200px] h-[200px] flex-shrink-0 relative">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={ageData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={62}
+                                        outerRadius={92}
+                                        paddingAngle={2}
+                                        dataKey="value"
+                                        stroke="none"
+                                        onClick={(data: any) => {
+                                            if (data && data.payload) {
+                                                onDrillDown(`Age Group: ${data.name}`, data.payload.items);
+                                            }
+                                        }}
+                                        className="cursor-pointer outline-none"
+                                    >
+                                        {ageData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip content={<ChartTooltip />} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span className="text-2xl font-bold text-primary tabular-nums">{uniqueStudentsData.length}</span>
+                                <span className="text-[11px] text-muted">students</span>
                             </div>
                         </div>
+                        <ul className="flex-1 w-full space-y-1">
+                            {ageData.map(d => (
+                                <li key={d.name}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onDrillDown(`Age Group: ${d.name}`, d.items)}
+                                        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-colors text-left"
+                                    >
+                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                        <span className="flex-1 text-[13px] text-primary">{d.name}</span>
+                                        <span className="text-[13px] font-semibold text-primary tabular-nums">{d.value}</span>
+                                        <span className="w-10 text-right text-[11px] text-muted tabular-nums">
+                                            {ageTotal ? Math.round((d.value / ageTotal) * 100) : 0}%
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
+                </Card>
 
-                    <div className="mt-4 pt-3 border-t border-border-subtle flex items-center gap-2 text-xs text-muted">
-                        <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
-                        <span>High contact completeness enables reliable geographic mapping & outcome follow-ups.</span>
+                {/* Contact data quality */}
+                <Card
+                    title="Contact data quality"
+                    icon={ShieldCheck}
+                    tone="success"
+                    subtitle={`Completeness across ${uniqueStudentsData.length} unique student profiles`}
+                    bodyClassName="flex flex-col"
+                >
+                    <div className="space-y-4">
+                        {completeness.map(c => (
+                            <div key={c.label}>
+                                <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="text-primary font-medium">{c.label}</span>
+                                    <span className="font-semibold text-primary tabular-nums">{c.value}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-border-subtle rounded-full overflow-hidden">
+                                    <div className={`h-full ${c.bar} rounded-full transition-all duration-500`} style={{ width: `${c.value}%` }} />
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                </div>
+                    <p className="mt-auto pt-4 flex items-start gap-2 text-[11px] text-muted">
+                        <CheckCircle size={13} className="text-status-confirmed flex-shrink-0 mt-px" />
+                        Complete contact details make location mapping and outcome follow-ups reliable.
+                    </p>
+                </Card>
             </div>
         </div>
     );
