@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, BookOpen, Users } from 'lucide-react';
+import { BookOpen, Users, Globe, Languages } from 'lucide-react';
 import { Course } from '../lib/types';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import Modal, { FormError } from './ui/Modal';
+import { Button } from './ui/Button';
+import { fieldCls, labelCls } from './ui/styles';
 
 interface Props {
     open: boolean;
@@ -35,8 +37,6 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         onClose();
     };
 
-    useModalBehavior(open, requestClose);
-
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (saving) return;
@@ -66,141 +66,97 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         }
     }
 
-    if (!open) return null;
-
     const isEditing = !!course?.id;
 
+    const templateOption = (value: boolean, Icon: typeof Globe, title: string, desc: string) => {
+        const active = requiresEnglish === value;
+        return (
+            <button
+                type="button"
+                onClick={() => setRequiresEnglish(value)}
+                aria-pressed={active}
+                className={`p-3 rounded-xl border text-left transition-colors flex items-start gap-3 ${
+                    active ? 'bg-brand-500/[0.06] border-brand-500 ring-1 ring-brand-500' : 'bg-surface border-border-subtle hover:border-border-strong'
+                }`}
+            >
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted'}`}>
+                    <Icon size={16} />
+                </span>
+                <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                        {title}
+                        {active && <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400">Selected</span>}
+                    </span>
+                    <span className="block text-[11px] text-muted mt-0.5">{desc}</span>
+                </span>
+            </button>
+        );
+    };
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
-            <div role="dialog" aria-modal="true" aria-labelledby="course-modal-title" className="relative w-full max-w-md bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-violet-50 dark:bg-violet-500/10 rounded-xl text-violet-600 dark:text-violet-400">
-                                <BookOpen size={18} />
-                            </div>
-                            <h2 id="course-modal-title" className="text-lg font-bold text-primary">{isEditing ? 'Edit Course' : 'Add Course'}</h2>
-                        </div>
-                        <button type="button" onClick={requestClose} aria-label="Close" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
-                            <X size={18} />
-                        </button>
-                    </div>
+        <Modal
+            open={open}
+            onClose={requestClose}
+            title={isEditing ? 'Edit Course' : 'Add Course'}
+            icon={BookOpen}
+            tone="completed"
+            labelId="course-modal-title"
+            dismissible={!saving}
+            footer={
+                <>
+                    <Button variant="ghost" onClick={requestClose}>Cancel</Button>
+                    <Button variant="primary" type="submit" form="course-form" loading={saving}>
+                        {saving ? 'Saving...' : isEditing ? 'Update Course' : 'Add Course'}
+                    </Button>
+                </>
+            }
+        >
+            <form id="course-form" onSubmit={handleSubmit} className="space-y-4">
+                {error && <FormError>{error}</FormError>}
+
+                <div>
+                    <label htmlFor="course-name" className={labelCls}>Course name *</label>
+                    <input
+                        id="course-name"
+                        type="text"
+                        placeholder="e.g. Security, First Aid"
+                        className={fieldCls}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        autoFocus
+                        required
+                    />
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
-                            {error}
-                        </div>
-                    )}
-
-                    <div>
-                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Course Name *</label>
+                <div>
+                    <label htmlFor="course-max-capacity" className={labelCls}>Max participants per date</label>
+                    <div className="relative">
+                        <Users size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                         <input
-                            type="text"
-                            placeholder="e.g. Security, First Aid"
-                            className="w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            autoFocus
-                            required
+                            id="course-max-capacity"
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            step={1}
+                            placeholder="Unlimited"
+                            className={`${fieldCls} pl-9`}
+                            value={maxCapacity}
+                            onChange={e => setMaxCapacity(e.target.value)}
                         />
                     </div>
+                    <p className="text-[11px] text-muted mt-1.5">
+                        Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
+                    </p>
+                </div>
 
-                    <div>
-                        <label htmlFor="course-max-capacity" className="text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block">Max Participants per Date</label>
-                        <div className="relative">
-                            <Users size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-                            <input
-                                id="course-max-capacity"
-                                type="number"
-                                inputMode="numeric"
-                                min={1}
-                                step={1}
-                                placeholder="Unlimited"
-                                className="w-full pl-10 pr-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted"
-                                value={maxCapacity}
-                                onChange={e => setMaxCapacity(e.target.value)}
-                            />
-                        </div>
-                        <p className="text-[11px] text-muted mt-1.5">
-                            Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
-                        </p>
+                <div>
+                    <span className={labelCls}>Invitation email template</span>
+                    <div className="grid grid-cols-1 gap-2">
+                        {templateOption(false, Globe, 'Standard Course', 'Standard invitation letter with [Confirm My Place] button.')}
+                        {templateOption(true, Languages, 'High English Required', 'Includes English warning notes & [I Am Confident in English — Confirm My Place] button.')}
                     </div>
-
-                    {/* Email Template Type Selection */}
-                    <div className="pt-1">
-                        <label className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">
-                            Invitation Email Template
-                        </label>
-                        <div className="grid grid-cols-1 gap-2.5">
-                            <button
-                                type="button"
-                                onClick={() => setRequiresEnglish(false)}
-                                aria-pressed={!requiresEnglish}
-                                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
-                                    !requiresEnglish
-                                        ? 'bg-emerald-500/10 border-emerald-500/40 text-primary'
-                                        : 'bg-surface border-border-subtle text-muted hover:border-border-strong'
-                                }`}
-                            >
-                                <span className="text-lg mt-0.5">🌐</span>
-                                <div>
-                                    <div className="text-xs font-bold flex items-center gap-1.5">
-                                        Standard Course
-                                        {!requiresEnglish && <span className="text-[10px] bg-emerald-500/20 text-emerald-500 font-semibold px-1.5 py-0.2 rounded">Selected</span>}
-                                    </div>
-                                    <div className="text-[11px] text-muted mt-0.5">
-                                        Standard invitation letter with [Confirm My Place] button.
-                                    </div>
-                                </div>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setRequiresEnglish(true)}
-                                aria-pressed={requiresEnglish}
-                                className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
-                                    requiresEnglish
-                                        ? 'bg-blue-500/10 border-blue-500/40 text-primary'
-                                        : 'bg-surface border-border-subtle text-muted hover:border-border-strong'
-                                }`}
-                            >
-                                <span className="text-lg mt-0.5">🇬🇧</span>
-                                <div>
-                                    <div className="text-xs font-bold flex items-center gap-1.5">
-                                        High English Required
-                                        {requiresEnglish && <span className="text-[10px] bg-blue-500/20 text-blue-400 font-semibold px-1.5 py-0.2 rounded">Selected</span>}
-                                    </div>
-                                    <div className="text-[11px] text-muted mt-0.5">
-                                        Includes English warning notes &amp; [I Am Confident in English — Confirm My Place] button.
-                                    </div>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            type="button"
-                            onClick={requestClose}
-                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                            {saving ? 'Saving...' : isEditing ? 'Update Course' : 'Add Course'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                </div>
+            </form>
+        </Modal>
     );
 }

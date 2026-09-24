@@ -2,8 +2,12 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Users, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, BookOpen, Languages, Globe, ArrowRight } from 'lucide-react';
 import SearchInput from './ui/SearchInput';
+import Badge from './ui/Badge';
+import { Toolbar } from './ui/Card';
+import { Button, IconButton } from './ui/Button';
+import { EmptyState } from './ui/States';
 import { Course, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -38,8 +42,8 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
         { key: 'confirmed', color: 'var(--color-confirmed)', count: counts?.confirmed ?? 0, label: 'Confirmed' },
         { key: 'invited', color: 'var(--color-invited)', count: counts?.invited ?? 0, label: 'Invited' },
         { key: 'requested', color: 'var(--color-requested)', count: counts?.requested ?? 0, label: 'Requested' },
-        { key: 'withdrawn', color: '#94a3b8', count: counts?.withdrawn ?? 0, label: 'Withdrawn' },
-        { key: 'rejected', color: '#f87171', count: counts?.rejected ?? 0, label: 'Rejected' },
+        { key: 'withdrawn', color: 'var(--chart-neutral)', count: counts?.withdrawn ?? 0, label: 'Withdrawn' },
+        { key: 'rejected', color: 'var(--chart-rose)', count: counts?.rejected ?? 0, label: 'Rejected' },
     ];
 
     // Legend always shows Requested + Completed; other statuses shown only when non-zero
@@ -49,45 +53,24 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
     const barTotal = visible.reduce((sum, s) => sum + s.count, 0);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Progress bar */}
-            <div
-                style={{
-                    display: 'flex',
-                    height: '8px',
-                    borderRadius: '9999px',
-                    overflow: 'hidden',
-                    backgroundColor: 'oklch(var(--bg-surface-elevated))',
-                    width: '100%',
-                }}
-            >
-                {barTotal === 0 ? (
-                    // Empty bar placeholder so bar height is always consistent
-                    <div style={{ flex: 1, backgroundColor: 'oklch(var(--border-subtle))' }} />
-                ) : (
-                    visible.map((s, i) => {
-                        const isLast = i === visible.length - 1;
-                        return (
-                            <div
-                                key={s.key}
-                                title={`${s.label}: ${s.count}`}
-                                style={{
-                                    ...(isLast ? { flex: 1 } : { width: `${(s.count / barTotal) * 100}%`, flexShrink: 0 }),
-                                    backgroundColor: s.color,
-                                    transition: 'width 0.7s ease-out',
-                                }}
-                            />
-                        );
-                    })
-                )}
+        <div className="flex flex-col gap-2.5">
+            <div className="flex h-2 w-full rounded-full overflow-hidden bg-border-subtle gap-px">
+                {barTotal > 0 && visible.map(s => (
+                    <div
+                        key={s.key}
+                        title={`${s.label}: ${s.count}`}
+                        className="h-full transition-[width] duration-700 ease-out first:rounded-l-full last:rounded-r-full"
+                        style={{ width: `${(s.count / barTotal) * 100}%`, backgroundColor: s.color }}
+                    />
+                ))}
             </div>
             {/* Legend — always shows Requested & Completed, plus any other non-zero statuses */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', minHeight: 16 }}>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 min-h-4">
                 {segments.map(s => {
                     if (!alwaysShow.has(s.key) && s.count === 0) return null;
                     return (
-                        <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'oklch(var(--text-muted))', fontWeight: 500 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color, flexShrink: 0, display: 'inline-block' }} />
+                        <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-muted font-medium tabular-nums">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                             {s.count} {s.label}
                         </span>
                     );
@@ -257,173 +240,133 @@ export default function CourseList() {
         );
     }, [courses, debouncedSearch]);
 
+    const openCreate = () => { setEditingCourse(null); setModalOpen(true); };
+
     return (
         <div className="space-y-4">
-            {/* Header */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between">
-                    <div className="hidden md:flex items-center gap-3">
-                        <div className="p-2 bg-violet-500/10 rounded-xl text-violet-600 dark:text-violet-400">
-                            <BookOpen size={20} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-lg font-bold text-primary tracking-tight">Courses</h2>
-                                <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-full">{courses.length}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                        <SearchInput
-                            wrapperClassName="flex-1 sm:w-64"
-                            placeholder="Search courses..."
-                            value={search}
-                            onChange={setSearch}
-                            aria-label="Search courses"
-                        />
-                        <button
-                            onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
-                        >
-                            <Plus size={16} /> Add Course
-                        </button>
-                    </div>
+            {/* Toolbar */}
+            <Toolbar>
+                <div className="hidden md:flex items-center gap-2.5 min-w-0">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-completed/15 text-status-completed flex-shrink-0">
+                        <BookOpen size={16} />
+                    </span>
+                    <span className="text-sm font-semibold text-primary">Course catalog</span>
+                    <Badge tone="completed" shape="pill" className="tabular-nums">{courses.length} courses</Badge>
                 </div>
-            </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                    <SearchInput
+                        wrapperClassName="flex-1 sm:w-72"
+                        placeholder="Search courses..."
+                        value={search}
+                        onChange={setSearch}
+                        aria-label="Search courses"
+                    />
+                    <Button variant="primary" size="lg" onClick={openCreate}>
+                        <Plus size={16} /> <span className="hidden sm:inline">Add Course</span>
+                    </Button>
+                </div>
+            </Toolbar>
 
             {/* Course Cards */}
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden animate-pulse">
-                            <div className="h-1.5 bg-surface-elevated" />
-                            <div className="p-5">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-11 h-11 rounded-xl bg-surface-elevated" />
-                                        <div>
-                                            <div className="h-4 w-28 rounded bg-surface-elevated mb-2" />
-                                            <div className="h-3 w-20 rounded bg-surface-elevated" />
-                                        </div>
-                                    </div>
-                                </div>
+                        <div key={i} className="bg-surface rounded-2xl shadow-card border border-border-subtle p-5 animate-pulse space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-muted/15" />
                                 <div className="space-y-2">
-                                    <div className="h-2 rounded-full bg-surface-elevated" />
-                                    <div className="flex gap-3">
-                                        <div className="h-3 w-16 rounded bg-surface-elevated" />
-                                        <div className="h-3 w-16 rounded bg-surface-elevated" />
-                                    </div>
+                                    <div className="h-3.5 w-32 rounded bg-muted/15" />
+                                    <div className="h-3 w-20 rounded bg-muted/10" />
                                 </div>
+                            </div>
+                            <div className="h-2 rounded-full bg-muted/10" />
+                            <div className="flex gap-3">
+                                <div className="h-3 w-16 rounded bg-muted/10" />
+                                <div className="h-3 w-16 rounded bg-muted/10" />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-16">
-                    <div className="w-16 h-16 bg-surface-elevated border border-border-subtle shadow-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                        <BookOpen size={28} className="text-muted" />
-                    </div>
-                    <p className="text-lg font-semibold text-primary">No courses found</p>
-                    <p className="text-sm text-muted mt-1">
-                        {search.trim() ? `Nothing matches "${search.trim()}"` : 'Create your first course to get started'}
-                    </p>
-                    {search.trim() ? (
-                        <button
-                            onClick={() => setSearch('')}
-                            className="mt-4 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
-                        >
-                            Clear search
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => { setEditingCourse(null); setModalOpen(true); }}
-                            className="mt-4 px-4 py-2 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all active:scale-[0.98] inline-flex items-center gap-2"
-                        >
-                            <Plus size={16} /> Add Course
-                        </button>
-                    )}
-                </div>
+                <EmptyState
+                    icon={<BookOpen size={24} />}
+                    title="No courses found"
+                    description={search.trim() ? `Nothing matches "${search.trim()}"` : 'Create your first course to get started'}
+                    action={search.trim()
+                        ? <Button variant="secondary" onClick={() => setSearch('')}>Clear search</Button>
+                        : <Button variant="primary" onClick={openCreate}><Plus size={16} /> Add Course</Button>}
+                />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filtered.map(course => {
                         const counts = enrollmentCounts[course.id];
                         const gradient = getAvatarGradient(course.id);
+                        const openBoard = () => navigate('/enrollments', { state: { courseId: course.id } });
                         return (
                             <div
                                 key={course.id}
                                 role="link"
                                 tabIndex={0}
                                 aria-label={`Open ${course.name} on the enrollment board`}
-                                onClick={() => navigate('/enrollments', { state: { courseId: course.id } })}
+                                onClick={openBoard}
                                 onKeyDown={e => {
-                                    if (e.key === 'Enter' && e.target === e.currentTarget) {
-                                        navigate('/enrollments', { state: { courseId: course.id } });
-                                    }
+                                    if (e.key === 'Enter' && e.target === e.currentTarget) openBoard();
                                 }}
-                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-none bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-float hover:-translate-y-1 transition-all duration-300 overflow-hidden group cursor-pointer"
+                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-none bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:border-border-strong transition-all duration-200 group cursor-pointer flex flex-col"
                             >
-                                {/* Gradient top accent */}
-                                <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
-
-                                <div className="course-card-body p-5" style={{ minHeight: 150, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`course-card-icon w-11 h-11 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
+                                <div className="course-card-body p-5 flex-1 flex flex-col gap-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`course-card-icon w-10 h-10 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}>
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
-                                            <div>
-                                                <h3 className="font-bold text-primary">{course.name}</h3>
+                                            <div className="min-w-0">
+                                                <h3 className="text-[15px] font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
                                                 <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                     <Users size={12} />
-                                                    <span className="font-medium">{counts?.total || 0}</span> students enrolled
+                                                    <span className="font-semibold text-primary tabular-nums">{counts?.total || 0}</span> students enrolled
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
-                                                className="p-2 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-all"
-                                                title="Edit Course"
-                                            >
+                                        <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                            <IconButton size="sm" tone="brand" label="Edit Course" onClick={() => { setEditingCourse(course); setModalOpen(true); }}>
                                                 <Edit2 size={14} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(course); }}
-                                                className="p-2 text-muted hover:text-danger hover:bg-danger/10 rounded-lg transition-all"
-                                                title="Delete Course"
-                                            >
+                                            </IconButton>
+                                            <IconButton size="sm" tone="danger" label="Delete Course" onClick={() => setDeleteTarget(course)}>
                                                 <Trash2 size={14} />
-                                            </button>
+                                            </IconButton>
                                         </div>
                                     </div>
 
-                                    {/* Template Selection Pill */}
-                                    <div className="mb-3.5 flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={(e) => handleToggleEnglish(course, e)}
-                                            title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
-                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${
-                                                course.requires_english
-                                                    ? 'bg-blue-500/15 border-blue-500/40 text-blue-400 hover:bg-blue-500/25 shadow-sm'
-                                                    : 'bg-surface-elevated/70 border-border-subtle text-muted hover:text-primary hover:border-border-strong hover:bg-surface-elevated'
-                                            }`}
-                                        >
-                                            <span className="text-xs">{course.requires_english ? '🇬🇧' : '🌐'}</span>
-                                            <span>{course.requires_english ? 'High English' : 'Standard'}</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
-                                            title={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}
-                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-surface-elevated/70 border-border-subtle text-muted hover:text-primary hover:border-border-strong hover:bg-surface-elevated transition-all active:scale-95"
-                                        >
-                                            <Users size={12} />
-                                            <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
-                                        </button>
-                                    </div>
-
                                     <StatusBar counts={counts} />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-t border-border-subtle">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => handleToggleEnglish(course, e)}
+                                        title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
+                                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition-colors active:scale-95 ${
+                                            course.requires_english
+                                                ? 'bg-info/10 border-info/30 text-status-invited hover:bg-info/15'
+                                                : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
+                                        }`}
+                                    >
+                                        {course.requires_english ? <Languages size={13} /> : <Globe size={13} />}
+                                        <span>{course.requires_english ? 'High English' : 'Standard'}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
+                                        title={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}
+                                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition-colors active:scale-95"
+                                    >
+                                        <Users size={12} />
+                                        <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
+                                    </button>
+                                    <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Open board <ArrowRight size={13} />
+                                    </span>
                                 </div>
                             </div>
                         );

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X, type LucideIcon } from 'lucide-react';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
 import { toneChipCls, type Tone } from './styles';
@@ -58,7 +59,8 @@ export default function Modal({
 }: ModalProps) {
     useModalBehavior(open, onClose, { closeOnEscape: dismissible });
     if (!open) return null;
-    return (
+    // Portal to <body> so the overlay covers the whole app (page content sits in its own stacking context)
+    return createPortal(
         <div className={`fixed inset-0 ${zIndex} flex ${sheetOnMobile ? 'items-end sm:items-center' : 'items-center'} justify-center ${sheetOnMobile ? 'sm:p-4' : 'p-4'} animate-fadeIn`}>
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={dismissible ? onClose : undefined} />
             <div
@@ -81,7 +83,8 @@ export default function Modal({
                 <div className={`flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-5 ${bodyClassName}`}>{children}</div>
                 {footer && <ModalFooter>{footer}</ModalFooter>}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

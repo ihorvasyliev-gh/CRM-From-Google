@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
-import { X, Loader2, User, AlertTriangle } from 'lucide-react';
+import { User, AlertTriangle } from 'lucide-react';
 import { StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { normalizePhone } from '../lib/contactUtils';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import Modal, { FormError } from './ui/Modal';
+import { Button } from './ui/Button';
+import { calloutCls, fieldCls, labelCls } from './ui/styles';
 
 interface Props {
     open: boolean;
@@ -15,8 +17,8 @@ interface Props {
 
 const EMPTY_FORM: StudentFormData = { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' };
 
-const INPUT_CLASS = 'w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated placeholder:text-muted/60';
-const LABEL_CLASS = 'text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block';
+const INPUT_CLASS = fieldCls;
+const LABEL_CLASS = labelCls;
 
 /** Strips characters that would break a quoted PostgREST filter value. */
 function quoteFilterValue(value: string): string {
@@ -50,7 +52,6 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         onClose();
     }, [saving, isDirty, onClose]);
 
-    useModalBehavior(open, requestClose);
 
     // Live duplicate detection (same email or same normalized phone)
     useEffect(() => {
@@ -127,54 +128,36 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         }
     }
 
-    if (!open) return null;
-
     const isEditing = !!student?.id;
     const update = (field: keyof StudentFormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
         setForm(prev => ({ ...prev, [field]: e.target.value }));
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="student-modal-title"
-                className="relative w-full max-w-lg bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
-            >
-                {/* Mobile pull handle */}
-                <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
-
-                {/* Header */}
-                <div className="px-6 py-3.5 sm:py-4 border-b border-border-subtle bg-surface-elevated flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-brand-500/10 rounded-xl text-brand-600 dark:text-brand-400">
-                                <User size={18} />
-                            </div>
-                            <h2 id="student-modal-title" className="text-lg font-bold text-primary">{isEditing ? 'Edit Student' : 'Add Student'}</h2>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={requestClose}
-                            aria-label="Close"
-                            className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all"
-                        >
-                            <X size={18} />
-                        </button>
-                    </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
-                    {error && (
-                        <div role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
-                            {error}
-                        </div>
-                    )}
+        <Modal
+            open={open}
+            onClose={requestClose}
+            title={isEditing ? 'Edit Student' : 'Add Student'}
+            icon={User}
+            labelId="student-modal-title"
+            size="lg"
+            zIndex="z-[60]"
+            sheetOnMobile
+            dismissible={!saving}
+            footer={
+                <>
+                    <Button variant="ghost" onClick={requestClose}>Cancel</Button>
+                    <Button variant="primary" type="submit" form="student-form" loading={saving}>
+                        {saving ? 'Saving...' : isEditing ? 'Update Student' : 'Add Student'}
+                    </Button>
+                </>
+            }
+        >
+                <form id="student-form" onSubmit={handleSubmit} className="space-y-4">
+                    {error && <FormError>{error}</FormError>}
 
                     {duplicateWarning && (
-                        <div className="text-sm text-amber-700 bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 rounded-xl flex items-center gap-2.5 animate-slideDown dark:text-amber-400">
-                            <AlertTriangle size={16} className="flex-shrink-0 text-amber-500" />
+                        <div className={`${calloutCls.warning} text-sm px-3.5 py-2.5 flex items-center gap-2.5 animate-slideDown`}>
+                            <AlertTriangle size={16} className="flex-shrink-0 text-status-requested" />
                             <span>{duplicateWarning}</span>
                         </div>
                     )}
@@ -270,25 +253,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                         />
                     </div>
 
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            type="button"
-                            onClick={requestClose}
-                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-                            {saving ? 'Saving...' : isEditing ? 'Update Student' : 'Add Student'}
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 }
