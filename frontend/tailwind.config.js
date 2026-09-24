@@ -45,6 +45,7 @@ export default {
                 warning: 'oklch(var(--status-warning) / <alpha-value>)',
                 danger: 'oklch(var(--status-danger) / <alpha-value>)',
                 info: 'oklch(var(--status-info) / <alpha-value>)',
+                completed: 'oklch(var(--status-completed) / <alpha-value>)',
             },
             boxShadow: {
                 'glow-sm': '0 0 15px -3px rgba(99, 102, 241, 0.15)',

@@ -37,7 +37,7 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
                     }
                     onKeyDown?.(e);
                 }}
-                className={`w-full pl-9 pr-9 py-2 sm:py-2.5 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${className}`}
+                className={`w-full h-9 sm:h-10 pl-9 pr-9 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors placeholder:text-muted/70 text-primary ${className}`}
                 {...rest}
             />
             {loading ? (
@@ -47,7 +47,7 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
                     type="button"
                     onClick={() => onChange('')}
                     aria-label="Clear search"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted hover:text-primary hover:bg-surface transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors"
                 >
                     <X size={14} />
                 </button>
