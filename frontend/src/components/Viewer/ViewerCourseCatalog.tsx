@@ -202,7 +202,7 @@ function NextSession({ next }: { next?: ViewerUpcomingCourse }) {
         <span className="inline-flex items-center gap-1.5 min-w-0">
             <Calendar size={12} className={soon ? 'text-emerald-500' : 'text-muted'} />
             <span className="font-semibold text-primary">{weekdayDate(next.course_date)}</span>
-            <span className={soon ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-muted'}>· {relativeDay(next.course_date)}</span>
+            <span className={soon ? 'text-status-confirmed font-semibold' : 'text-muted'}>· {relativeDay(next.course_date)}</span>
             <span className="text-muted truncate">· {next.confirmed_count} confirmed{next.pending_count ? `, ${next.pending_count} pending` : ''}</span>
         </span>
     );

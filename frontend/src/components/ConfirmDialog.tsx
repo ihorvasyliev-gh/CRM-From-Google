@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 
@@ -45,7 +46,8 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
         }
     };
 
-    return (
+    // Portal to <body> so the dialog layers above the sidebar / drawers regardless of where it's rendered
+    return createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onCancel} />
             <div
@@ -53,36 +55,33 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                 aria-modal="true"
                 aria-labelledby="confirm-dialog-title"
                 aria-describedby="confirm-dialog-message"
-                className="relative w-full max-w-sm bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden"
+                className="relative w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-float animate-scaleIn overflow-hidden"
             >
-                <div className="p-6 text-center">
-                    {/* Icon */}
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDanger ? 'bg-red-500/10' : 'bg-amber-500/10'}`}>
-                        {isDanger
-                            ? <AlertTriangle size={28} className="text-red-500" />
-                            : <AlertCircle size={28} className="text-amber-500" />
-                        }
+                <div className="p-6 flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDanger ? 'bg-danger/10 text-status-rejected' : 'bg-warning/15 text-status-requested'}`}>
+                        {isDanger ? <AlertTriangle size={20} /> : <AlertCircle size={20} />}
                     </div>
-
-                    <h3 id="confirm-dialog-title" className="text-lg font-bold text-primary mb-1.5">{title}</h3>
-                    <p id="confirm-dialog-message" className="text-sm text-muted leading-relaxed">{message}</p>
+                    <div className="min-w-0 pt-0.5">
+                        <h3 id="confirm-dialog-title" className="text-base font-semibold text-primary mb-1">{title}</h3>
+                        <p id="confirm-dialog-message" className="text-sm text-muted leading-relaxed">{message}</p>
+                    </div>
                 </div>
 
-                <div className="flex gap-3 px-6 pb-6">
+                <div className="flex justify-end gap-2 px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40">
                     <button
                         ref={cancelRef}
                         onClick={onCancel}
                         disabled={busy}
-                        className="flex-1 px-4 py-2.5 text-sm font-semibold text-muted bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-all disabled:opacity-50"
+                        className="h-9 px-3.5 text-xs font-semibold text-primary bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-colors disabled:opacity-50"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleConfirm}
                         disabled={busy}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-70 disabled:cursor-wait ${isDanger
-                            ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
-                            : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700'
+                        className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait ${isDanger
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-amber-500 hover:bg-amber-600'
                             }`}
                     >
                         {busy && <Loader2 size={15} className="animate-spin" />}
@@ -90,6 +89,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

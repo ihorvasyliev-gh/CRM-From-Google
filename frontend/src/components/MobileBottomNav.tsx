@@ -146,7 +146,7 @@ export default function MobileBottomNav({
 
                             <button
                                 onClick={onSignOut}
-                                className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-xl text-xs transition-all"
+                                className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all"
                             >
                                 <LogOut size={16} />
                                 <span>Sign Out</span>
@@ -275,10 +275,10 @@ export default function MobileBottomNav({
                                     setMoreOpen(false);
                                     onOpenApprovals?.();
                                 }}
-                                className="w-full mb-3 flex items-center justify-between p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-700 dark:text-amber-300 transition-all active:scale-[0.99] shadow-xs"
+                                className="w-full mb-3 flex items-center justify-between p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-status-requested transition-all active:scale-[0.99] shadow-xs"
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <Clock size={16} className="text-amber-600 dark:text-amber-400 animate-spin-slow" />
+                                    <Clock size={16} className="text-status-requested animate-spin-slow" />
                                     <span className="text-xs font-bold">
                                         {pendingApprovalsCount} Course Completion{pendingApprovalsCount > 1 ? 's' : ''} Pending
                                     </span>
@@ -376,7 +376,7 @@ export default function MobileBottomNav({
                         {/* Sign Out */}
                         <button
                             onClick={onSignOut}
-                            className="w-full flex items-center justify-center gap-2 p-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-xl text-xs transition-all active:scale-[0.99]"
+                            className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all active:scale-[0.99]"
                         >
                             <LogOut size={16} />
                             <span>Sign Out</span>

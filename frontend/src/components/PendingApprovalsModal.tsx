@@ -131,9 +131,9 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
         >
             <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleIn">
                 {/* Header */}
-                <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0 bg-surface-elevated/40">
+                <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center">
+                        <div className="p-2.5 bg-amber-500/10 text-status-requested rounded-2xl flex items-center justify-center">
                             <Clock size={22} className="animate-pulse" />
                         </div>
                         <div>
@@ -141,7 +141,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                 <h2 className="text-base sm:text-lg font-bold text-primary tracking-tight">
                                     Pending Course Completions
                                 </h2>
-                                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                <span className="text-xs font-bold text-status-requested bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
                                     {pendingList.length} pending
                                 </span>
                             </div>
@@ -204,7 +204,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                         </div>
                     ) : pendingList.length === 0 ? (
                         <div className="text-center py-16">
-                            <div className="w-14 h-14 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <div className="w-14 h-14 bg-emerald-500/10 text-status-confirmed rounded-2xl flex items-center justify-center mx-auto mb-3">
                                 <CheckCircle size={28} />
                             </div>
                             <h3 className="text-base font-bold text-primary">All caught up!</h3>
@@ -255,7 +255,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
                                             {/* Request Info Bar */}
                                             <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
-                                                <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                                                <span className="text-status-confirmed font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
                                                     <Calendar size={12} />
                                                     Requested Completion Date: <strong>{formatDate(item.pending_completion_date)}</strong>
                                                 </span>
@@ -284,7 +284,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                                 setRejectionReason('');
                                             }}
                                             disabled={approveMutation.isPending || rejectMutation.isPending}
-                                            className="px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-700 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
+                                            className="px-3 py-1.5 text-xs font-semibold text-status-rejected bg-danger/10 hover:bg-danger/20 rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
                                             title="Reject completion request"
                                         >
                                             <XCircle size={14} />

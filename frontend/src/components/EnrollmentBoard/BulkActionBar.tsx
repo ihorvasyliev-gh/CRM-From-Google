@@ -37,7 +37,7 @@ export default function BulkActionBar({
         <div className="fixed bottom-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 animate-slideUpCenter">
             
             {showList && (
-                <div className="bg-surface-elevated border border-border-subtle rounded-xl shadow-float w-72 max-h-64 flex flex-col overflow-hidden animate-slideUp">
+                <div className="bg-surface border border-border-subtle rounded-xl shadow-float w-72 max-h-64 flex flex-col overflow-hidden animate-slideUp">
                     <div className="px-4 py-3 border-b border-border-subtle flex justify-between items-center bg-surface">
                         <span className="text-xs font-bold text-primary uppercase tracking-wider">Selected Students ({selectedCount})</span>
                         <button onClick={() => setShowList(false)} className="text-muted hover:text-primary transition-colors">
@@ -52,7 +52,7 @@ export default function BulkActionBar({
                                 </span>
                                 <button 
                                     onClick={() => toggleSelect(e.id)}
-                                    className="text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-all p-1 rounded-md"
+                                    className="text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-danger/10 transition-all p-1 rounded-md"
                                     title="Deselect"
                                 >
                                     <X size={14} />

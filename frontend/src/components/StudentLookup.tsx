@@ -73,22 +73,22 @@ interface StudentDetailData {
 const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string; label: string }> = {
     requested: { 
         icon: <Clock size={12} />, 
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20', 
+        className: 'bg-warning/10 text-status-requested border-warning/30', 
         label: 'Requested' 
     },
     invited: { 
         icon: <Send size={12} />, 
-        className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20', 
+        className: 'bg-info/10 text-status-invited border-info/25', 
         label: 'Invited' 
     },
     confirmed: { 
         icon: <CheckCircle size={12} />, 
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20', 
+        className: 'bg-success/10 text-status-confirmed border-success/25', 
         label: 'Confirmed' 
     },
     rejected: { 
         icon: <XCircle size={12} />, 
-        className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20', 
+        className: 'bg-danger/10 text-status-rejected border-danger/25', 
         label: 'Rejected' 
     },
     completed: { 
@@ -317,7 +317,7 @@ export default function StudentLookup() {
                             <input
                                 type="text"
                                 placeholder="Search by name, email, phone or eircode..."
-                                className="w-full pl-10 pr-10 py-3 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
+                                className="w-full pl-10 pr-10 py-3 bg-surface-elevated border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -352,7 +352,7 @@ export default function StudentLookup() {
                                     <select
                                         value={sortBy}
                                         onChange={(e) => setSortBy(e.target.value as any)}
-                                        className="text-xs font-semibold bg-surface-elevated border border-border-strong rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-primary cursor-pointer hover:border-brand-500 transition-all"
+                                        className="text-xs font-semibold bg-surface-elevated border border-border-strong rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-primary cursor-pointer hover:border-brand-500 transition-all"
                                     >
                                         <option value="relevance">Relevance</option>
                                         <option value="asc">Name (A-Z)</option>
@@ -521,7 +521,7 @@ export default function StudentLookup() {
                         ) : (
                             <div className="flex-1 flex flex-col min-h-0 bg-surface-elevated rounded-3xl border border-border-subtle shadow-card overflow-hidden animate-slideInRight transform-gpu">
                                 {/* Details Header */}
-                                <div className="sticky top-0 z-10 bg-surface-elevated border-b border-border-subtle px-5 py-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle px-5 py-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(studentDetail.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-background shadow-md`}>
                                             {(studentDetail.first_name?.[0] || '').toUpperCase()}{(studentDetail.last_name?.[0] || '').toUpperCase()}
@@ -581,7 +581,7 @@ export default function StudentLookup() {
                                                                     href={formatPhoneForWhatsApp(studentDetail.phone)!}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
-                                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                                     title="Chat on WhatsApp"
                                                                 >
                                                                     <MessageSquare size={14} />
@@ -590,7 +590,7 @@ export default function StudentLookup() {
                                                             {formatPhoneForCall(studentDetail.phone) && (
                                                                 <a
                                                                     href={formatPhoneForCall(studentDetail.phone)!}
-                                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-invited bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                                     title="Call Phone Number"
                                                                 >
                                                                     <Phone size={14} />
@@ -659,9 +659,9 @@ export default function StudentLookup() {
                                                 {studentDetail.flags.map(flag => (
                                                     <div 
                                                         key={flag.id}
-                                                        className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-start gap-3"
+                                                        className="p-3 rounded-xl bg-danger/10 border border-danger/25 flex items-start gap-3"
                                                     >
-                                                        <div className="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-500/20 rounded-lg flex items-center justify-center">
+                                                        <div className="flex-shrink-0 w-8 h-8 bg-danger/15 rounded-lg flex items-center justify-center">
                                                             <XCircle size={16} className="text-red-500" />
                                                         </div>
                                                         <div className="min-w-0 flex-1">
@@ -738,10 +738,10 @@ export default function StudentLookup() {
                                                                     badgeStyles = 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20';
                                                                     labelText = 'Course completed date:';
                                                                 } else if (isConfirmed) {
-                                                                    badgeStyles = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 ring-2 ring-emerald-500/20';
+                                                                    badgeStyles = 'bg-emerald-500/10 text-status-confirmed border-emerald-500/20 ring-2 ring-emerald-500/20';
                                                                     labelText = 'Confirmed course date:';
                                                                 } else {
-                                                                    badgeStyles = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 ring-2 ring-blue-500/20';
+                                                                    badgeStyles = 'bg-blue-500/10 text-status-invited border-blue-500/20 ring-2 ring-blue-500/20';
                                                                     labelText = 'Scheduled course date:';
                                                                 }
 
@@ -793,7 +793,7 @@ export default function StudentLookup() {
                                                             {/* Queue position badge for requested state */}
                                                             {en.status === 'requested' && en.queue_position !== null && (
                                                                 <div 
-                                                                    className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm"
+                                                                    className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-status-requested text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm"
                                                                     title="Position in queue for this course"
                                                                 >
                                                                     <span>Queue Position:</span>
@@ -805,7 +805,7 @@ export default function StudentLookup() {
 
                                                             {/* Pending Approval Badge */}
                                                             {en.completion_request_status === 'pending' ? (
-                                                                <span className="px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5 animate-pulse">
+                                                                <span className="px-2.5 py-1 text-xs font-bold text-status-requested bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center gap-1.5 animate-pulse">
                                                                     <Clock size={12} />
                                                                     <span>Pending Admin Approval ({formatDate(en.pending_completion_date)})</span>
                                                                 </span>
@@ -826,7 +826,7 @@ export default function StudentLookup() {
                                                                         setSelectedCompletionDate(en.confirmed_date || en.invited_date || new Date().toISOString().split('T')[0]);
                                                                         setCompletionModalOpen(true);
                                                                     }}
-                                                                    className="px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                                                                    className="px-3 py-1.5 text-xs font-bold text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
                                                                 >
                                                                     <GraduationCap size={13} />
                                                                     <span>{en.completion_request_status === 'rejected' ? 'Re-submit Completion' : 'Mark Completed'}</span>
@@ -860,7 +860,7 @@ export default function StudentLookup() {
                 <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
                     <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-md w-full p-6 space-y-4 animate-scaleIn">
                         <div className="flex items-center gap-3">
-                            <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                            <div className="p-3 bg-emerald-500/10 text-status-confirmed rounded-2xl">
                                 <GraduationCap size={24} />
                             </div>
                             <div>
@@ -879,7 +879,7 @@ export default function StudentLookup() {
                                 type="date"
                                 value={selectedCompletionDate}
                                 onChange={e => setSelectedCompletionDate(e.target.value)}
-                                className="w-full px-3 py-2 bg-surface border border-border-strong rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                                className="w-full px-3 py-2 bg-surface border border-border-strong rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                             />
                             <p className="text-[11px] text-muted">
                                 This will submit a completion request to the admin for verification.

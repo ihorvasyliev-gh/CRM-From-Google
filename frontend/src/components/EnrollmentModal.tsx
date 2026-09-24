@@ -29,7 +29,7 @@ interface EnrollmentModalProps {
 }
 
 const FIELD_CLASS = 'w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated transition-all placeholder:text-muted';
-const LABEL_CLASS = 'text-xs font-semibold text-muted uppercase tracking-wider mb-1.5 block';
+const LABEL_CLASS = 'text-xs font-semibold text-muted mb-1.5 block';
 
 const NO_STUDENTS: Student[] = [];
 
@@ -252,16 +252,16 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="enrollment-modal-title"
-                className="relative bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
+                className="relative bg-surface border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-float w-full max-w-lg animate-slideUp sm:animate-scaleIn max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden pb-[max(env(safe-area-inset-bottom),0.5rem)]"
             >
                 {/* Mobile pull handle */}
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
                 {/* Header */}
-                <div className="sticky top-0 bg-surface-elevated border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
+                <div className="sticky top-0 bg-surface border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
+                            <div className="p-2 bg-emerald-500/10 rounded-xl text-status-confirmed">
                                 <UserPlus size={18} />
                             </div>
                             <h2 id="enrollment-modal-title" className="text-lg font-bold text-primary">Add Enrollment</h2>
@@ -274,7 +274,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
                 <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
-                        <div role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
+                        <div role="alert" className="text-sm text-status-rejected bg-red-500/10 border border-red-500/30 px-4 py-2.5 rounded-xl animate-slideDown">
                             {error}
                         </div>
                     )}
@@ -336,7 +336,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                         id="enroll-student-listbox"
                                         role="listbox"
                                         ref={listRef}
-                                        className="absolute top-full left-0 right-0 mt-1.5 bg-surface-elevated border border-border-subtle rounded-xl shadow-lg max-h-56 overflow-y-auto z-20 animate-slideDown"
+                                        className="absolute top-full left-0 right-0 mt-1.5 bg-surface border border-border-subtle rounded-xl shadow-float max-h-56 overflow-y-auto z-20 animate-slideDown"
                                     >
                                         {studentResults.length === 0 ? (
                                             <div className="px-4 py-3 text-sm text-muted text-center">
@@ -392,7 +392,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             ))}
                         </select>
                         {existingEnrollment && (
-                            <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                            <p className="mt-1.5 text-xs text-status-requested flex items-center gap-1.5">
                                 <AlertTriangle size={12} className="flex-shrink-0" />
                                 Already enrolled in this course ({existingEnrollment.status}
                                 {existingEnrollment.course_variant ? `, ${cleanVariant(selectedCourseName, existingEnrollment.course_variant)}` : ''})
@@ -461,7 +461,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         <button
                             type="submit"
                             disabled={saving}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving && <Loader2 size={16} className="animate-spin" />}
                             Enroll Student

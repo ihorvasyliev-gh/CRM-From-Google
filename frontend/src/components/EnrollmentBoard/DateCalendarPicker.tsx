@@ -257,7 +257,7 @@ export default function DateCalendarPicker({
 
             {/* Dropdown Popover */}
             {isOpen && (
-                <div className="absolute left-0 mt-1.5 z-50 w-72 bg-surface-elevated border border-border-strong rounded-2xl shadow-xl p-3 select-none animate-slideDown">
+                <div className="absolute left-0 mt-1.5 z-50 w-72 bg-surface border border-border-subtle rounded-2xl shadow-float p-3 select-none animate-slideDown">
                     {/* Calendar Header */}
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-primary pl-1">

@@ -87,7 +87,7 @@ function QuickAction({ href, onClick, icon, label, tone = 'default', external }:
 }) {
     const tones = {
         default: 'text-primary hover:border-brand-500/40',
-        green: 'text-emerald-700 dark:text-emerald-300 hover:border-emerald-500/40',
+        green: 'text-status-confirmed hover:border-emerald-500/40',
         blue: 'text-sky-700 dark:text-sky-300 hover:border-sky-500/40',
     }[tone];
     const cls = `flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-surface-elevated/70 border border-border-subtle text-[11px] font-semibold transition-all active:scale-[0.97] ${tones}`;
@@ -382,7 +382,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                                 )}
 
                                                 {declined && (
-                                                    <p className="text-[11px] text-red-600 dark:text-red-400 bg-red-500/5 border border-red-500/20 p-2 rounded-lg">
+                                                    <p className="text-[11px] text-status-rejected bg-red-500/5 border border-red-500/20 p-2 rounded-lg">
                                                         <strong>Completion Request Rejected:</strong> {en.completion_rejection_reason || 'No reason specified'}.
                                                     </p>
                                                 )}
@@ -397,7 +397,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                                         <button
                                                             type="button"
                                                             onClick={() => setCompletionTarget({ targets: [{ enrollmentId: en.id, name, sessionDate: session }], course: en.course_name })}
-                                                            className="h-8 px-3 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-all inline-flex items-center gap-1.5 active:scale-95"
+                                                            className="h-8 px-3 text-xs font-bold text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-all inline-flex items-center gap-1.5 active:scale-95"
                                                         >
                                                             <GraduationCap size={13} />
                                                             {declined ? 'Re-submit Completion' : 'Request Completion'}

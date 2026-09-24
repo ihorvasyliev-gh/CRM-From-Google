@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle } from 'lucide-react';
+import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock } from 'lucide-react';
+import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
@@ -231,11 +232,11 @@ export default function OutreachLists() {
     function getTrackingBadge(status: OutreachContact['status']) {
         switch (status) {
             case 'responded':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500"><CheckCircle size={10} /> Responded</span>;
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed"><CheckCircle size={10} /> Responded</span>;
             case 'pending':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400"><Send size={10} /> Pending</span>;
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-info/15 text-status-invited"><Send size={10} /> Pending</span>;
             default:
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-500/20 text-zinc-400"><Mail size={10} /> Not Contacted</span>;
+                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/15 text-muted"><Mail size={10} /> Not Contacted</span>;
         }
     }
 
@@ -247,7 +248,7 @@ export default function OutreachLists() {
             const type = contact.employment_type === 'full_time' ? 'Full-time' : contact.employment_type === 'part_time' ? 'Part-time' : '';
             return (
                 <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed">
                         <Briefcase size={10} /> Working {type && `· ${type}`}
                     </span>
                     {contact.field_of_work && (
@@ -282,13 +283,13 @@ export default function OutreachLists() {
     return (
         <div className="space-y-4 pb-8">
             {/* List picker */}
-            <div className="bg-surface rounded-2xl border border-border-subtle p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 flex flex-wrap items-center gap-2 sm:gap-3">
                 <Users size={16} className="text-brand-500" />
                 <select
                     value={listId ?? ''}
                     onChange={e => setListId(e.target.value)}
                     aria-label="Contact list"
-                    className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                    className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20"
                 >
                     {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
@@ -312,7 +313,7 @@ export default function OutreachLists() {
                             onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setNewListName(null); } }}
                             placeholder="List name"
                             aria-label="New list name"
-                            className="text-sm bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-1 focus:ring-brand-500/50 w-40"
+                            className="text-sm bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 w-40"
                         />
                         <button type="submit" disabled={!newListName.trim()} className="px-2.5 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg disabled:opacity-50">Create</button>
                         <button type="button" onClick={() => setNewListName(null)} className="p-1.5 text-muted hover:text-primary"><X size={14} /></button>
@@ -338,32 +339,19 @@ export default function OutreachLists() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
-                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Contacts</p>
-                    <p className="text-2xl font-bold text-primary mt-1">{contacts.length}</p>
-                </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
-                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Response Rate</p>
-                    <p className="text-2xl font-bold text-brand-500 mt-1">{responseRate}%</p>
-                </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
-                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Currently Working</p>
-                    <p className="text-2xl font-bold text-emerald-500 mt-1">{workingCount}</p>
-                </div>
-                <div className="bg-surface rounded-2xl border border-border-subtle p-2.5 sm:p-4">
-                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Pending Responses</p>
-                    <p className="text-2xl font-bold text-blue-500 mt-1">{statusCounts.pending}</p>
-                </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile label="Contacts" icon={Users} tone="brand" value={contacts.length} />
+                <StatTile label="Response rate" icon={MailCheck} tone="completed" value={`${responseRate}%`} />
+                <StatTile label="Currently working" icon={Briefcase} tone="success" value={workingCount} />
+                <StatTile label="Pending responses" icon={Clock} tone="warning" value={statusCounts.pending} />
             </div>
 
             {/* Toolbar */}
-            <div className="bg-surface rounded-2xl border border-border-subtle p-3 sm:p-4 space-y-3">
+            <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 space-y-3">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <SearchInput
                         wrapperClassName="flex-1 min-w-[200px]"
-                        className="!py-1.5 sm:!py-2 !bg-background"
-                        value={searchQuery}
+                                                value={searchQuery}
                         onChange={setSearchQuery}
                         placeholder="Search by name, email, IRIS ID or field..."
                         aria-label="Search contacts"
@@ -390,7 +378,7 @@ export default function OutreachLists() {
             </div>
 
             {/* Table */}
-            <div className="bg-surface rounded-2xl border border-border-subtle overflow-hidden">
+            <div className="bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden">
                 {contactsLoading ? (
                     <div className="flex items-center justify-center py-16">
                         <Loader2 size={24} className="animate-spin text-brand-500" />
@@ -419,12 +407,12 @@ export default function OutreachLists() {
                                             className="rounded border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider">Contact</th>
-                                    <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
-                                    <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider">Employment</th>
-                                    <th className="py-3 px-4 text-left text-[10px] font-bold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
-                                    <th className="py-3 px-4 text-right text-[10px] font-bold text-muted uppercase tracking-wider">Actions</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Contact</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Tracking</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Employment</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -456,7 +444,7 @@ export default function OutreachLists() {
                                                         <p className="font-semibold text-primary text-[13px] truncate flex items-center gap-1.5">
                                                             {`${contact.first_name} ${contact.last_name}`.trim() || '—'}
                                                             {contact.in_crm && (
-                                                                <span title="The same email is also a student in the CRM" className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400">In CRM</span>
+                                                                <span title="The same email is also a student in the CRM" className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed">In CRM</span>
                                                             )}
                                                         </p>
                                                         <p className="text-[11px] text-muted truncate">{contact.email}</p>
@@ -505,7 +493,7 @@ export default function OutreachLists() {
 
             {/* Bulk Action Bar */}
             {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/20 px-4 py-3 flex flex-wrap justify-center items-center gap-3 animate-slideUpCenter w-[calc(100vw-2rem)] sm:w-auto max-w-[480px] sm:max-w-none">
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border-subtle rounded-2xl shadow-float px-4 py-3 flex flex-wrap justify-center items-center gap-3 animate-slideUpCenter w-[calc(100vw-2rem)] sm:w-auto max-w-[480px] sm:max-w-none">
                     <span className="text-sm font-bold text-primary">{selectedIds.size} selected</span>
                     <div className="h-5 w-px bg-border-subtle" />
                     <button
@@ -517,7 +505,7 @@ export default function OutreachLists() {
                     <button
                         onClick={handleSendStatusRequest}
                         disabled={sending}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {sending ? (
                             <><Loader2 size={12} className="animate-spin" /> Moving...</>

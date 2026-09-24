@@ -83,7 +83,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                 onClick={!importing ? onClose : undefined}
             />
 
-            <div className="bg-surface-elevated rounded-2xl shadow-2xl shadow-black/40 border border-border-strong w-full max-w-lg relative z-10 animate-scaleIn overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-surface rounded-2xl shadow-float border border-border-subtle w-full max-w-lg relative z-10 animate-scaleIn overflow-hidden flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-border-subtle shrink-0">
                     <div>
@@ -131,7 +131,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                             onChange={e => setPasteText(e.target.value)}
                             rows={4}
                             placeholder={'First Name\tLast Name\tEmail\nAnna\tSmith\tanna@example.com'}
-                            className="w-full bg-background text-primary text-xs font-mono rounded-xl border border-border-strong px-3 py-2 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/50 placeholder:text-muted/40"
+                            className="w-full bg-surface text-primary text-xs font-mono rounded-xl border border-border-subtle px-3 py-2 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 placeholder:text-muted/40"
                         />
                         <button
                             type="button"
@@ -158,7 +158,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                     )}
 
                     {error && (
-                        <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
+                        <div role="alert" className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
                             <AlertCircle size={16} className="shrink-0" />
                             <p>{error}</p>
                         </div>
@@ -166,7 +166,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                 </div>
 
                 {/* Footer */}
-                <div className="p-5 border-t border-border-subtle bg-surface/50 flex justify-end gap-3 shrink-0">
+                <div className="px-5 py-3.5 border-t border-border-subtle bg-surface-elevated/40 flex justify-end gap-2 shrink-0">
                     <button
                         type="button"
                         onClick={onClose}

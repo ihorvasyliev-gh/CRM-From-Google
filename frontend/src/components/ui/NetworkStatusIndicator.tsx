@@ -46,10 +46,10 @@ function IndicatorView({ showLabel = false, className = '', state }: Props & { s
                 onKeyDown={handleKeyDown}
                 className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-xl text-xs font-semibold transition-all select-none ${
                     status === 'online'
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        ? 'bg-emerald-500/10 text-status-confirmed border border-emerald-500/20'
                         : status === 'reconnecting'
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse cursor-pointer hover:bg-amber-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/40'
-                        : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 animate-pulse cursor-pointer hover:bg-red-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500/40'
+                        ? 'bg-amber-500/10 text-status-requested border border-amber-500/20 animate-pulse cursor-pointer hover:bg-amber-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/40'
+                        : 'bg-red-500/10 text-status-rejected border border-red-500/20 animate-pulse cursor-pointer hover:bg-red-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500/40'
                 } ${className}`}
                 aria-label={statusText}
             >

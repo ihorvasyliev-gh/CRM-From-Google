@@ -609,7 +609,7 @@ function App() {
                 {/* Mobile overlay */}
                 {sidebarOpen && !isViewer && (
                     <div
-                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-30 lg:hidden animate-fadeIn"
+                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-[35] lg:hidden animate-fadeIn"
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
@@ -734,7 +734,8 @@ function App() {
                 {/* Main Content */}
                 {/* Only the board manages its own (per-column) scrolling; every other page scrolls here.
                     (The dashboard used to be overflow-hidden on desktop, cutting off everything below the fold.) */}
-                <div className={`flex-1 flex flex-col h-screen relative z-10 min-w-0 ${
+                {/* No z-index on this column: page-level dialogs and drawers must layer above the sidebar */}
+                <div className={`flex-1 flex flex-col h-screen relative min-w-0 ${
                     activeTab === 'enrollments' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* Notification Permission Banner */}

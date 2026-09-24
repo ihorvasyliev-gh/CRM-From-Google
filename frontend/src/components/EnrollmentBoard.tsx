@@ -882,7 +882,7 @@ export default function EnrollmentBoard({
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteTarget(enrollment)}
-                                                        className="text-muted hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/40 p-1 rounded-lg transition-all"
+                                                        className="text-muted hover:text-red-500 hover:bg-danger/10 p-1 rounded-lg transition-all"
                                                     >
                                                         <Trash2 size={12} />
                                                     </button>
@@ -921,11 +921,11 @@ export default function EnrollmentBoard({
             {inviteFlow.inviteDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => inviteFlow.setInviteDateTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
+                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-400">
+                            <div className="p-2.5 bg-blue-500/10 rounded-xl text-status-invited">
                                 <Send size={22} />
                             </div>
                             <div>
@@ -976,22 +976,22 @@ export default function EnrollmentBoard({
                                                 onClick={() => inviteFlow.multiDate ? inviteFlow.toggleInviteDate(d) : inviteFlow.setInviteDate(d)}
                                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
                                                     isSelected
-                                                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                                                        ? 'bg-info/10 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
                                                         : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-elevated'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-sm' : 'rounded-full'} flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
-                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-primary'}`}>
+                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
                                                         {inviteFlow.multiDate ? formatDayDateShort(d) : formatDateLong(d)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50" title="Confirmed students on this date">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded border border-success/25" title="Confirmed students on this date">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                                         {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                                                     </span>
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                                         {stats.pending} pending
                                                     </span>
@@ -1022,7 +1022,7 @@ export default function EnrollmentBoard({
                                         type="button"
                                         onClick={() => inviteFlow.toggleInviteDate(inviteFlow.inviteDate)}
                                         disabled={!inviteFlow.inviteDate || inviteFlow.inviteDates.includes(inviteFlow.inviteDate)}
-                                        className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 px-3 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl transition-all"
+                                        className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 px-3 py-2 text-sm font-semibold text-status-invited bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl transition-all"
                                     >
                                         <Plus size={14} /> Add
                                     </button>
@@ -1039,7 +1039,7 @@ export default function EnrollmentBoard({
                                             {inviteFlow.inviteDates.map(d => {
                                                 const stats = inviteFlow.getDateStats(d);
                                                 return (
-                                                    <span key={d} className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-500/30 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                                    <span key={d} className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-info/10 border border-blue-500/30 text-xs font-semibold text-status-invited">
                                                         {formatDayDateShort(d)}
                                                         <span className="font-normal text-muted" title="Confirmed / pending on this date">
                                                             {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} · {stats.pending}p
@@ -1058,7 +1058,7 @@ export default function EnrollmentBoard({
                                         </div>
                                     )}
                                     {inviteFlow.inviteDates.length === 1 && (
-                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">Add one more date, or switch off “Multiple dates”.</p>
+                                        <p className="text-xs text-status-requested mt-1.5">Add one more date, or switch off “Multiple dates”.</p>
                                     )}
                                 </div>
                             </div>
@@ -1079,12 +1079,12 @@ export default function EnrollmentBoard({
                             {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
                                 <div className="flex items-center gap-2 mt-1.5 px-1">
                                     <span className="text-[11px] text-muted">On this date:</span>
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                         {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                                     </span>
                                     <span className="text-border-subtle">•</span>
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                         {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
                                     </span>
@@ -1125,14 +1125,14 @@ export default function EnrollmentBoard({
                             <button
                                 onClick={inviteFlow.handleInviteWithDate}
                                 disabled={!inviteFlow.canInvite}
-                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl transition-all shadow-sm"
+                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl transition-all shadow-sm"
                             >
                                 <Send size={14} /> Just Invite
                             </button>
                             <button
                                 onClick={inviteFlow.handleInviteAndEmail}
                                 disabled={!inviteFlow.canInvite}
-                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 rounded-xl transition-all shadow-sm"
+                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm"
                             >
                                 <Mail size={14} /> Invite & Email
                             </button>
@@ -1144,11 +1144,11 @@ export default function EnrollmentBoard({
             {confirmDateTarget && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setConfirmDateTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
+                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
+                            <div className="p-2.5 bg-success/10 rounded-xl text-status-confirmed">
                                 <CheckCircle size={22} />
                             </div>
                             <div>
@@ -1176,22 +1176,22 @@ export default function EnrollmentBoard({
                                                 onClick={() => setConfirmDate(d)}
                                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
                                                     isSelected
-                                                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
+                                                        ? 'bg-success/10 border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm'
                                                         : 'bg-surface border-border-subtle hover:border-emerald-300 hover:bg-surface-elevated'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isSelected ? 'bg-emerald-500' : 'bg-transparent border border-border-subtle'}`} />
-                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-primary'}`}>
+                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-confirmed font-bold' : 'text-primary'}`}>
                                                         {formatDateLong(d)}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50" title="Confirmed students on this date">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded border border-success/25" title="Confirmed students on this date">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                                         {stats.confirmed} confirmed
                                                     </span>
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                                         {stats.pending} pending
                                                     </span>
@@ -1217,12 +1217,12 @@ export default function EnrollmentBoard({
                         {confirmDate && !inviteFlow.savedInviteDates.includes(confirmDate) && (
                             <div className="flex items-center gap-2 mt-1.5 px-1">
                                 <span className="text-[11px] text-muted">On this date:</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                     {inviteFlow.getDateStats(confirmDate).confirmed} confirmed
                                 </span>
                                 <span className="text-border-subtle">•</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
                                     <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                     {inviteFlow.getDateStats(confirmDate).pending} pending
                                 </span>
@@ -1239,7 +1239,7 @@ export default function EnrollmentBoard({
                             <button
                                 onClick={handleConfirmWithDate}
                                 disabled={!confirmDate || confirmingDate}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {confirmingDate && <Loader2 size={14} className="animate-spin" />}
                                 Confirm
@@ -1322,7 +1322,7 @@ export default function EnrollmentBoard({
             {editNoteTarget && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setEditNoteTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
+                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -1378,7 +1378,7 @@ export default function EnrollmentBoard({
             {flagModalTarget && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setFlagModalTarget(null)}>
                     <div
-                        className="bg-surface-elevated rounded-2xl shadow-2xl border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
+                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center gap-3 mb-5">
@@ -1464,7 +1464,7 @@ export default function EnrollmentBoard({
                                         setFlagComment('');
                                     }}
                                     disabled={!flagCourseId}
-                                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     Add Flag
                                 </button>

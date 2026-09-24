@@ -185,7 +185,7 @@ export default function FilterBar({
                                     setSearchQuery('');
                                 }
                             }}
-                            className={`w-full pl-8 py-1.5 md:py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
+                            className={`w-full pl-8 py-1.5 md:py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
                                 searchIsFiltering
                                     ? 'border-brand-400 pr-24'
                                     : searchQuery
@@ -333,7 +333,7 @@ export default function FilterBar({
                     <div className="flex overflow-x-auto items-center gap-1.5 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1 animate-fadeIn">
                         <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
                             <Calendar size={13} className="text-emerald-500 flex-shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-status-confirmed">
                                 Dates:
                             </span>
                         </div>
@@ -550,7 +550,7 @@ export default function FilterBar({
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
                         aria-label="Advanced Filters"
-                        className={`inline-flex items-center gap-1 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-all hover:scale-105 hover:shadow-sm active:scale-95 ${
+                        className={`inline-flex items-center gap-1 text-[11px] md:text-xs font-semibold px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-colors active:scale-95 ${
                             showAdvanced
                                 ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
                                 : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
@@ -575,7 +575,7 @@ export default function FilterBar({
                             <button
                                 onClick={() => onStatusBadgeClick?.(status)}
                                 aria-label={`Scroll to ${cfg.label} column`}
-                                className={`inline-flex items-center gap-1 md:gap-1.5 text-[10px] md:text-[11px] font-semibold tracking-wider uppercase px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-all hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer`}
+                                className={`inline-flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs font-semibold px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-colors active:scale-95 cursor-pointer`}
                             >
                                 {cfg.icon}
                                 <span>{cfg.label}</span>

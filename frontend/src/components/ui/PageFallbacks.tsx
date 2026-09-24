@@ -14,7 +14,7 @@ export function PublicPageFallback() {
                 </div>
             </div>
             <div className="w-full max-w-md bg-[#18181B] rounded-2xl border border-zinc-800 shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex items-center justify-center p-6">
-                <div className="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-indigo-500 animate-spin" />
             </div>
         </div>
     );

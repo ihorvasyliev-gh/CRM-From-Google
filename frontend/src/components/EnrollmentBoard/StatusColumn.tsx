@@ -123,7 +123,7 @@ const StatusColumn = function StatusColumn({
                             <span className={`${cfg.color} flex items-center flex-shrink-0 scale-90 md:scale-100`}>
                                 {cfg.icon}
                             </span>
-                            <h3 className={`text-xs md:text-sm font-bold uppercase tracking-wider ${cfg.color}`}>{cfg.label}</h3>
+                            <h3 className={`text-[13px] md:text-sm font-semibold ${cfg.color}`}>{cfg.label}</h3>
                             <span className={`text-[10px] md:text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-sm`}>
                                 {items.length}
                             </span>

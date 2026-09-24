@@ -40,7 +40,7 @@ export default function MobileFloatingActions({
                                 setOpen(false);
                                 onOpenCommandPalette();
                             }}
-                            className="flex items-center gap-2.5 px-3.5 py-2 bg-surface-elevated text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
+                            className="flex items-center gap-2.5 px-3.5 py-2 bg-surface text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
                         >
                             <span>Quick Search</span>
                             <div className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
@@ -54,7 +54,7 @@ export default function MobileFloatingActions({
                                     setOpen(false);
                                     onOpenEnrollment();
                                 }}
-                                className="flex items-center gap-2.5 px-3.5 py-2 bg-surface-elevated text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
+                                className="flex items-center gap-2.5 px-3.5 py-2 bg-surface text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
                             >
                                 <span>New Enrollment</span>
                                 <div className="w-8 h-8 rounded-lg bg-success/15 text-status-confirmed flex items-center justify-center">
@@ -68,7 +68,7 @@ export default function MobileFloatingActions({
                                 setOpen(false);
                                 onOpenAddStudent();
                             }}
-                            className="flex items-center gap-2.5 px-3.5 py-2 bg-surface-elevated text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
+                            className="flex items-center gap-2.5 px-3.5 py-2 bg-surface text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
                         >
                             <span>Add Student</span>
                             <div className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">

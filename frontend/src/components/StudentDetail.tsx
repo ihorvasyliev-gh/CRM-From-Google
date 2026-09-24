@@ -40,10 +40,10 @@ interface Props {
 }
 
 const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
-    requested: { icon: <Clock size={12} />, className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20' },
-    invited: { icon: <Send size={12} />, className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20' },
-    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' },
-    rejected: { icon: <XCircle size={12} />, className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20' },
+    requested: { icon: <Clock size={12} />, className: 'bg-warning/10 text-status-requested border-warning/30' },
+    invited: { icon: <Send size={12} />, className: 'bg-info/10 text-status-invited border-info/25' },
+    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-success/10 text-status-confirmed border-success/25' },
+    rejected: { icon: <XCircle size={12} />, className: 'bg-danger/10 text-status-rejected border-danger/25' },
     completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20' },
     withdrawn: { icon: <XCircle size={12} />, className: 'bg-muted/10 text-muted border-border-subtle' },
 };
@@ -387,12 +387,12 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end overflow-hidden animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface-elevated rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
+            <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-float overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
                 {/* Mobile pull handle */}
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-surface-elevated border-b border-border-subtle px-5 py-3.5 sm:py-4">
+                <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle px-5 py-3.5 sm:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>
@@ -427,15 +427,15 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                     </button>
                                 )}
                                 {onEnroll && (
-                                    <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
+                                    <button onClick={onEnroll} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all">
                                         <UserPlus size={14} /> Enroll
                                     </button>
                                 )}
-                                <button onClick={() => setMergeModalOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-xl transition-all" title="Merge student profiles">
+                                <button onClick={() => setMergeModalOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all" title="Merge student profiles">
                                     <GitMerge size={14} /> Merge
                                 </button>
                                 {onDelete && (
-                                    <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all" title="Delete student">
+                                    <button onClick={onDelete} className="flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold text-status-rejected bg-danger/10 hover:bg-danger/20 rounded-xl transition-all" title="Delete student">
                                         <Trash2 size={14} />
                                     </button>
                                 )}
@@ -484,7 +484,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     href={formatPhoneForWhatsApp(student.phone)!}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                     title="Chat on WhatsApp"
                                                 >
                                                     <MessageSquare size={14} />
@@ -493,7 +493,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {formatPhoneForCall(student.phone) && (
                                                 <a
                                                     href={formatPhoneForCall(student.phone)!}
-                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-invited bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
                                                     title="Call Phone Number"
                                                 >
                                                     <Phone size={14} />
@@ -582,7 +582,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 {onEnroll && (
                                     <button
                                         onClick={onEnroll}
-                                        className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                        className="mt-2 text-xs font-semibold text-status-confirmed hover:underline"
                                     >
                                         + Enroll in a course
                                     </button>
@@ -614,7 +614,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                         {/* Pending Completion Approval Banner */}
                                         {en.completion_request_status === 'pending' && (
                                             <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-2 text-xs animate-pulse">
-                                                <span className="text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1">
+                                                <span className="text-status-requested font-semibold flex items-center gap-1">
                                                     <Clock size={12} />
                                                     Completion requested for <strong>{en.pending_completion_date ? formatDateDMY(en.pending_completion_date) : 'Today'}</strong>
                                                     {en.completion_requested_by ? ` (${en.completion_requested_by})` : ''}
@@ -646,7 +646,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                             }
                                                         }}
                                                         disabled={rejectMutation.isPending}
-                                                        className="px-2 py-0.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded text-[10px] font-semibold"
+                                                        className="px-2 py-0.5 bg-danger/10 hover:bg-danger/20 text-status-rejected rounded text-[10px] font-semibold"
                                                     >
                                                         Reject
                                                     </button>

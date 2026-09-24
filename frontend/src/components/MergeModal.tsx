@@ -180,9 +180,9 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={merging || markingNonDuplicate ? undefined : onClose} />
-            <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-surface-elevated rounded-2xl shadow-2xl animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
+            <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-surface border border-border-subtle rounded-2xl shadow-float animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-border-subtle bg-surface-elevated flex-shrink-0">
+                <div className="px-6 py-4 border-b border-border-subtle bg-surface flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-brand-50 rounded-xl text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
@@ -198,7 +198,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
                 <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
-                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-slideDown dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20">
+                        <div className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-slideDown">
                             <AlertCircle size={16} className="flex-shrink-0" />
                             <span>{error}</span>
                         </div>
@@ -347,7 +347,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                         <td className="p-3 font-medium text-muted flex items-center justify-between">
                                                             <span>{label}</span>
                                                             {hasDiff && !isModified && (
-                                                                <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold uppercase">
+                                                                <span className="text-[10px] bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded font-semibold uppercase">
                                                                     Differs
                                                                 </span>
                                                             )}
@@ -439,7 +439,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                         <button
                             onClick={handleMerge}
                             disabled={merging || markingNonDuplicate}
-                            className="px-4 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-sm hover:shadow"
+                            className="px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-sm hover:shadow"
                         >
                             {merging ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
                             {merging ? 'Merging...' : `Confirm Merge into ${primaryStudent?.first_name}`}

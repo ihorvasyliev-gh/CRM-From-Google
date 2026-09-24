@@ -433,7 +433,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
             {/* Floating bulk action bar */}
             {selectedRows.length > 0 && (
                 <div className="fixed left-1/2 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] lg:bottom-6 z-30 w-[calc(100%-1.5rem)] sm:w-auto max-w-3xl animate-slideUpCenter" role="toolbar" aria-label="Bulk actions">
-                    <div className="flex items-center gap-1.5 p-1.5 pl-3 bg-surface-elevated/95 backdrop-blur-md border border-border-strong/60 rounded-2xl shadow-float overflow-x-auto scrollbar-none">
+                    <div className="flex items-center gap-1.5 p-1.5 pl-3 bg-surface/95 backdrop-blur-md border border-border-subtle rounded-2xl shadow-float overflow-x-auto scrollbar-none">
                         <span className="text-xs font-bold text-primary whitespace-nowrap pr-1">{selectedRows.length} selected</span>
                         <Button size="sm" variant="ghost" onClick={() => copyList(selectedRows.map(r => r.email), 'Emails')} title="Copy emails (comma separated, ready for BCC)">
                             <Copy size={13} /> Emails
@@ -492,7 +492,7 @@ function DateChip({ active, onClick, label, count, title, past, today }: { activ
                 active
                     ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
                     : today
-                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:border-emerald-500/60'
+                    ? 'bg-emerald-500/10 text-status-confirmed border-emerald-500/30 hover:border-emerald-500/60'
                     : `bg-surface border-border-subtle hover:border-border-strong ${past ? 'text-muted' : 'text-primary'}`
             }`}
         >
@@ -577,7 +577,7 @@ function RosterRow({
                     {variant && <span className="sm:hidden text-[10px] text-muted">{variant}</span>}
                 </div>
                 {declined && (
-                    <p className="mt-1 text-[11px] text-red-600 dark:text-red-400 line-clamp-2">
+                    <p className="mt-1 text-[11px] text-status-rejected line-clamp-2">
                         <strong>Completion declined:</strong> {item.completion_rejection_reason || 'no reason given'}
                     </p>
                 )}
@@ -599,7 +599,7 @@ function RosterRow({
                 ) : session ? (
                     <>
                         <div className="font-semibold text-primary">{weekdayDate(session)}</div>
-                        <div className={`text-[11px] ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
+                        <div className={`text-[11px] ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
                     </>
                 ) : (
                     <span className="text-muted" title="Registered on">Reg. {formatDateDMY(item.created_at)}</span>
@@ -612,7 +612,7 @@ function RosterRow({
                         type="button"
                         onClick={e => { e.stopPropagation(); onRequestCompletion(); }}
                         onKeyDown={e => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 transition-colors"
+                        className="inline-flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-semibold text-status-confirmed hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 transition-colors"
                         title={declined ? 'Re-submit completion request' : 'Request completion'}
                         aria-label={`Mark ${name} completed`}
                     >

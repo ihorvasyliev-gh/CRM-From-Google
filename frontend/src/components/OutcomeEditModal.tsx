@@ -96,7 +96,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                 onClick={!saving ? onClose : undefined}
             />
             
-            <div className="bg-surface-elevated rounded-2xl shadow-2xl shadow-black/40 border border-border-strong w-full max-w-lg relative z-10 animate-scaleIn overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-surface rounded-2xl shadow-float border border-border-subtle w-full max-w-lg relative z-10 animate-scaleIn overflow-hidden flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-border-subtle shrink-0">
                     <div>
@@ -128,7 +128,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('not_contacted')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'not_contacted'
-                                            ? 'bg-zinc-500/20 text-zinc-300 border-zinc-500/40 shadow-sm'
+                                            ? 'bg-muted/15 text-primary border-border-strong shadow-sm'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -139,7 +139,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('pending')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'pending'
-                                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 shadow-sm'
+                                            ? 'bg-info/15 text-status-invited border-info/40 shadow-sm'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -150,7 +150,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('responded')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'responded'
-                                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                                            ? 'bg-success/15 text-status-confirmed border-success/40 shadow-sm'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -202,7 +202,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                 type="month"
                                                 value={startedMonth}
                                                 onChange={(e) => setStartedMonth(e.target.value)}
-                                                className="w-full bg-background text-primary text-sm rounded-xl border border-border-strong px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/50 transition-all font-medium [color-scheme:dark]"
+                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium [color-scheme:dark]"
                                             />
                                         </div>
 
@@ -215,7 +215,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                 value={fieldOfWork}
                                                 onChange={(e) => setFieldOfWork(e.target.value)}
                                                 placeholder="e.g. IT, Hospitality, Healthcare..."
-                                                className="w-full bg-background text-primary text-sm rounded-xl border border-border-strong px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/50 transition-all font-medium placeholder:text-muted/40"
+                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
                                             />
                                         </div>
 
@@ -229,7 +229,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                     onClick={() => setEmploymentType('full_time')}
                                                     className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                         employmentType === 'full_time'
-                                                            ? 'bg-violet-500/20 text-violet-400 border-violet-500/40 shadow-sm'
+                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-sm'
                                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                                     }`}
                                                 >
@@ -240,7 +240,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                     onClick={() => setEmploymentType('part_time')}
                                                     className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                         employmentType === 'part_time'
-                                                            ? 'bg-violet-500/20 text-violet-400 border-violet-500/40 shadow-sm'
+                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-sm'
                                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                                     }`}
                                                 >
@@ -254,7 +254,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         )}
 
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
+                            <div className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
                                 <AlertCircle size={16} className="shrink-0" />
                                 <p>{error}</p>
                             </div>
@@ -263,13 +263,13 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                 </div>
 
                 {/* Footer */}
-                <div className="p-5 border-t border-border-subtle bg-surface/50 flex justify-end gap-3 shrink-0">
+                <div className="px-5 py-3.5 border-t border-border-subtle bg-surface-elevated/40 flex justify-end gap-2 shrink-0">
                     {onDelete && (
                         <button
                             type="button"
                             onClick={handleDelete}
                             disabled={saving}
-                            className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                            className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-status-rejected hover:bg-danger/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
                         >
                             <Trash2 size={15} /> {deleteLabel}
                         </button>

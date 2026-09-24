@@ -129,7 +129,7 @@ export default function ViewerHeader({
                             <Kbd>?</Kbd>
                         </button>
                         <div className="my-1 border-t border-border-subtle" />
-                        <button role="menuitem" type="button" className={`${menuItem} text-red-600 dark:text-red-400 hover:bg-red-500/10`} onClick={onSignOut}>
+                        <button role="menuitem" type="button" className={`${menuItem} text-red-600 dark:text-status-rejected hover:bg-danger/10`} onClick={onSignOut}>
                             <LogOut size={15} />
                             <span className="flex-1 text-left">Sign out</span>
                         </button>

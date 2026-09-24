@@ -83,7 +83,7 @@ export default function CompletionRequestModal({
                 className="relative w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-2xl border border-border-subtle shadow-2xl p-5 sm:p-6 space-y-4 animate-sheetSlideUp sm:animate-scaleIn pb-[max(env(safe-area-inset-bottom),1.25rem)]"
             >
                 <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
+                    <div className="p-2.5 bg-emerald-500/10 text-status-confirmed rounded-xl shrink-0">
                         <GraduationCap size={22} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -134,7 +134,7 @@ export default function CompletionRequestModal({
                         className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     />
                     {inFuture ? (
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <p className="text-[11px] text-status-requested flex items-center gap-1">
                             <AlertTriangle size={12} /> This date is in the future — double-check before submitting.
                         </p>
                     ) : (

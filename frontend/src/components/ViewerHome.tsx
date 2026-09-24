@@ -116,7 +116,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                         <div className="space-y-4">
                             {groups.map(({ bucket, sessions }) => (
                                 <div key={bucket} className="space-y-1.5">
-                                    <h3 className={`text-[11px] font-bold uppercase tracking-wider ${bucket === 'Today' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted'}`}>
+                                    <h3 className={`text-[11px] font-bold uppercase tracking-wider ${bucket === 'Today' ? 'text-status-confirmed' : 'text-muted'}`}>
                                         {bucket} <span className="text-muted font-semibold normal-case tracking-normal">· {pluralize(sessions.length, 'session')}</span>
                                     </h3>
                                     <div className="bg-surface rounded-2xl border border-border-subtle divide-y divide-border-subtle shadow-card overflow-hidden">
@@ -178,9 +178,9 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
 
 const TONES = {
     brand: 'text-brand-600 dark:text-brand-400 bg-brand-500/10',
-    emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
-    amber: 'text-amber-600 dark:text-amber-400 bg-amber-500/10',
-    violet: 'text-violet-600 dark:text-violet-400 bg-violet-500/10',
+    emerald: 'text-status-confirmed bg-emerald-500/10',
+    amber: 'text-status-requested bg-amber-500/10',
+    violet: 'text-status-completed bg-violet-500/10',
 };
 
 function StatTile({ label, value, icon, tone, loading, hint, onClick }: {
@@ -212,7 +212,7 @@ function SessionRow({ session, onOpen }: { session: ViewerUpcomingCourse; onOpen
     const total = session.confirmed_count + session.pending_count;
     return (
         <button type="button" onClick={onOpen} className="w-full flex items-center gap-3 px-3 sm:px-4 py-3 text-left hover:bg-surface-elevated/60 transition-colors group">
-            <div className={`w-11 shrink-0 rounded-xl text-center py-1 border ${diff <= 1 ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300' : 'bg-surface-elevated border-border-subtle text-primary'}`}>
+            <div className={`w-11 shrink-0 rounded-xl text-center py-1 border ${diff <= 1 ? 'bg-emerald-500/10 border-emerald-500/25 text-status-confirmed' : 'bg-surface-elevated border-border-subtle text-primary'}`}>
                 <div className="text-[9px] font-bold uppercase leading-none mt-0.5">{d.toLocaleDateString('en-IE', { weekday: 'short' })}</div>
                 <div className="text-base font-bold leading-tight tabular-nums">{d.getDate()}</div>
                 <div className="text-[9px] font-semibold uppercase leading-none mb-0.5 opacity-80">{d.toLocaleDateString('en-IE', { month: 'short' })}</div>

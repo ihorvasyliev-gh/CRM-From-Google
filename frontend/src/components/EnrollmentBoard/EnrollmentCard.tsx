@@ -322,7 +322,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         if (remaining <= 0) {
                             const invitedDate = new Date(enrollment.invited_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
-                                <span className={`${metaChip} bg-red-500/10 text-red-600 dark:text-red-400 font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
+                                <span className={`${metaChip} bg-red-500/10 text-status-rejected font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
                                     <Timer size={10} strokeWidth={2.5} />
                                     Expired
                                 </span>
@@ -440,7 +440,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                             title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
+                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
                         >
                             <Award size={10} strokeWidth={2.5} className="flex-shrink-0" />
                             {completedCourses.length}
@@ -482,7 +482,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                             onClick={e => e.stopPropagation()}
                                             onPointerDown={e => e.stopPropagation()}
                                             onTouchStart={e => e.stopPropagation()}
-                                            className={`${contactBtn} text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15`}
+                                            className={`${contactBtn} text-status-confirmed hover:bg-emerald-500/15`}
                                             aria-label="Chat on WhatsApp"
                                         >
                                             <MessageSquare size={13} />
@@ -521,9 +521,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
                         <button
                             onClick={handleStartEditNote}
-                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
+                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-status-requested bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
                         >
-                            <Pencil size={10} className="flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                            <Pencil size={10} className="flex-shrink-0 text-status-requested" />
                             <span className="truncate">{enrollment.notes}</span>
                         </button>
                     </CustomTooltip>
@@ -537,7 +537,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     onPointerDown={e => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-status-requested flex items-center gap-1">
                             <Pencil size={10} /> Quick Note
                         </span>
                         <span className="text-[9px] text-muted font-mono">↵ Save · Esc Cancel</span>
@@ -575,7 +575,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
             {/* Pending Completion Approval Highlight */}
             {enrollment.completion_request_status === 'pending' && (
-                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-amber-700 dark:text-amber-300 text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
+                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
                     <Clock size={11} className="flex-shrink-0" />
                     <span className="truncate">
                         Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
@@ -596,10 +596,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     <div 
                         onClick={e => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl p-5 w-full max-w-sm animate-scaleIn cursor-default"
+                        className="bg-surface border border-border-subtle rounded-2xl shadow-float p-5 w-full max-w-sm animate-scaleIn cursor-default"
                     >
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl text-amber-500">
+                            <div className="p-2.5 bg-warning/10 rounded-xl text-amber-500">
                                 <Award size={22} strokeWidth={2.5} />
                             </div>
                             <div>
@@ -645,7 +645,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             onClick={e => e.stopPropagation()}
                             onPointerDown={e => e.stopPropagation()}
                             onTouchStart={e => e.stopPropagation()}
-                            className="w-full max-w-lg bg-surface-elevated border-t border-border-subtle rounded-t-3xl shadow-2xl p-4 pb-6 space-y-3 z-[10000] animate-sheetSlideUp max-h-[85vh] flex flex-col"
+                            className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl shadow-float p-4 pb-6 space-y-3 z-[10000] animate-sheetSlideUp max-h-[85vh] flex flex-col"
                         >
                             {/* Drag Handle Bar */}
                             <div className="w-12 h-1.5 bg-muted/30 rounded-full mx-auto cursor-pointer" onClick={() => setShowQuickMove(false)} />
@@ -721,7 +721,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 }}
                                 onClick={e => e.stopPropagation()}
                                 onPointerDown={e => e.stopPropagation()}
-                                className={`w-44 bg-surface-elevated border border-border-subtle rounded-xl shadow-2xl p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
+                                className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
                             >
                                 <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
                                     <span>Move to Status</span>
