@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { GraduationCap, Search, X, UserPlus, Globe, Filter, ArrowUpDown, SlidersHorizontal, Clock, ArrowDownUp, CaseSensitive, Calendar, ChevronDown } from 'lucide-react';
-import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG } from '../../lib/statusConfig';
-import { formatDayDateShort } from '../../lib/dateUtils';
+import { useState, type ReactNode } from 'react';
+import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, CalendarRange, GraduationCap } from 'lucide-react';
+import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { CustomTooltip } from '../ui/Tooltip';
+import Modal from '../ui/Modal';
+import { buttonCls } from '../ui/buttonStyles';
+
+type SortOrder = 'date-asc' | 'date-desc' | 'name';
 
 interface FilterBarProps {
     enrollments: EnrollmentRow[];
@@ -30,11 +33,71 @@ interface FilterBarProps {
     setCourseDateFrom: (d: string) => void;
     courseDateTo: string;
     setCourseDateTo: (d: string) => void;
-    sortOrder: 'date-asc' | 'date-desc' | 'name';
-    setSortOrder: React.Dispatch<React.SetStateAction<'date-asc' | 'date-desc' | 'name'>>;
-    statusCounts: Record<string, number>;
-    /** Called when user clicks a status badge — used to scroll to that column */
-    onStatusBadgeClick?: (status: string) => void;
+    sortOrder: SortOrder;
+    setSortOrder: React.Dispatch<React.SetStateAction<SortOrder>>;
+}
+
+const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
+    { value: 'date-asc', label: 'Oldest first' },
+    { value: 'date-desc', label: 'Newest first' },
+    { value: 'name', label: 'By name' },
+];
+
+type ChipTone = 'brand' | 'violet' | 'emerald';
+
+const CHIP_ACTIVE: Record<ChipTone, string> = {
+    brand: 'bg-brand-500 text-white border-brand-500 shadow-sm',
+    violet: 'bg-violet-500 text-white border-violet-500 shadow-sm',
+    emerald: 'bg-emerald-600 text-white border-emerald-600 shadow-sm',
+};
+
+const CHIP_IDLE: Record<ChipTone, string> = {
+    brand: 'hover:border-brand-500 hover:text-brand-500',
+    violet: 'hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400',
+    emerald: 'hover:border-emerald-500/60 hover:text-primary',
+};
+
+function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }: {
+    active: boolean;
+    tone?: ChipTone;
+    count?: number;
+    onClick: () => void;
+    /** `lg` — finger-sized chips for the mobile sheet */
+    size?: 'sm' | 'lg';
+    children: ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={`inline-flex items-center gap-1.5 font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all active:scale-95 ${
+                size === 'lg' ? 'px-3.5 py-2 text-sm' : 'px-2.5 py-1 text-xs'
+            } ${active ? CHIP_ACTIVE[tone] : `bg-surface-elevated text-muted border-border-strong ${CHIP_IDLE[tone]}`}`}
+        >
+            {children}
+            {count !== undefined && (
+                <span className={`text-[10px] px-1.5 rounded-full font-mono ${active ? 'bg-white/20 text-white' : 'bg-background text-muted'}`}>
+                    {count}
+                </span>
+            )}
+        </button>
+    );
+}
+
+/** Small uppercase caption in front of a chip group / sheet section. */
+function GroupLabel({ icon, children, className = '' }: { icon: ReactNode; children: ReactNode; className?: string }) {
+    return (
+        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted flex-shrink-0 ${className}`}>
+            {icon}
+            {children}
+        </span>
+    );
+}
+
+/** Picker values are "YYYY-MM-DDT00:00" — show them as "1 Oct" in chips. */
+function formatRange(from: string, to: string) {
+    return `${from ? formatShortDate(from.split('T')[0]) : '…'} – ${to ? formatShortDate(to.split('T')[0]) : '…'}`;
 }
 
 export default function FilterBar({
@@ -63,528 +126,384 @@ export default function FilterBar({
     setCourseDateTo,
     sortOrder,
     setSortOrder,
-    statusCounts,
-    onStatusBadgeClick,
 }: FilterBarProps) {
-    const hasNonSearchFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' || dateFrom || dateTo || courseDateFrom || courseDateTo;
-    const [showAdvanced, setShowAdvanced] = useState(false);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [showRanges, setShowRanges] = useState(false);
+    const [sheetOpen, setSheetOpen] = useState(false);
 
-    // п.15: search is "active" when it filters results
-    const searchIsFiltering = !!searchQuery && filteredCount < enrollmentCount;
+    const hasCreatedRange = !!(dateFrom || dateTo);
+    const hasCourseRange = !!(courseDateFrom || courseDateTo);
+    const rangeCount = (hasCreatedRange ? 1 : 0) + (hasCourseRange ? 1 : 0);
+    const isFiltered = filteredCount < enrollmentCount;
+    // Language chips only help when there is something to choose between (or one is already picked)
+    const showLanguages = selectedCourse !== 'all' && (uniqueVariants.length > 1 || selectedVariant !== 'all');
+    const datesTotal = availableCourseDates.reduce((sum, d) => sum + d.count, 0);
 
-    const clearAll = () => {
-        setSearchQuery('');
+    const selectCourse = (id: string) => {
+        setSelectedCourse(id === selectedCourse ? 'all' : id);
+        setSelectedVariant('all');
+    };
+    const clearCreatedRange = () => { setDateFrom(''); setDateTo(''); };
+    const clearCourseRange = () => { setCourseDateFrom(''); setCourseDateTo(''); };
+
+    // Search is left alone: it has its own × inside the field
+    const clearFilters = () => {
         setSelectedCourse('all');
         setSelectedVariant('all');
         setSelectedCourseDate('all');
-        setDateFrom('');
-        setDateTo('');
-        setCourseDateFrom('');
-        setCourseDateTo('');
+        clearCreatedRange();
+        clearCourseRange();
     };
 
     const activeFilters: { id: string; label: string; value: string; onRemove: () => void }[] = [];
-
-    if (searchQuery.trim()) {
-        activeFilters.push({
-            id: 'search',
-            label: 'Search',
-            value: `"${searchQuery.trim()}"`,
-            onRemove: () => setSearchQuery(''),
-        });
-    }
-
     if (selectedCourse !== 'all') {
-        const courseName = uniqueCourses.find(c => c.id === selectedCourse)?.name || 'Course';
         activeFilters.push({
             id: 'course',
             label: 'Course',
-            value: courseName,
-            onRemove: () => {
-                setSelectedCourse('all');
-                setSelectedVariant('all');
-            },
+            value: uniqueCourses.find(c => c.id === selectedCourse)?.name || 'Course',
+            onRemove: () => selectCourse(selectedCourse),
         });
     }
-
     if (selectedVariant !== 'all') {
-        activeFilters.push({
-            id: 'variant',
-            label: 'Language',
-            value: selectedVariant,
-            onRemove: () => setSelectedVariant('all'),
-        });
+        activeFilters.push({ id: 'variant', label: 'Language', value: selectedVariant, onRemove: () => setSelectedVariant('all') });
     }
-
     if (selectedCourseDate !== 'all') {
-        activeFilters.push({
-            id: 'courseDate',
-            label: 'Date',
-            value: formatDayDateShort(selectedCourseDate),
-            onRemove: () => setSelectedCourseDate('all'),
-        });
+        activeFilters.push({ id: 'courseDate', label: 'Date', value: formatDayDateShort(selectedCourseDate), onRemove: () => setSelectedCourseDate('all') });
     }
+    if (hasCreatedRange) {
+        activeFilters.push({ id: 'createdDate', label: 'Created', value: formatRange(dateFrom, dateTo), onRemove: clearCreatedRange });
+    }
+    if (hasCourseRange) {
+        activeFilters.push({ id: 'courseDateRange', label: 'Course dates', value: formatRange(courseDateFrom, courseDateTo), onRemove: clearCourseRange });
+    }
+    const rangeFilters = activeFilters.filter(f => f.id === 'createdDate' || f.id === 'courseDateRange');
 
-    if (dateFrom || dateTo) {
-        activeFilters.push({
-            id: 'createdDate',
-            label: 'Created',
-            value: `${dateFrom || '...'} – ${dateTo || '...'}`,
-            onRemove: () => {
-                setDateFrom('');
-                setDateTo('');
-            },
-        });
-    }
+    const renderFilterChip = (filter: typeof activeFilters[number]) => (
+        <span
+            key={filter.id}
+            className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-xs whitespace-nowrap flex-shrink-0"
+        >
+            <span className="text-muted text-[11px]">{filter.label}:</span>
+            <span className="font-semibold text-primary max-w-[160px] truncate">{filter.value}</span>
+            <button
+                type="button"
+                onClick={filter.onRemove}
+                aria-label={`Remove ${filter.label} filter`}
+                className="p-1 rounded-full text-muted hover:text-danger hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            >
+                <X size={12} />
+            </button>
+        </span>
+    );
 
-    if (courseDateFrom || courseDateTo) {
-        activeFilters.push({
-            id: 'courseDateRange',
-            label: 'Course Range',
-            value: `${courseDateFrom || '...'} – ${courseDateTo || '...'}`,
-            onRemove: () => {
-                setCourseDateFrom('');
-                setCourseDateTo('');
-            },
-        });
-    }
+    const renderRangePickers = (stacked: boolean) => {
+        const pair = `flex ${stacked ? 'flex-col' : 'flex-row items-center'} gap-2`;
+        const dash = !stacked && <span className="text-muted/45 text-xs">—</span>;
+        return (
+            <>
+                <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-2'}>
+                    <GroupLabel icon={<Calendar size={12} />}>Created</GroupLabel>
+                    <div className={pair}>
+                        <DateCalendarPicker label="From" value={dateFrom} onChange={setDateFrom} placeholder="Start date"
+                            enrollments={enrollments} selectedCourse={selectedCourse} limitDate={dateTo} isEndDate={false} dateField="created_at" />
+                        {dash}
+                        <DateCalendarPicker label="To" value={dateTo} onChange={setDateTo} placeholder="End date"
+                            enrollments={enrollments} selectedCourse={selectedCourse} limitDate={dateFrom} isEndDate={true} dateField="created_at" />
+                    </div>
+                </div>
+                <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-2'}>
+                    <GroupLabel icon={<GraduationCap size={12} />}>Course date</GroupLabel>
+                    <div className={pair}>
+                        <DateCalendarPicker label="From" value={courseDateFrom} onChange={setCourseDateFrom} placeholder="Start date"
+                            enrollments={enrollments} selectedCourse={selectedCourse} limitDate={courseDateTo} isEndDate={false} dateField="confirmed_date" />
+                        {dash}
+                        <DateCalendarPicker label="To" value={courseDateTo} onChange={setCourseDateTo} placeholder="End date"
+                            enrollments={enrollments} selectedCourse={selectedCourse} limitDate={courseDateFrom} isEndDate={true} dateField="confirmed_date" />
+                    </div>
+                </div>
+            </>
+        );
+    };
+
+    const renderLanguageChips = (size: 'sm' | 'lg') => (
+        <>
+            {uniqueVariants.length > 1 && (
+                <Chip tone="violet" size={size} active={selectedVariant === 'all'} onClick={() => setSelectedVariant('all')}>All</Chip>
+            )}
+            {uniqueVariants.map(v => (
+                <Chip key={v} tone="violet" size={size} active={selectedVariant === v} onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}>
+                    {v}
+                </Chip>
+            ))}
+        </>
+    );
+
+    const renderDateChips = (size: 'sm' | 'lg') => (
+        <>
+            <Chip tone="emerald" size={size} active={selectedCourseDate === 'all'} count={datesTotal} onClick={() => setSelectedCourseDate('all')}>
+                All dates
+            </Chip>
+            {availableCourseDates.map(({ date, count }) => (
+                <Chip
+                    key={date}
+                    tone="emerald"
+                    size={size}
+                    active={selectedCourseDate === date}
+                    count={count}
+                    onClick={() => setSelectedCourseDate(selectedCourseDate === date ? 'all' : date)}
+                >
+                    {formatDayDateShort(date)}
+                </Chip>
+            ))}
+        </>
+    );
 
     return (
-        <div className="filter-bar-container bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-4 space-y-2">
-            {/* Row 1: Title + Search + Filter Toggle (Mobile) + Add */}
-            <div className="flex flex-col sm:flex-row gap-1.5 md:gap-3 items-start sm:items-center justify-between">
-                <div className="hidden md:flex items-center gap-3">
-                    <div className="p-2 bg-brand-500/10 rounded-xl text-brand-500 dark:text-brand-400">
-                        <GraduationCap size={20} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-bold text-primary tracking-tight">Enrollments</h2>
-                        <span className="text-xs font-mono font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2.5 py-0.5 rounded-full">
-                            {enrollmentCount}
-                        </span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1.5 md:gap-3 w-full sm:w-auto">
-                    {/* Search with active-filter highlight + Clear × inside */}
-                    <div className="relative flex-1 sm:w-72">
-                        <Search
-                            className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchIsFiltering ? 'text-brand-500' : 'text-muted'}`}
-                            size={16}
-                        />
-                        <input
-                            type="text"
-                            id="search-query"
-                            name="searchQuery"
-                            data-page-search=""
-                            autoComplete="off"
-                            placeholder="Search by name, email or phone..."
-                            onKeyDown={e => {
-                                if (e.key === 'Escape' && searchQuery) {
-                                    e.preventDefault();
-                                    setSearchQuery('');
-                                }
-                            }}
-                            className={`w-full pl-8 py-1.5 md:py-2.5 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary ${
-                                searchIsFiltering
-                                    ? 'border-brand-400 pr-24'
-                                    : searchQuery
-                                        ? 'border-border-strong pr-8'
-                                        : 'border-border-strong pr-3'
-                            }`}
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                        />
-                        {/* п.15: "Showing X of Y" badge inside search field */}
-                        {searchIsFiltering && (
-                            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-brand-600 dark:text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full whitespace-nowrap pointer-events-none">
-                                {filteredCount} of {enrollmentCount}
-                            </span>
-                        )}
-                        {searchQuery && (
-                            <CustomTooltip content="Clear search">
-                                <button
-                                    onClick={() => setSearchQuery('')}
-                                    aria-label="Clear search"
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary transition-colors"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </CustomTooltip>
-                        )}
-                    </div>
-
-                    {/* Mobile menu toggle button with arrow */}
-                    <CustomTooltip content={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}>
-                        <button
-                            type="button"
-                            onClick={() => setMobileMenuOpen(prev => !prev)}
-                            className={`md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
-                                mobileMenuOpen || hasNonSearchFilters
-                                    ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40 shadow-xs'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:text-primary'
-                            }`}
-                            title={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
-                            aria-label={mobileMenuOpen ? 'Hide filter options' : 'Show filter options'}
-                        >
-                            <SlidersHorizontal size={13} />
-                            {hasNonSearchFilters && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-                            )}
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${mobileMenuOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                    </CustomTooltip>
-
-                    {/* Clear all filters × button — only when non-search filters active */}
-                    {hasNonSearchFilters && (
-                        <CustomTooltip content="Clear all filters">
-                            <button
-                                onClick={clearAll}
-                                aria-label="Clear all filters"
-                                className="flex items-center gap-1 text-[11px] font-medium text-danger hover:text-danger/80 bg-danger/10 hover:bg-danger/15 px-2 py-1.5 rounded-xl transition-all active:scale-95 whitespace-nowrap"
-                            >
-                                <X size={12} />
-                                <span className="hidden sm:inline">Clear</span>
-                            </button>
-                        </CustomTooltip>
-                    )}
-
-                    <button
-                        onClick={() => setEnrollModalOpen(true)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-sm hover:shadow-brand-500/25 active:scale-[0.98] whitespace-nowrap"
-                    >
-                        <UserPlus size={16} />
-                        <span className="hidden sm:inline">Add</span>
-                    </button>
-                </div>
-            </div>
-
-
-            {/* Collapsible Filters Container (always visible on desktop, toggled by arrow on mobile) */}
-            <div className={`${mobileMenuOpen ? 'block' : 'hidden md:block'} space-y-2 transition-all`}>
-                {/* Row 2: Course chips */}
-                <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 pt-1">
-                    <button
-                        onClick={() => {
-                            setSelectedCourse('all');
-                            setSelectedVariant('all');
+        <div className="filter-bar-container flex-shrink-0 bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-3 space-y-1.5 md:space-y-2.5">
+            {/* Row 1: search + controls + Add */}
+            <div className="flex items-center gap-1.5 md:gap-2">
+                <div className="relative flex-1 md:flex-none md:w-56 xl:w-80">
+                    <Search
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchQuery ? 'text-brand-500' : 'text-muted'}`}
+                        size={16}
+                    />
+                    <input
+                        type="search"
+                        id="search-query"
+                        name="searchQuery"
+                        data-page-search=""
+                        autoComplete="off"
+                        enterKeyHint="search"
+                        placeholder="Name, email or phone…"
+                        onKeyDown={e => {
+                            if (e.key === 'Escape' && searchQuery) {
+                                e.preventDefault();
+                                setSearchQuery('');
+                            }
                         }}
-                        className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === 'all'
-                            ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                            : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                            }`}
-                    >
-                        All Courses
-                    </button>
-                    {uniqueCourses.map(c => (
-                        <button
-                            key={c.id}
-                            onClick={() => {
-                                const newCourse = c.id === selectedCourse ? 'all' : c.id;
-                                setSelectedCourse(newCourse);
-                                setSelectedVariant('all');
-                            }}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedCourse === c.id
-                                ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                                }`}
-                        >
-                            {c.name}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Row 2.5: Language chips below courses */}
-                {selectedCourse !== 'all' && uniqueVariants.length > 0 && (
-                    <div className="flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1">
-                        <CustomTooltip content="Language filter">
-                            <div className="flex items-center text-muted mr-1 flex-shrink-0 cursor-default" aria-label="Language filter">
-                                <Globe size={14} className="text-muted/70 flex-shrink-0" />
-                            </div>
-                        </CustomTooltip>
-                        {uniqueVariants.length > 1 && (
-                            <button
-                                onClick={() => setSelectedVariant('all')}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === 'all'
-                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                    }`}
-                            >
-                                All
-                            </button>
-                        )}
-                        {uniqueVariants.map(v => (
-                            <button
-                                key={v}
-                                onClick={() => setSelectedVariant(v === selectedVariant ? 'all' : v)}
-                                className={`px-2.5 py-1 text-xs font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all ${selectedVariant === v
-                                    ? 'bg-violet-500 text-white border-violet-500 shadow-sm'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400'
-                                    }`}
-                            >
-                                {v}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Row 2.8: Course Date chips (convenient 1-tap filtering for Mobile & Desktop) */}
-                {availableCourseDates.length > 0 && (
-                    <div className="flex overflow-x-auto items-center gap-1.5 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 py-1.5 border-t border-border-subtle/30 mt-1 animate-fadeIn">
-                        <div className="flex items-center gap-1 text-muted mr-1 text-xs font-semibold flex-shrink-0">
-                            <Calendar size={13} className="text-emerald-500 flex-shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-status-confirmed">
-                                Dates:
-                            </span>
-                        </div>
-
+                        className={`w-full h-9 pl-9 pr-8 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary [&::-webkit-search-cancel-button]:hidden ${
+                            searchQuery ? 'border-brand-400' : 'border-border-strong'
+                        }`}
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
                         <button
                             type="button"
-                            onClick={() => setSelectedCourseDate('all')}
-                            className={`px-2.5 py-1 text-xs font-bold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
-                                selectedCourseDate === 'all'
-                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                    : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
-                            }`}
+                            onClick={() => setSearchQuery('')}
+                            aria-label="Clear search"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-primary transition-colors"
                         >
-                            <span>All Dates</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                                selectedCourseDate === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                            }`}>
-                                {availableCourseDates.reduce((sum, d) => sum + d.count, 0)}
-                            </span>
+                            <X size={14} />
                         </button>
+                    )}
+                </div>
 
-                        {availableCourseDates.map(({ date, count }) => {
-                            const isActive = selectedCourseDate === date;
-                            return (
-                                <button
-                                    key={date}
-                                    type="button"
-                                    onClick={() => setSelectedCourseDate(isActive ? 'all' : date)}
-                                    className={`px-2.5 py-1 text-xs font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5 ${
-                                        isActive
-                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                            : 'bg-surface-elevated text-muted border-border-strong hover:border-emerald-500/50 hover:text-primary'
-                                    }`}
-                                >
-                                    <span>{formatDayDateShort(date)}</span>
-                                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                                        isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
-                                    }`}>
-                                        {count}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                {/* Mobile: every filter lives in one bottom sheet */}
+                <button
+                    type="button"
+                    onClick={() => setSheetOpen(true)}
+                    aria-label="Open filters"
+                    className={`md:hidden inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 flex-shrink-0 ${
+                        activeFilters.length > 0
+                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                            : 'bg-surface-elevated text-muted border-border-strong'
+                    }`}
+                >
+                    <SlidersHorizontal size={14} />
+                    <span>Filters</span>
+                    {activeFilters.length > 0 && (
+                        <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-[10px] font-bold">
+                            {activeFilters.length}
+                        </span>
+                    )}
+                </button>
 
-                        {/* Quick Range / Advanced toggle button */}
-                        <CustomTooltip content="Custom Date Range & Advanced Filters">
-                            <button
-                                type="button"
-                                onClick={() => setShowAdvanced(prev => !prev)}
-                                aria-label="Custom Date Range & Advanced Filters"
-                                className={`px-2 py-1 text-[11px] font-semibold rounded-xl border whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1 ${
-                                    showAdvanced || (dateFrom || dateTo || courseDateFrom || courseDateTo)
-                                        ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                                        : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
-                                }`}
-                            >
-                                <SlidersHorizontal size={11} />
-                                <span className="hidden sm:inline">Range</span>
-                                {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
-                                )}
-                            </button>
-                        </CustomTooltip>
+                {/* Desktop: date ranges toggle + sort */}
+                <button
+                    type="button"
+                    onClick={() => setShowRanges(v => !v)}
+                    aria-expanded={showRanges}
+                    aria-label="Date range filters"
+                    title="Filter by created / course date range"
+                    className={`hidden md:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 flex-shrink-0 ${
+                        showRanges || rangeCount > 0
+                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
+                            : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
+                    }`}
+                >
+                    <CalendarRange size={14} />
+                    <span className="hidden xl:inline">Date range</span>
+                    {rangeCount > 0 && (
+                        <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-[10px] font-bold">
+                            {rangeCount}
+                        </span>
+                    )}
+                </button>
+
+                <label className="hidden md:inline-flex items-center gap-1.5 h-9 pl-3 pr-1 rounded-xl border border-border-strong bg-surface-elevated text-xs text-muted flex-shrink-0 focus-within:border-brand-500">
+                    <ArrowDownUp size={13} />
+                    <span className="sr-only">Sort</span>
+                    <select
+                        value={sortOrder}
+                        onChange={e => setSortOrder(e.target.value as SortOrder)}
+                        className="bg-transparent text-xs font-semibold text-primary pr-1 focus:outline-none cursor-pointer"
+                    >
+                        {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                </label>
+
+                {/* Ranges are hidden behind the toggle — keep them visible as chips while it's closed */}
+                {!showRanges && rangeFilters.length > 0 && (
+                    <div className="hidden md:flex items-center gap-1.5 min-w-0 overflow-x-auto scrollbar-none">
+                        {rangeFilters.map(renderFilterChip)}
                     </div>
                 )}
-            </div>
 
-            {/* Advanced Filters Panel */}
-            {showAdvanced && (
-                <div className="p-3 bg-surface-elevated border border-border-strong rounded-xl animate-slideDown flex flex-wrap gap-3 items-center">
-                    {/* Sort pills */}
-                    <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1 text-muted mr-0.5">
-                            <ArrowDownUp size={12} />
-                            <span className="text-[10px] font-medium uppercase tracking-wider">Sort:</span>
-                        </div>
-                        {([
-                            { value: 'date-asc', label: 'Oldest first', icon: <Clock size={10} /> },
-                            { value: 'date-desc', label: 'Newest first', icon: <ArrowUpDown size={10} /> },
-                            { value: 'name', label: 'By Name', icon: <CaseSensitive size={10} /> },
-                        ] as const).map(opt => (
-                            <button
-                                key={opt.value}
-                                onClick={() => setSortOrder(opt.value)}
-                                className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all active:scale-95 ${
-                                    sortOrder === opt.value
-                                        ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                                        : 'bg-surface text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                                }`}
-                            >
-                                {opt.icon}
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="h-4 w-px bg-border-strong hidden sm:block" />
-
-                    {/* Created Date range */}
-                    <div className="flex items-center gap-1.5 text-muted">
-                        <Filter size={12} />
-                        <span className="text-[10px] font-medium uppercase tracking-wider">Created:</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <DateCalendarPicker
-                            label="From"
-                            value={dateFrom}
-                            onChange={setDateFrom}
-                            placeholder="Select start date"
-                            enrollments={enrollments}
-                            selectedCourse={selectedCourse}
-                            limitDate={dateTo}
-                            isEndDate={false}
-                            dateField="created_at"
-                        />
-                        <span className="text-muted/45 text-xs hidden sm:inline">—</span>
-                        <DateCalendarPicker
-                            label="To"
-                            value={dateTo}
-                            onChange={setDateTo}
-                            placeholder="Select end date"
-                            enrollments={enrollments}
-                            selectedCourse={selectedCourse}
-                            limitDate={dateFrom}
-                            isEndDate={true}
-                            dateField="created_at"
-                        />
-                    </div>
-
-                    <div className="h-4 w-px bg-border-strong hidden sm:block" />
-
-                    {/* Course Date range */}
-                    <div className="flex items-center gap-1.5 text-muted">
-                        <Calendar size={12} />
-                        <span className="text-[10px] font-medium uppercase tracking-wider">Course Date:</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <DateCalendarPicker
-                            label="From"
-                            value={courseDateFrom}
-                            onChange={setCourseDateFrom}
-                            placeholder="Course start date"
-                            enrollments={enrollments}
-                            selectedCourse={selectedCourse}
-                            limitDate={courseDateTo}
-                            isEndDate={false}
-                            dateField="confirmed_date"
-                        />
-                        <span className="text-muted/45 text-xs hidden sm:inline">—</span>
-                        <DateCalendarPicker
-                            label="To"
-                            value={courseDateTo}
-                            onChange={setCourseDateTo}
-                            placeholder="Course end date"
-                            enrollments={enrollments}
-                            selectedCourse={selectedCourse}
-                            limitDate={courseDateFrom}
-                            isEndDate={true}
-                            dateField="confirmed_date"
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Active Filter Chips Strip (Desktop & Mobile) */}
-            {activeFilters.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-2 pb-0.5 border-t border-border-subtle/50 text-xs animate-fadeIn">
-                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted flex-shrink-0 flex items-center gap-1 mr-1">
-                        <Filter size={11} className="text-brand-500" />
-                        Applied ({activeFilters.length}):
+                <div className="hidden md:flex items-center gap-2 ml-auto flex-shrink-0">
+                    <span className="text-xs text-muted whitespace-nowrap" aria-live="polite">
+                        {isFiltered ? (
+                            <><span className="font-mono font-bold text-primary">{filteredCount}</span> of <span className="font-mono">{enrollmentCount}</span></>
+                        ) : (
+                            <><span className="font-mono font-bold text-primary">{enrollmentCount}</span> total</>
+                        )}
                     </span>
+                    {activeFilters.length > 0 && (
+                        <button type="button" onClick={clearFilters} aria-label="Clear filters" className={buttonCls('danger-soft', 'sm')}>
+                            <X size={13} />
+                            Clear<span className="hidden xl:inline"> filters</span>
+                        </button>
+                    )}
+                </div>
 
-                    {activeFilters.map(filter => (
-                        <span
-                            key={filter.id}
-                            className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-0.5 rounded-full bg-surface-elevated border border-border-strong text-xs font-medium text-primary shadow-2xs group hover:border-brand-500/50 transition-all"
-                        >
-                            <span className="text-muted font-normal text-[11px]">{filter.label}:</span>
-                            <span className="font-semibold text-primary max-w-[160px] truncate">{filter.value}</span>
-                            <button
-                                type="button"
-                                onClick={filter.onRemove}
-                                aria-label={`Remove ${filter.label} filter`}
-                                className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-muted hover:text-danger transition-colors cursor-pointer"
-                            >
-                                <X size={12} />
-                            </button>
-                        </span>
-                    ))}
-
+                <CustomTooltip content="Enroll a student">
                     <button
                         type="button"
-                        onClick={clearAll}
-                        className="text-[11px] font-semibold text-danger hover:text-danger/80 hover:underline px-2 py-0.5 rounded-lg transition-colors ml-auto sm:ml-1 cursor-pointer"
+                        onClick={() => setEnrollModalOpen(true)}
+                        aria-label="Add enrollment"
+                        className={buttonCls('primary', 'md', 'h-9 w-9 md:w-auto px-0 md:px-4 text-sm flex-shrink-0')}
+                    >
+                        <UserPlus size={16} />
+                        <span className="hidden md:inline">Add</span>
+                    </button>
+                </CustomTooltip>
+            </div>
+
+            {/* Mobile: what's applied, removable in one tap */}
+            {activeFilters.length > 0 && (
+                <div className="md:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-none -mx-2 px-2 sm:mx-0 sm:px-0">
+                    {activeFilters.map(renderFilterChip)}
+                    <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="text-[11px] font-semibold text-danger px-2 py-1 whitespace-nowrap flex-shrink-0"
                     >
                         Clear all
                     </button>
                 </div>
             )}
 
-            {/* Row 3 (bottom): Advanced Filters icon + Hide Past toggle + Status Summary Bar */}
-            <div className="hidden md:flex overflow-x-auto md:flex-wrap gap-1.5 items-center scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-                {/* counter */}
-                {!searchIsFiltering && (
-                    <span className="text-[10px] font-mono text-muted font-medium tracking-wide mr-1">
-                        {filteredCount}<span className="opacity-40">/</span>{enrollmentCount}
-                    </span>
+            {/* Desktop row 2: courses */}
+            <div className="hidden md:flex flex-wrap gap-1.5 items-center">
+                <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
+                {uniqueCourses.map(c => (
+                    <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
+                ))}
+            </div>
+
+            {/* Desktop row 3: language + upcoming course dates, one line */}
+            {(showLanguages || availableCourseDates.length > 0) && (
+                <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                    {showLanguages && (
+                        <>
+                            <GroupLabel icon={<Globe size={12} />} className="mr-0.5">Language</GroupLabel>
+                            {renderLanguageChips('sm')}
+                        </>
+                    )}
+                    {showLanguages && availableCourseDates.length > 0 && <div className="h-4 w-px bg-border-strong mx-1.5 flex-shrink-0" />}
+                    {availableCourseDates.length > 0 && (
+                        <>
+                            <GroupLabel icon={<Calendar size={12} />} className="mr-0.5 text-status-confirmed">Dates</GroupLabel>
+                            {renderDateChips('sm')}
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Desktop: date range pickers */}
+            {showRanges && (
+                <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-2 p-2.5 bg-surface-elevated/60 border border-border-subtle rounded-xl animate-slideDown">
+                    {renderRangePickers(false)}
+                </div>
+            )}
+
+            {/* Mobile filter sheet */}
+            <Modal
+                open={sheetOpen}
+                onClose={() => setSheetOpen(false)}
+                title="Filters"
+                subtitle={isFiltered ? `${filteredCount} of ${enrollmentCount} enrollments` : `${enrollmentCount} enrollments`}
+                icon={SlidersHorizontal}
+                sheetOnMobile
+                labelId="enrollment-filters-title"
+                bodyClassName="space-y-5"
+                footer={
+                    <>
+                        {activeFilters.length > 0 && (
+                            <button type="button" onClick={clearFilters} className="h-10 px-4 text-sm font-semibold text-danger rounded-xl hover:bg-danger/10 transition-colors">
+                                Clear all
+                            </button>
+                        )}
+                        <button type="button" onClick={() => setSheetOpen(false)} className={buttonCls('primary', 'lg', 'flex-1 sm:flex-none')}>
+                            Show {filteredCount} {filteredCount === 1 ? 'result' : 'results'}
+                        </button>
+                    </>
+                }
+            >
+                <section className="space-y-2">
+                    <GroupLabel icon={<GraduationCap size={12} />}>Course</GroupLabel>
+                    <div className="flex flex-wrap gap-1.5">
+                        <Chip size="lg" active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
+                        {uniqueCourses.map(c => (
+                            <Chip key={c.id} size="lg" active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
+                        ))}
+                    </div>
+                </section>
+
+                {showLanguages && (
+                    <section className="space-y-2">
+                        <GroupLabel icon={<Globe size={12} />}>Language</GroupLabel>
+                        <div className="flex flex-wrap gap-1.5">{renderLanguageChips('lg')}</div>
+                    </section>
                 )}
 
-                <div className="h-3.5 w-px bg-border-strong" />
+                {availableCourseDates.length > 0 && (
+                    <section className="space-y-2">
+                        <GroupLabel icon={<Calendar size={12} />} className="text-status-confirmed">Upcoming dates</GroupLabel>
+                        <div className="flex flex-wrap gap-1.5">{renderDateChips('lg')}</div>
+                    </section>
+                )}
 
-                {/* Advanced Filters — compact icon pill matching status badges */}
-                <CustomTooltip content="Advanced Filters">
-                    <button
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        aria-label="Advanced Filters"
-                        className={`inline-flex items-center gap-1 text-[11px] md:text-xs font-semibold px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg border transition-colors active:scale-95 ${
-                            showAdvanced
-                                ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                                : 'bg-surface-elevated text-muted border-border-strong hover:border-brand-500 hover:text-brand-500'
-                        }`}
-                    >
-                        <SlidersHorizontal size={11} />
-                        <span>Filters</span>
-                        {(dateFrom || dateTo || courseDateFrom || courseDateTo) && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 ml-0.5" />
-                        )}
-                    </button>
-                </CustomTooltip>
-
-                <div className="h-3.5 w-px bg-border-strong" />
-
-                {ALL_STATUSES.map(status => {
-                    const cfg = STATUS_CONFIG[status];
-                    const count = statusCounts[status] || 0;
-                    if (count === 0 && SECONDARY_STATUSES.includes(status as typeof SECONDARY_STATUSES[number])) return null;
-                    return (
-                        <CustomTooltip key={status} content={`Scroll to ${cfg.label} column`}>
+                <section className="space-y-2">
+                    <GroupLabel icon={<ArrowDownUp size={12} />}>Sort</GroupLabel>
+                    <div className="grid grid-cols-3 gap-1 p-1 bg-surface-elevated rounded-xl border border-border-subtle">
+                        {SORT_OPTIONS.map(o => (
                             <button
-                                onClick={() => onStatusBadgeClick?.(status)}
-                                aria-label={`Scroll to ${cfg.label} column`}
-                                className={`inline-flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs font-semibold px-2 py-1 md:px-2.5 md:py-1.5 rounded-lg ${cfg.bg} ${cfg.color} ${cfg.border} border transition-colors active:scale-95 cursor-pointer`}
+                                key={o.value}
+                                type="button"
+                                onClick={() => setSortOrder(o.value)}
+                                aria-pressed={sortOrder === o.value}
+                                className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+                                    sortOrder === o.value ? 'bg-brand-500 text-white shadow-sm' : 'text-muted'
+                                }`}
                             >
-                                {cfg.icon}
-                                <span>{cfg.label}</span>
-                                <span className="font-mono bg-black/15 dark:bg-white/10 text-primary px-1 py-0.5 md:px-1.5 md:py-0.5 rounded ml-0.5 shadow-sm">{count}</span>
+                                {o.label}
                             </button>
-                        </CustomTooltip>
-                    );
-                })}
-            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="space-y-4">{renderRangePickers(true)}</section>
+            </Modal>
         </div>
     );
 }

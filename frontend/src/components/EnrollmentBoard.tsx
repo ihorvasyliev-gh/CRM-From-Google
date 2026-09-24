@@ -297,13 +297,6 @@ export default function EnrollmentBoard({
         return map;
     }, [filteredEnrollments, sortOrder]);
 
-    const statusCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        ALL_STATUSES.forEach(s => { counts[s] = 0; });
-        enrollments.forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
-        return counts;
-    }, [enrollments]);
-
     const queuePositions = useMemo(() => {
         const positions = new Map<string, number>();
         const requested = enrollments.filter(e => e.status === 'requested');
@@ -697,8 +690,6 @@ export default function EnrollmentBoard({
                 setCourseDateTo={setCourseDateTo}
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
-                statusCounts={statusCounts}
-                onStatusBadgeClick={handleStatusBadgeClick}
             />
 
             {/* Mobile Column Quick Switcher Bar */}

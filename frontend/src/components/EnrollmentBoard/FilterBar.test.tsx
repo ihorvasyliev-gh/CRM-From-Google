@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import FilterBar from './FilterBar';
 
@@ -13,7 +13,6 @@ describe('FilterBar Component - Date Filter', () => {
     const mockSetCourseDateFrom = vi.fn();
     const mockSetCourseDateTo = vi.fn();
     const mockSetSortOrder = vi.fn();
-    const mockOnStatusBadgeClick = vi.fn();
 
     const defaultProps = {
         enrollments: [],
@@ -45,15 +44,15 @@ describe('FilterBar Component - Date Filter', () => {
         setCourseDateTo: mockSetCourseDateTo,
         sortOrder: 'date-asc' as const,
         setSortOrder: mockSetSortOrder,
-        statusCounts: { requested: 0, invited: 0, confirmed: 30, completed: 0 },
-        onStatusBadgeClick: mockOnStatusBadgeClick,
     };
+
+    beforeEach(() => vi.clearAllMocks());
 
     it('renders Course Date chips with weekday, day, month and student counts', () => {
         render(<FilterBar {...defaultProps} />);
 
         // Should render "All Dates" button with sum count (30)
-        const allDatesBtn = screen.getByText('All Dates').closest('button');
+        const allDatesBtn = screen.getByText('All dates').closest('button');
         expect(allDatesBtn).toBeInTheDocument();
         expect(allDatesBtn).toHaveTextContent('30');
 
@@ -87,31 +86,28 @@ describe('FilterBar Component - Date Filter', () => {
     it('resets date to all when clicking All Dates chip or clearing', () => {
         render(<FilterBar {...defaultProps} selectedCourseDate="2026-08-28" />);
 
-        const allDatesBtn = screen.getByText('All Dates').closest('button');
+        const allDatesBtn = screen.getByText('All dates').closest('button');
         expect(allDatesBtn).not.toBeNull();
         fireEvent.click(allDatesBtn!);
 
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
     });
 
-    it('toggles mobile filter menu visibility on toggle button click', () => {
-        render(<FilterBar {...defaultProps} selectedCourse="course-1" selectedCourseDate="2026-08-28" />);
+    it('opens the mobile filter sheet with all filter groups and a results button', () => {
+        render(<FilterBar {...defaultProps} filteredCount={12} />);
 
-        // Mobile toggle button should exist
-        const toggleBtn = screen.getByRole('button', { name: /Show filter options/i });
-        expect(toggleBtn).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
 
-        // When collapsed and has filters, active filter chips strip is shown
-        expect(screen.getByText(/Applied \(2\):/i)).toBeInTheDocument();
-        expect(screen.getAllByText(/Patient moving and handling/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/28\s+Aug/i).length).toBeGreaterThan(0);
+        const sheet = screen.getByRole('dialog');
+        expect(sheet).toHaveTextContent('12 of 30 enrollments');
+        expect(sheet).toHaveTextContent('Upcoming dates');
+        expect(sheet).toHaveTextContent('Sort');
 
-        // Clicking toggle button expands the menu
-        fireEvent.click(toggleBtn);
-        expect(screen.getByRole('button', { name: /Hide filter options/i })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Show 12 results/i }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('renders active filter chips and allows removing individual filters or clearing all', () => {
+    it('shows each active filter once as a removable chip, without duplicating search', () => {
         render(
             <FilterBar
                 {...defaultProps}
@@ -121,29 +117,22 @@ describe('FilterBar Component - Date Filter', () => {
             />
         );
 
-        // Applied count should show (3)
-        expect(screen.getByText(/Applied \(3\):/i)).toBeInTheDocument();
+        // Filter count badge on the mobile button: course + date (search lives in its own field)
+        expect(screen.getByRole('button', { name: /Open filters/i })).toHaveTextContent('2');
+        expect(screen.queryByText(/"Alice"/)).not.toBeInTheDocument();
 
-        // Search chip should be present
-        expect(screen.getByText(/"Alice"/i)).toBeInTheDocument();
-        const removeSearchBtn = screen.getByLabelText('Remove Search filter');
-        fireEvent.click(removeSearchBtn);
-        expect(mockSetSearchQuery).toHaveBeenCalledWith('');
-
-        // Date chip should be present
-        const removeDateBtn = screen.getByLabelText('Remove Date filter');
-        fireEvent.click(removeDateBtn);
+        fireEvent.click(screen.getByLabelText('Remove Date filter'));
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
 
-        // Course chip should be present
-        const removeCourseBtn = screen.getByLabelText('Remove Course filter');
-        fireEvent.click(removeCourseBtn);
+        fireEvent.click(screen.getByLabelText('Remove Course filter'));
         expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
+        expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
+    });
 
-        // Clear all button should trigger all resets
-        const clearAllBtn = screen.getByRole('button', { name: /^Clear all$/i });
-        fireEvent.click(clearAllBtn);
-        expect(mockSetSearchQuery).toHaveBeenCalledWith('');
+    it('clears every filter but keeps the search text', () => {
+        render(<FilterBar {...defaultProps} selectedCourseDate="2026-08-28" searchQuery="Alice" dateFrom="2026-08-01T00:00" />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Clear filters$/i }));
         expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
         expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
@@ -151,5 +140,34 @@ describe('FilterBar Component - Date Filter', () => {
         expect(mockSetDateTo).toHaveBeenCalledWith('');
         expect(mockSetCourseDateFrom).toHaveBeenCalledWith('');
         expect(mockSetCourseDateTo).toHaveBeenCalledWith('');
+        expect(mockSetSearchQuery).not.toHaveBeenCalled();
+    });
+
+    it('shows a hidden date range as a chip until the range panel is opened', () => {
+        render(<FilterBar {...defaultProps} dateFrom="2026-08-01T00:00" />);
+
+        const toggle = screen.getByRole('button', { name: /Date range filters/i });
+        expect(toggle).toHaveTextContent('1');
+        // mobile strip + desktop toolbar
+        expect(screen.getAllByLabelText('Remove Created filter')).toHaveLength(2);
+
+        fireEvent.click(toggle);
+        expect(screen.getAllByLabelText('Remove Created filter')).toHaveLength(1);
+        expect(screen.getByText('Course date')).toBeInTheDocument();
+    });
+
+    it('changes sort order from the toolbar select', () => {
+        render(<FilterBar {...defaultProps} />);
+
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'name' } });
+        expect(mockSetSortOrder).toHaveBeenCalledWith('name');
+    });
+
+    it('hides the language row when the course has a single language', () => {
+        const { rerender } = render(<FilterBar {...defaultProps} uniqueVariants={['English']} />);
+        expect(screen.queryByText('English')).not.toBeInTheDocument();
+
+        rerender(<FilterBar {...defaultProps} uniqueVariants={['English', 'Ukrainian']} />);
+        expect(screen.getByText('Ukrainian')).toBeInTheDocument();
     });
 });
