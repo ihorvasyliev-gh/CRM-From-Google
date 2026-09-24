@@ -86,7 +86,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             />
 
             {/* Modal */}
-            <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="relative w-full max-w-lg bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col animate-scaleIn">
+            <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="relative w-full max-w-lg bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden flex flex-col animate-scaleIn">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-surface/50">
                     <div className="flex items-center gap-2.5">

@@ -3,7 +3,7 @@ import { lazyWithRetry } from './lib/lazyWithRetry';
 import { flushSync } from 'react-dom';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Loader2, Menu, X, Sparkles, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -23,6 +23,8 @@ import MobileBottomNav from './components/MobileBottomNav';
 import MobileFloatingActions from './components/MobileFloatingActions';
 
 import { TooltipProvider } from './components/ui/Tooltip';
+import { AppFallback } from './components/ui/PageFallbacks';
+import { IconButton } from './components/ui/Button';
 import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
 import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
 import { GlobalToaster } from './components/Toast';
@@ -49,18 +51,30 @@ import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/stud
 import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 const NAV_ITEMS = [
-    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics' },
-    { key: 'students', label: 'Students', icon: Users, desc: 'Manage students' },
-    { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog' },
-    { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board' },
-    { key: 'outcomes', label: 'Outcomes', icon: Briefcase, desc: 'Graduate tracking' },
-    { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms' },
-    { key: 'analytics', label: 'Analytics', icon: PieChart, desc: 'Insights & Stats' },
-    { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration' },
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics', group: 'Workspace' },
+    { key: 'students', label: 'Students', icon: Users, desc: 'Manage students', group: 'Workspace' },
+    { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog', group: 'Workspace' },
+    { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board', group: 'Workspace' },
+    { key: 'outcomes', label: 'Outcomes', icon: Briefcase, desc: 'Graduate tracking', group: 'Insights' },
+    { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms', group: 'Insights' },
+    { key: 'analytics', label: 'Analytics', icon: PieChart, desc: 'Insights & Stats', group: 'Insights' },
+    { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration', group: 'System' },
 ];
+const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
 const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
 const NOTIF_BANNER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+
+const PAGE_SUBTITLES: Record<string, string> = {
+    dashboard: 'Welcome back — here\'s your overview',
+    students: 'Manage your student database',
+    courses: 'View and manage the course catalog',
+    enrollments: 'Track and manage enrollments',
+    outcomes: 'Track graduate employment status',
+    documents: 'Generate personalised documents from templates',
+    analytics: 'Course, enrollment and outcome statistics',
+    settings: 'Email templates, data quality and preferences',
+};
 
 const PAGE_TITLES: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -574,16 +588,7 @@ function App() {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-background text-primary flex items-center justify-center transition-colors duration-300 ease-in-out">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
-                        <Sparkles size={24} className="text-white" />
-                    </div>
-                    <Loader2 size={20} className="animate-spin text-brand-500" />
-                </div>
-            </div>
-        );
+        return <AppFallback />;
     }
 
     if (!user) {
@@ -597,7 +602,7 @@ function App() {
                 {/* Subtle radial glow in Dark Mode */}
                 {darkMode && (
                     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                        <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1100px] h-[1100px] max-w-[160vw] max-h-[160vw] text-brand-500/[0.07]" />
+                        <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1100px] h-[1100px] max-w-[160vw] max-h-[160vw] text-brand-500/[0.05]" />
                     </div>
                 )}
 
@@ -612,138 +617,116 @@ function App() {
                 {/* Sidebar */}
                 {!isViewer && (
                     <aside className={`
-                    fixed lg:sticky top-0 left-0 h-screen w-[200px] z-40
-                    flex flex-col transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
-                    bg-surface border-r border-border-subtle shadow-[2px_0_24px_-10px_rgba(0,0,0,0.1)]
-                    ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                    fixed lg:sticky top-0 left-0 h-screen w-[224px] z-40
+                    flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
+                    bg-surface border-r border-border-subtle
+                    ${sidebarOpen ? 'translate-x-0 shadow-float' : '-translate-x-full lg:translate-x-0'}
                 `}>
                     {/* Logo */}
-                    <div className="h-16 px-4 flex items-center justify-between flex-shrink-0">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/30 ring-1 ring-inset ring-white/15 flex-shrink-0">
+                    <div className="h-14 px-4 flex items-center justify-between flex-shrink-0 border-b border-border-subtle">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/25 ring-1 ring-inset ring-white/15 flex-shrink-0">
                                 C
                             </div>
-                            <div className="min-w-0">
-                                <h1 className="text-sm font-bold text-primary tracking-tight truncate">
-                                    Course CRM
-                                </h1>
-                                <p className="text-[9px] text-muted font-medium -mt-0.5 tracking-wide truncate">MANAGEMENT SYSTEM</p>
+                            <div className="min-w-0 leading-tight">
+                                <h1 className="text-sm font-bold text-primary tracking-tight truncate">Course CRM</h1>
+                                <p className="text-[10px] text-muted font-medium truncate">Management system</p>
                             </div>
                         </div>
                         <button
                             onClick={() => setSidebarOpen(false)}
-                            className="lg:hidden text-muted hover:text-primary p-1 rounded-lg hover:bg-surface-elevated transition-colors"
+                            aria-label="Close menu"
+                            className="lg:hidden text-muted hover:text-primary p-1.5 rounded-lg hover:bg-surface-elevated transition-colors"
                         >
                             <X size={18} />
                         </button>
                     </div>
 
                     {/* Nav */}
-                    <nav className="flex-1 px-2.5 py-3 space-y-1 overflow-y-auto">
+                    <nav className="flex-1 px-3 py-3 overflow-y-auto" aria-label="Main">
                         <button
                             onClick={() => setCommandPaletteOpen(true)}
-                            className="w-full mb-3 flex items-center justify-between px-2.5 py-2 bg-surface-elevated/70 hover:bg-surface-elevated border border-border-subtle hover:border-brand-500/40 rounded-xl text-xs font-medium text-muted hover:text-primary transition-all group shadow-xs"
+                            className="w-full mb-4 flex items-center justify-between h-9 px-2.5 bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl text-xs font-medium text-muted hover:text-primary transition-colors group"
                             title="Quick search (Ctrl+K)"
                         >
-                            <div className="flex items-center gap-2">
-                                <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
-                                <span>Quick Search</span>
-                            </div>
-                            <kbd className="px-1.5 py-0.2 text-[9px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded group-hover:border-brand-500/30">
+                            <span className="flex items-center gap-2">
+                                <Search size={14} className="group-hover:text-brand-500 transition-colors" />
+                                Quick search
+                            </span>
+                            <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface border border-border-subtle rounded-md">
                                 ⌘K
                             </kbd>
                         </button>
 
-                        <p className="px-2.5 text-[9px] font-bold text-muted uppercase tracking-wider mb-2">Navigation</p>
-                        {NAV_ITEMS.map(item => {
-                            const Icon = item.icon;
-                            const isActive = activeTab === item.key;
-                            return (
-                                <button
-                                    key={item.key}
-                                    onClick={() => navigate(item.key)}
-                                    onMouseEnter={() => handleTabMouseEnter(item.key)}
-                                    onMouseLeave={handleTabMouseLeave}
-                                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 group relative
-                                        ${isActive
-                                            ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400'
-                                            : 'text-muted hover:text-primary hover:bg-surface-elevated'
-                                        }
-                                    `}
-                                >
-                                    {isActive && (
-                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-brand-500 rounded-full" />
-                                    )}
-                                    <div className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${isActive
-                                        ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
-                                        : 'bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transform group-hover:scale-105'
-                                        }`}>
-                                        <Icon size={16} />
-                                    </div>
-                                    <div className="text-left min-w-0">
-                                        <span className="block leading-tight truncate">{item.label}</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
+                        {NAV_GROUPS.map(group => (
+                            <div key={group} className="mb-4 last:mb-0">
+                                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-muted uppercase tracking-wider">{group}</p>
+                                <div className="space-y-0.5">
+                                    {NAV_ITEMS.filter(item => item.group === group).map(item => {
+                                        const Icon = item.icon;
+                                        const isActive = activeTab === item.key;
+                                        const shortcut = NAV_ITEMS.indexOf(item) + 1;
+                                        return (
+                                            <button
+                                                key={item.key}
+                                                onClick={() => navigate(item.key)}
+                                                onMouseEnter={() => handleTabMouseEnter(item.key)}
+                                                onMouseLeave={handleTabMouseLeave}
+                                                aria-current={isActive ? 'page' : undefined}
+                                                className={`w-full flex items-center gap-2.5 h-9 px-2.5 rounded-xl text-[13px] transition-colors group relative ${
+                                                    isActive
+                                                        ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold'
+                                                        : 'text-muted font-medium hover:text-primary hover:bg-surface-elevated'
+                                                }`}
+                                            >
+                                                {isActive && (
+                                                    <span aria-hidden className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-500 rounded-r-full" />
+                                                )}
+                                                <Icon size={17} className="flex-shrink-0" />
+                                                <span className="flex-1 text-left truncate">{item.label}</span>
+                                                <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </nav>
 
-                    {/* User / Settings / Sign Out */}
-                    <div className="p-2 border-t border-border-subtle flex-shrink-0 space-y-1.5">
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleDarkMode}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
-                        >
-                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
-                                {darkMode ? <Sun size={14} /> : <Moon size={14} />}
-                            </div>
-                            <span className="flex-1 text-left truncate">Theme</span>
-                            <span className="text-[10px] text-muted flex-shrink-0">{darkMode ? 'Dark' : 'Light'}</span>
-                        </button>
-
-                        {/* Density Toggle */}
-                        <button
-                            onClick={toggleDensity}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
-                        >
-                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
-                                <Rows3 size={14} />
-                            </div>
-                            <span className="flex-1 text-left truncate">Density</span>
-                            <span className="text-[10px] text-muted flex-shrink-0 capitalize">{density}</span>
-                        </button>
-
-                        {/* Shortcuts helper */}
-                        <button
-                            onClick={() => setShortcutsModalOpen(true)}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-primary hover:bg-surface-elevated transition-all group"
-                        >
-                            <div className="p-1.5 rounded-lg bg-surface-elevated text-muted group-hover:bg-background group-hover:text-primary border border-transparent group-hover:border-border-subtle transition-all transform group-hover:scale-105 flex-shrink-0">
-                                <HelpCircle size={14} />
-                            </div>
-                            <span className="flex-1 text-left truncate">Shortcuts</span>
-                            <kbd className="text-[10px] font-mono font-bold text-muted px-1.5 py-0.2 bg-surface border border-border-subtle rounded flex-shrink-0">?</kbd>
-                        </button>
-
-                        <div className="flex items-center gap-2 px-2 py-1.5 bg-surface-elevated rounded-lg border border-border-subtle/50">
-                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-background shadow-sm flex-shrink-0">
+                    {/* Preferences / user */}
+                    <div className="p-3 border-t border-border-subtle flex-shrink-0 space-y-2">
+                        <div className="flex items-center gap-1">
+                            <IconButton size="sm" label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleDarkMode}>
+                                {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+                            </IconButton>
+                            <IconButton
+                                size="sm"
+                                label={density === 'compact' ? 'Switch to comfortable view' : 'Switch to compact view'}
+                                onClick={toggleDensity}
+                                active={density === 'compact'}
+                            >
+                                <Rows3 size={15} />
+                            </IconButton>
+                            <IconButton size="sm" label="Keyboard shortcuts (?)" onClick={() => setShortcutsModalOpen(true)}>
+                                <HelpCircle size={15} />
+                            </IconButton>
+                            <span className="flex-1" />
+                            <IconButton size="sm" tone="danger" label="Sign out" onClick={signOut}>
+                                <LogOut size={15} />
+                            </IconButton>
+                        </div>
+                        <div className="flex items-center gap-2.5 px-2 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
+                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-primary truncate">{user.email}</p>
+                                <p className="text-xs font-medium text-primary truncate" title={user.email ?? undefined}>{user.email}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    <span className="text-[9px] text-muted font-medium uppercase tracking-wider">Admin</span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                                    <span className="text-[10px] text-muted font-medium">Administrator</span>
                                 </div>
                             </div>
                         </div>
-                        <button
-                            onClick={signOut}
-                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium text-muted hover:text-red-500 hover:bg-red-500/10 transition-all"
-                        >
-                            <LogOut size={16} className="flex-shrink-0" /> <span className="truncate">Sign Out</span>
-                        </button>
                     </div>
                 </aside>
                 )}
@@ -756,7 +739,7 @@ function App() {
                 }`}>
                     {/* Notification Permission Banner */}
                     {showNotifBanner && (
-                        <div className="bg-brand-500/10 border-b border-brand-500/20 px-4 py-2.5 flex items-center justify-between gap-3 animate-fadeIn">
+                        <div className="bg-brand-500/[0.07] border-b border-brand-500/20 px-4 lg:px-8 py-2 flex items-center justify-between gap-3 animate-fadeIn">
                             <div className="flex items-center gap-2 text-sm">
                                 <Bell size={16} className="text-brand-500 flex-shrink-0" />
                                 <span className="text-primary">Enable notifications to be alerted when students confirm courses</span>
@@ -771,7 +754,7 @@ function App() {
                                             else toast.error('Notifications were not enabled (permission denied or unsupported)');
                                         }
                                     }}
-                                    className="px-3 py-1 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+                                    className="h-7 px-3 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
                                 >
                                     Enable
                                 </button>
@@ -808,34 +791,27 @@ function App() {
                         />
                     )}
 
-                    {/* Mobile Header (Glassmorphism) */}
+                    {/* Mobile Header */}
                     {!isViewer && (
-                        <header className="lg:hidden h-12 bg-background/95 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-3 flex items-center justify-between sticky top-0 z-30 transition-colors">
-                            <button
-                                onClick={() => setSidebarOpen(true)}
-                                className="text-muted hover:text-primary transition p-1 rounded-lg hover:bg-surface-elevated"
-                            >
+                        <header className="lg:hidden h-14 bg-background/90 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-2 flex items-center justify-between gap-2 sticky top-0 z-30">
+                            <IconButton label="Open menu" onClick={() => setSidebarOpen(true)}>
                                 <Menu size={20} />
-                            </button>
-                            <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/20">
+                            </IconButton>
+                            <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-7 h-7 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-sm shadow-brand-500/20 flex-shrink-0">
                                     C
                                 </div>
-                                <span className="font-bold text-sm text-primary tracking-tight">{PAGE_TITLES[activeTab]}</span>
+                                <span className="font-semibold text-sm text-primary tracking-tight truncate">{PAGE_TITLES[activeTab]}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => setCommandPaletteOpen(true)}
-                                    className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
-                                    title="Search (Ctrl+K)"
-                                >
-                                    <Search size={17} />
-                                </button>
+                            <div className="flex items-center gap-0.5">
+                                <IconButton label="Search (Ctrl+K)" onClick={() => setCommandPaletteOpen(true)}>
+                                    <Search size={18} />
+                                </IconButton>
                                 <NetworkStatusIndicator />
                                 {pendingApprovalsCount > 0 ? (
                                     <button
                                         onClick={() => setApprovalsModalOpen(true)}
-                                        className="p-1.5 bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold flex items-center gap-1 animate-pulse"
+                                        className="h-8 px-2 bg-warning/15 border border-warning/30 text-status-requested rounded-lg text-xs font-bold flex items-center gap-1"
                                         title="Pending Approvals"
                                     >
                                         <Clock size={13} />
@@ -846,70 +822,58 @@ function App() {
                         </header>
                     )}
 
-                    {/* Desktop Floating Header (Glassmorphism) */}
+                    {/* Desktop Header */}
                     {!isViewer && (
-                        <header className="hidden lg:block sticky top-0 z-20 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-4 sm:px-6 lg:px-8 py-3 transition-colors">
-                            <div className="w-full flex flex-row items-center justify-between">
-                                <div className="animate-fadeIn flex items-center gap-3">
-                                    <h2 className="text-xl font-bold text-primary tracking-tight">
-                                        {PAGE_TITLES[activeTab]}
-                                    </h2>
-                                    <div className="h-4 w-px bg-border-strong hidden sm:block"></div>
-                                    <p className="text-sm text-muted font-medium hidden sm:block">
-                                        {activeTab === 'dashboard' && 'Welcome back — here\'s your overview'}
-                                        {activeTab === 'students' && 'Manage your student database'}
-                                        {activeTab === 'courses' && 'View and manage course catalog'}
-                                        {activeTab === 'enrollments' && 'Track and manage enrollments'}
-                                        {activeTab === 'outcomes' && 'Track graduate employment status'}
-                                        {activeTab === 'documents' && 'Generate personalized documents'}
-                                        {activeTab === 'analytics' && 'Course and enrollment statistics'}
-                                        {activeTab === 'settings' && 'Configure email templates and preferences'}
-                                    </p>
-                                </div>
+                        <header className="hidden lg:flex sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-8 items-center justify-between gap-4">
+                            <div className="flex items-baseline gap-3 min-w-0">
+                                <h2 className="text-lg font-semibold text-primary tracking-tight">{PAGE_TITLES[activeTab]}</h2>
+                                {PAGE_SUBTITLES[activeTab] && (
+                                    <p className="text-[13px] text-muted truncate">{PAGE_SUBTITLES[activeTab]}</p>
+                                )}
+                            </div>
 
-                                {/* Header Right Controls: Search, Approvals & Notifications */}
-                                <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {pendingApprovalsCount > 0 && (
                                     <button
-                                        onClick={() => setCommandPaletteOpen(true)}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted hover:text-primary rounded-xl text-xs font-medium transition-all shadow-xs group"
-                                        title="Quick search (Ctrl+K)"
+                                        onClick={() => setApprovalsModalOpen(true)}
+                                        className="flex items-center gap-2 h-8 px-3 mr-1 bg-warning/10 hover:bg-warning/20 border border-warning/30 text-status-requested rounded-xl text-xs font-semibold transition-colors"
+                                        title="Review pending course completion requests"
                                     >
-                                        <Search size={14} className="text-muted group-hover:text-brand-500 transition-colors" />
-                                        <span>Quick search...</span>
-                                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md group-hover:border-brand-500/30">
-                                            Ctrl K
-                                        </kbd>
+                                        <span className="relative flex w-2 h-2">
+                                            <span className="absolute inline-flex h-full w-full rounded-full bg-warning opacity-75 animate-ping-few" />
+                                            <span className="relative inline-flex w-2 h-2 rounded-full bg-warning" />
+                                        </span>
+                                        {pendingApprovalsCount} pending approval{pendingApprovalsCount > 1 ? 's' : ''}
                                     </button>
+                                )}
 
-                                    <NetworkStatusIndicator showLabel />
+                                <button
+                                    onClick={() => setCommandPaletteOpen(true)}
+                                    className="flex items-center gap-2 h-8 pl-2.5 pr-1.5 w-56 bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong text-muted hover:text-primary rounded-xl text-xs font-medium transition-colors group"
+                                    title="Quick search (Ctrl+K)"
+                                >
+                                    <Search size={14} className="group-hover:text-brand-500 transition-colors" />
+                                    <span className="flex-1 text-left">Search…</span>
+                                    <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface-elevated border border-border-subtle rounded-md">
+                                        Ctrl K
+                                    </kbd>
+                                </button>
 
-                                    <button
-                                        onClick={() => setShortcutsModalOpen(true)}
-                                        className="p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border border-transparent hover:border-border-subtle"
-                                        title="Keyboard Shortcuts (?)"
-                                    >
-                                        <HelpCircle size={17} />
-                                    </button>
+                                <NetworkStatusIndicator showLabel />
 
-                                    <button
-                                        onClick={toggleDensity}
-                                        className={`p-2 rounded-xl text-muted hover:text-primary hover:bg-surface-elevated transition-all border ${density === 'compact' ? 'border-brand-500/30 bg-brand-500/10 text-brand-500' : 'border-transparent hover:border-border-subtle'}`}
-                                        title={density === 'compact' ? 'Switch to Comfortable View' : 'Switch to Compact View'}
-                                    >
-                                        <Rows3 size={17} />
-                                    </button>
-
-                                    {pendingApprovalsCount > 0 && (
-                                        <button
-                                            onClick={() => setApprovalsModalOpen(true)}
-                                            className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all shadow-sm animate-pulse active:scale-95 cursor-pointer"
-                                            title="Review pending course completion requests"
-                                        >
-                                            <Clock size={14} className="animate-spin-slow" />
-                                            <span>{pendingApprovalsCount} Pending Approval{pendingApprovalsCount > 1 ? 's' : ''}</span>
-                                        </button>
-                                    )}
-                                </div>
+                                <IconButton label="Keyboard shortcuts (?)" onClick={() => setShortcutsModalOpen(true)}>
+                                    <HelpCircle size={17} />
+                                </IconButton>
+                                <IconButton
+                                    label={density === 'compact' ? 'Switch to comfortable view' : 'Switch to compact view'}
+                                    onClick={toggleDensity}
+                                    active={density === 'compact'}
+                                >
+                                    <Rows3 size={17} />
+                                </IconButton>
+                                <IconButton label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleDarkMode}>
+                                    {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+                                </IconButton>
                             </div>
                         </header>
                     )}
@@ -918,16 +882,11 @@ function App() {
                     <main className={`flex-1 w-full flex flex-col min-h-0 ${
                         activeTab === 'enrollments'
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
-                            : 'px-3 py-3 sm:px-6 lg:px-8 py-4 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-4'
+                            : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'
                     }`}>
                         <Suspense fallback={
-                            <div className="w-full h-full flex items-center justify-center min-h-[50vh]">
-                                <div className="flex flex-col items-center gap-3">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center animate-pulse-subtle">
-                                        <Sparkles size={24} className="text-white" />
-                                    </div>
-                                    <Loader2 size={20} className="animate-spin text-brand-500" />
-                                </div>
+                            <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
+                                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
                             </div>
                         }>
                             <Routes>

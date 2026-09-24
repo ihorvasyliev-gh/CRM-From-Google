@@ -287,7 +287,7 @@ export default function CommandPalette({
                 id: 'act-theme',
                 title: darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
                 subtitle: `Current: ${darkMode ? 'Dark' : 'Light'} theme`,
-                icon: darkMode ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} className="text-indigo-400" />,
+                icon: darkMode ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} className="text-brand-500" />,
                 onSelect: () => {
                     toggleDarkMode();
                     onClose();
@@ -471,7 +471,7 @@ export default function CommandPalette({
             />
 
             {/* Modal Dialog */}
-            <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface-elevated border border-border-subtle rounded-2xl shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
+            <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
                 {/* Search Input Bar */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle bg-surface/50">
                     <Search size={19} className="text-muted flex-shrink-0" />

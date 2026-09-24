@@ -19,20 +19,20 @@ interface Props {
 
 const STYLES = {
     success: {
-        icon: <CheckCircle size={18} className="text-emerald-500" />,
-        bg: 'bg-surface-elevated border-emerald-500/30 dark:border-emerald-500/30',
-        actionBtn: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30',
-        bar: 'bg-emerald-500',
+        icon: <CheckCircle size={16} />,
+        chip: 'bg-success/15 text-status-confirmed',
+        actionBtn: 'bg-success/10 text-status-confirmed hover:bg-success/20 border-success/30',
+        bar: 'bg-success',
     },
     error: {
-        icon: <XCircle size={18} className="text-red-500" />,
-        bg: 'bg-surface-elevated border-red-500/30 dark:border-red-500/30',
-        actionBtn: 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/30',
-        bar: 'bg-red-500',
+        icon: <XCircle size={16} />,
+        chip: 'bg-danger/15 text-status-rejected',
+        actionBtn: 'bg-danger/10 text-status-rejected hover:bg-danger/20 border-danger/30',
+        bar: 'bg-danger',
     },
     info: {
-        icon: <AlertCircle size={18} className="text-brand-500" />,
-        bg: 'bg-surface-elevated border-brand-500/30 dark:border-brand-500/30',
+        icon: <AlertCircle size={16} />,
+        chip: 'bg-brand-500/10 text-brand-600 dark:text-brand-400',
         actionBtn: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-500/20 border-brand-500/30',
         bar: 'bg-brand-500',
     },
@@ -132,9 +132,9 @@ export default function Toast({ toast, onDismiss }: Props) {
                 visible ? 'animate-slideInRight opacity-100 translate-x-0' : 'opacity-0 translate-x-5'
             }`}
         >
-            <div className={`${s.bg} border rounded-2xl shadow-2xl shadow-black/20 overflow-hidden`}>
-                <div className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-shrink-0">{s.icon}</div>
+            <div className="bg-surface border border-border-subtle rounded-xl shadow-float overflow-hidden">
+                <div className="flex items-center gap-3 pl-3 pr-2.5 py-2.5">
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${s.chip}`}>{s.icon}</div>
                     <span className="text-sm font-medium text-primary flex-1 leading-snug break-words">
                         {toast.message}
                     </span>
@@ -142,7 +142,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                     {toast.action && (
                         <button
                             onClick={handleActionClick}
-                            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-all active:scale-95 flex-shrink-0 ${s.actionBtn}`}
+                            className={`flex items-center gap-1 h-7 px-2.5 text-xs font-semibold rounded-lg border transition-all active:scale-95 flex-shrink-0 ${s.actionBtn}`}
                         >
                             <RotateCcw size={12} />
                             {toast.action.label}
@@ -152,7 +152,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                     <button
                         onClick={() => close()}
                         aria-label="Dismiss notification"
-                        className="text-muted hover:text-primary p-1 rounded-lg hover:bg-surface transition-all flex-shrink-0"
+                        className="text-muted hover:text-primary p-1.5 rounded-lg hover:bg-surface-elevated transition-colors flex-shrink-0"
                     >
                         <X size={14} />
                     </button>
@@ -160,7 +160,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                 {/* Auto-dismiss progress bar (keyed so it restarts for every new toast, paused on hover) */}
                 <div
                     key={barKey}
-                    className={`h-1 ${s.bar} progress-bar`}
+                    className={`h-0.5 ${s.bar} opacity-70 progress-bar`}
                     style={{ animationDuration: `${duration}ms`, animationPlayState: paused ? 'paused' : 'running' }}
                 />
             </div>

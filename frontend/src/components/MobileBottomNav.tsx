@@ -113,7 +113,7 @@ export default function MobileBottomNav({
                 {moreOpen && (
                     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fadeIn lg:hidden" onClick={() => setMoreOpen(false)}>
                         <div 
-                            className="w-full max-w-lg bg-surface-elevated border-t border-border-subtle rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-2xl animate-slideUp"
+                            className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float animate-slideUp"
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="w-10 h-1 bg-border-strong rounded-full mx-auto mb-4" />
@@ -132,7 +132,7 @@ export default function MobileBottomNav({
                                     onClick={toggleDarkMode}
                                     className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all"
                                 >
-                                    {darkMode ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-indigo-400" />}
+                                    {darkMode ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-brand-500" />}
                                     <span>Theme: {darkMode ? 'Dark' : 'Light'}</span>
                                 </button>
                                 <button
@@ -249,7 +249,7 @@ export default function MobileBottomNav({
                     onClick={() => setMoreOpen(false)}
                 >
                     <div 
-                        className="w-full max-w-lg bg-surface-elevated border-t border-border-subtle rounded-t-3xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-2xl animate-slideUp max-h-[85vh] overflow-y-auto"
+                        className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float animate-slideUp max-h-[85vh] overflow-y-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Pull handle */}
@@ -325,7 +325,7 @@ export default function MobileBottomNav({
                                         : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
                                 }`}
                             >
-                                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                                <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
                                     <FileText size={15} />
                                 </div>
                                 <span>Documents</span>
@@ -352,7 +352,7 @@ export default function MobileBottomNav({
                                 onClick={toggleDarkMode}
                                 className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all"
                             >
-                                {darkMode ? <Sun size={16} className="text-amber-400 mb-1" /> : <Moon size={16} className="text-indigo-400 mb-1" />}
+                                {darkMode ? <Sun size={16} className="text-amber-400 mb-1" /> : <Moon size={16} className="text-brand-500 mb-1" />}
                                 <span>{darkMode ? 'Dark' : 'Light'}</span>
                             </button>
 
