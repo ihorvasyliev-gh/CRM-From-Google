@@ -103,6 +103,23 @@ export function useGlobalRealtimeSync() {
                     queueInvalidation(['outcomes_graduates', 'analytics_employment_statuses_v1']);
                 }
             )
+            // ─── External outreach lists (e.g. Action 11) ────
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'outreach_contacts' },
+                (payload) => {
+                    console.log('Realtime update: outreach_contacts changed', payload);
+                    queueInvalidation(['outreach_contacts']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'outreach_lists' },
+                (payload) => {
+                    console.log('Realtime update: outreach_lists changed', payload);
+                    queueInvalidation(['outreach_lists']);
+                }
+            )
             .subscribe((status, err) => {
                 // Ignore late status callbacks from channels we already replaced/removed —
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.

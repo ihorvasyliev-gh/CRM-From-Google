@@ -1,21 +1,52 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil, GraduationCap, Users } from 'lucide-react';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
-import OutcomeEditModal from './OutcomeEditModal';
+import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
+import OutreachLists from './OutreachLists';
 
 export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
 
 type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
 
+/** Outcomes page: CRM graduates, or external lists such as Action 11 (from IRIS). */
 export default function OutcomesList() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const view = searchParams.get('view') === 'lists' ? 'lists' : 'graduates';
+
+    return (
+        <div className="space-y-4">
+            <div className="inline-flex items-center bg-surface p-1 rounded-xl border border-border-subtle text-xs font-semibold">
+                {([
+                    ['graduates', 'CRM Graduates', GraduationCap],
+                    ['lists', 'External Lists (Action 11…)', Users],
+                ] as const).map(([value, label, Icon]) => (
+                    <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSearchParams(value === 'lists' ? { view: 'lists' } : {}, { replace: true })}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                            view === value ? 'bg-brand-500 text-white shadow-sm' : 'text-muted hover:text-primary'
+                        }`}
+                    >
+                        <Icon size={13} /> {label}
+                    </button>
+                ))}
+            </div>
+            {view === 'lists' ? <OutreachLists /> : <GraduateOutcomes />}
+        </div>
+    );
+}
+
+function GraduateOutcomes() {
 
 
     const { data: graduates = [], isLoading: loading, refetch: fetchGraduates } = useQuery({
@@ -161,6 +192,34 @@ export default function OutcomesList() {
         } finally {
             setSending(false);
         }
+    }
+
+    async function saveGraduateOutcome(grad: GraduateRow, values: OutcomeValues) {
+        if (values.tracking_status === 'not_contacted') {
+            // Remove the employment_status record completely
+            const { error: delErr } = await supabase
+                .from('employment_status')
+                .delete()
+                .eq('student_id', grad.student_id);
+            if (delErr) throw delErr;
+            return;
+        }
+
+        const responded = values.tracking_status === 'responded';
+        const { error: upsertErr } = await supabase
+            .from('employment_status')
+            .upsert({
+                student_id: grad.student_id,
+                email: grad.email,
+                status: responded ? 'responded' : 'pending',
+                is_working: values.is_working,
+                started_month: values.started_month,
+                field_of_work: values.field_of_work,
+                employment_type: values.employment_type,
+                // If marking as responded, set last_responded_at
+                ...(responded ? { last_responded_at: new Date().toISOString() } : {}),
+            }, { onConflict: 'student_id' });
+        if (upsertErr) throw upsertErr;
     }
 
     function getTrackingBadge(status: GraduateRow['tracking_status']) {
@@ -468,7 +527,8 @@ export default function OutcomesList() {
             {editingGrad && (
                 <OutcomeEditModal
                     isOpen={true}
-                    graduate={editingGrad}
+                    person={editingGrad}
+                    onSave={values => saveGraduateOutcome(editingGrad, values)}
                     onClose={() => setEditingGrad(null)}
                     onSaved={() => {
                         fetchGraduates();

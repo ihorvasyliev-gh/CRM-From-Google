@@ -1,17 +1,29 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { X, Save, AlertCircle, Loader2 } from 'lucide-react';
-import type { GraduateRow } from './OutcomesList';
+import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+
+/** Survey answer as stored for a graduate or an outreach list contact. */
+export interface OutcomeValues {
+    tracking_status: 'not_contacted' | 'pending' | 'responded';
+    is_working: boolean | null;
+    started_month: string | null;
+    field_of_work: string | null;
+    employment_type: string | null;
+}
 
 interface OutcomeEditModalProps {
     isOpen: boolean;
-    graduate: GraduateRow | null;
+    person: (OutcomeValues & { first_name: string; last_name: string }) | null;
     onClose: () => void;
     onSaved: () => void;
+    /** Persist the values. Answer fields are already null when not responded / not working. */
+    onSave: (values: OutcomeValues) => Promise<void>;
+    /** Optional "remove" action shown in the footer (e.g. remove a contact from a list). */
+    onDelete?: () => Promise<void>;
+    deleteLabel?: string;
 }
 
-export default function OutcomeEditModal({ isOpen, graduate, onClose, onSaved }: OutcomeEditModalProps) {
+export default function OutcomeEditModal({ isOpen, person: graduate, onClose, onSaved, onSave, onDelete, deleteLabel = 'Remove' }: OutcomeEditModalProps) {
     const [trackingStatus, setTrackingStatus] = useState<'not_contacted' | 'pending' | 'responded'>('not_contacted');
     const [isWorking, setIsWorking] = useState<boolean | null>(null);
     const [startedMonth, setStartedMonth] = useState('');
@@ -41,42 +53,37 @@ export default function OutcomeEditModal({ isOpen, graduate, onClose, onSaved }:
         setSaving(true);
         setError('');
 
+        const responded = trackingStatus === 'responded';
+        const working = responded && isWorking === true;
         try {
-            if (trackingStatus === 'not_contacted') {
-                // Remove the employment_status record completely
-                const { error: delErr } = await supabase
-                    .from('employment_status')
-                    .delete()
-                    .eq('student_id', graduate!.student_id);
-                if (delErr) throw delErr;
-            } else {
-                // Upsert with new values
-                const updatePayload = {
-                    student_id: graduate!.student_id,
-                    email: graduate!.email,
-                    status: trackingStatus === 'responded' ? 'responded' : 'pending',
-                    is_working: trackingStatus === 'responded' ? isWorking : null,
-                    started_month: (trackingStatus === 'responded' && isWorking) ? (startedMonth || null) : null,
-                    field_of_work: (trackingStatus === 'responded' && isWorking) ? (fieldOfWork || null) : null,
-                    employment_type: (trackingStatus === 'responded' && isWorking) ? (employmentType || null) : null,
-                    // If marking as responded, set last_responded_at
-                    ...(trackingStatus === 'responded' 
-                        ? { last_responded_at: new Date().toISOString() } 
-                        : {})
-                };
-
-                const { error: upsertErr } = await supabase
-                    .from('employment_status')
-                    .upsert(updatePayload, { onConflict: 'student_id' });
-                
-                if (upsertErr) throw upsertErr;
-            }
+            await onSave({
+                tracking_status: trackingStatus,
+                is_working: responded ? isWorking : null,
+                started_month: working ? (startedMonth || null) : null,
+                field_of_work: working ? (fieldOfWork || null) : null,
+                employment_type: working ? (employmentType || null) : null,
+            });
 
             onSaved();
             onClose();
         } catch (err: any) {
             console.error('Save error:', err);
             setError(err.message || 'Failed to update outcomes.');
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function handleDelete() {
+        if (!onDelete || !window.confirm(`${deleteLabel}: ${graduate!.first_name} ${graduate!.last_name}?`)) return;
+        setSaving(true);
+        setError('');
+        try {
+            await onDelete();
+            onClose();
+        } catch (err: any) {
+            console.error('Delete error:', err);
+            setError(err.message || 'Failed to remove.');
         } finally {
             setSaving(false);
         }
@@ -157,7 +164,7 @@ export default function OutcomeEditModal({ isOpen, graduate, onClose, onSaved }:
                             <div className="space-y-4 pt-4 border-t border-border-subtle animate-fadeIn">
                                 <div>
                                     <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
-                                        Is the graduate working?
+                                        Is the person working?
                                     </label>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button
@@ -257,6 +264,16 @@ export default function OutcomeEditModal({ isOpen, graduate, onClose, onSaved }:
 
                 {/* Footer */}
                 <div className="p-5 border-t border-border-subtle bg-surface/50 flex justify-end gap-3 shrink-0">
+                    {onDelete && (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            disabled={saving}
+                            className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                        >
+                            <Trash2 size={15} /> {deleteLabel}
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={onClose}

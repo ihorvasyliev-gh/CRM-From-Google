@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Settings as SettingsIcon, Mail, Calendar, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, Rows3 } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig } from '../lib/appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
@@ -64,7 +64,13 @@ export default function Settings() {
     const isValidHighEnglishTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
     const isValidStandardTemplate = (config.htmlEmailTemplateStandard || '').includes('{confirmationLink}') || (config.htmlEmailTemplateStandard || '').includes('{confirmationButton}');
     const isValidTemplate = isValidHighEnglishTemplate && isValidStandardTemplate;
-    const isValidStatusTemplate = config.statusEmailTemplate.includes('{statusLink}') || config.statusEmailTemplate.includes('{statusButton}');
+    const hasStatusTag = (tpl: string) => tpl.includes('{statusLink}') || tpl.includes('{statusButton}');
+    const isValidStatusTemplate = hasStatusTag(config.statusEmailTemplate) && hasStatusTag(config.outreachEmailTemplate);
+    // Survey email tab: CRM graduates or external lists (e.g. Action 11)
+    const [statusAudience, setStatusAudience] = useState<StatusEmailAudience>('graduates');
+    const statusTemplateKey = statusAudience === 'outreach' ? 'outreachEmailTemplate' : 'statusEmailTemplate';
+    const statusSubjectKey = statusAudience === 'outreach' ? 'outreachEmailSubjectFormat' : 'statusEmailSubjectFormat';
+    const isValidCurrentStatusTemplate = hasStatusTag(config[statusTemplateKey]);
 
     // Snapshot of the last saved config — comparing against it avoids re-reading and
     // re-migrating localStorage on every keystroke in the template editors.
@@ -119,8 +125,8 @@ export default function Settings() {
     const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config);
 
     // Status template preview
-    const statusLinkStr = `${window.location.origin}/status`;
-    const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config);
+    const statusLinkStr = `${window.location.origin}/status${statusAudience === 'outreach' ? '?list=example' : ''}`;
+    const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config, statusAudience);
 
     const [showStatusPreview, setShowStatusPreview] = useState(true);
 
@@ -371,7 +377,7 @@ export default function Settings() {
         }
     }, [runDuplicateScan]);
 
-    const insertVariable = useCallback((variable: string, target: 'invitation_high_english' | 'invitation_standard' | 'status') => {
+    const insertVariable = useCallback((variable: string, target: 'invitation_high_english' | 'invitation_standard' | 'status' | 'outreach') => {
         if (target === 'invitation_high_english') {
             setLocalConfig(prev => ({
                 ...prev,
@@ -381,6 +387,11 @@ export default function Settings() {
             setLocalConfig(prev => ({
                 ...prev,
                 htmlEmailTemplateStandard: prev.htmlEmailTemplateStandard ? `${prev.htmlEmailTemplateStandard} ${variable}` : variable
+            }));
+        } else if (target === 'outreach') {
+            setLocalConfig(prev => ({
+                ...prev,
+                outreachEmailTemplate: prev.outreachEmailTemplate ? `${prev.outreachEmailTemplate} ${variable}` : variable
             }));
         } else {
             setLocalConfig(prev => ({
@@ -641,25 +652,43 @@ export default function Settings() {
                 </div>
             </section>
 
-            {/* ═══ Graduate Outcomes Survey Email ═══ */}
+            {/* ═══ Outcomes Survey Email (graduates + external lists) ═══ */}
             <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between">
+                <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="p-1.5 bg-violet-500/10 rounded-lg">
                             <Briefcase size={16} className="text-violet-500" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-primary">Graduate Outcomes Survey Email</h3>
-                            <p className="text-xs text-muted mt-0.5">Configure email subject and body template sent to graduates for employment tracking</p>
+                            <h3 className="text-sm font-bold text-primary">Outcomes Survey Email</h3>
+                            <p className="text-xs text-muted mt-0.5">Configure email subject and body template sent to graduates and external lists (e.g. Action 11) for employment tracking</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowStatusPreview(!showStatusPreview)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
-                    >
-                        {showStatusPreview ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {showStatusPreview ? 'Hide' : 'Live Preview'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-background p-1 rounded-xl border border-border-subtle text-xs font-semibold">
+                            {([['graduates', 'CRM Graduates'], ['outreach', 'External Lists']] as const).map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => setStatusAudience(value)}
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                                        statusAudience === value
+                                            ? 'bg-violet-600 text-white shadow-sm'
+                                            : 'text-muted hover:text-primary'
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => setShowStatusPreview(!showStatusPreview)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-primary px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-all"
+                        >
+                            {showStatusPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {showStatusPreview ? 'Hide' : 'Live Preview'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className={`p-5 grid grid-cols-1 ${showStatusPreview ? 'lg:grid-cols-2 items-start' : ''} gap-6`}>
@@ -669,8 +698,8 @@ export default function Settings() {
                             <label className="block text-xs font-semibold text-muted uppercase tracking-wider">Email Subject</label>
                             <input
                                 type="text"
-                                value={config.statusEmailSubjectFormat}
-                                onChange={e => setLocalConfig({ ...config, statusEmailSubjectFormat: e.target.value })}
+                                value={config[statusSubjectKey]}
+                                onChange={e => setLocalConfig({ ...config, [statusSubjectKey]: e.target.value })}
                                 className="w-full px-4 py-2.5 bg-background border border-border-strong rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 transition-all text-primary placeholder:text-muted/40"
                                 placeholder="e.g. Quick Status Update — How are things going?"
                             />
@@ -690,12 +719,12 @@ export default function Settings() {
                                     { tag: '{statusButton}', label: 'Status Button' },
                                     { tag: '{statusLink}', label: 'Status Link' },
                                 ].map(item => {
-                                    const isPresent = config.statusEmailTemplate.includes(item.tag);
+                                    const isPresent = config[statusTemplateKey].includes(item.tag);
                                     return (
                                         <button
                                             key={item.tag}
                                             type="button"
-                                            onClick={() => insertVariable(item.tag, 'status')}
+                                            onClick={() => insertVariable(item.tag, statusAudience === 'outreach' ? 'outreach' : 'status')}
                                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-all active:scale-95 ${
                                                 isPresent
                                                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
@@ -713,11 +742,12 @@ export default function Settings() {
 
                             <div className="w-full bg-background border border-border-strong rounded-xl text-sm focus-within:ring-2 focus-within:ring-violet-500/50 focus-within:border-violet-500 transition-all text-primary [&_.ql-toolbar]:bg-surface-elevated/50 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px] [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white">
                                 <ReactQuill
+                                    key={statusAudience}
                                     theme="snow"
-                                    value={config.statusEmailTemplate}
+                                    value={config[statusTemplateKey]}
                                     onChange={(content) => {
-                                        if (content !== config.statusEmailTemplate) {
-                                            setLocalConfig(prev => ({ ...prev, statusEmailTemplate: content }));
+                                        if (content !== config[statusTemplateKey]) {
+                                            setLocalConfig(prev => ({ ...prev, [statusTemplateKey]: content }));
                                         }
                                     }}
                                     modules={quillModules}
@@ -725,7 +755,7 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {!isValidStatusTemplate ? (
+                        {!isValidCurrentStatusTemplate ? (
                             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-xs animate-fadeIn font-medium">
                                 <AlertTriangle size={15} className="flex-shrink-0" />
                                 <span><strong>Warning:</strong> Template must include at least one status tag (<code>{'{statusButton}'}</code> or <code>{'{statusLink}'}</code>).</span>
@@ -748,7 +778,7 @@ export default function Settings() {
                             <div className="p-4 bg-background border border-border-subtle rounded-xl flex-1 flex flex-col shadow-inner">
                                 <div className="text-xs text-muted mb-2">
                                     <span className="font-semibold">Subject: </span>
-                                    <span className="text-primary font-medium">{config.statusEmailSubjectFormat}</span>
+                                    <span className="text-primary font-medium">{config[statusSubjectKey]}</span>
                                 </div>
                                 <hr className="border-border-subtle mb-3" />
                                 <iframe

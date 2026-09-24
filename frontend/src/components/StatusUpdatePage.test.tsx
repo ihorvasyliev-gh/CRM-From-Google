@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StatusUpdatePage from './StatusUpdatePage';
 import { supabase } from '../lib/supabase';
@@ -113,5 +113,42 @@ describe('StatusUpdatePage', () => {
         fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/does not match/i);
+    });
+
+    describe('external list link (/status?list=…)', () => {
+        beforeEach(() => window.history.pushState({}, '', '/status?list=list-1'));
+        afterEach(() => window.history.pushState({}, '', '/'));
+
+        it('saves the answer to the list only, without looking up CRM students', async () => {
+            rpc.mockResolvedValue({ data: { success: true, message: 'ok', first_name: 'Olga' }, error: null });
+
+            render(<StatusUpdatePage />);
+            expect(screen.getByText('How are things going?')).toBeInTheDocument();
+            fillEmail('Olga@Example.com');
+            fireEvent.click(screen.getByRole('button', { name: /not yet/i }));
+            fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
+
+            await waitFor(() => expect(screen.getByText(/thank you, olga/i)).toBeInTheDocument());
+            expect(rpc).toHaveBeenCalledTimes(1);
+            expect(rpc).toHaveBeenCalledWith('submit_outreach_status', {
+                p_list_id: 'list-1',
+                p_email: 'olga@example.com',
+                p_is_working: false,
+                p_started_month: null,
+                p_field: null,
+                p_employment_type: null,
+            });
+        });
+
+        it('shows the server message when the email is not on the list', async () => {
+            rpc.mockResolvedValue({ data: { success: false, message: 'This email address does not match any of our records.' }, error: null });
+
+            render(<StatusUpdatePage />);
+            fillEmail();
+            fireEvent.click(screen.getByRole('button', { name: /not yet/i }));
+            fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(/does not match/i);
+        });
     });
 });

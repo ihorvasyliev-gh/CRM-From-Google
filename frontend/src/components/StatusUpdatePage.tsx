@@ -57,6 +57,9 @@ function formatStartedMonth(value: string) {
 }
 
 export default function StatusUpdatePage() {
+    // /status?list=<id> is the link sent to an external outreach list (e.g. Action 11);
+    // answers then go to that list only, never to CRM graduates.
+    const [listId] = useState(() => new URLSearchParams(window.location.search).get('list'));
     const [state, setState] = useState<PageState>('form');
     const [email, setEmail] = useState('');
     const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
@@ -120,14 +123,16 @@ export default function StatusUpdatePage() {
     }
 
     async function executeSubmission(targetStudentId: string | null) {
-        const { data, error } = await supabase.rpc('submit_employment_status', {
+        const answers = {
             p_email: email.trim().toLowerCase(),
             p_is_working: isWorking,
             p_started_month: isWorking ? startedMonthValue || null : null,
             p_field: isWorking ? fieldOfWork.trim() || null : null,
             p_employment_type: isWorking ? employmentType || null : null,
-            p_student_id: targetStudentId,
-        });
+        };
+        const { data, error } = listId
+            ? await supabase.rpc('submit_outreach_status', { p_list_id: listId, ...answers })
+            : await supabase.rpc('submit_employment_status', { ...answers, p_student_id: targetStudentId });
 
         if (error) {
             console.error('submit_employment_status error:', error);
@@ -138,6 +143,7 @@ export default function StatusUpdatePage() {
             setInlineError(data?.message || 'We could not save your answer. Please try again.');
             return false;
         }
+        if (listId) setSubmittedName(data.first_name || '');
         return true;
     }
 
@@ -156,6 +162,11 @@ export default function StatusUpdatePage() {
         setInlineError('');
 
         try {
+            if (listId) {
+                if (await executeSubmission(null)) setState('success');
+                return;
+            }
+
             // Several people (e.g. family members) can share one email address
             const { data: matches, error: findError } = await supabase.rpc('find_employment_students_by_email', {
                 p_email: email.trim().toLowerCase(),
@@ -245,7 +256,7 @@ export default function StatusUpdatePage() {
                                             Participant Update
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug">
-                                            How are things going since your course?
+                                            {listId ? 'How are things going?' : 'How are things going since your course?'}
                                         </h2>
                                         <p className="text-xs sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">
                                             Four quick questions — it takes less than a minute.
@@ -516,7 +527,7 @@ export default function StatusUpdatePage() {
                                     Thank you{submittedName ? `, ${submittedName}` : ''}!
                                 </h2>
                                 <p className="text-zinc-400 text-sm leading-relaxed mt-1.5 max-w-xs mx-auto">
-                                    Your update has been received. It really helps us improve our courses for future participants.
+                                    Your update has been received. It really helps us improve our {listId ? 'services' : 'courses'} for future participants.
                                 </p>
                             </div>
 

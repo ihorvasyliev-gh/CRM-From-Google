@@ -22,6 +22,10 @@ export interface AppConfig {
     statusEmailTemplate: string;
     /** Email subject for status clarification emails */
     statusEmailSubjectFormat: string;
+    /** Same survey email for external outreach lists (e.g. Action 11 from IRIS). Supports: {statusDetails}, {statusButton}, {statusLink} */
+    outreachEmailTemplate: string;
+    /** Email subject for external outreach list survey emails */
+    outreachEmailSubjectFormat: string;
     /** Whether to include the Cork City Partnership logo banner in emails */
     includeLogosInEmails: boolean;
 }
@@ -74,6 +78,15 @@ export const DEFAULT_CONFIG: AppConfig = {
 <p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, let us know in your reply — we are happy to help.</p>
 <p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
     statusEmailSubjectFormat: 'How are things going since your course? (1-minute update)',
+    outreachEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you are keeping well! You have been supported by <strong>Cork City Partnership</strong>, and we would love to hear how things are going for you now.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our support makes and plan better services for the people we work with.</p>
+{statusDetails}
+{statusButton}
+<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or a course, let us know in your reply — we are happy to help.</p>
+<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
+    outreachEmailSubjectFormat: 'How are things going? (1-minute update from Cork City Partnership)',
     includeLogosInEmails: false,
 };
 
@@ -127,6 +140,9 @@ export function getConfig(): AppConfig {
         }
         if (saved.statusEmailSubjectFormat === 'Quick Status Update — How are things going?') {
             saved.statusEmailSubjectFormat = DEFAULT_CONFIG.statusEmailSubjectFormat;
+        }
+        if (saved.outreachEmailTemplate && !saved.outreachEmailTemplate.includes('{statusButton}') && !saved.outreachEmailTemplate.includes('{statusLink}')) {
+            saved.outreachEmailTemplate = DEFAULT_CONFIG.outreachEmailTemplate;
         }
 
         if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
@@ -553,8 +569,11 @@ export function buildEmailSubject(courseName: string, date: string, customConfig
         .replace(/\{date\}/g, date);
 }
 
+/** Who a status survey email goes to: CRM graduates or an external outreach list (e.g. Action 11). */
+export type StatusEmailAudience = 'graduates' | 'outreach';
+
 /** Build the status clarification email body HTML. */
-export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppConfig): string {
+export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppConfig, audience: StatusEmailAudience = 'graduates'): string {
     const config = customConfig || getConfig();
 
     // Same card / button markup as the course invitation so both emails look alike
@@ -603,7 +622,9 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
   </tr>
 </table>`;
 
-    let body = config.statusEmailTemplate || DEFAULT_CONFIG.statusEmailTemplate;
+    let body = audience === 'outreach'
+        ? config.outreachEmailTemplate || DEFAULT_CONFIG.outreachEmailTemplate
+        : config.statusEmailTemplate || DEFAULT_CONFIG.statusEmailTemplate;
     // Strip wrapping <p> tags ReactQuill might have added around placeholders
     body = body.replace(/<p>\s*\{statusButton\}\s*<\/p>/g, '{statusButton}');
     body = body.replace(/<p>\s*\{statusDetails\}\s*<\/p>/g, '{statusDetails}');
@@ -620,7 +641,9 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
 }
 
 /** Build the status clarification email subject. */
-export function buildStatusEmailSubject(customConfig?: AppConfig): string {
+export function buildStatusEmailSubject(customConfig?: AppConfig, audience: StatusEmailAudience = 'graduates'): string {
     const config = customConfig || getConfig();
-    return config.statusEmailSubjectFormat;
+    return audience === 'outreach'
+        ? config.outreachEmailSubjectFormat || DEFAULT_CONFIG.outreachEmailSubjectFormat
+        : config.statusEmailSubjectFormat;
 }

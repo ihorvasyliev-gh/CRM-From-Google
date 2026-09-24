@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -233,6 +233,15 @@ describe('appConfig', () => {
             });
             expect(html).toContain('<p>Hi,</p>');
             expect(html).toContain(`Go to ${link}`);
+        });
+
+        it('uses the outreach template for external lists, without mentioning a course', () => {
+            const html = buildStatusEmailBodyHtml(`${link}?list=abc`, undefined, 'outreach');
+            expect(html).toContain(`href="${link}?list=abc"`);
+            expect(html).toContain('What we will ask');
+            expect(html).not.toMatch(/completed a course/i);
+            expect(buildStatusEmailSubject(undefined, 'outreach')).toBe(DEFAULT_CONFIG.outreachEmailSubjectFormat);
+            expect(buildStatusEmailSubject()).toBe(DEFAULT_CONFIG.statusEmailSubjectFormat);
         });
 
         it('migrates the old Google Form status template to the new default', () => {
