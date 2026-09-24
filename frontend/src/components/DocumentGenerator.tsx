@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { FileText, Upload, Download, Loader2, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, ToggleLeft, ToggleRight, Plus, Pencil, Check, Variable, Tag, Table2 } from 'lucide-react';
+import { FileText, Download, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, Plus, Pencil, Check, CheckCircle2, Variable, Tag, Table2, BookOpen, Users, Braces, Copy, ClipboardList, ArrowRight } from 'lucide-react';
 import { generateDocumentsArchive, type TemplateDescriptor } from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
@@ -10,6 +10,13 @@ import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/
 import Toast, { type ToastData } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import Card from './ui/Card';
+import Badge from './ui/Badge';
+import StatTile from './ui/StatTile';
+import FileDropzone from './ui/FileDropzone';
+import { Button, IconButton } from './ui/Button';
+import { copyText } from './Viewer/viewerUtils';
+import { calloutCls, eyebrowCls, fieldCls, panelCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from './ui/styles';
 
 
 // ─── Placeholder Categories ─────────────────────────────────
@@ -503,14 +510,74 @@ export default function DocumentGenerator() {
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <Loader2 size={24} className="animate-spin text-brand-500" />
+                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
             </div>
         );
     }
 
+    const fileInputHandler = (handler: (file: File) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) handler(file);
+        e.target.value = '';
+    };
+
+    const addExcelColumn = () => {
+        if (!newColHeader.trim() || !newColPlaceholder.trim()) return;
+        const updated = [...excelColumns, { header: newColHeader.trim(), placeholder: newColPlaceholder.trim() }];
+        setExcelColumns(updated);
+        persistConfig({ excelColumns: updated });
+        setNewColHeader('');
+        setNewColPlaceholder('');
+    };
+
+    const canGenerate = activeTemplates.length > 0 && confirmedForCourse.length > 0;
+    const archiveContents = [
+        { label: `${activeTemplates.length} Word template${activeTemplates.length !== 1 ? 's' : ''} per student`, ok: activeTemplates.length > 0 },
+        { label: 'Attendance sheet', ok: !!attTemplate },
+        { label: 'Address labels', ok: !!labelTemplate },
+        { label: `Participants.xlsx (${excelColumns.length} column${excelColumns.length !== 1 ? 's' : ''})`, ok: excelColumns.length > 0 },
+    ];
+
+    const stepHeader = (n: number, title: string, done: boolean, hint?: ReactNode) => (
+        <div className="flex items-center gap-3 mb-3">
+            <span
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                    done ? 'bg-success text-white' : 'bg-surface-elevated text-muted border border-border-subtle'
+                }`}
+            >
+                {done ? <Check size={13} strokeWidth={3} /> : n}
+            </span>
+            <span className="text-[13px] font-semibold text-primary">{title}</span>
+            {hint && <span className="ml-auto text-[11px] text-muted">{hint}</span>}
+        </div>
+    );
+
+    const singleTemplateRow = (tpl: DocumentTemplate | null, emptyText: string, onDelete: () => void) =>
+        tpl ? (
+            <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-elevated/40">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-8 h-8 rounded-lg bg-info/10 text-status-invited flex items-center justify-center flex-shrink-0">
+                        <FileText size={15} />
+                    </span>
+                    <div className="min-w-0">
+                        <p className="text-[13px] font-medium text-primary truncate" title={tpl.name}>{tpl.name}</p>
+                        <p className="text-[11px] text-muted">Current template</p>
+                    </div>
+                </div>
+                <IconButton size="sm" tone="danger" label="Delete template" onClick={onDelete}>
+                    <Trash2 size={14} />
+                </IconButton>
+            </div>
+        ) : (
+            <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
+                <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                {emptyText}
+            </div>
+        );
+
     // ─── Render ─────────────────────────────────────────────
     return (
-        <div className="space-y-6 pb-8">
+        <div className="pb-8 space-y-5">
             <Toast toast={toast} onDismiss={() => setToast(null)} />
             <ConfirmDialog
                 open={!!pendingDelete}
@@ -524,727 +591,543 @@ export default function DocumentGenerator() {
                 onCancel={() => setPendingDelete(null)}
             />
 
-            {/* ═══ Template Management Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                {/* Header */}
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl text-violet-600 flex-shrink-0">
-                            <FileText size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Word Document Templates</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Upload Word templates (.docx) with placeholders like {'{firstName}'}, {'{lastName}'}, {'{email}'}, {'{courseDate}'}, etc.
-                                Toggle each template on/off to control which ones are used during generation.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+            {/* Readiness overview */}
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile
+                    label="Active templates"
+                    icon={FileArchive}
+                    tone="completed"
+                    accent={false}
+                    value={<>{activeTemplates.length}<span className="text-sm font-semibold text-muted"> / {templates.length}</span></>}
+                    hint={activeTemplates.length ? 'Used for every student' : 'Upload a .docx to start'}
+                    hintTone={activeTemplates.length ? 'muted' : 'alert'}
+                />
+                <StatTile
+                    label="Ready courses"
+                    icon={Users}
+                    tone="success"
+                    accent={false}
+                    value={coursesWithConfirmed.length}
+                    hint="With confirmed participants"
+                />
+                <StatTile
+                    label="Attendance & labels"
+                    icon={Tag}
+                    tone="info"
+                    accent={false}
+                    value={<>{Number(!!attTemplate) + Number(!!labelTemplate)}<span className="text-sm font-semibold text-muted"> / 2</span></>}
+                    hint={attTemplate && labelTemplate ? 'Both templates set' : 'Optional sheets'}
+                />
+                <StatTile
+                    label="Custom variables"
+                    icon={Variable}
+                    tone="brand"
+                    accent={false}
+                    value={customVars.length}
+                    hint={`${excelColumns.length} Excel column${excelColumns.length !== 1 ? 's' : ''}`}
+                />
+            </div>
 
-                {/* Templates List */}
-                <div className="px-5 py-3 border-b border-border-subtle">
-                    {templates.length > 0 ? (
-                        <div className="space-y-2">
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
-                                Uploaded Templates ({templates.length})
-                            </p>
-                            {templates.map(tpl => (
-                                <div
-                                    key={tpl.id}
-                                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
-                                        tpl.is_active
-                                            ? 'bg-violet-50/50 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30'
-                                            : 'bg-surface-elevated/50 border-border-subtle opacity-60'
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <button
-                                            onClick={() => handleToggleActive(tpl)}
-                                            className="flex-shrink-0 transition-colors"
-                                            title={tpl.is_active ? 'Deactivate template' : 'Activate template'}
-                                        >
-                                            {tpl.is_active ? (
-                                                <ToggleRight size={24} className="text-violet-500" />
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] gap-5 items-start">
+                {/* ═══ Left: generate flow ═══ */}
+                <div className="space-y-5 min-w-0">
+                    <Card
+                        title="Generate documents"
+                        subtitle={`Personalised documents for all confirmed participants of a course · ${activeTemplates.length} active template${activeTemplates.length !== 1 ? 's' : ''}`}
+                        icon={Download}
+                        tone="success"
+                        divided
+                    >
+                        <div className="space-y-6">
+                            {/* Step 1 */}
+                            <div>
+                                {stepHeader(1, 'Choose a course', !!selectedCourse, `${coursesWithConfirmed.length} with confirmed students`)}
+                                <div className="relative z-30">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
+                                        aria-haspopup="listbox"
+                                        aria-expanded={courseDropdownOpen}
+                                        className="w-full flex items-center justify-between gap-3 h-11 px-3.5 bg-surface border border-border-subtle rounded-xl text-sm transition-colors hover:border-border-strong focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                                    >
+                                        <span className="flex items-center gap-2.5 min-w-0">
+                                            <BookOpen size={16} className="text-muted flex-shrink-0" />
+                                            <span className={`truncate ${selectedCourse ? 'text-primary font-medium' : 'text-muted'}`}>
+                                                {selectedCourse?.name || 'Choose a course...'}
+                                            </span>
+                                        </span>
+                                        <ChevronDown size={16} className={`text-muted transition-transform flex-shrink-0 ${courseDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {courseDropdownOpen && (
+                                        <div className="fixed inset-0 z-40" onClick={() => setCourseDropdownOpen(false)} aria-hidden="true" />
+                                    )}
+                                    {courseDropdownOpen && (
+                                        <div role="listbox" className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-surface rounded-xl shadow-float border border-border-subtle p-1 max-h-72 overflow-y-auto animate-popoverScaleIn origin-top">
+                                            {coursesWithConfirmed.length === 0 ? (
+                                                <div className="px-4 py-3 text-sm text-muted text-center">
+                                                    No courses with confirmed enrollments
+                                                </div>
                                             ) : (
-                                                <ToggleLeft size={24} className="text-surface-400" />
+                                                coursesWithConfirmed.map(c => {
+                                                    const count = enrollments.filter(e => e.course_id === c.id && e.status === 'confirmed').length;
+                                                    const active = selectedCourseId === c.id;
+                                                    return (
+                                                        <button
+                                                            key={c.id}
+                                                            type="button"
+                                                            role="option"
+                                                            aria-selected={active}
+                                                            onClick={() => {
+                                                                setSelectedCourseId(c.id);
+                                                                setCourseDropdownOpen(false);
+                                                            }}
+                                                            className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                                                                active ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium' : 'text-primary hover:bg-surface-elevated'
+                                                            }`}
+                                                        >
+                                                            <span className="truncate">{c.name}</span>
+                                                            <Badge tone={active ? 'brand' : 'neutral'} shape="pill" className="tabular-nums flex-shrink-0">
+                                                                {count} confirmed
+                                                            </Badge>
+                                                        </button>
+                                                    );
+                                                })
                                             )}
-                                        </button>
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <FileArchive size={14} className={tpl.is_active ? 'text-violet-500' : 'text-surface-400'} />
-                                                <span className="text-sm font-semibold text-primary truncate">{tpl.name}</span>
-                                            </div>
-                                            <p className="text-[11px] text-muted mt-0.5">
-                                                Added {new Date(tpl.created_at).toLocaleDateString()}
-                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Step 2 */}
+                            <div>
+                                {stepHeader(2, 'Review participants', confirmedForCourse.length > 0, selectedCourseId ? `Confirmed Participants (${confirmedForCourse.length})` : undefined)}
+                                {!selectedCourseId ? (
+                                    <div className={`${panelCls} border-dashed px-4 py-6 text-center text-xs text-muted`}>
+                                        Pick a course above to see who will receive documents.
+                                    </div>
+                                ) : confirmedForCourse.length === 0 ? (
+                                    <div className={`${panelCls} px-4 py-6 text-center`}>
+                                        <AlertCircle size={20} className="mx-auto mb-2 text-muted" />
+                                        <p className="text-sm text-muted">No confirmed enrollments for this course</p>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-xl border border-border-subtle overflow-hidden">
+                                        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                                            <table className={tableCls}>
+                                                <thead className={`${theadCls} sticky top-0 z-10 !bg-surface-elevated`}>
+                                                    <tr>
+                                                        <th className={`${thCls} w-10`}>#</th>
+                                                        <th className={thCls}>Name</th>
+                                                        <th className={`${thCls} hidden md:table-cell`}>Phone</th>
+                                                        <th className={thCls}>Variant</th>
+                                                        <th className={`${thCls} hidden sm:table-cell`}>Confirmed</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={tbodyCls}>
+                                                    {confirmedForCourse.map((enrollment, idx) => (
+                                                        <tr key={enrollment.id} className={trCls}>
+                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs tabular-nums`}>{idx + 1}</td>
+                                                            <td className={`${tdCls} !py-2.5`}>
+                                                                <p className="font-medium text-primary text-[13px]">
+                                                                    {enrollment.students?.first_name} {enrollment.students?.last_name}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted truncate max-w-[240px]">{enrollment.students?.email || '—'}</p>
+                                                            </td>
+                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs tabular-nums hidden md:table-cell`}>{enrollment.students?.phone || '—'}</td>
+                                                            <td className={`${tdCls} !py-2.5`}>
+                                                                {enrollment.course_variant ? <Badge tone="completed">{enrollment.course_variant}</Badge> : <span className="text-muted">—</span>}
+                                                            </td>
+                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs hidden sm:table-cell whitespace-nowrap`}>
+                                                                {enrollment.confirmed_date ? formatDateLong(enrollment.confirmed_date) : '—'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setPendingDelete({
-                                            title: 'Delete Template',
-                                            message: `Delete "${tpl.name}"? The file will be removed permanently.`,
-                                            run: () => handleDeleteTemplate(tpl),
-                                        })}
-                                        aria-label={`Delete template ${tpl.name}`}
-                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-all flex-shrink-0"
-                                        title="Delete template"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={16} className="text-amber-500" />
-                            <span className="text-sm text-amber-600 font-medium">No templates uploaded yet</span>
-                        </div>
-                    )}
-                </div>
+                                )}
+                            </div>
 
-                {/* Available Variables */}
-                <div className="px-5 py-4">
-                    <button
-                        onClick={() => setShowPlaceholders(!showPlaceholders)}
-                        className="flex items-center gap-2 text-sm font-bold text-primary hover:text-brand-500 transition-colors"
+                            {/* Step 3 */}
+                            <div>
+                                {stepHeader(3, 'Generate the archive', false)}
+                                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 mb-4">
+                                    {archiveContents.map(item => (
+                                        <li key={item.label} className={`flex items-center gap-2 text-xs ${item.ok ? 'text-primary' : 'text-muted line-through decoration-border-strong'}`}>
+                                            {item.ok
+                                                ? <CheckCircle2 size={14} className="text-status-confirmed flex-shrink-0" />
+                                                : <X size={14} className="text-muted flex-shrink-0" />}
+                                            {item.label}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <Button
+                                    variant={canGenerate ? 'success' : 'secondary'}
+                                    size="lg"
+                                    className="w-full !h-11"
+                                    onClick={handleGenerate}
+                                    disabled={!canGenerate || generating}
+                                    loading={generating}
+                                >
+                                    {generating ? (
+                                        <>Generating {confirmedForCourse.length} document(s) × {activeTemplates.length} template(s)...</>
+                                    ) : (
+                                        <>
+                                            <FileArchive size={17} />
+                                            Generate & Download ZIP ({confirmedForCourse.length} student{confirmedForCourse.length !== 1 ? 's' : ''} × {activeTemplates.length} template{activeTemplates.length !== 1 ? 's' : ''})
+                                        </>
+                                    )}
+                                </Button>
+                                {activeTemplates.length === 0 && (
+                                    <p className="mt-2 text-xs text-status-requested text-center font-medium flex items-center justify-center gap-1.5">
+                                        <AlertCircle size={13} />
+                                        Please upload and activate at least one template before generating documents
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Available variables */}
+                    <Card
+                        title="Available variables"
+                        subtitle="Click a placeholder to copy it, then paste it into your Word template"
+                        icon={Braces}
+                        divided={showPlaceholders}
+                        action={
+                            <Button variant="ghost" size="sm" onClick={() => setShowPlaceholders(!showPlaceholders)} aria-expanded={showPlaceholders}>
+                                {showPlaceholders ? 'Hide' : 'Show'}
+                                <ChevronDown size={14} className={`transition-transform ${showPlaceholders ? 'rotate-180' : ''}`} />
+                            </Button>
+                        }
+                        bodyClassName={showPlaceholders ? '' : '!p-0'}
                     >
-                        <Info size={14} />
-                        Available Variables
-                        <ChevronDown size={14} className={`transition-transform ${showPlaceholders ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {showPlaceholders && (
-                        <div className="mt-3 p-4 bg-surface-elevated rounded-xl border border-border-subtle">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {showPlaceholders && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                                 {PLACEHOLDER_CATEGORIES.map(cat => (
                                     <div key={cat.title}>
-                                        <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">{cat.title}</p>
+                                        <p className={`${eyebrowCls} mb-2`}>{cat.title}</p>
                                         <div className="space-y-1">
                                             {cat.items.map(item => (
-                                                <div key={item.key} className="flex items-center gap-2 text-[13px]">
-                                                    <code className="text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded font-mono text-xs">
+                                                <button
+                                                    key={item.key}
+                                                    type="button"
+                                                    onClick={() => copyText(`{${item.key}}`, 'Placeholder')}
+                                                    className="w-full flex items-center gap-2 text-left text-[13px] px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-surface-elevated transition-colors group"
+                                                    title={`Copy {${item.key}}`}
+                                                >
+                                                    <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
                                                         {`{${item.key}}`}
                                                     </code>
-                                                    <span className="text-muted">—</span>
-                                                    <span className="text-primary">{item.desc}</span>
-                                                </div>
+                                                    <span className="text-muted truncate flex-1">{item.desc}</span>
+                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
                                 ))}
                                 {customVars.length > 0 && (
                                     <div>
-                                        <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">Custom Variables</p>
+                                        <p className={`${eyebrowCls} mb-2`}>Custom Variables</p>
                                         <div className="space-y-1">
                                             {customVars.map(v => (
-                                                <div key={v.id} className="flex items-center gap-2 text-[13px]">
-                                                    <code className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-mono text-xs">
+                                                <button
+                                                    key={v.id}
+                                                    type="button"
+                                                    onClick={() => copyText(`{${v.var_key}}`, 'Placeholder')}
+                                                    className="w-full flex items-center gap-2 text-left text-[13px] px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-surface-elevated transition-colors group"
+                                                    title={`Copy {${v.var_key}}`}
+                                                >
+                                                    <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
                                                         {`{${v.var_key}}`}
                                                     </code>
-                                                    <span className="text-muted">—</span>
-                                                    <span className="text-primary">{v.var_value || <em className="text-muted">empty</em>}</span>
-                                                </div>
+                                                    <span className="text-muted truncate flex-1">{v.var_value || <em>empty</em>}</span>
+                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Upload Button */}
-                <div className="px-5 pb-5">
-                    <label className={`block w-full cursor-pointer ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
-                        <input
-                            type="file"
-                            accept=".docx"
-                            className="hidden"
-                            onChange={e => {
-                                const file = e.target.files?.[0];
-                                if (file) handleUploadTemplate(file);
-                                e.target.value = '';
-                            }}
-                        />
-                        <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-500 via-purple-500 to-violet-600 hover:from-violet-600 hover:via-purple-600 hover:to-violet-700 transition-all shadow-sm hover:shadow-md hover:shadow-violet-500/25">
-                            {uploading ? (
-                                <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                                <Upload size={16} />
-                            )}
-                            Add New Template
-                        </div>
-                    </label>
-                    <p className="text-[11px] text-muted mt-2 text-center">
-                        Maximum file size: 5MB. You can upload multiple templates and toggle them on/off.
-                    </p>
-                </div>
-            </div>
-
-            {/* ═══ Custom Variables Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl text-emerald-600 flex-shrink-0">
-                            <Variable size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Custom Variables</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Define custom placeholders (e.g. {'{Tutor}'}) and their values. These will be substituted into all templates during generation.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Variable List */}
-                <div className="px-5 py-3 border-b border-border-subtle">
-                    {customVars.length > 0 ? (
-                        <div className="space-y-2">
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
-                                Defined Variables ({customVars.length})
-                            </p>
-                            {customVars.map(v => (
-                                <div
-                                    key={v.id}
-                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl border bg-emerald-50/50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30 transition-all"
-                                >
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <code className="text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded font-mono text-xs flex-shrink-0">
-                                            {`{${v.var_key}}`}
-                                        </code>
-                                        <span className="text-muted flex-shrink-0">→</span>
-                                        {editingVarId === v.id ? (
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <input
-                                                    type="text"
-                                                    value={editingVarValue}
-                                                    onChange={e => setEditingVarValue(e.target.value)}
-                                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveVariableValue(v); if (e.key === 'Escape') setEditingVarId(null); }}
-                                                    className="flex-1 min-w-0 px-2 py-1 text-sm rounded-lg border border-emerald-300 bg-surface-elevated text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    onClick={() => handleSaveVariableValue(v)}
-                                                    className="text-emerald-600 hover:text-emerald-700 p-1 rounded-lg hover:bg-emerald-100 transition-all flex-shrink-0"
-                                                    title="Save"
-                                                >
-                                                    <Check size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingVarId(null)}
-                                                    className="text-muted hover:text-primary p-1 rounded-lg hover:bg-surface-elevated transition-all flex-shrink-0"
-                                                    title="Cancel"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <span
-                                                className="text-sm text-primary truncate cursor-pointer hover:text-emerald-600 transition-colors"
-                                                onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}
-                                                title="Click to edit"
-                                            >
-                                                {v.var_value || <em className="text-muted">empty — click to set</em>}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                        {editingVarId !== v.id && (
-                                            <button
-                                                onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}
-                                                className="text-surface-400 hover:text-emerald-500 p-1.5 rounded-lg hover:bg-emerald-50 transition-all"
-                                                title="Edit value"
-                                            >
-                                                <Pencil size={13} />
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={() => setPendingDelete({
-                                                title: 'Delete Variable',
-                                                message: `Delete variable {${v.var_key}}? Templates using it will render it empty.`,
-                                                run: () => handleDeleteVariable(v),
-                                            })}
-                                            className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
-                                            title="Delete variable"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <Info size={16} className="text-surface-400" />
-                            <span className="text-sm text-muted">No custom variables defined yet</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Add Variable Form */}
-                <div className="px-5 pb-5 pt-4">
-                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Add New Variable</p>
-                    <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                        <div className="w-full sm:flex-1">
-                            <label className="block text-[11px] text-muted mb-1">Variable Name</label>
-                            <input
-                                type="text"
-                                value={newVarKey}
-                                onChange={e => setNewVarKey(e.target.value)}
-                                placeholder="e.g. Tutor"
-                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                            />
-                        </div>
-                        <div className="w-full sm:flex-1">
-                            <label className="block text-[11px] text-muted mb-1">Value</label>
-                            <input
-                                type="text"
-                                value={newVarValue}
-                                onChange={e => setNewVarValue(e.target.value)}
-                                placeholder="e.g. John Smith"
-                                onKeyDown={e => { if (e.key === 'Enter') handleAddVariable(); }}
-                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                            />
-                        </div>
-                        <button
-                            onClick={handleAddVariable}
-                            disabled={!newVarKey.trim() || addingVar}
-                            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all w-full sm:w-auto flex-shrink-0 ${
-                                !newVarKey.trim() || addingVar
-                                    ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
-                                    : 'text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm hover:shadow-md hover:shadow-emerald-500/25'
-                            }`}
-                        >
-                            {addingVar ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                            Add
-                        </button>
-                    </div>
-                    <p className="text-[11px] text-muted mt-2">
-                        Use <code className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded font-mono">{'{{VariableName}}'}</code> in your Word templates to reference these variables.
-                    </p>
-                </div>
-            </div>
-
-            {/* ═══ Attendance Sheet Template Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl text-blue-600 flex-shrink-0">
-                            <FileText size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Attendance Sheet Template</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Upload a Word template (.docx) for the Attendance Sheet.
-                                Use flat numbered placeholders up to 34 (e.g., {'{firstName1}'}, {'{lastName1}'}, {'{phone1}'}).
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="px-5 py-3 bg-surface-elevated/50 border-b border-border-subtle">
-                    {attTemplate ? (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <FileArchive size={16} className="text-blue-500" />
-                                <span className="text-sm font-semibold text-primary">Current template:</span>
-                                <span className="text-sm text-muted">{attTemplate.name}</span>
-                            </div>
-                            <button
-                                onClick={() => setPendingDelete({
-                                    title: 'Delete Attendance Template',
-                                    message: 'Delete the attendance sheet template? The file will be removed permanently.',
-                                    run: handleDeleteAttendance,
-                                })}
-                                className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all"
-                                title="Delete template"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={16} className="text-amber-500" />
-                            <span className="text-sm text-amber-600 font-medium">No attendance template uploaded yet</span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="px-5 pb-5 pt-5">
-                    <label className={`block w-full cursor-pointer ${attUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                        <input
-                            type="file"
-                            accept=".docx"
-                            className="hidden"
-                            onChange={e => {
-                                const file = e.target.files?.[0];
-                                if (file) handleUploadAttendance(file);
-                                e.target.value = '';
-                            }}
-                        />
-                        <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 hover:from-blue-600 hover:via-cyan-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md hover:shadow-blue-500/25">
-                            {attUploading ? (
-                                <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                                <Upload size={16} />
-                            )}
-                            {attTemplate ? 'Replace Attendance Template' : 'Upload Attendance Template'}
-                        </div>
-                    </label>
-                    <p className="text-[11px] text-muted mt-2 text-center">
-                        Maximum file size: 5MB. Supported placeholders: {'{courseTitle}'}, {'{courseDate}'}, {'{firstName1}'}, {'{lastName1}'} ... up to {'{email34}'}.
-                    </p>
-                </div>
-            </div>
-
-            {/* ═══ Address Labels Template Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl text-amber-600 flex-shrink-0">
-                            <Tag size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Address Labels Template</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Upload a Word template (.docx) for address label stickers.
-                                Use flat numbered placeholders up to 28 (e.g., {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'}).
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="px-5 py-3 bg-surface-elevated/50 border-b border-border-subtle">
-                    {labelTemplate ? (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <FileArchive size={16} className="text-amber-500" />
-                                <span className="text-sm font-semibold text-primary">Current template:</span>
-                                <span className="text-sm text-muted">{labelTemplate.name}</span>
-                            </div>
-                            <button
-                                onClick={() => setPendingDelete({
-                                    title: 'Delete Label Template',
-                                    message: 'Delete the label template? The file will be removed permanently.',
-                                    run: handleDeleteLabels,
-                                })}
-                                className="text-muted hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-all"
-                                title="Delete template"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={16} className="text-amber-500" />
-                            <span className="text-sm text-amber-600 font-medium">No label template uploaded yet</span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="px-5 pb-5 pt-5">
-                    <label className={`block w-full cursor-pointer ${labelUploading ? 'pointer-events-none opacity-60' : ''}`}>
-                        <input
-                            type="file"
-                            accept=".docx"
-                            className="hidden"
-                            onChange={e => {
-                                const file = e.target.files?.[0];
-                                if (file) handleUploadLabels(file);
-                                e.target.value = '';
-                            }}
-                        />
-                        <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:via-orange-600 hover:to-amber-700 transition-all shadow-sm hover:shadow-md hover:shadow-amber-500/25">
-                            {labelUploading ? (
-                                <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                                <Upload size={16} />
-                            )}
-                            {labelTemplate ? 'Replace Label Template' : 'Upload Label Template'}
-                        </div>
-                    </label>
-                    <p className="text-[11px] text-muted mt-2 text-center">
-                        Maximum file size: 5MB. Supported placeholders: {'{firstName1}'}, {'{lastName1}'}, {'{address1}'}, {'{eircode1}'} ... up to 28.
-                    </p>
-                </div>
-            </div>
-
-            {/* ═══ Excel Export Columns Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl text-teal-600 flex-shrink-0">
-                            <Table2 size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Excel Export Columns</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Configure which columns appear in the <strong>Participants.xlsx</strong> file included in the generated archive.
-                                Uses the same placeholders as Word templates.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Current columns list */}
-                <div className="px-5 py-3 border-b border-border-subtle">
-                    {excelColumns.length > 0 ? (
-                        <div className="space-y-2">
-                            <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2">
-                                Columns ({excelColumns.length})
-                            </p>
-                            {excelColumns.map((col, idx) => (
-                                <div
-                                    key={`${col.placeholder}-${idx}`}
-                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl border bg-teal-50/50 border-teal-200 dark:bg-teal-500/10 dark:border-teal-500/30 transition-all"
-                                >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <span className="text-xs font-mono text-muted w-5 text-center flex-shrink-0">{idx + 1}</span>
-                                        <span className="text-sm font-semibold text-primary">{col.header}</span>
-                                        <span className="text-muted flex-shrink-0">→</span>
-                                        <code className="text-teal-600 bg-teal-100 px-2 py-0.5 rounded font-mono text-xs">
-                                            {`{${col.placeholder}}`}
-                                        </code>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            const updated = excelColumns.filter((_, i) => i !== idx);
-                                            setExcelColumns(updated);
-                                            persistConfig({ excelColumns: updated });
-                                        }}
-                                        className="text-surface-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
-                                        title="Remove column"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={16} className="text-amber-500" />
-                            <span className="text-sm text-amber-600 font-medium">No columns configured — no Excel file will be generated</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Add column form */}
-                <div className="px-5 pb-5 pt-4">
-                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Add Column</p>
-                    <div className="flex items-end gap-3">
-                        <div className="flex-1">
-                            <label className="block text-[11px] text-muted mb-1">Column Header</label>
-                            <input
-                                type="text"
-                                value={newColHeader}
-                                onChange={e => setNewColHeader(e.target.value)}
-                                placeholder="e.g. Full Name"
-                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <label className="block text-[11px] text-muted mb-1">Placeholder Key</label>
-                            <input
-                                type="text"
-                                value={newColPlaceholder}
-                                onChange={e => setNewColPlaceholder(e.target.value)}
-                                placeholder="e.g. fullName"
-                                onKeyDown={e => {
-                                    if (e.key === 'Enter' && newColHeader.trim() && newColPlaceholder.trim()) {
-                                        const updated = [...excelColumns, { header: newColHeader.trim(), placeholder: newColPlaceholder.trim() }];
-                                        setExcelColumns(updated);
-                                        persistConfig({ excelColumns: updated });
-                                        setNewColHeader('');
-                                        setNewColPlaceholder('');
-                                    }
-                                }}
-                                className="w-full px-3 py-2 text-sm rounded-xl border border-border-subtle bg-surface-elevated focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                            />
-                        </div>
-                        <button
-                            onClick={() => {
-                                if (!newColHeader.trim() || !newColPlaceholder.trim()) return;
-                                const updated = [...excelColumns, { header: newColHeader.trim(), placeholder: newColPlaceholder.trim() }];
-                                setExcelColumns(updated);
-                                persistConfig({ excelColumns: updated });
-                                setNewColHeader('');
-                                setNewColPlaceholder('');
-                            }}
-                            disabled={!newColHeader.trim() || !newColPlaceholder.trim()}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all flex-shrink-0 ${
-                                !newColHeader.trim() || !newColPlaceholder.trim()
-                                    ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
-                                    : 'text-white bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 shadow-sm hover:shadow-md hover:shadow-teal-500/25'
-                            }`}
-                        >
-                            <Plus size={14} />
-                            Add
-                        </button>
-                    </div>
-                    <p className="text-[11px] text-muted mt-2">
-                        Use placeholder keys from the Available Variables list above (e.g. <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">firstName</code>, <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">email</code>, <code className="text-teal-600 bg-teal-50 px-1 py-0.5 rounded font-mono">courseDate</code>).
-                    </p>
-                </div>
-            </div>
-
-            {/* ═══ Generate Documents Card ═══ */}
-            <div className="bg-surface rounded-2xl shadow-card border border-border-subtle">
-                <div className="p-5 border-b border-border-subtle">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl text-emerald-600 flex-shrink-0">
-                            <Download size={22} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-primary">Generate Documents</h3>
-                            <p className="text-sm text-muted mt-0.5">
-                                Select a course to generate personalized documents for all confirmed participants using {activeTemplates.length} active template{activeTemplates.length !== 1 ? 's' : ''}.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="p-5 space-y-5">
-                    {/* Course Selector */}
-                    <div>
-                        <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                            Select Course
-                        </label>
-                        <div className="relative z-50">
-                            <button
-                                onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
-                                className="w-full flex items-center justify-between px-4 py-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm transition-all hover:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                            >
-                                <span className={selectedCourse ? 'text-primary font-medium' : 'text-muted'}>
-                                    {selectedCourse?.name || 'Choose a course...'}
-                                </span>
-                                <ChevronDown size={16} className={`text-muted transition-transform ${courseDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {courseDropdownOpen && (
-                                <div className="fixed inset-0 z-40" onClick={() => setCourseDropdownOpen(false)} aria-hidden="true" />
-                            )}
-                            {courseDropdownOpen && (
-                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-surface-elevated rounded-xl shadow-lg border border-border-subtle py-1 max-h-64 overflow-y-auto animate-scaleIn origin-top">
-                                    {coursesWithConfirmed.length === 0 ? (
-                                        <div className="px-4 py-3 text-sm text-muted text-center">
-                                            No courses with confirmed enrollments
-                                        </div>
-                                    ) : (
-                                        coursesWithConfirmed.map(c => {
-                                            const count = enrollments.filter(e => e.course_id === c.id && e.status === 'confirmed').length;
-                                            return (
-                                                <button
-                                                    key={c.id}
-                                                    onClick={() => {
-                                                        setSelectedCourseId(c.id);
-                                                        setCourseDropdownOpen(false);
-                                                    }}
-                                                    className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-surface transition-all ${selectedCourseId === c.id ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400 font-medium' : 'text-primary'
-                                                        }`}
-                                                >
-                                                    <span>{c.name}</span>
-                                                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${selectedCourseId === c.id ? 'bg-brand-500 flex items-center text-white' : 'bg-surface text-muted'
-                                                        }`}>
-                                                        {count} confirmed
-                                                    </span>
-                                                </button>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Participants Preview */}
-                    {selectedCourseId && confirmedForCourse.length > 0 && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-semibold text-muted uppercase tracking-wider">
-                                    Confirmed Participants ({confirmedForCourse.length})
-                                </label>
-                            </div>
-                            <div className="bg-surface-elevated rounded-xl border border-border-subtle overflow-hidden">
-                                <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                                    <table className="w-full text-sm">
-                                        <thead className="sticky top-0 z-10">
-                                            <tr className="bg-surface">
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">#</th>
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Name</th>
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Email</th>
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Phone</th>
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Variant</th>
-                                                <th className="text-left px-4 py-2.5 text-xs font-bold text-muted uppercase tracking-wider">Confirmed</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border-subtle">
-                                            {confirmedForCourse.map((enrollment, idx) => (
-                                                <tr key={enrollment.id} className="hover:bg-surface transition-colors">
-                                                    <td className="px-4 py-2.5 text-muted text-xs font-mono">{idx + 1}</td>
-                                                    <td className="px-4 py-2.5 font-medium text-primary">
-                                                        {enrollment.students?.first_name} {enrollment.students?.last_name}
-                                                    </td>
-                                                    <td className="px-4 py-2.5 text-muted">{enrollment.students?.email || '—'}</td>
-                                                    <td className="px-4 py-2.5 text-muted">{enrollment.students?.phone || '—'}</td>
-                                                    <td className="px-4 py-2.5">
-                                                        {enrollment.course_variant ? (
-                                                            <span className="text-xs font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
-                                                                {enrollment.course_variant}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-muted text-opacity-50">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-2.5 text-muted text-xs">
-                                                        {enrollment.confirmed_date ? formatDateLong(enrollment.confirmed_date) : '—'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {selectedCourseId && confirmedForCourse.length === 0 && (
-                        <div className="text-center py-8 text-muted text-opacity-80">
-                            <AlertCircle size={24} className="mx-auto mb-2 text-muted text-opacity-50" />
-                            <p className="text-sm">No confirmed enrollments for this course</p>
-                        </div>
-                    )}
-
-                    {/* Generate Button */}
-                    <button
-                        onClick={handleGenerate}
-                        disabled={activeTemplates.length === 0 || confirmedForCourse.length === 0 || generating}
-                        className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-bold transition-all ${activeTemplates.length === 0 || confirmedForCourse.length === 0
-                            ? 'bg-surface-elevated text-muted cursor-not-allowed border border-border-subtle'
-                            : generating
-                                ? 'bg-emerald-400 text-white cursor-wait'
-                                : 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500 text-white hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-600 shadow-sm hover:shadow-md hover:shadow-emerald-500/25'
-                            }`}
-                    >
-                        {generating ? (
-                            <>
-                                <Loader2 size={18} className="animate-spin" />
-                                Generating {confirmedForCourse.length} document(s) × {activeTemplates.length} template(s)...
-                            </>
-                        ) : (
-                            <>
-                                <FileArchive size={18} />
-                                Generate & Download ZIP ({confirmedForCourse.length} student{confirmedForCourse.length !== 1 ? 's' : ''} × {activeTemplates.length} template{activeTemplates.length !== 1 ? 's' : ''})
-                            </>
                         )}
-                    </button>
+                    </Card>
+                </div>
 
-                    {activeTemplates.length === 0 && (
-                        <p className="text-xs text-amber-500 text-center font-medium">
-                            ⚠ Please upload and activate at least one template before generating documents
-                        </p>
-                    )}
+                {/* ═══ Right: templates & setup ═══ */}
+                <div className="space-y-5 min-w-0">
+                    {/* Word templates */}
+                    <Card
+                        title="Word document templates"
+                        subtitle="Toggle which .docx templates are used during generation"
+                        icon={FileText}
+                        tone="completed"
+                        action={<Badge tone="completed" shape="pill" className="tabular-nums">{templates.length}</Badge>}
+                    >
+                        <div className="space-y-2">
+                            {templates.length === 0 ? (
+                                <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
+                                    <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                                    No templates uploaded yet
+                                </div>
+                            ) : (
+                                <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
+                                    {templates.map(tpl => (
+                                        <li key={tpl.id} className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${tpl.is_active ? '' : 'bg-surface-elevated/40'}`}>
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={tpl.is_active}
+                                                onClick={() => handleToggleActive(tpl)}
+                                                title={tpl.is_active ? 'Deactivate template' : 'Activate template'}
+                                                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${tpl.is_active ? 'bg-brand-500' : 'bg-border-strong'}`}
+                                            >
+                                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${tpl.is_active ? 'translate-x-4' : ''}`} />
+                                            </button>
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`text-[13px] font-medium truncate ${tpl.is_active ? 'text-primary' : 'text-muted'}`} title={tpl.name}>{tpl.name}</p>
+                                                <p className="text-[11px] text-muted">Added {new Date(tpl.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                            <IconButton
+                                                size="sm"
+                                                tone="danger"
+                                                label={`Delete template ${tpl.name}`}
+                                                title="Delete template"
+                                                onClick={() => setPendingDelete({
+                                                    title: 'Delete Template',
+                                                    message: `Delete "${tpl.name}"? The file will be removed permanently.`,
+                                                    run: () => handleDeleteTemplate(tpl),
+                                                })}
+                                            >
+                                                <Trash2 size={14} />
+                                            </IconButton>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <FileDropzone
+                                accept=".docx"
+                                onChange={fileInputHandler(handleUploadTemplate)}
+                                uploading={uploading}
+                                title="Add new template"
+                                hint="Drop a .docx here or click to browse · max 5MB"
+                            />
+                        </div>
+                    </Card>
+
+                    {/* Attendance sheet */}
+                    <Card
+                        title="Attendance sheet"
+                        subtitle={<>Numbered placeholders up to 34, e.g. {'{firstName1}'}, {'{phone1}'}</>}
+                        icon={ClipboardList}
+                        tone="info"
+                    >
+                        <div className="space-y-2">
+                            {singleTemplateRow(attTemplate, 'No attendance template uploaded yet', () => setPendingDelete({
+                                title: 'Delete Attendance Template',
+                                message: 'Delete the attendance sheet template? The file will be removed permanently.',
+                                run: handleDeleteAttendance,
+                            }))}
+                            <FileDropzone
+                                compact
+                                accept=".docx"
+                                onChange={fileInputHandler(handleUploadAttendance)}
+                                uploading={attUploading}
+                                title={attTemplate ? 'Replace Attendance Template' : 'Upload Attendance Template'}
+                                hint={<>Also supports {'{courseTitle}'}, {'{courseDate}'} … up to {'{email34}'}</>}
+                            />
+                        </div>
+                    </Card>
+
+                    {/* Address labels */}
+                    <Card
+                        title="Address labels"
+                        subtitle={<>Numbered placeholders up to 28, e.g. {'{address1}'}, {'{eircode1}'}</>}
+                        icon={Tag}
+                        tone="warning"
+                    >
+                        <div className="space-y-2">
+                            {singleTemplateRow(labelTemplate, 'No label template uploaded yet', () => setPendingDelete({
+                                title: 'Delete Label Template',
+                                message: 'Delete the label template? The file will be removed permanently.',
+                                run: handleDeleteLabels,
+                            }))}
+                            <FileDropzone
+                                compact
+                                accept=".docx"
+                                onChange={fileInputHandler(handleUploadLabels)}
+                                uploading={labelUploading}
+                                title={labelTemplate ? 'Replace Label Template' : 'Upload Label Template'}
+                                hint="Drop a .docx here or click to browse · max 5MB"
+                            />
+                        </div>
+                    </Card>
+
+                    {/* Custom variables */}
+                    <Card
+                        title="Custom variables"
+                        subtitle={<>Values substituted into every template, e.g. {'{Tutor}'}</>}
+                        icon={Variable}
+                        tone="success"
+                    >
+                        <div className="space-y-3">
+                            {customVars.length > 0 ? (
+                                <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
+                                    {customVars.map(v => (
+                                        <li key={v.id} className="flex items-center gap-2.5 px-3 py-2">
+                                            <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
+                                                {`{${v.var_key}}`}
+                                            </code>
+                                            {editingVarId === v.id ? (
+                                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                                    <input
+                                                        type="text"
+                                                        value={editingVarValue}
+                                                        onChange={e => setEditingVarValue(e.target.value)}
+                                                        onKeyDown={e => { if (e.key === 'Enter') handleSaveVariableValue(v); if (e.key === 'Escape') setEditingVarId(null); }}
+                                                        className={`${fieldCls} !h-8 flex-1 min-w-0`}
+                                                        autoFocus
+                                                    />
+                                                    <IconButton size="sm" tone="brand" label="Save" onClick={() => handleSaveVariableValue(v)}>
+                                                        <Check size={14} />
+                                                    </IconButton>
+                                                    <IconButton size="sm" label="Cancel" onClick={() => setEditingVarId(null)}>
+                                                        <X size={14} />
+                                                    </IconButton>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className="flex-1 min-w-0 text-left text-[13px] text-primary truncate hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                                                        onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}
+                                                        title="Click to edit"
+                                                    >
+                                                        {v.var_value || <em className="text-muted">empty — click to set</em>}
+                                                    </button>
+                                                    <IconButton size="sm" tone="brand" label="Edit value" onClick={() => { setEditingVarId(v.id); setEditingVarValue(v.var_value); }}>
+                                                        <Pencil size={13} />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="sm"
+                                                        tone="danger"
+                                                        label="Delete variable"
+                                                        onClick={() => setPendingDelete({
+                                                            title: 'Delete Variable',
+                                                            message: `Delete variable {${v.var_key}}? Templates using it will render it empty.`,
+                                                            run: () => handleDeleteVariable(v),
+                                                        })}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </IconButton>
+                                                </>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-xs text-muted flex items-center gap-1.5"><Info size={13} /> No custom variables defined yet</p>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    value={newVarKey}
+                                    onChange={e => setNewVarKey(e.target.value)}
+                                    placeholder="Name, e.g. Tutor"
+                                    aria-label="Variable Name"
+                                    className={`${fieldCls} sm:flex-1`}
+                                />
+                                <input
+                                    type="text"
+                                    value={newVarValue}
+                                    onChange={e => setNewVarValue(e.target.value)}
+                                    placeholder="Value, e.g. John Smith"
+                                    aria-label="Value"
+                                    onKeyDown={e => { if (e.key === 'Enter') handleAddVariable(); }}
+                                    className={`${fieldCls} sm:flex-1`}
+                                />
+                                <Button variant="secondary" onClick={handleAddVariable} disabled={!newVarKey.trim()} loading={addingVar}>
+                                    {!addingVar && <Plus size={14} />}
+                                    Add
+                                </Button>
+                            </div>
+                            <p className="text-[11px] text-muted">
+                                Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded font-mono">{'{{VariableName}}'}</code> in your Word templates to reference these variables.
+                            </p>
+                        </div>
+                    </Card>
+
+                    {/* Excel columns */}
+                    <Card
+                        title="Excel export columns"
+                        subtitle={<>Columns of <strong className="font-semibold">Participants.xlsx</strong> in the archive</>}
+                        icon={Table2}
+                        tone="success"
+                    >
+                        <div className="space-y-3">
+                            {excelColumns.length > 0 ? (
+                                <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
+                                    {excelColumns.map((col, idx) => (
+                                        <li key={`${col.placeholder}-${idx}`} className="flex items-center gap-2.5 px-3 py-2">
+                                            <span className="text-[11px] tabular-nums text-muted w-4 text-right flex-shrink-0">{idx + 1}</span>
+                                            <span className="text-[13px] font-medium text-primary truncate">{col.header}</span>
+                                            <ArrowRight size={12} className="text-muted flex-shrink-0" />
+                                            <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded font-mono text-xs truncate">
+                                                {`{${col.placeholder}}`}
+                                            </code>
+                                            <IconButton
+                                                size="sm"
+                                                tone="danger"
+                                                label="Remove column"
+                                                className="ml-auto"
+                                                onClick={() => {
+                                                    const updated = excelColumns.filter((_, i) => i !== idx);
+                                                    setExcelColumns(updated);
+                                                    persistConfig({ excelColumns: updated });
+                                                }}
+                                            >
+                                                <Trash2 size={14} />
+                                            </IconButton>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
+                                    <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                                    No columns configured — no Excel file will be generated
+                                </div>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input
+                                    type="text"
+                                    value={newColHeader}
+                                    onChange={e => setNewColHeader(e.target.value)}
+                                    placeholder="Header, e.g. Full Name"
+                                    aria-label="Column Header"
+                                    className={`${fieldCls} sm:flex-1`}
+                                />
+                                <input
+                                    type="text"
+                                    value={newColPlaceholder}
+                                    onChange={e => setNewColPlaceholder(e.target.value)}
+                                    placeholder="Placeholder, e.g. fullName"
+                                    aria-label="Placeholder Key"
+                                    onKeyDown={e => { if (e.key === 'Enter') addExcelColumn(); }}
+                                    className={`${fieldCls} sm:flex-1`}
+                                />
+                                <Button variant="secondary" onClick={addExcelColumn} disabled={!newColHeader.trim() || !newColPlaceholder.trim()}>
+                                    <Plus size={14} />
+                                    Add
+                                </Button>
+                            </div>
+                            <p className="text-[11px] text-muted">
+                                Use placeholder keys from Available variables (e.g. <code className="font-mono text-primary">firstName</code>, <code className="font-mono text-primary">email</code>, <code className="font-mono text-primary">courseDate</code>).
+                            </p>
+                        </div>
+                    </Card>
                 </div>
             </div>
         </div>
