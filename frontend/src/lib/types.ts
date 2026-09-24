@@ -218,6 +218,10 @@ export interface ViewerUpcomingCourse {
     pending_count: number;
     completed_count: number;
     total_active_count: number;
+    /** Max confirmed participants per date (null = no limit). Migration 66. */
+    max_capacity: number | null;
+    /** The date is fully booked (same rule that blocks new confirmations). */
+    is_full: boolean;
 }
 
 
