@@ -37,16 +37,16 @@ const MONTHS = [
 const YEARS_BACK = 10;
 
 const inputClass =
-    'w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 px-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner';
+    'w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle px-4 py-3 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner';
 
 function choiceClass(selected: boolean, tone: 'emerald' | 'amber' | 'indigo') {
     const active = {
         emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/10',
         amber: 'bg-amber-500/15 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/10',
-        indigo: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/50 shadow-sm shadow-indigo-500/10',
+        indigo: 'bg-brand-500/15 text-brand-300 border-brand-500/50 shadow-sm shadow-brand-500/10',
     }[tone];
     return `flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-semibold border transition-all active:scale-[0.98] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
-        selected ? active : 'bg-[#09090B] text-zinc-400 border-zinc-800 hover:border-zinc-600 hover:text-zinc-200'
+        selected ? active : 'bg-background text-muted border-border-subtle hover:border-border-strong hover:text-primary'
     }`;
 }
 
@@ -220,11 +220,11 @@ export default function StatusUpdatePage() {
     }
 
     const contactFooter = (subject: string, prompt: string) => (
-        <div className="pt-4 border-t border-zinc-800/70 text-center w-full">
-            <p className="text-[11px] text-zinc-500">{prompt}</p>
+        <div className="pt-4 border-t border-border-subtle/70 text-center w-full">
+            <p className="text-[11px] text-muted/80">{prompt}</p>
             <a
                 href={`mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}`}
-                className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1 underline transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
             >
                 <Mail size={12} /> {ORGANIZER_EMAIL}
             </a>
@@ -232,33 +232,33 @@ export default function StatusUpdatePage() {
     );
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-indigo-500/30 selection:text-indigo-200">
+        <div className="dark [color-scheme:dark] min-h-screen min-h-[100dvh] bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
             {/* Ambient background glow optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-indigo-500/[0.09]" />
+                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/[0.09]" />
                 <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/[0.065]" />
             </div>
 
             <div className="w-full max-w-md relative z-10 my-auto py-4">
-                <div className="bg-[#141417]/95 rounded-2xl border border-zinc-800/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
+                <div className="bg-surface/95 rounded-2xl border border-border-subtle/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
 
                     {/* ─── Form ─── */}
                     {state === 'form' && (
                         <form onSubmit={handleSubmit} noValidate className="flex flex-col">
                             {/* Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-zinc-800/80 bg-gradient-to-b from-indigo-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-indigo-500/15 rounded-xl border border-indigo-500/20 text-indigo-400 shrink-0 mt-0.5">
+                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <Briefcase size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-[11px] font-semibold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded-md mb-1 border border-indigo-500/20">
+                                        <span className="inline-block text-[11px] font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
                                             Participant Update
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug">
                                             {listId ? 'How are things going?' : 'How are things going since your course?'}
                                         </h2>
-                                        <p className="text-xs sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">
+                                        <p className="text-xs sm:text-sm text-muted mt-1.5 leading-relaxed">
                                             Four quick questions — it takes less than a minute.
                                         </p>
                                     </div>
@@ -269,11 +269,11 @@ export default function StatusUpdatePage() {
                             <div className="p-5 sm:p-6 space-y-5">
                                 {/* 1. Email */}
                                 <div>
-                                    <label htmlFor="status-email" className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+                                    <label htmlFor="status-email" className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
                                         Your Email
                                     </label>
                                     <div className="relative">
-                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-zinc-600' : 'text-zinc-400'}`} />
+                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
                                         <input
                                             id="status-email"
                                             type="email"
@@ -292,9 +292,9 @@ export default function StatusUpdatePage() {
                                     </div>
 
                                     {emailSuggestion && (
-                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 animate-fadeIn">
+                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200 animate-fadeIn">
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <Sparkles size={15} className="text-indigo-400 shrink-0" />
+                                                <Sparkles size={15} className="text-brand-400 shrink-0" />
                                                 <p className="truncate">
                                                     Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?
                                                 </p>
@@ -302,21 +302,21 @@ export default function StatusUpdatePage() {
                                             <button
                                                 type="button"
                                                 onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-indigo-600/40"
+                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-brand-600/40"
                                             >
                                                 Fix
                                             </button>
                                         </div>
                                     )}
 
-                                    <p className="text-[11px] text-zinc-500 mt-2 leading-normal">
+                                    <p className="text-[11px] text-muted/80 mt-2 leading-normal">
                                         Please use the same email address that received our email.
                                     </p>
                                 </div>
 
                                 {/* 2. Working? */}
                                 <fieldset>
-                                    <legend className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+                                    <legend className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
                                         Are you working at the moment?
                                     </legend>
                                     <div className="grid grid-cols-2 gap-2.5">
@@ -345,8 +345,8 @@ export default function StatusUpdatePage() {
                                     <div className="space-y-5 animate-fadeIn">
                                         {/* 3. Started */}
                                         <fieldset>
-                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
-                                                <CalendarDays size={13} className="text-indigo-400" /> When did you start?
+                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
+                                                <CalendarDays size={13} className="text-brand-400" /> When did you start?
                                             </legend>
                                             <div className="grid grid-cols-[1fr_auto] gap-2.5">
                                                 <select
@@ -380,8 +380,8 @@ export default function StatusUpdatePage() {
 
                                         {/* 4. Where */}
                                         <div>
-                                            <label htmlFor="status-field" className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
-                                                <Building2 size={13} className="text-indigo-400" /> Where do you work?
+                                            <label htmlFor="status-field" className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
+                                                <Building2 size={13} className="text-brand-400" /> Where do you work?
                                             </label>
                                             <input
                                                 id="status-field"
@@ -398,8 +398,8 @@ export default function StatusUpdatePage() {
 
                                         {/* 5. Full / part time */}
                                         <fieldset>
-                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
-                                                <Clock size={13} className="text-indigo-400" /> Full-time or part-time?
+                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
+                                                <Clock size={13} className="text-brand-400" /> Full-time or part-time?
                                             </legend>
                                             <div className="grid grid-cols-2 gap-2.5">
                                                 <button
@@ -450,8 +450,8 @@ export default function StatusUpdatePage() {
                                     )}
                                 </button>
 
-                                <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-start gap-2.5 text-[11px] sm:text-xs text-zinc-400 leading-relaxed">
-                                    <ShieldCheck size={15} className="text-indigo-400 shrink-0 mt-0.5" />
+                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-[11px] sm:text-xs text-muted leading-relaxed">
+                                    <ShieldCheck size={15} className="text-brand-400 shrink-0 mt-0.5" />
                                     <span>Your answers are confidential and only used, anonymously, to report on the results of our programmes.</span>
                                 </div>
 
@@ -463,15 +463,15 @@ export default function StatusUpdatePage() {
                     {/* ─── Shared email: pick your name ─── */}
                     {state === 'pick' && (
                         <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-zinc-800/80 bg-gradient-to-b from-indigo-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-indigo-500/15 rounded-xl border border-indigo-500/20 text-indigo-400 shrink-0 mt-0.5">
+                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <User size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h2 className="text-lg font-bold text-white tracking-tight">Who is this update for?</h2>
-                                        <p className="text-xs sm:text-sm text-zinc-400 mt-1 leading-relaxed">
-                                            More than one person is registered with <strong className="text-zinc-200 break-all">{email}</strong>. Please choose your name.
+                                        <p className="text-xs sm:text-sm text-muted mt-1 leading-relaxed">
+                                            More than one person is registered with <strong className="text-primary break-all">{email}</strong>. Please choose your name.
                                         </p>
                                     </div>
                                 </div>
@@ -484,15 +484,15 @@ export default function StatusUpdatePage() {
                                         type="button"
                                         disabled={isSubmitting}
                                         onClick={() => handlePickStudent(student)}
-                                        className="w-full text-left p-4 rounded-xl bg-[#09090B] hover:bg-indigo-500/10 border border-zinc-800 hover:border-indigo-500/40 transition-all flex items-center justify-between group touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="w-full text-left p-4 rounded-xl bg-background hover:bg-brand-500/10 border border-border-subtle hover:border-brand-500/40 transition-all flex items-center justify-between group touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                        <span className="font-semibold text-sm text-white group-hover:text-indigo-200">
+                                        <span className="font-semibold text-sm text-white group-hover:text-brand-200">
                                             {student.first_name} {student.last_name}
                                         </span>
                                         {isSubmitting ? (
-                                            <Loader2 size={16} className="animate-spin text-indigo-400" />
+                                            <Loader2 size={16} className="animate-spin text-brand-400" />
                                         ) : (
-                                            <span className="text-xs text-zinc-500 group-hover:text-indigo-300 font-medium">Select →</span>
+                                            <span className="text-xs text-muted/80 group-hover:text-brand-300 font-medium">Select →</span>
                                         )}
                                     </button>
                                 ))}
@@ -508,7 +508,7 @@ export default function StatusUpdatePage() {
                                     type="button"
                                     onClick={resetForm}
                                     disabled={isSubmitting}
-                                    className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-2 touch-manipulation"
+                                    className="w-full text-center text-xs text-muted/80 hover:text-primary transition-colors py-2 touch-manipulation"
                                 >
                                     ← Back to the form
                                 </button>
@@ -526,12 +526,12 @@ export default function StatusUpdatePage() {
                                 <h2 className="text-xl font-bold text-white">
                                     Thank you{submittedName ? `, ${submittedName}` : ''}!
                                 </h2>
-                                <p className="text-zinc-400 text-sm leading-relaxed mt-1.5 max-w-xs mx-auto">
+                                <p className="text-muted text-sm leading-relaxed mt-1.5 max-w-xs mx-auto">
                                     Your update has been received. It really helps us improve our {listId ? 'services' : 'courses'} for future participants.
                                 </p>
                             </div>
 
-                            <div className="w-full p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 text-left space-y-2.5 text-sm">
+                            <div className="w-full p-4 rounded-xl bg-surface/80 border border-border-subtle text-left space-y-2.5 text-sm">
                                 <SummaryRow label="Status" value={isWorking ? 'Working' : 'Not working yet'} />
                                 {isWorking && (
                                     <>
@@ -543,7 +543,7 @@ export default function StatusUpdatePage() {
                             </div>
 
                             {!isWorking && (
-                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                <p className="text-xs text-muted leading-relaxed">
                                     Looking for work or another course? We're happy to help — just drop us an email.
                                 </p>
                             )}
@@ -551,7 +551,7 @@ export default function StatusUpdatePage() {
                             <button
                                 type="button"
                                 onClick={resetForm}
-                                className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors touch-manipulation"
+                                className="text-xs text-muted/80 hover:text-primary underline transition-colors touch-manipulation"
                             >
                                 Made a mistake? Submit again
                             </button>
@@ -562,8 +562,8 @@ export default function StatusUpdatePage() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-[11px] text-zinc-500 mt-4 text-center">
-                    <HelpCircle size={13} className="text-zinc-600" />
+                <div className="flex items-center justify-center gap-1 text-[11px] text-muted/80 mt-4 text-center">
+                    <HelpCircle size={13} className="text-muted/60" />
                     <span>Cork City Partnership • Participant Update</span>
                 </div>
             </div>
@@ -577,8 +577,8 @@ export default function StatusUpdatePage() {
 function SummaryRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-start justify-between gap-3">
-            <span className="text-zinc-500 text-xs uppercase tracking-wider font-semibold pt-0.5">{label}</span>
-            <span className="text-zinc-100 font-medium text-right break-words min-w-0">{value}</span>
+            <span className="text-muted/80 text-xs uppercase tracking-wider font-semibold pt-0.5">{label}</span>
+            <span className="text-primary font-medium text-right break-words min-w-0">{value}</span>
         </div>
     );
 }

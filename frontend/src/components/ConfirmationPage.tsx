@@ -462,30 +462,30 @@ export default function ConfirmationPage() {
     // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-[#09090B] text-[#FAFAFA] flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-indigo-500/30 selection:text-indigo-200">
+        <div className="dark [color-scheme:dark] min-h-screen min-h-[100dvh] bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
             {/* Ambient background glow optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-indigo-500/[0.09]" />
+                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/[0.09]" />
                 <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/[0.065]" />
             </div>
 
             {/* Main Card */}
             <div className="w-full max-w-md relative z-10 my-auto py-4">
-                <div className="bg-[#141417]/95 rounded-2xl border border-zinc-800/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
+                <div className="bg-surface/95 rounded-2xl border border-border-subtle/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
 
                     {/* ─── Loading Skeleton ─── */}
                     {state === 'loading' && (
                         <div className="p-6 sm:p-8 space-y-6 animate-pulse">
                             <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 bg-zinc-800/80 rounded-xl" />
+                                <div className="w-11 h-11 bg-surface-elevated/80 rounded-xl" />
                                 <div className="space-y-2 flex-1">
-                                    <div className="h-3 w-28 bg-zinc-800/80 rounded" />
-                                    <div className="h-5 w-48 bg-zinc-700/60 rounded" />
+                                    <div className="h-3 w-28 bg-surface-elevated/80 rounded" />
+                                    <div className="h-5 w-48 bg-border-strong/60 rounded" />
                                 </div>
                             </div>
                             <div className="space-y-3 pt-2">
-                                <div className="h-3 w-32 bg-zinc-800/70 rounded" />
-                                <div className="h-12 w-full bg-zinc-800/50 rounded-xl border border-zinc-800" />
+                                <div className="h-3 w-32 bg-surface-elevated/70 rounded" />
+                                <div className="h-12 w-full bg-surface-elevated/50 rounded-xl border border-border-subtle" />
                             </div>
                             <div className="h-13 w-full bg-emerald-600/20 rounded-xl flex items-center justify-center gap-2">
                                 <Loader2 size={20} className="animate-spin text-emerald-400/70" />
@@ -501,30 +501,30 @@ export default function ConfirmationPage() {
                                 <AlertCircle size={30} className="text-amber-400" />
                             </div>
                             <h2 className="text-xl font-bold text-white">Connection Error</h2>
-                            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">
+                            <p className="text-muted text-sm leading-relaxed max-w-xs">
                                 Could not load course details. Please check your internet connection.
                             </p>
                             <div className="mt-2 flex flex-col sm:flex-row items-center gap-3 w-full">
                                 <button
                                     onClick={handleRetry}
-                                    className="w-full flex items-center justify-center gap-2 py-3 px-5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/25 touch-manipulation"
+                                    className="w-full flex items-center justify-center gap-2 py-3 px-5 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all shadow-md shadow-brand-600/25 touch-manipulation"
                                 >
                                     <RefreshCw size={18} />
                                     Try Again
                                 </button>
                                 <button
                                     onClick={() => window.location.reload()}
-                                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 active:scale-[0.98] text-zinc-300 hover:text-white font-medium rounded-xl transition-all touch-manipulation"
+                                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-surface-elevated hover:bg-border-strong active:scale-[0.98] text-primary/85 hover:text-white font-medium rounded-xl transition-all touch-manipulation"
                                 >
                                     Reload Page
                                 </button>
                             </div>
                             {/* Organizer contact */}
-                            <div className="pt-4 border-t border-zinc-800/80 w-full text-center">
-                                <p className="text-xs text-zinc-500">Need immediate assistance?</p>
+                            <div className="pt-4 border-t border-border-subtle/80 w-full text-center">
+                                <p className="text-xs text-muted/80">Need immediate assistance?</p>
                                 <a
                                     href={`mailto:${ORGANIZER_EMAIL}?subject=Course%20Portal%20Connection%20Issue`}
-                                    className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1 underline"
+                                    className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline"
                                 >
                                     <Mail size={12} /> {ORGANIZER_EMAIL}
                                 </a>
@@ -539,14 +539,14 @@ export default function ConfirmationPage() {
                                 <AlertCircle size={30} className="text-red-400" />
                             </div>
                             <h2 className="text-xl font-bold text-white">Invalid or Expired Link</h2>
-                            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">
+                            <p className="text-muted text-sm leading-relaxed max-w-xs">
                                 This confirmation link is no longer valid or has already expired.
                             </p>
-                            <div className="p-4 bg-zinc-900/90 rounded-xl border border-zinc-800 w-full text-center mt-2">
-                                <p className="text-xs text-zinc-400 mb-2">Please contact the organizer to receive an updated invitation:</p>
+                            <div className="p-4 bg-surface/90 rounded-xl border border-border-subtle w-full text-center mt-2">
+                                <p className="text-xs text-muted mb-2">Please contact the organizer to receive an updated invitation:</p>
                                 <a
                                     href={`mailto:${ORGANIZER_EMAIL}?subject=Expired%20Confirmation%20Link`}
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-indigo-300 hover:text-white rounded-lg text-xs font-semibold transition-colors w-full"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-elevated hover:bg-border-strong text-brand-300 hover:text-white rounded-lg text-xs font-semibold transition-colors w-full"
                                 >
                                     <Mail size={14} /> Contact {ORGANIZER_EMAIL}
                                 </a>
@@ -558,26 +558,26 @@ export default function ConfirmationPage() {
                     {state === 'form' && (
                         <form onSubmit={handleSubmit} className="flex flex-col">
                             {/* Course Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-zinc-800/80 bg-gradient-to-b from-indigo-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-indigo-500/15 rounded-xl border border-indigo-500/20 text-indigo-400 shrink-0 mt-0.5">
+                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <GraduationCap size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-[11px] font-semibold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded-md mb-1 border border-indigo-500/20">
+                                        <span className="inline-block text-[11px] font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
                                             Course Invitation
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
                                             {courseName}
                                         </h2>
                                         {isMultiDate ? (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
+                                                <Calendar size={14} className="text-brand-400 shrink-0" />
                                                 <span>{courseDates.length} dates available — choose one below</span>
                                             </div>
                                         ) : courseDate && (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
+                                                <Calendar size={14} className="text-brand-400 shrink-0" />
                                                 <span>{formatCourseDate(courseDate)}</span>
                                             </div>
                                         )}
@@ -590,7 +590,7 @@ export default function ConfirmationPage() {
                             <div className="p-5 sm:p-6 space-y-4">
                                 {isMultiDate && (
                                     <fieldset>
-                                        <legend className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+                                        <legend className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
                                             Choose Your Date
                                         </legend>
                                         <div className="space-y-2" role="radiogroup" aria-label="Course date">
@@ -607,10 +607,10 @@ export default function ConfirmationPage() {
                                                         data-testid="date-option"
                                                         className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all touch-manipulation ${
                                                             isFull
-                                                                ? 'border-zinc-800 bg-zinc-900/40 opacity-60 cursor-not-allowed'
+                                                                ? 'border-border-subtle bg-surface/40 opacity-60 cursor-not-allowed'
                                                                 : isSelected
                                                                     ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20 cursor-pointer'
-                                                                    : 'border-zinc-800 bg-[#09090B] hover:border-zinc-600 cursor-pointer'
+                                                                    : 'border-border-subtle bg-background hover:border-border-strong cursor-pointer'
                                                         }`}
                                                     >
                                                         <input
@@ -620,9 +620,9 @@ export default function ConfirmationPage() {
                                                             checked={isSelected}
                                                             disabled={isFull || isSubmitting}
                                                             onChange={() => { setCourseDate(d); setInlineError(''); }}
-                                                            className="w-4 h-4 border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0"
+                                                            className="w-4 h-4 border-border-strong bg-surface text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0"
                                                         />
-                                                        <span className={`flex-1 min-w-0 text-sm font-semibold ${isFull ? 'text-zinc-500 line-through' : 'text-white'}`}>
+                                                        <span className={`flex-1 min-w-0 text-sm font-semibold ${isFull ? 'text-muted/80 line-through' : 'text-white'}`}>
                                                             {formatCourseDate(d)}
                                                         </span>
                                                         {placesText && (
@@ -644,11 +644,11 @@ export default function ConfirmationPage() {
                                 )}
 
                                 <div>
-                                    <label htmlFor="student-email" className="block text-xs font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+                                    <label htmlFor="student-email" className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
                                         Confirm Your Email
                                     </label>
                                     <div className="relative">
-                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-zinc-600' : 'text-zinc-400'}`} />
+                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
                                         <input
                                             id="student-email"
                                             type="email"
@@ -662,15 +662,15 @@ export default function ConfirmationPage() {
                                             onChange={(e) => handleEmailInputChange(e.target.value)}
                                             onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                             placeholder="Enter registered email address"
-                                            className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-3 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
+                                            className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
                                         />
                                     </div>
 
                                     {/* Email Typo Helper Suggestion */}
                                     {emailSuggestion && (
-                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 animate-fadeIn">
+                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200 animate-fadeIn">
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <Sparkles size={15} className="text-indigo-400 shrink-0" />
+                                                <Sparkles size={15} className="text-brand-400 shrink-0" />
                                                 <p className="truncate">
                                                     Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?
                                                 </p>
@@ -678,14 +678,14 @@ export default function ConfirmationPage() {
                                             <button
                                                 type="button"
                                                 onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-indigo-600/40"
+                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-brand-600/40"
                                             >
                                                 Fix
                                             </button>
                                         </div>
                                     )}
 
-                                    <p className="text-[11px] text-zinc-500 mt-2 leading-normal">
+                                    <p className="text-[11px] text-muted/80 mt-2 leading-normal">
                                         Please use the same email address that received the invitation.
                                     </p>
                                 </div>
@@ -725,7 +725,7 @@ export default function ConfirmationPage() {
                                     )}
                                 </button>
                                 {isMultiDate && !courseDate && (
-                                    <p className="text-[11px] text-zinc-500 text-center -mt-1">Choose a date above to continue.</p>
+                                    <p className="text-[11px] text-muted/80 text-center -mt-1">Choose a date above to continue.</p>
                                 )}
 
                                 {/* Decline / Reschedule Option */}
@@ -736,7 +736,7 @@ export default function ConfirmationPage() {
                                             setInlineError('');
                                             setState('decline_confirm');
                                         }}
-                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/60 hover:bg-zinc-800/80 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-sm active:scale-[0.99] touch-manipulation cursor-pointer"
+                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-border-strong/80 bg-surface/60 hover:bg-surface-elevated/80 hover:border-border-strong text-primary/85 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-sm active:scale-[0.99] touch-manipulation cursor-pointer"
                                     >
                                         <CalendarX size={16} className="text-amber-400 shrink-0" />
                                         <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
@@ -744,13 +744,13 @@ export default function ConfirmationPage() {
                                 </div>
 
                                 {/* Organizer Contact footer */}
-                                <div className="pt-4 border-t border-zinc-800/70 text-center">
-                                    <p className="text-[11px] text-zinc-500">
+                                <div className="pt-4 border-t border-border-subtle/70 text-center">
+                                    <p className="text-[11px] text-muted/80">
                                         Questions or difficulties? Contact the coordinator:
                                     </p>
                                     <a
                                         href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
-                                        className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1 underline transition-colors"
+                                        className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
                                     >
                                         <Mail size={12} /> {ORGANIZER_EMAIL}
                                     </a>
@@ -762,7 +762,7 @@ export default function ConfirmationPage() {
                     {/* ─── Course Fully Booked ─── */}
                     {state === 'full' && (
                         <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-zinc-800/80 bg-gradient-to-b from-red-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-red-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
                                     <div className="p-2.5 bg-red-500/15 rounded-xl border border-red-500/25 text-red-400 shrink-0 mt-0.5">
                                         <Users size={22} />
@@ -777,15 +777,15 @@ export default function ConfirmationPage() {
                                         {isMultiDate ? (
                                             <div className="space-y-1 mt-1.5">
                                                 {courseDates.map(d => (
-                                                    <div key={d} className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium">
-                                                        <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                                    <div key={d} className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium">
+                                                        <Calendar size={14} className="text-brand-400 shrink-0" />
                                                         <span>{formatCourseDate(d)}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         ) : courseDate && (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-zinc-300 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
+                                                <Calendar size={14} className="text-brand-400 shrink-0" />
                                                 <span>{formatCourseDate(courseDate)}</span>
                                             </div>
                                         )}
@@ -799,35 +799,35 @@ export default function ConfirmationPage() {
                                     <h3 className="text-base font-bold text-white">
                                         {isMultiDate ? 'All places for these dates have been taken' : 'All places for this date have been taken'}
                                     </h3>
-                                    <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+                                    <p className="text-sm text-muted mt-1.5 leading-relaxed">
                                         {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed. If you're still interested,
-                                        email the coordinator and you'll be given <strong className="text-zinc-200">priority for the next course</strong>.
+                                        email the coordinator and you'll be given <strong className="text-primary">priority for the next course</strong>.
                                     </p>
                                 </div>
 
                                 <a
                                     href={getPriorityMailtoUrl()}
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-indigo-600/30 transition-all touch-manipulation"
+                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-brand-600/30 transition-all touch-manipulation"
                                 >
                                     <Star size={18} className="text-white shrink-0" />
                                     <span>Get priority for the next course</span>
                                 </a>
-                                <p className="text-[11px] text-zinc-500 leading-normal text-center -mt-1">
+                                <p className="text-[11px] text-muted/80 leading-normal text-center -mt-1">
                                     Opens a pre-filled email to {ORGANIZER_EMAIL}.
                                 </p>
 
-                                <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-start gap-2.5 text-xs text-zinc-400 leading-relaxed">
+                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs text-muted leading-relaxed">
                                     <CheckCircle size={15} className="text-emerald-400 shrink-0 mt-0.5" />
                                     <span>Already confirmed your place earlier? You're all set — no further action is needed.</span>
                                 </div>
 
-                                <div className="pt-4 border-t border-zinc-800/70 text-center">
-                                    <p className="text-[11px] text-zinc-500">
+                                <div className="pt-4 border-t border-border-subtle/70 text-center">
+                                    <p className="text-[11px] text-muted/80">
                                         Questions or difficulties? Contact the coordinator:
                                     </p>
                                     <a
                                         href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
-                                        className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1 underline transition-colors"
+                                        className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
                                     >
                                         <Mail size={12} /> {ORGANIZER_EMAIL}
                                     </a>
@@ -840,21 +840,21 @@ export default function ConfirmationPage() {
                     {state === 'decline_confirm' && (
                         <div className="p-5 sm:p-6 flex flex-col animate-fadeIn">
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-800">
+                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border-subtle">
                                 <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 shrink-0">
                                     <CalendarX size={22} />
                                 </div>
                                 <div>
                                     <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Can't attend this session?</h2>
-                                    <p className="text-xs text-zinc-400 mt-0.5">
+                                    <p className="text-xs text-muted mt-0.5">
                                         Let the coordinator know so we can update your enrollment and free up this seat.
                                     </p>
                                 </div>
                             </div>
 
                             {/* Security Notice */}
-                            <div className="mb-4 p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/25 flex items-start gap-2.5 text-xs text-indigo-200 leading-relaxed">
-                                <ShieldCheck size={16} className="text-indigo-400 shrink-0 mt-0.5" />
+                            <div className="mb-4 p-3 rounded-xl bg-brand-950/30 border border-brand-500/25 flex items-start gap-2.5 text-xs text-brand-200 leading-relaxed">
+                                <ShieldCheck size={16} className="text-brand-400 shrink-0 mt-0.5" />
                                 <div>
                                     <span className="font-semibold text-white">Security notice: </span>
                                     To protect registrations from unauthorized cancellation, requests to reschedule or cancel must be sent from your email address. Clicking an option below will open your email client with a pre-filled message.
@@ -863,11 +863,11 @@ export default function ConfirmationPage() {
 
                             {/* Registered Email helper */}
                             <div className="mb-4">
-                                <label className="block text-xs font-bold text-zinc-400 mb-1.5 uppercase tracking-wider">
+                                <label className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wider">
                                     Your Registered Email (included in draft)
                                 </label>
                                 <div className="relative">
-                                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/80" />
                                     <input
                                         type="email"
                                         inputMode="email"
@@ -875,16 +875,16 @@ export default function ConfirmationPage() {
                                         onChange={(e) => handleEmailInputChange(e.target.value)}
                                         onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                         placeholder="Enter registered email"
-                                        className="w-full bg-[#09090B] text-white text-[16px] sm:text-sm rounded-xl border border-zinc-800 pl-10 pr-4 py-2.5 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20"
+                                        className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-2.5 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                                     />
                                 </div>
                                 {emailSuggestion && (
-                                    <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
+                                    <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200">
                                         <span className="truncate">Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?</span>
                                         <button
                                             type="button"
                                             onClick={applyEmailSuggestion}
-                                            className="px-2 py-0.5 bg-indigo-600 text-white rounded text-xs font-semibold"
+                                            className="px-2 py-0.5 bg-brand-600 text-white rounded text-xs font-semibold"
                                         >
                                             Fix
                                         </button>
@@ -894,26 +894,26 @@ export default function ConfirmationPage() {
 
                             {/* Choice Actions */}
                             <div className="space-y-3">
-                                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                                <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
                                     Choose an option to email the coordinator:
                                 </p>
 
                                 {/* Option 1: Keep on Waiting List (Reschedule) */}
                                 <a
                                     href={getRescheduleMailtoUrl()}
-                                    className="w-full text-left p-4 rounded-xl border border-indigo-500/40 bg-indigo-950/20 hover:bg-indigo-900/30 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
+                                    className="w-full text-left p-4 rounded-xl border border-brand-500/40 bg-brand-950/20 hover:bg-brand-900/30 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
                                 >
-                                    <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-lg shrink-0 mt-0.5 group-hover:bg-indigo-500/30 transition-colors">
+                                    <div className="p-2.5 bg-brand-500/20 text-brand-300 rounded-lg shrink-0 mt-0.5 group-hover:bg-brand-500/30 transition-colors">
                                         <Calendar size={18} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-2">
-                                            <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
+                                            <h3 className="text-sm font-bold text-white group-hover:text-brand-300 transition-colors">
                                                 Keep me on the waiting list for future dates
                                             </h3>
-                                            <Mail size={14} className="text-indigo-400 shrink-0 opacity-80" />
+                                            <Mail size={14} className="text-brand-400 shrink-0 opacity-80" />
                                         </div>
-                                        <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                                        <p className="text-xs text-muted mt-1 leading-relaxed">
                                             Opens a pre-filled email to remain on the waiting list for the next course session.
                                         </p>
                                     </div>
@@ -922,19 +922,19 @@ export default function ConfirmationPage() {
                                 {/* Option 2: Withdraw completely */}
                                 <a
                                     href={getWithdrawMailtoUrl()}
-                                    className="w-full text-left p-4 rounded-xl border border-zinc-800 bg-[#09090B] hover:border-red-500/40 hover:bg-red-950/15 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
+                                    className="w-full text-left p-4 rounded-xl border border-border-subtle bg-background hover:border-red-500/40 hover:bg-red-950/15 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
                                 >
-                                    <div className="p-2.5 bg-zinc-800 text-zinc-400 group-hover:text-red-400 group-hover:bg-red-950/30 rounded-lg shrink-0 mt-0.5 transition-colors">
+                                    <div className="p-2.5 bg-surface-elevated text-muted group-hover:text-red-400 group-hover:bg-red-950/30 rounded-lg shrink-0 mt-0.5 transition-colors">
                                         <CalendarX size={18} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-2">
-                                            <h3 className="text-sm font-bold text-zinc-300 group-hover:text-red-300 transition-colors">
+                                            <h3 className="text-sm font-bold text-primary/85 group-hover:text-red-300 transition-colors">
                                                 I'm no longer interested in this course
                                             </h3>
-                                            <Mail size={14} className="text-zinc-500 group-hover:text-red-400 shrink-0 opacity-80" />
+                                            <Mail size={14} className="text-muted/80 group-hover:text-red-400 shrink-0 opacity-80" />
                                         </div>
-                                        <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                                        <p className="text-xs text-muted/80 mt-1 leading-relaxed">
                                             Opens a pre-filled email to cancel your registration completely.
                                         </p>
                                     </div>
@@ -942,15 +942,15 @@ export default function ConfirmationPage() {
                             </div>
 
                             {/* Manual copy fallback */}
-                            <div className="mt-4 pt-3.5 border-t border-zinc-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                                <div className="text-[11px] text-zinc-400">
+                            <div className="mt-4 pt-3.5 border-t border-border-subtle/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                <div className="text-[11px] text-muted">
                                     <span>Coordinator email: </span>
                                     <span className="text-white font-medium">{ORGANIZER_EMAIL}</span>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={handleCopyCoordinatorEmail}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors active:scale-95 touch-manipulation cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-primary/85 hover:text-white bg-surface-elevated hover:bg-border-strong rounded-lg transition-colors active:scale-95 touch-manipulation cursor-pointer"
                                 >
                                     {copiedCoordinatorEmail ? (
                                         <>
@@ -959,7 +959,7 @@ export default function ConfirmationPage() {
                                         </>
                                     ) : (
                                         <>
-                                            <Copy size={13} className="text-zinc-400" />
+                                            <Copy size={13} className="text-muted" />
                                             <span>Copy address</span>
                                         </>
                                     )}
@@ -972,7 +972,7 @@ export default function ConfirmationPage() {
                                     setInlineError('');
                                     setState('form');
                                 }}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-white py-3 mt-3 transition-colors touch-manipulation cursor-pointer"
+                                className="w-full flex items-center justify-center gap-1.5 text-xs text-muted hover:text-white py-3 mt-3 transition-colors touch-manipulation cursor-pointer"
                             >
                                 <ArrowLeft size={14} /> Back to confirmation
                             </button>
@@ -982,26 +982,26 @@ export default function ConfirmationPage() {
                     {/* ─── Name Picker (Multiple Registrations with same Email) ─── */}
                     {state === 'pick' && (
                         <div className="p-5 sm:p-6 animate-fadeIn">
-                            <div className="flex items-center gap-3 mb-3 pb-3 border-b border-zinc-800">
+                            <div className="flex items-center gap-3 mb-3 pb-3 border-b border-border-subtle">
                                 <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400 shrink-0">
                                     <Users size={22} />
                                 </div>
                                 <div>
                                     <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Multiple Registrations Found</h2>
-                                    <p className="text-xs text-zinc-400 mt-0.5">
+                                    <p className="text-xs text-muted mt-0.5">
                                         Multiple people are registered with <span className="text-white font-medium">{email}</span>.
                                     </p>
                                 </div>
                             </div>
 
                             {isMultiDate && courseDate && (
-                                <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium mb-3">
-                                    <Calendar size={14} className="text-indigo-400 shrink-0" />
+                                <div className="flex items-center gap-1.5 text-xs text-primary/85 font-medium mb-3">
+                                    <Calendar size={14} className="text-brand-400 shrink-0" />
                                     <span>Date: <span className="text-white">{formatCourseDate(courseDate)}</span></span>
                                 </div>
                             )}
 
-                            <p className="text-xs text-zinc-400 mb-3">
+                            <p className="text-xs text-muted mb-3">
                                 Select who is confirming attendance:
                             </p>
 
@@ -1012,15 +1012,15 @@ export default function ConfirmationPage() {
                                         key={student.student_id}
                                         className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all touch-manipulation ${
                                             selectedStudentIds.has(student.student_id)
-                                                ? 'border-indigo-500 bg-indigo-500/10'
-                                                : 'border-zinc-800 bg-[#09090B] hover:border-zinc-700'
+                                                ? 'border-brand-500 bg-brand-500/10'
+                                                : 'border-border-subtle bg-background hover:border-border-strong'
                                         }`}
                                     >
                                         <input
                                             type="checkbox"
                                             checked={selectedStudentIds.has(student.student_id)}
                                             onChange={() => toggleStudent(student.student_id)}
-                                            className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
+                                            className="w-5 h-5 rounded border-border-strong bg-surface text-brand-500 focus:ring-brand-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
                                         />
                                         <span className="text-white font-medium text-sm">
                                             {student.first_name} {student.last_name}
@@ -1061,7 +1061,7 @@ export default function ConfirmationPage() {
                                     setState('form');
                                     setInlineError('');
                                 }}
-                                className="w-full text-xs text-zinc-500 hover:text-zinc-300 py-3 mt-2 transition-colors touch-manipulation cursor-pointer"
+                                className="w-full text-xs text-muted/80 hover:text-primary py-3 mt-2 transition-colors touch-manipulation cursor-pointer"
                             >
                                 ← Back to email
                             </button>
@@ -1078,13 +1078,13 @@ export default function ConfirmationPage() {
 
                             <div className="space-y-1">
                                 <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">You're All Set!</h2>
-                                <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
+                                <p className="text-primary/85 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
                                     {resultMessage || "Your attendance has been confirmed! We look forward to seeing you at the course."}
                                 </p>
                             </div>
 
                             {/* Ticket Details Card */}
-                            <div className="w-full p-4 bg-zinc-900/90 rounded-xl border border-zinc-800 text-left space-y-2 mt-1">
+                            <div className="w-full p-4 bg-surface/90 rounded-xl border border-border-subtle text-left space-y-2 mt-1">
                                 <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">
                                     Confirmed Enrollment
                                 </div>
@@ -1092,8 +1092,8 @@ export default function ConfirmationPage() {
                                     {courseName}
                                 </div>
                                 {courseDate && (
-                                    <div className="flex items-center gap-2 text-xs sm:text-sm text-indigo-300 font-medium pt-1 border-t border-zinc-800/80">
-                                        <Calendar size={15} className="text-indigo-400 shrink-0" />
+                                    <div className="flex items-center gap-2 text-xs sm:text-sm text-brand-300 font-medium pt-1 border-t border-border-subtle/80">
+                                        <Calendar size={15} className="text-brand-400 shrink-0" />
                                         <span>{formatCourseDate(courseDate)}</span>
                                     </div>
                                 )}
@@ -1101,12 +1101,12 @@ export default function ConfirmationPage() {
 
                             {/* ─── Add to Calendar Section ─── */}
                             {courseDate && (
-                                <div className="w-full p-4 bg-zinc-900/60 rounded-xl border border-zinc-800/80 text-left space-y-3 mt-1">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                                        <Calendar size={14} className="text-indigo-400" />
+                                <div className="w-full p-4 bg-surface/60 rounded-xl border border-border-subtle/80 text-left space-y-3 mt-1">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-primary/85 uppercase tracking-wider">
+                                        <Calendar size={14} className="text-brand-400" />
                                         <span>Add to Calendar</span>
                                     </div>
-                                    <p className="text-xs text-zinc-400 leading-normal">
+                                    <p className="text-xs text-muted leading-normal">
                                         Save the course date to your phone so you don't miss it:
                                     </p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
@@ -1114,9 +1114,9 @@ export default function ConfirmationPage() {
                                             href={getGoogleCalendarUrl({ courseName, courseDate })}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-sm"
+                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 text-brand-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-sm"
                                         >
-                                            <ExternalLink size={14} className="text-indigo-400 shrink-0" />
+                                            <ExternalLink size={14} className="text-brand-400 shrink-0" />
                                             <span>Google Calendar</span>
                                         </a>
                                         <button
@@ -1132,13 +1132,13 @@ export default function ConfirmationPage() {
                             )}
 
                             {/* Organizer Contact Info */}
-                            <div className="w-full pt-3 text-center border-t border-zinc-800/70">
-                                <p className="text-[11px] text-zinc-500">
+                            <div className="w-full pt-3 text-center border-t border-border-subtle/70">
+                                <p className="text-[11px] text-muted/80">
                                     Need to change plans or have any questions?
                                 </p>
                                 <a
                                     href={`mailto:${ORGANIZER_EMAIL}?subject=Confirmed%20Course%20Question%20-%20${encodeURIComponent(courseName)}`}
-                                    className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium mt-1 underline transition-colors"
+                                    className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
                                 >
                                     <Mail size={12} /> {ORGANIZER_EMAIL}
                                 </a>
@@ -1149,8 +1149,8 @@ export default function ConfirmationPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-[11px] text-zinc-500 mt-4 text-center">
-                    <HelpCircle size={13} className="text-zinc-600" />
+                <div className="flex items-center justify-center gap-1 text-[11px] text-muted/80 mt-4 text-center">
+                    <HelpCircle size={13} className="text-muted/60" />
                     <span>Cork City Partnership • Course Confirmation Portal</span>
                 </div>
             </div>
@@ -1209,14 +1209,14 @@ function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
     return (
         <div className="mt-4" data-testid="capacity-meter">
             <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
-                <span className="flex items-center gap-1.5 text-zinc-300 font-medium">
-                    <Users size={13} className="text-indigo-400 shrink-0" />
+                <span className="flex items-center gap-1.5 text-primary/85 font-medium">
+                    <Users size={13} className="text-brand-400 shrink-0" />
                     <span><strong className="text-white">{taken}</strong> of <strong className="text-white">{max}</strong> places confirmed</span>
                 </span>
                 <span className={`font-semibold ${statusColor}`}>{statusText}</span>
             </div>
             <div
-                className="h-2 w-full rounded-full bg-zinc-800 overflow-hidden"
+                className="h-2 w-full rounded-full bg-surface-elevated overflow-hidden"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={max}

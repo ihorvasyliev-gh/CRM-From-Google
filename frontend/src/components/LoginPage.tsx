@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Lock, Mail, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 
 const LOCKOUT_KEY_PREFIX = 'crm_login';
 
@@ -130,33 +130,31 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-brand-50/30 to-background dark:via-brand-950/20 flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
-            {/* Ambient orbs: radial gradients (no filter: blur) moved by transform only — composited, no repaints */}
-            <div aria-hidden className="orb absolute top-4 left-0 sm:top-6 sm:left-6 w-[300px] h-[300px] sm:w-[440px] sm:h-[440px] text-brand-500/[0.14] animate-orb1 transform-gpu" />
-            <div aria-hidden className="orb absolute bottom-4 right-0 sm:bottom-6 sm:right-6 w-[340px] h-[340px] sm:w-[520px] sm:h-[520px] text-violet-500/[0.11] animate-orb2 transform-gpu" />
-            <div aria-hidden className="orb absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[640px] sm:h-[640px] text-brand-600/[0.07]" />
+        <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
+            {/* One soft brand glow behind the card (radial gradient, no filter: blur) */}
+            <div aria-hidden className="orb absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] sm:w-[760px] sm:h-[760px] text-brand-500/[0.08] pointer-events-none" />
 
-            <div className="relative w-full max-w-md animate-scaleIn">
+            <div className="relative w-full max-w-sm animate-scaleIn">
                 {/* Logo */}
-                <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-brand-500 via-brand-600 to-brand-400 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-xl shadow-brand-500/30 ring-1 ring-inset ring-white/15">
-                        <Sparkles size={28} />
+                <div className="text-center mb-7">
+                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">
+                        C
                     </div>
-                    <h1 className="text-3xl font-bold text-primary mb-1">Course CRM</h1>
-                    <p className="text-sm text-muted font-medium">Sign in to manage your courses</p>
+                    <h1 className="text-2xl font-bold text-primary tracking-tight">Course CRM</h1>
+                    <p className="text-sm text-muted mt-1">Sign in to manage your courses</p>
                 </div>
 
                 {/* Card */}
-                <div className="bg-surface/80 dark:bg-white/[0.06] backdrop-blur-lg backdrop-saturate-150 border border-border-subtle/80 dark:border-white/10 rounded-2xl shadow-2xl p-8 min-h-[380px] flex flex-col justify-start">
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="bg-surface border border-border-subtle rounded-2xl shadow-float p-6 sm:p-7">
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         {error && (
-                            <div role="alert" className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 dark:bg-red-500/15 border border-red-500/20 px-4 py-2.5 rounded-xl animate-slideDown text-center">
+                            <div role="alert" className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl animate-slideDown text-center">
                                 {error}
                             </div>
                         )}
 
                         <div>
-                            <label htmlFor="login-email" className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Email</label>
+                            <label htmlFor="login-email" className="text-xs font-semibold text-muted mb-1.5 block">Email</label>
                             <div className="relative">
                                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
@@ -165,7 +163,7 @@ export default function LoginPage() {
                                     autoComplete="username"
                                     inputMode="email"
                                     placeholder="admin@example.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full h-11 pl-10 pr-4 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
@@ -176,7 +174,7 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="login-password" className="text-xs font-semibold text-muted uppercase tracking-wider mb-2 block">Password</label>
+                            <label htmlFor="login-password" className="text-xs font-semibold text-muted mb-1.5 block">Password</label>
                             <div className="relative">
                                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/60" size={16} />
                                 <input
@@ -186,7 +184,7 @@ export default function LoginPage() {
                                     placeholder="••••••••"
                                     onKeyUp={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
                                     onKeyDown={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
-                                    className="w-full pl-10 pr-11 py-3 bg-surface-elevated/50 dark:bg-white/5 border border-border-subtle dark:border-white/10 rounded-xl text-sm text-primary placeholder:text-muted/50 dark:placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-500/40 focus:border-brand-500 dark:focus:border-brand-400/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full h-11 pl-10 pr-11 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     required
@@ -204,14 +202,14 @@ export default function LoginPage() {
                                 </button>
                             </div>
                             {capsLockOn && (
-                                <p className="mt-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">Caps Lock is on</p>
+                                <p className="mt-1.5 text-[11px] font-medium text-status-requested">Caps Lock is on</p>
                             )}
                         </div>
 
                         <button
                             type="submit"
                             disabled={loading || lockoutSecondsLeft > 0}
-                            className="w-full py-3 text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 rounded-xl transition-all shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full h-11 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-sm shadow-brand-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                             {loading ? 'Signing in...' : 'Sign In'}
@@ -219,7 +217,7 @@ export default function LoginPage() {
                     </form>
                 </div>
 
-                <p className="text-center text-xs text-muted/50 dark:text-white/20 mt-6 font-medium">
+                <p className="text-center text-xs text-muted/70 mt-6">
                     Course CRM • Management System
                 </p>
             </div>
