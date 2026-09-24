@@ -5,6 +5,7 @@ import type { EnrollmentRow } from './useEnrollments';
 import { formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
 import { getCoursePill } from './useBulkActions';
+import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
 export interface DateStats {
     pending: number;
@@ -183,8 +184,23 @@ export function useInviteFlow({
 
     async function handleInviteAndEmail() {
         if (!inviteDateTarget || !canInvite) return;
-        const ids = inviteDateTarget.ids;
-        const selectedEnrollments = enrollments.filter(e => ids.includes(e.id));
+        const targetEnrollments = enrollments.filter(e => inviteDateTarget.ids.includes(e.id));
+
+        // People who unsubscribed stay in the CRM but are neither invited nor emailed
+        let optedOut: Set<string>;
+        try {
+            optedOut = await fetchOptedOutEmails(targetEnrollments.map(e => e.students?.email));
+        } catch (err) {
+            console.error('Failed to check the unsubscribe list:', err);
+            showToast('Could not check the unsubscribe list. Please try again.', 'error');
+            return;
+        }
+        const { allowed: selectedEnrollments, skipped } = partitionByOptOut(targetEnrollments, e => e.students?.email, optedOut);
+        if (selectedEnrollments.length === 0) {
+            showToast('Everyone selected has unsubscribed from emails — nobody was invited.', 'error');
+            return;
+        }
+        const ids = selectedEnrollments.map(e => e.id);
         const dates = normalizeDateList(selectedDates);
         const isMulti = dates.length > 1;
 
@@ -243,7 +259,7 @@ export function useInviteFlow({
                 "text/plain": blobText,
             })];
             await navigator.clipboard.write(data);
-            showToast('HTML template copied! Press Ctrl+V in your email client.', 'success');
+            showToast(`HTML template copied! Press Ctrl+V in your email client.${skippedNote(skipped.length)}`, 'success');
         } catch (err) {
             console.error('Failed to copy HTML to clipboard:', err);
             showToast('Could not copy HTML to clipboard.', 'error');

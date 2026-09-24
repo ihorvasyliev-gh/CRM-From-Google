@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, DEFAULT_CONFIG, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, DEFAULT_CONFIG, UNSUBSCRIBE_FOOTER_TEXT, hasUnsubscribeText, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -120,6 +120,34 @@ describe('appConfig', () => {
             const result = buildEmailBodyHtml('Safe Pass', ['Wed, 14 Oct 2026'], 'https://example.com/c/abc', undefined, 7, false);
             expect(result).toContain('Date &amp; Time');
             expect(result).toContain('Confirm My Place');
+        });
+    });
+
+    describe('unsubscribe notice', () => {
+        const count = (html: string, text: string) => html.split(text).length - 1;
+
+        it('adds the notice to survey emails for graduates and outreach lists', () => {
+            expect(count(buildStatusEmailBodyHtml('https://example.com/status'), UNSUBSCRIBE_FOOTER_TEXT)).toBe(1);
+            expect(count(buildStatusEmailBodyHtml('https://example.com/status', undefined, 'outreach'), UNSUBSCRIBE_FOOTER_TEXT)).toBe(1);
+        });
+
+        it('does not repeat it in invitations that already mention it', () => {
+            for (const requiresEnglish of [true, false]) {
+                const html = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm', undefined, 7, requiresEnglish);
+                expect(html).toContain('prefer not to receive future emails');
+                expect(html).not.toContain(UNSUBSCRIBE_FOOTER_TEXT);
+            }
+        });
+
+        it('adds it to custom invitation templates without such wording', () => {
+            setConfig({ htmlEmailTemplateStandard: '<p>Hi</p>{confirmationButton}' });
+            expect(buildEmailBodyHtml('Python 101', 'Oct 20', 'https://example.com/confirm')).toContain(UNSUBSCRIBE_FOOTER_TEXT);
+        });
+
+        it('recognises common unsubscribe wording', () => {
+            expect(hasUnsubscribeText('<p>To <b>unsubscribe</b>, reply STOP</p>')).toBe(true);
+            expect(hasUnsubscribeText('<p>If you don&rsquo;t want to receive these emails…</p>')).toBe(true);
+            expect(hasUnsubscribeText('<p>See you soon</p>')).toBe(false);
         });
     });
 

@@ -432,6 +432,8 @@ function syncRowsRange(sheet, startRow, endRow) {
 
   if (studentsToUpsert.length === 0) return;
 
+  resubscribeReRegisteredEmails_(rowMap);
+
   // Deduplicate within the batch before sending to Supabase
   var uniqueStudents = [];
   var seenKeys = {};
@@ -567,6 +569,36 @@ function syncRowsRange(sheet, startRow, endRow) {
     _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', enrollmentsToUpsert, { 
       'Prefer': 'resolution=ignore-duplicates' 
     });
+  }
+}
+
+/**
+ * Unsubscribe list (migration 62): an email that registers again through
+ * the Google Form gets emails turned back on. Only a form submission made
+ * AFTER the opt-out counts, so re-syncing old rows never undoes an unsubscribe.
+ */
+function resubscribeReRegisteredEmails_(rowMap) {
+  var latestByEmail = {};
+  for (var i = 0; i < rowMap.length; i++) {
+    var raw = rowMap[i].rawTimestamp;
+    if (!raw || String(raw).trim() === "") continue; // no timestamp → can't tell if it's a new registration
+    var email = rowMap[i].key.split("|").pop();
+    var ts = formatIsoDateTime(raw);
+    if (!latestByEmail[email] || ts > latestByEmail[email]) latestByEmail[email] = ts;
+  }
+
+  var emails = Object.keys(latestByEmail);
+  if (emails.length === 0) return;
+
+  var optOuts = _fetch('email_opt_outs?select=email,opted_out_at&email=in.(' + emails.map(encodeURIComponent).join(',') + ')', 'get');
+  if (!optOuts || !optOuts.length) return; // nobody unsubscribed (or migration 62 not applied yet)
+
+  for (var j = 0; j < optOuts.length; j++) {
+    var optOut = optOuts[j];
+    var submittedAt = latestByEmail[optOut.email];
+    if (!submittedAt || new Date(submittedAt).getTime() <= new Date(optOut.opted_out_at).getTime()) continue;
+    _fetch('email_opt_outs?email=eq.' + encodeURIComponent(optOut.email) + '&opted_out_at=lt.' + encodeURIComponent(submittedAt), 'delete');
+    log_('Re-registered via Google Form, emails turned back on for ' + optOut.email, 'INFO');
   }
 }
 

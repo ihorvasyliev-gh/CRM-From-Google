@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
+import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
@@ -131,22 +132,34 @@ export default function OutreachLists() {
     }
 
     async function handleCopyEmails() {
-        const emails = [...new Set(contacts.filter(c => selectedIds.has(c.id)).map(c => c.email))];
-        if (emails.length === 0) { showToast('No emails to copy', 'error'); return; }
+        const all = [...new Set(contacts.filter(c => selectedIds.has(c.id)).map(c => c.email).filter(Boolean))];
+        if (all.length === 0) { showToast('No emails to copy', 'error'); return; }
         try {
+            // Leave out people who unsubscribed from our emails
+            const optedOut = await fetchOptedOutEmails(all);
+            const { allowed: emails, skipped } = partitionByOptOut(all, e => e, optedOut);
+            if (emails.length === 0) { showToast('Everyone selected has unsubscribed from emails', 'error'); return; }
             await navigator.clipboard.writeText(emails.join('; '));
-            showToast(`${emails.length} email(s) copied!`, 'success');
+            showToast(`${emails.length} email(s) copied!${skippedNote(skipped.length)}`, 'success');
         } catch {
-            showToast('Could not access the clipboard', 'error');
+            showToast('Could not copy the emails', 'error');
         }
     }
 
     async function handleSendStatusRequest() {
         if (selectedIds.size === 0 || !listId) return;
         setSending(true);
-        const selected = contacts.filter(c => selectedIds.has(c.id));
+        const selectedAll = contacts.filter(c => selectedIds.has(c.id));
 
         try {
+            // Unsubscribed contacts stay on the list but get no survey email
+            const optedOut = await fetchOptedOutEmails(selectedAll.map(c => c.email));
+            const { allowed: selected, skipped } = partitionByOptOut(selectedAll, c => c.email, optedOut);
+            if (selected.length === 0) {
+                showToast('Everyone selected has unsubscribed from emails — nothing was sent.', 'error');
+                return;
+            }
+
             const { error: rpcError } = await supabase.rpc('mark_outreach_contacts_pending', {
                 p_ids: selected.map(c => c.id),
             });
@@ -170,7 +183,7 @@ export default function OutreachLists() {
 
             showToast(
                 copied
-                    ? `Status requests sent to ${selected.length} contact(s). Template copied!`
+                    ? `Status requests sent to ${selected.length} contact(s). Template copied!${skippedNote(skipped.length)}`
                     : `Marked ${selected.length} contact(s) as pending, but the email template could not be copied`,
                 copied ? 'success' : 'error'
             );

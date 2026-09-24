@@ -6,6 +6,7 @@ import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil, G
 import StatTile from './ui/StatTile';
 import { Segmented } from './ui/Tabs';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
+import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
@@ -123,14 +124,17 @@ function GraduateOutcomes() {
     }
 
     async function handleCopyEmails() {
-        const selected = graduates.filter(g => selectedIds.has(g.student_id));
-        const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
-        if (emails.length === 0) { showToast('No emails to copy', 'error'); return; }
+        const all = [...new Set(graduates.filter(g => selectedIds.has(g.student_id)).map(g => g.email).filter(Boolean))];
+        if (all.length === 0) { showToast('No emails to copy', 'error'); return; }
         try {
+            // Leave out people who unsubscribed from our emails
+            const optedOut = await fetchOptedOutEmails(all);
+            const { allowed: emails, skipped } = partitionByOptOut(all, e => e, optedOut);
+            if (emails.length === 0) { showToast('Everyone selected has unsubscribed from emails', 'error'); return; }
             await navigator.clipboard.writeText(emails.join('; '));
-            showToast(`${emails.length} email(s) copied!`, 'success');
+            showToast(`${emails.length} email(s) copied!${skippedNote(skipped.length)}`, 'success');
         } catch {
-            showToast('Could not access the clipboard', 'error');
+            showToast('Could not copy the emails', 'error');
         }
     }
 
@@ -138,10 +142,18 @@ function GraduateOutcomes() {
         if (selectedIds.size === 0) return;
         setSending(true);
 
-        const selected = graduates.filter(g => selectedIds.has(g.student_id));
-        const ids = selected.map(g => g.student_id);
+        const selectedAll = graduates.filter(g => selectedIds.has(g.student_id));
 
         try {
+            // Unsubscribed graduates stay in the CRM but get no survey email
+            const optedOut = await fetchOptedOutEmails(selectedAll.map(g => g.email));
+            const { allowed: selected, skipped } = partitionByOptOut(selectedAll, g => g.email, optedOut);
+            if (selected.length === 0) {
+                showToast('Everyone selected has unsubscribed from emails — nothing was sent.', 'error');
+                return;
+            }
+            const ids = selected.map(g => g.student_id);
+
             // Update DB status to pending
             const { error: rpcError } = await supabase.rpc('mark_students_outcomes_pending', {
                 p_student_ids: ids
@@ -168,7 +180,7 @@ function GraduateOutcomes() {
 
             showToast(
                 copied
-                    ? `Status requests sent to ${selected.length} graduate(s). Template copied!`
+                    ? `Status requests sent to ${selected.length} graduate(s). Template copied!${skippedNote(skipped.length)}`
                     : `Marked ${selected.length} graduate(s) as pending, but the email template could not be copied`,
                 copied ? 'success' : 'error'
             );

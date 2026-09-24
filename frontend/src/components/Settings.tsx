@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, SlidersHorizontal, ShieldCheck } from 'lucide-react';
+import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, SlidersHorizontal, ShieldCheck, MailX } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
 import UserRolesSection from './UserRolesSection';
+import EmailOptOutSection from './EmailOptOutSection';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
@@ -149,7 +150,7 @@ export default function Settings() {
     // Highlight the section currently in view in the side navigation
     useEffect(() => {
         if (typeof IntersectionObserver === 'undefined') return;
-        const ids = ['settings-invitation', 'settings-survey', 'settings-duplicates', 'settings-preferences', 'settings-users'];
+        const ids = ['settings-invitation', 'settings-survey', 'settings-unsubscribes', 'settings-duplicates', 'settings-preferences', 'settings-users'];
         const observer = new IntersectionObserver(
             entries => {
                 const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -458,6 +459,7 @@ export default function Settings() {
     const sections = [
         { id: 'settings-invitation', label: 'Invitation email', icon: Mail },
         { id: 'settings-survey', label: 'Outcomes survey', icon: Briefcase },
+        { id: 'settings-unsubscribes', label: 'Unsubscribed', icon: MailX },
         { id: 'settings-duplicates', label: 'Duplicate profiles', icon: GitMerge },
         { id: 'settings-preferences', label: 'Preferences', icon: SlidersHorizontal },
         { id: 'settings-users', label: 'Users & roles', icon: ShieldCheck },
@@ -793,6 +795,11 @@ export default function Settings() {
                             )}
                         </div>
                     </Card>
+
+                    {/* ═══ Unsubscribed emails ═══ */}
+                    <div id="settings-unsubscribes" className="scroll-mt-20">
+                        <EmailOptOutSection />
+                    </div>
 
                     {/* ═══ Duplicate Profiles Scanner ═══ */}
                     <Card

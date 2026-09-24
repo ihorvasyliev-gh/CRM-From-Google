@@ -5,6 +5,7 @@ import type { EnrollmentRow } from './useEnrollments';
 import { generateDocumentsArchive } from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
 import { todayISO, formatDateSpaces } from '../lib/dateUtils';
+import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
 
 function collectEmails(enrollments: EnrollmentRow[]): string {
@@ -303,11 +304,23 @@ export function useBulkActions({
     }, [selectedIds, bulkDeleteMutation]);
 
     const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
+        let skipped = 0;
+        try {
+            // Leave out people who unsubscribed from our emails
+            const optedOut = await fetchOptedOutEmails(items.map(e => e.students?.email));
+            const parts = partitionByOptOut(items, e => e.students?.email, optedOut);
+            items = parts.allowed;
+            skipped = new Set(parts.skipped.map(e => e.students?.email?.trim().toLowerCase())).size;
+        } catch (err) {
+            console.error('Failed to check the unsubscribe list:', err);
+            showToast('Could not check the unsubscribe list. Please try again.', 'error');
+            return;
+        }
         const emailStr = collectEmails(items);
-        if (!emailStr) { showToast('No emails to copy', 'error'); return; }
+        if (!emailStr) { showToast(skipped ? 'Everyone selected has unsubscribed from emails' : 'No emails to copy', 'error'); return; }
         try {
             await navigator.clipboard.writeText(emailStr);
-            showToast(`${label} emails copied!`, 'success');
+            showToast(`${label} emails copied!${skippedNote(skipped)}`, 'success');
         } catch (err) {
             console.error('Clipboard copy failed:', err);
             showToast('Failed to copy emails to clipboard', 'error');

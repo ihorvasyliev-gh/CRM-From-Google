@@ -364,6 +364,16 @@ export function replaceColorSpansWithFontTags(html: string): string {
     });
 }
 
+/** Matches wording that already tells the reader how to stop receiving emails. */
+const UNSUBSCRIBE_TEXT_RE = /prefer not to receive|unsubscribe|opt[\s-]?out|stop receiving|(?:don['’]t|do not) (?:want|wish) to receive/i;
+
+export const UNSUBSCRIBE_FOOTER_TEXT = "If you don't want to receive emails from us, just let us know by replying to this email and we will remove you from our mailing list.";
+
+/** Every email must say how to stop receiving them — unless the template already does. */
+export function hasUnsubscribeText(html: string): boolean {
+    return UNSUBSCRIBE_TEXT_RE.test(html.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|&#39;|&apos;/g, "'"));
+}
+
 function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogos: boolean) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
@@ -371,6 +381,14 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     const heroTitle = isInvite ? "You're Invited!" : "How Are Things Going?";
     const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "Cork City Partnership participant update";
     const cacheBuster = Date.now();
+
+    const unsubscribeHtml = hasUnsubscribeText(content) ? '' : `
+          <!-- Unsubscribe -->
+          <tr>
+            <td align="left" style="padding: 14px 0 6px 0; border-top: 1px solid #e2e8f0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: #64748b;">
+              ${UNSUBSCRIBE_FOOTER_TEXT}
+            </td>
+          </tr>`;
 
     const logoHtml = includeLogos ? `
           <!-- Logos -->
@@ -415,6 +433,7 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
               ${content}
             </td>
           </tr>
+          ${unsubscribeHtml}
         </table>
       </td>
     </tr>
