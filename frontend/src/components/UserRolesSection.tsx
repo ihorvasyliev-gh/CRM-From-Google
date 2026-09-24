@@ -6,6 +6,9 @@ import { toast } from '../lib/toast';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDateDMY } from '../lib/dateUtils';
 import ConfirmDialog from './ConfirmDialog';
+import Card from './ui/Card';
+import { IconButton } from './ui/Button';
+import { calloutCls, fieldCls } from './ui/styles';
 
 export interface AppUser {
     id: string;
@@ -64,33 +67,28 @@ export default function UserRolesSection() {
     }, [users, search, filter]);
 
     return (
-        <section className="bg-surface rounded-2xl shadow-card border border-border-subtle overflow-hidden">
-            <div className="px-5 py-4 border-b border-border-subtle bg-surface-elevated/50 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-brand-500/10 rounded-lg">
-                        <ShieldCheck size={16} className="text-brand-500" />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-bold text-primary">Users & Roles</h3>
-                        <p className="text-xs text-muted mt-0.5">New users join as viewers. Promote a viewer to give full admin access.</p>
-                    </div>
-                </div>
-                <button type="button" onClick={() => refetch()} className="p-2 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated" title="Refresh" aria-label="Refresh users">
+        <Card
+            title="Users & Roles"
+            subtitle="New users join as viewers. Promote a viewer to give full admin access."
+            icon={ShieldCheck}
+            divided
+            action={
+                <IconButton label="Refresh users" title="Refresh" onClick={() => refetch()}>
                     <RotateCcw size={15} className={isFetching ? 'animate-spin' : ''} />
-                </button>
-            </div>
-
-            <div className="p-5 space-y-4">
+                </IconButton>
+            }
+        >
+            <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-2">
                     <div className="relative flex-1">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                         <input
                             type="text"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             placeholder="Search by email…"
                             aria-label="Search users"
-                            className="w-full h-9 pl-9 pr-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                            className={`${fieldCls} pl-9`}
                         />
                     </div>
                     <div className="flex items-center gap-0.5 p-1 bg-surface-elevated border border-border-subtle rounded-xl" role="tablist" aria-label="Role filter">
@@ -113,7 +111,7 @@ export default function UserRolesSection() {
                 {isLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted py-6 justify-center"><Loader2 size={16} className="animate-spin" /> Loading users…</div>
                 ) : error ? (
-                    <div className="text-sm text-red-600 dark:text-red-400 bg-red-500/5 border border-red-500/20 rounded-xl p-3">
+                    <div className={`${calloutCls.danger} text-sm p-3`}>
                         Couldn't load users: {(error as Error).message}. Make sure migration 58 has been applied.
                     </div>
                 ) : visible.length === 0 ? (
@@ -124,12 +122,12 @@ export default function UserRolesSection() {
                             const isViewer = u.role === 'viewer';
                             const isMe = u.id === user?.id;
                             return (
-                                <li key={u.id} data-testid="app-user-row" className="flex items-center gap-3 px-3.5 py-2.5">
-                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isViewer ? 'bg-surface-elevated text-muted' : 'bg-brand-500/10 text-brand-500'}`}>
+                                <li key={u.id} data-testid="app-user-row" className="flex items-center gap-3 px-3.5 py-3 hover:bg-surface-elevated/40 transition-colors">
+                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isViewer ? 'bg-surface-elevated text-muted' : 'bg-brand-500/10 text-brand-600 dark:text-brand-400'}`}>
                                         {isViewer ? <Eye size={15} /> : <ShieldCheck size={15} />}
                                     </span>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-semibold text-primary truncate">
+                                        <p className="text-[13px] font-semibold text-primary truncate">
                                             {u.email}
                                             {isMe && <span className="ml-1.5 text-[10px] font-bold text-muted">(you)</span>}
                                         </p>
@@ -138,7 +136,7 @@ export default function UserRolesSection() {
                                             {u.last_sign_in_at ? ` · last sign-in ${formatDateDMY(u.last_sign_in_at)}` : ' · never signed in'}
                                         </p>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${isViewer ? 'bg-surface-elevated text-muted border border-border-subtle' : 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20'}`}>
+                                    <span className={`px-2 h-5 inline-flex items-center rounded-md text-[11px] font-semibold border ${isViewer ? 'bg-surface-elevated text-muted border-border-subtle' : 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20'}`}>
                                         {isViewer ? 'Viewer' : 'Admin'}
                                     </span>
                                     {isViewer && (
@@ -146,7 +144,7 @@ export default function UserRolesSection() {
                                             type="button"
                                             onClick={() => setConfirmUser(u)}
                                             disabled={promote.isPending}
-                                            className="h-8 px-2.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 border border-brand-500/30 hover:bg-brand-500/10 inline-flex items-center gap-1.5 disabled:opacity-50"
+                                            className="h-8 px-2.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/15 inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
                                         >
                                             {promote.isPending && promote.variables === u.id ? <Loader2 size={13} className="animate-spin" /> : <ArrowUpCircle size={13} />}
                                             Make admin
@@ -176,6 +174,6 @@ export default function UserRolesSection() {
                 }}
                 onCancel={() => setConfirmUser(null)}
             />
-        </section>
+        </Card>
     );
 }
