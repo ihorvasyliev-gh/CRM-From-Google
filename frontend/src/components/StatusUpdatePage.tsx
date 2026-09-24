@@ -455,7 +455,7 @@ export default function StatusUpdatePage() {
                                     <span>Your answers are confidential and only used, anonymously, to report on the results of our programmes.</span>
                                 </div>
 
-                                {contactFooter('Question about my status update', 'Questions or difficulties? Contact the coordinator:')}
+                                {contactFooter('Question about my status update', 'Questions or difficulties?')}
                             </div>
                         </form>
                     )}

@@ -16,7 +16,7 @@ describe('ConfirmationPage Component', () => {
         window.history.pushState({}, 'Test', '/confirm?course_id=test-course-123&date=2026-10-15');
     });
 
-    it('does not display Course CRM header', async () => {
+    it('does not display CCP CRM header', async () => {
         (supabase.rpc as any).mockImplementation(async (name: string) => {
             if (name === 'get_public_course_info') {
                 return {
@@ -33,8 +33,8 @@ describe('ConfirmationPage Component', () => {
             expect(screen.getByText('Python for Beginners')).toBeInTheDocument();
         });
 
-        // Ensure "Course CRM" is NOT present anywhere in the document
-        expect(screen.queryByText('Course CRM')).not.toBeInTheDocument();
+        // Ensure "CCP CRM" is NOT present anywhere in the document
+        expect(screen.queryByText('CCP CRM')).not.toBeInTheDocument();
     });
 
     it('renders a prominent "Can\'t make it to this date? Let us know" button and switches to mailto view', async () => {

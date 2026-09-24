@@ -44,7 +44,7 @@ export default function ViewerHeader({
             <button type="button" onClick={() => onNavigate('home')} className="flex items-center gap-2.5 shrink-0" aria-label="Home">
                 <span className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
                 <span className="hidden sm:block text-left leading-tight">
-                    <span className="block text-sm font-bold text-primary tracking-tight">Course CRM</span>
+                    <span className="block text-sm font-bold text-primary tracking-tight">CCP CRM</span>
                     <span className="block text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer</span>
                 </span>
                 <span className="sm:hidden text-sm font-bold text-primary">{activeLabel}</span>

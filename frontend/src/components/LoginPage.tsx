@@ -140,7 +140,7 @@ export default function LoginPage() {
                     <div className="w-12 h-12 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">
                         C
                     </div>
-                    <h1 className="text-2xl font-bold text-primary tracking-tight">Course CRM</h1>
+                    <h1 className="text-2xl font-bold text-primary tracking-tight">CCP CRM</h1>
                     <p className="text-sm text-muted mt-1">Sign in to manage your courses</p>
                 </div>
 
@@ -218,7 +218,7 @@ export default function LoginPage() {
                 </div>
 
                 <p className="text-center text-xs text-muted/70 mt-6">
-                    Course CRM • Management System
+                    CCP CRM • Management System
                 </p>
             </div>
         </div>

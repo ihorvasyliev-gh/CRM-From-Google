@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock } from 'lucide-react';
+import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
@@ -10,12 +10,17 @@ import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import OutreachImportModal from './OutreachImportModal';
+import OutreachAddContactModal from './OutreachAddContactModal';
+import ConfirmDialog from './ConfirmDialog';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
 import { fetchOutreachContactsFn, fetchOutreachListsFn, type OutreachContact } from '../hooks/useOutreach';
 import { exportOutreachListToExcel } from '../lib/outreachExport';
 
 type StatusFilter = 'all' | OutreachContact['status'];
+
+/** Up to this many lists are shown as tabs; more fall back to a dropdown. */
+const MAX_LIST_TABS = 6;
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -29,6 +34,7 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
  * in the CRM get the same status survey as graduates, tracked separately.
  */
 export default function OutreachLists() {
+    const queryClient = useQueryClient();
     const { data: lists = [], isLoading: listsLoading, error: listsError, refetch: refetchLists } = useQuery({
         queryKey: ['outreach_lists'],
         queryFn: fetchOutreachListsFn,
@@ -57,6 +63,8 @@ export default function OutreachLists() {
     const [sending, setSending] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [showImport, setShowImport] = useState(false);
+    const [showAddContact, setShowAddContact] = useState(false);
+    const [confirmDeleteList, setConfirmDeleteList] = useState(false);
     const [editing, setEditing] = useState<OutreachContact | null>(null);
     const [newListName, setNewListName] = useState<string | null>(null);
     const [toast, setToast] = useState<ToastData | null>(null);
@@ -129,6 +137,21 @@ export default function OutreachLists() {
         await refetchLists();
         setListId(data.id);
         showToast(`List "${name}" created`, 'success');
+    }
+
+    async function handleDeleteList() {
+        if (!activeList) return;
+        const { name, id } = activeList;
+        const { error } = await supabase.from('outreach_lists').delete().eq('id', id);
+        if (error) {
+            showToast('Could not delete the list', 'error');
+            return;
+        }
+        setConfirmDeleteList(false);
+        setListId(null);
+        queryClient.removeQueries({ queryKey: ['outreach_contacts', id] });
+        await refetchLists();
+        showToast(`List "${name}" deleted`, 'success');
     }
 
     async function handleCopyEmails() {
@@ -298,14 +321,35 @@ export default function OutreachLists() {
             {/* List picker */}
             <div className="bg-surface rounded-2xl border border-border-subtle shadow-card p-3 sm:p-3.5 flex flex-wrap items-center gap-2 sm:gap-3">
                 <Users size={16} className="text-brand-500" />
-                <select
-                    value={listId ?? ''}
-                    onChange={e => setListId(e.target.value)}
-                    aria-label="Contact list"
-                    className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                >
-                    {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
+                {lists.length <= MAX_LIST_TABS ? (
+                    <div role="tablist" aria-label="Contact list" className="flex flex-wrap items-center gap-1">
+                        {lists.map(l => (
+                            <button
+                                key={l.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={l.id === listId}
+                                onClick={() => setListId(l.id)}
+                                className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                                    l.id === listId
+                                        ? 'bg-brand-500 text-white shadow-sm'
+                                        : 'text-muted hover:text-primary bg-surface-elevated border border-border-subtle'
+                                }`}
+                            >
+                                {l.name}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <select
+                        value={listId ?? ''}
+                        onChange={e => setListId(e.target.value)}
+                        aria-label="Contact list"
+                        className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                    >
+                        {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                )}
 
                 {newListName === null ? (
                     <button
@@ -333,6 +377,16 @@ export default function OutreachLists() {
                     </form>
                 )}
 
+                {activeList && newListName === null && (
+                    <button
+                        onClick={() => setConfirmDeleteList(true)}
+                        title={`Delete the list "${activeList.name}"`}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-muted hover:text-red-500 bg-surface-elevated border border-border-subtle hover:border-red-500/30 rounded-lg transition-all"
+                    >
+                        <Trash2 size={12} /> Delete list
+                    </button>
+                )}
+
                 <div className="flex items-center gap-2 ml-auto">
                     <button
                         onClick={handleExport}
@@ -340,6 +394,13 @@ export default function OutreachLists() {
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
                     >
                         {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} Export Excel
+                    </button>
+                    <button
+                        onClick={() => setShowAddContact(true)}
+                        disabled={!activeList}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated border border-border-subtle rounded-lg transition-all disabled:opacity-50"
+                    >
+                        <UserPlus size={12} /> Add person
                     </button>
                     <button
                         onClick={() => setShowImport(true)}
@@ -373,6 +434,12 @@ export default function OutreachLists() {
                         {filtered.length} of {contacts.length} contact{contacts.length !== 1 ? 's' : ''}
                     </span>
                 </div>
+                {contacts.length > 0 && selectedIds.size === 0 && (
+                    <p className="text-[11px] text-muted flex items-center gap-1.5">
+                        <Mail size={12} className="shrink-0" />
+                        Tick people in the list to email them the survey. Click “Status” on a row to change it by hand.
+                    </p>
+                )}
                 <div className="flex flex-wrap gap-1">
                     {STATUS_FILTERS.map(({ value, label }) => (
                         <button
@@ -403,8 +470,24 @@ export default function OutreachLists() {
                         </div>
                         <p className="text-lg font-semibold text-primary">{contacts.length === 0 ? 'This list is empty' : 'No contacts found'}</p>
                         <p className="text-sm text-muted mt-1">
-                            {contacts.length === 0 ? 'Export the clients from IRIS to Excel and use "Import from IRIS".' : 'Try adjusting your search or filter'}
+                            {contacts.length === 0 ? 'Export the clients from IRIS to Excel and import the file, or add people one by one.' : 'Try adjusting your search or filter'}
                         </p>
+                        {contacts.length === 0 && activeList && (
+                            <div className="flex flex-wrap justify-center gap-2 mt-5">
+                                <button
+                                    onClick={() => setShowImport(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-xl transition-all shadow-sm"
+                                >
+                                    <Upload size={14} /> Import Excel / CSV
+                                </button>
+                                <button
+                                    onClick={() => setShowAddContact(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-primary bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all"
+                                >
+                                    <UserPlus size={14} /> Add person
+                                </button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -489,10 +572,10 @@ export default function OutreachLists() {
                                             <td className="py-3 px-4 text-right">
                                                 <button
                                                     onClick={e => { e.stopPropagation(); setEditing(contact); }}
-                                                    className="p-1.5 text-muted hover:text-brand-500 hover:bg-surface-elevated rounded-lg transition-colors"
-                                                    title="Edit Status"
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-muted hover:text-brand-500 bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle rounded-lg transition-colors"
+                                                    title="Change status or remove from the list"
                                                 >
-                                                    <Pencil size={14} />
+                                                    <Pencil size={12} /> <span className="hidden sm:inline">Status</span>
                                                 </button>
                                             </td>
                                         </tr>
@@ -563,6 +646,30 @@ export default function OutreachLists() {
                     }}
                 />
             )}
+
+            {showAddContact && activeList && (
+                <OutreachAddContactModal
+                    listId={activeList.id}
+                    listName={activeList.name}
+                    existingEmails={existingEmails}
+                    onClose={() => setShowAddContact(false)}
+                    onAdded={({ name, alreadyOnList }) => {
+                        refetchContacts();
+                        showToast(alreadyOnList ? `${name} is already on the list — details updated` : `${name} added to the list`, 'success');
+                    }}
+                />
+            )}
+
+            <ConfirmDialog
+                open={confirmDeleteList && !!activeList}
+                title="Delete this list?"
+                message={activeList
+                    ? `"${activeList.name}" and all ${contacts.length} ${contacts.length === 1 ? 'person' : 'people'} on it, with their answers, will be deleted. This can't be undone.`
+                    : ''}
+                confirmLabel="Delete list"
+                onConfirm={handleDeleteList}
+                onCancel={() => setConfirmDeleteList(false)}
+            />
 
             <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>

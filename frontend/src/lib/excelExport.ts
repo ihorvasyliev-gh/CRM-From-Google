@@ -28,7 +28,7 @@ export async function exportViewerRosterToExcel({
     const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Course CRM';
+    workbook.creator = 'CCP CRM';
     workbook.created = new Date();
 
     const sheetName = (courseName.substring(0, 25) || 'Roster').replace(/[:\\/?*[\]]/g, '_');

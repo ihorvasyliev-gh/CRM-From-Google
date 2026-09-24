@@ -411,7 +411,7 @@ export default function ConfirmationPage() {
                     .map(s => `${s.first_name} ${s.last_name}`.trim())
                     .join(', ');
                 const fullNote = results.some(r => r.code === 'course_full')
-                    ? ' Unfortunately the course filled up before everyone could be confirmed — please contact the coordinator about the next course.'
+                    ? ` Unfortunately the course filled up before everyone could be confirmed — please email ${ORGANIZER_EMAIL} about the next course.`
                     : '';
                 setResultMessage(`Attendance confirmed for: ${confirmedNames}.${fullNote}`);
                 setState('success');
@@ -746,7 +746,7 @@ export default function ConfirmationPage() {
                                 {/* Organizer Contact footer */}
                                 <div className="pt-4 border-t border-border-subtle/70 text-center">
                                     <p className="text-[11px] text-muted/80">
-                                        Questions or difficulties? Contact the coordinator:
+                                        Questions or difficulties?
                                     </p>
                                     <a
                                         href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
@@ -801,7 +801,7 @@ export default function ConfirmationPage() {
                                     </h3>
                                     <p className="text-sm text-muted mt-1.5 leading-relaxed">
                                         {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed. If you're still interested,
-                                        email the coordinator and you'll be given <strong className="text-primary">priority for the next course</strong>.
+                                        email {ORGANIZER_EMAIL} and you'll be given <strong className="text-primary">priority for the next course</strong>.
                                     </p>
                                 </div>
 
@@ -823,7 +823,7 @@ export default function ConfirmationPage() {
 
                                 <div className="pt-4 border-t border-border-subtle/70 text-center">
                                     <p className="text-[11px] text-muted/80">
-                                        Questions or difficulties? Contact the coordinator:
+                                        Questions or difficulties?
                                     </p>
                                     <a
                                         href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
@@ -847,7 +847,7 @@ export default function ConfirmationPage() {
                                 <div>
                                     <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Can't attend this session?</h2>
                                     <p className="text-xs text-muted mt-0.5">
-                                        Let the coordinator know so we can update your enrollment and free up this seat.
+                                        Let us know by email so we can update your enrollment and free up this seat.
                                     </p>
                                 </div>
                             </div>
@@ -895,7 +895,7 @@ export default function ConfirmationPage() {
                             {/* Choice Actions */}
                             <div className="space-y-3">
                                 <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
-                                    Choose an option to email the coordinator:
+                                    Choose an option:
                                 </p>
 
                                 {/* Option 1: Keep on Waiting List (Reschedule) */}
@@ -944,7 +944,7 @@ export default function ConfirmationPage() {
                             {/* Manual copy fallback */}
                             <div className="mt-4 pt-3.5 border-t border-border-subtle/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                                 <div className="text-[11px] text-muted">
-                                    <span>Coordinator email: </span>
+                                    <span>Email: </span>
                                     <span className="text-white font-medium">{ORGANIZER_EMAIL}</span>
                                 </div>
                                 <button

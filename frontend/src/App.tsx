@@ -21,6 +21,8 @@ import StudentDetail from './components/StudentDetail';
 import EnrollmentModal from './components/EnrollmentModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import MobileFloatingActions from './components/MobileFloatingActions';
+import OutreachShell from './components/OutreachShell';
+import { getUserRole } from './lib/roles';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import { AppFallback } from './components/ui/PageFallbacks';
@@ -119,7 +121,9 @@ function App() {
     // Prewarm heavy route component chunks during browser idle time so tab clicks have zero delay
     useEffect(() => {
         if (!user) return;
-        const prewarm = user.app_metadata?.role === 'viewer'
+        const role = getUserRole(user);
+        if (role === 'outreach') return;
+        const prewarm = role === 'viewer'
             ? () => {
                 import('./components/ViewerHome');
                 import('./components/ViewerStudentsDirectory');
@@ -146,26 +150,31 @@ function App() {
     const location = useLocation();
     const navigateFn = useNavigate();
     const [, startTransition] = useTransition();
-    const isViewer = user?.app_metadata?.role === 'viewer';
+    const role = getUserRole(user);
+    const isViewer = role === 'viewer';
+    // External Lists only (migration 65): gets its own minimal shell below
+    const isOutreach = role === 'outreach';
     const viewerTab: ViewerTab = location.pathname.startsWith('/courses')
         ? 'courses'
         : location.pathname.startsWith('/students') ? 'students' : 'home';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
-    const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && !isViewer);
+    const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && role === 'admin');
 
     // Browser tab title follows the current page (and shows pending approvals)
     useEffect(() => {
         if (!user) {
-            document.title = 'Course CRM';
+            document.title = 'CCP CRM';
             return;
         }
-        const page = isViewer
-            ? (VIEWER_TABS.find(t => t.key === activeTab)?.label || 'Home')
-            : (PAGE_TITLES[activeTab] || 'Dashboard');
+        const page = isOutreach
+            ? 'External Lists'
+            : isViewer
+                ? (VIEWER_TABS.find(t => t.key === activeTab)?.label || 'Home')
+                : (PAGE_TITLES[activeTab] || 'Dashboard');
         const prefix = !isViewer && pendingApprovalsCount > 0 ? `(${pendingApprovalsCount}) ` : '';
-        document.title = `${prefix}${page} · Course CRM`;
-    }, [user, isViewer, activeTab, pendingApprovalsCount]);
+        document.title = `${prefix}${page} · CCP CRM`;
+    }, [user, isViewer, isOutreach, activeTab, pendingApprovalsCount]);
 
     // Escape closes the mobile sidebar drawer
     useModalBehavior(sidebarOpen, () => setSidebarOpen(false));
@@ -411,7 +420,7 @@ function App() {
     // tab doesn't wait on a chunk download (touch devices never get the hover prefetch above).
     // Heavy chunks (charts, docx) are skipped on data-saver / slow connections.
     useEffect(() => {
-        if (!user || isViewer) return;
+        if (!user || isViewer || isOutreach) return;
         const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
         if (conn?.saveData || /(^|-)2g$/.test(conn?.effectiveType ?? '')) return;
         const slow = conn?.effectiveType === '3g';
@@ -454,7 +463,7 @@ function App() {
                 else window.clearTimeout(handle);
             }
         };
-    }, [user, isViewer]);
+    }, [user, isViewer, isOutreach]);
 
     const navigate = useCallback((tab: string, state?: any) => {
         setSidebarOpen(false);
@@ -484,7 +493,7 @@ function App() {
 
     // Global Keyboard Shortcuts Listener
     useEffect(() => {
-        if (!user) return;
+        if (!user || isOutreach) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement;
@@ -570,7 +579,7 @@ function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [user, isViewer, toggleDarkMode, toggleDensity, navigate]);
+    }, [user, isViewer, isOutreach, toggleDarkMode, toggleDensity, navigate]);
 
     const handleSaveNewStudent = async (formData: StudentPayload) => {
         const { id: _id, ...rest } = formData;
@@ -593,6 +602,16 @@ function App() {
 
     if (!user) {
         return <LoginPage />;
+    }
+
+    if (isOutreach) {
+        return (
+            <NetworkStatusProvider>
+                <TooltipProvider delayDuration={100}>
+                    <OutreachShell darkMode={darkMode} toggleDarkMode={toggleDarkMode} userEmail={user.email} onSignOut={signOut} />
+                </TooltipProvider>
+            </NetworkStatusProvider>
+        );
     }
 
     return (
@@ -629,7 +648,7 @@ function App() {
                                 C
                             </div>
                             <div className="min-w-0 leading-tight">
-                                <h1 className="text-sm font-bold text-primary tracking-tight truncate">Course CRM</h1>
+                                <h1 className="text-sm font-bold text-primary tracking-tight truncate">CCP CRM</h1>
                                 <p className="text-[10px] text-muted font-medium truncate">Management system</p>
                             </div>
                         </div>

@@ -146,7 +146,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                 </span>
                             </div>
                             <p className="text-xs text-muted">
-                                Review course completion requests submitted by viewers and coordinators
+                                Review course completion requests submitted by viewers
                             </p>
                         </div>
                     </div>

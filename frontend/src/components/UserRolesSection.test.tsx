@@ -17,6 +17,7 @@ vi.mock('../contexts/AuthContext', () => ({
 const users = [
     { id: 'u-admin', email: 'admin@example.com', role: 'admin', created_at: '2025-01-01T00:00:00Z', last_sign_in_at: '2026-01-01T00:00:00Z' },
     { id: 'u-view', email: 'viewer@example.com', role: 'viewer', created_at: '2026-01-02T00:00:00Z', last_sign_in_at: null },
+    { id: 'u-lists', email: 'lists@example.com', role: 'outreach', created_at: '2026-01-03T00:00:00Z', last_sign_in_at: null },
 ];
 
 function renderSection() {
@@ -40,11 +41,12 @@ describe('UserRolesSection', () => {
     it('lists users with their role and only offers promotion for viewers', async () => {
         renderSection();
         const rows = await screen.findAllByTestId('app-user-row');
-        expect(rows).toHaveLength(2);
+        expect(rows).toHaveLength(3);
 
         expect(within(rows[0]).getByText('Admin')).toBeInTheDocument();
         expect(within(rows[0]).getByText('(you)')).toBeInTheDocument();
         expect(within(rows[0]).queryByRole('button', { name: /Make admin/ })).not.toBeInTheDocument();
+        expect(within(rows[0]).queryByRole('combobox')).not.toBeInTheDocument();
 
         expect(within(rows[1]).getByText('Viewer')).toBeInTheDocument();
         expect(within(rows[1]).getByRole('button', { name: /Make admin/ })).toBeInTheDocument();
@@ -66,6 +68,33 @@ describe('UserRolesSection', () => {
         await waitFor(() => {
             expect(supabase.rpc).toHaveBeenCalledWith('promote_user_to_admin', { p_user_id: 'u-view' });
         });
+    });
+
+    it('shows External Lists users with a role picker and promotion', async () => {
+        renderSection();
+        const rows = await screen.findAllByTestId('app-user-row');
+        expect(within(rows[2]).getByRole('combobox', { name: 'Role for lists@example.com' })).toHaveValue('outreach');
+        expect(within(rows[2]).getByRole('button', { name: /Make admin/ })).toBeInTheDocument();
+    });
+
+    it('gives a viewer External Lists access', async () => {
+        renderSection();
+        const rows = await screen.findAllByTestId('app-user-row');
+
+        fireEvent.change(within(rows[1]).getByRole('combobox', { name: 'Role for viewer@example.com' }), { target: { value: 'outreach' } });
+
+        await waitFor(() => {
+            expect(supabase.rpc).toHaveBeenCalledWith('set_user_role', { p_user_id: 'u-view', p_role: 'outreach' });
+        });
+    });
+
+    it('filters External Lists users', async () => {
+        renderSection();
+        await screen.findAllByTestId('app-user-row');
+
+        fireEvent.click(screen.getByRole('tab', { name: /External Lists/ }));
+        expect(screen.getAllByTestId('app-user-row')).toHaveLength(1);
+        expect(screen.getByText('lists@example.com')).toBeInTheDocument();
     });
 
     it('filters by role', async () => {

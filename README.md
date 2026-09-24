@@ -1,4 +1,4 @@
-# 🎓 Course CRM System
+# 🎓 CCP CRM System
 
 <div align="center">
 
@@ -11,7 +11,7 @@
 [![Cloudflare Pages](https://img.shields.io/badge/Deploy-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare-pages&logoColor=white)](https://pages.cloudflare.com/)
 [![License](https://img.shields.io/badge/License-Private-lightgrey?style=flat-square)](#-license)
 
-**A high-performance, real-time Course CRM and student management platform.**  
+**A high-performance, real-time CCP CRM and student management platform.**  
 Seamlessly synchronizes Google Forms and Google Sheets with Supabase PostgreSQL, featuring interactive drag-and-drop enrollment pipelines, automated Outlook-ready invitation delivery, instant public student portals, client-side document generation, and graduate outcome tracking.
 
 [Features](#-key-features) • [Architecture](#-system-architecture) • [Tech Stack](#-tech-stack) • [Quick Start](#-quick-start--local-development) • [Deployment](#-deployment) • [Troubleshooting](#-troubleshooting)
@@ -22,7 +22,7 @@ Seamlessly synchronizes Google Forms and Google Sheets with Supabase PostgreSQL,
 
 ## 🌟 Overview
 
-The **Course CRM System** was built to streamline course administration, reduce administrative overhead, and automate the student lifecycle from initial registration to post-graduation employment tracking. 
+The **CCP CRM System** was built to streamline course administration, reduce administrative overhead, and automate the student lifecycle from initial registration to post-graduation employment tracking. 
 
 Built on a **serverless, client-first architecture**, it pairs a responsive React SPA with Supabase PostgreSQL (secured with Row Level Security and PostgreSQL RPC stored procedures) and a resilient two-way sync engine written in Google Apps Script (GAS) to seamlessly bridge Google Forms and Google Sheets.
 

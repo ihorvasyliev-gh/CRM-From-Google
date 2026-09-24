@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { showNotification, isNotificationSupported } from '../lib/notifications';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserRole } from '../lib/roles';
 
 /**
  * Listens for enrollment confirmations via Supabase Realtime
@@ -17,6 +18,8 @@ export function useConfirmationNotifier() {
 
     useEffect(() => {
         if (!user) return;
+        // External Lists users can't see enrollments
+        if (getUserRole(user) === 'outreach') return;
         if (!isNotificationSupported()) return;
 
         const channel = supabase

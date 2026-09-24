@@ -1,5 +1,5 @@
 /**
- * Calendar utilities for Course CRM
+ * Calendar utilities for CCP CRM
  * Generates Google Calendar links and downloadable .ics files (Apple Calendar / Outlook)
  */
 
@@ -73,7 +73,7 @@ export function downloadIcsFile(params: CalendarEventParams): void {
     const icsContent = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
-        'PRODID:-//Cork City Partnership//Course CRM//EN',
+        'PRODID:-//Cork City Partnership//CCP CRM//EN',
         'CALSCALE:GREGORIAN',
         'METHOD:PUBLISH',
         'BEGIN:VEVENT',

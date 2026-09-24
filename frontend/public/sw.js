@@ -13,12 +13,12 @@ self.addEventListener('push', function (event) {
     } catch (e) {
         // Fallback if payload is plain text
         payload = {
-            title: '🎓 Course CRM Notification',
+            title: '🎓 CCP CRM Notification',
             body: event.data.text(),
         };
     }
 
-    const title = payload.title || '🎓 Course CRM';
+    const title = payload.title || '🎓 CCP CRM';
     const options = {
         body: payload.body || 'New update received.',
         icon: payload.icon || '/favicon.ico',

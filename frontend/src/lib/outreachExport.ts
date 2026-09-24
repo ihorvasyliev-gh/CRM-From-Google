@@ -40,7 +40,7 @@ export async function exportOutreachListToExcel(listName: string, contacts: Outr
     const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Course CRM';
+    workbook.creator = 'CCP CRM';
     workbook.created = new Date();
 
     const worksheet = workbook.addWorksheet((listName.substring(0, 25) || 'List').replace(/[:\\/?*[\]]/g, '_'));
