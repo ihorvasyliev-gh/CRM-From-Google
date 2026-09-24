@@ -1,5 +1,6 @@
 import type { OutreachContact } from '../hooks/useOutreach';
 import { formatDateDMY } from './dateUtils';
+import { sanitizeExcelValue } from './excelExport';
 
 const STATUS_LABELS: Record<OutreachContact['status'], string> = {
     not_contacted: 'Not contacted',
@@ -16,15 +17,15 @@ function formatMonth(value: string | null): string {
 /** One spreadsheet row per contact, ready for reporting (e.g. back to IRIS). */
 export function outreachExportRows(contacts: OutreachContact[]) {
     return contacts.map(c => ({
-        firstName: c.first_name,
-        lastName: c.last_name,
-        email: c.email,
-        phone: c.phone || '',
-        externalRef: c.external_ref || '',
+        firstName: sanitizeExcelValue(c.first_name),
+        lastName: sanitizeExcelValue(c.last_name),
+        email: sanitizeExcelValue(c.email),
+        phone: sanitizeExcelValue(c.phone || ''),
+        externalRef: sanitizeExcelValue(c.external_ref || ''),
         status: STATUS_LABELS[c.status],
         working: c.status !== 'responded' || c.is_working === null ? '' : c.is_working ? 'Yes' : 'No',
-        startedMonth: c.is_working ? formatMonth(c.started_month) : '',
-        fieldOfWork: c.is_working ? c.field_of_work || '' : '',
+        startedMonth: sanitizeExcelValue(c.is_working ? formatMonth(c.started_month) : ''),
+        fieldOfWork: sanitizeExcelValue(c.is_working ? c.field_of_work || '' : ''),
         employmentType: !c.is_working ? '' : c.employment_type === 'full_time' ? 'Full-time' : c.employment_type === 'part_time' ? 'Part-time' : '',
         invited: c.last_invited_at ? formatDateDMY(c.last_invited_at) : '',
         responded: c.last_responded_at ? formatDateDMY(c.last_responded_at) : '',

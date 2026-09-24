@@ -9,6 +9,19 @@ interface ExportViewerRosterOptions {
 }
 
 /**
+ * Sanitizes cell values to prevent CSV/Excel Formula Injection (CWE-1236).
+ * Prepends a single quote to strings starting with '=', '+', '-', '@', '\t', or '\r'.
+ */
+export function sanitizeExcelValue(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const str = String(value);
+    if (/^[=+\-@\t\r]/.test(str)) {
+        return `'${str}`;
+    }
+    return str;
+}
+
+/**
  * Exports viewer course roster items to a beautifully styled Excel (.xlsx) file.
  */
 export async function exportViewerRosterToExcel({
@@ -73,7 +86,6 @@ export async function exportViewerRosterToExcel({
             right: { style: 'thin', color: { argb: 'FF334155' } },
         };
     });
-
     // Populate data rows
     items.forEach((item, index) => {
         const fullName = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'N/A';
@@ -85,13 +97,13 @@ export async function exportViewerRosterToExcel({
         const formattedDate = formatDateDMY(courseDate);
 
         const row = worksheet.addRow({
-            fullName,
-            phone: item.phone || '',
-            email: item.email || '',
-            course: courseName,
-            variant: stream,
-            status,
-            courseDate: formattedDate,
+            fullName: sanitizeExcelValue(fullName),
+            phone: sanitizeExcelValue(item.phone || ''),
+            email: sanitizeExcelValue(item.email || ''),
+            course: sanitizeExcelValue(courseName),
+            variant: sanitizeExcelValue(stream),
+            status: sanitizeExcelValue(status),
+            courseDate: sanitizeExcelValue(formattedDate),
         });
 
         row.height = 22;

@@ -670,6 +670,7 @@ export default function Settings() {
                                         <iframe
                                             srcDoc={previewBody}
                                             title="Email Invitation Preview"
+                                            sandbox="allow-popups"
                                             className="w-full flex-1 min-h-[500px] max-h-[600px] border border-border-subtle rounded-lg bg-[#f4f7f6]"
                                         />
                                     </div>
@@ -788,6 +789,7 @@ export default function Settings() {
                                         <iframe
                                             srcDoc={statusPreviewBody}
                                             title="Status Survey Preview"
+                                            sandbox="allow-popups"
                                             className="w-full flex-1 min-h-[500px] max-h-[500px] border border-border-subtle rounded-lg bg-[#f4f7f6]"
                                         />
                                     </div>

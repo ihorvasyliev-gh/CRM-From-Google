@@ -446,6 +446,16 @@ function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogo
     return replaceColorSpansWithFontTags(withHex);
 }
 
+/** Sanitize string for safe insertion into HTML email templates. */
+export function escapeHtml(str: string): string {
+    return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 /** Build the email body HTML by replacing placeholders. */
 export function buildEmailBodyHtml(
     courseTitle: string, 
@@ -460,15 +470,16 @@ export function buildEmailBodyHtml(
     const linkStr = confirmationLink || '#';
     const dateList = Array.isArray(date) ? date.filter(Boolean) : [date];
     const isMultiDate = dateList.length > 1;
+    const safeCourseTitle = escapeHtml(courseTitle);
     const buttonText = isMultiDate
         ? (requiresEnglish ? 'I Am Confident in English — Choose My Date' : 'Choose My Date &amp; Confirm')
         : (requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place');
     const dateRowHtml = isMultiDate
         ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Choose one of the dates</div>
-${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:4px;">🗓️ ${d}</div>`).join('\n')}
+${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:4px;">🗓️ ${escapeHtml(d)}</div>`).join('\n')}
             <div style="font-size:12px;color:#64748b;line-height:18px;margin-top:6px;">You will pick your preferred date on the confirmation page.</div>`
         : `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Date &amp; Time</div>
-            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:2px;">🗓️ ${dateList[0] ?? ''}</div>`;
+            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:2px;">🗓️ ${escapeHtml(dateList[0] ?? '')}</div>`;
     
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
@@ -478,7 +489,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         <tr>
           <td style="padding-bottom:10px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
-            <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${courseTitle}</div>
+            <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${safeCourseTitle}</div>
           </td>
         </tr>
         <tr>
