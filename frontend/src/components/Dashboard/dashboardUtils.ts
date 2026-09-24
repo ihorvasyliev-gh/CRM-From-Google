@@ -89,9 +89,12 @@ export function groupUpcomingCohorts(enrollments: any[], todayIso: string = toda
         }
     }
 
-    return Array.from(cohortMap.values())
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(0, 12);
+    const sorted = Array.from(cohortMap.values())
+        .sort((a, b) => a.date.localeCompare(b.date) || a.courseName.localeCompare(b.courseName));
+    if (sorted.length <= 12) return sorted;
+    // Cap at 12, but never split a day: the dashboard groups same-day courses into one card.
+    const lastDate = sorted[11].date;
+    return sorted.filter(c => c.date <= lastDate);
 }
 
 // ---------------------------------------------------------------------------

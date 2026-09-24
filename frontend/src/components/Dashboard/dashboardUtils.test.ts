@@ -188,6 +188,24 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
         expect(cohorts[11].date).toBe('2026-10-12');
     });
 
+    it('never cuts a day in half when capping at 12 cohorts', () => {
+        const enrollments: any[] = [];
+        for (let i = 1; i <= 11; i++) {
+            const day = i < 10 ? `0${i}` : `${i}`;
+            enrollments.push({ id: `e-${i}`, course_id: `c-${i}`, status: 'confirmed', confirmed_date: `2026-10-${day}`, courses: { name: `Course ${i}` } });
+        }
+        // Three different courses on the 12th: 11 + 3 = 14 cohorts
+        for (const id of ['x', 'y', 'z']) {
+            enrollments.push({ id: `e-${id}`, course_id: `c-${id}`, status: 'confirmed', confirmed_date: '2026-10-12', courses: { name: `Course ${id}` } });
+        }
+        enrollments.push({ id: 'e-late', course_id: 'c-late', status: 'confirmed', confirmed_date: '2026-10-13', courses: { name: 'Late' } });
+
+        const cohorts = groupUpcomingCohorts(enrollments, '2026-10-01');
+        expect(cohorts).toHaveLength(14);
+        expect(cohorts.filter(c => c.date === '2026-10-12')).toHaveLength(3);
+        expect(cohorts.some(c => c.date === '2026-10-13')).toBe(false);
+    });
+
     it('handles missing course name or missing confirmed_date', () => {
         const enrollments = [
             { id: '1', status: 'confirmed', confirmed_date: null },

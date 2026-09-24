@@ -75,6 +75,27 @@ describe('UpcomingCohortsCard', () => {
         });
     });
 
+    it('stacks courses on the same day into one card, each clickable on its own', () => {
+        const mockNavigate = vi.fn();
+        const cohorts: UpcomingCohortItem[] = [
+            { date: '2026-10-21', courseId: 'c-1', courseName: 'SafePass', confirmedCount: 1 },
+            { date: '2026-10-21', courseId: 'c-2', courseName: 'Manual Handling', confirmedCount: 4 },
+            { date: '2026-10-22', courseId: 'c-3', courseName: 'First Aid', confirmedCount: 2 },
+        ];
+
+        const { container } = render(<UpcomingCohortsCard cohorts={cohorts} onNavigate={mockNavigate} />);
+        expect(screen.getByText('Next 2 dates')).toBeInTheDocument();
+        // One date badge per day, not per course
+        expect(container.querySelectorAll('.tabular-nums')).toHaveLength(2);
+
+        const safePass = screen.getByRole('button', { name: /SafePass on 2026-10-21/ });
+        const manual = screen.getByRole('button', { name: /Manual Handling on 2026-10-21/ });
+        expect(safePass.parentElement).toBe(manual.parentElement);
+
+        fireEvent.click(manual);
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments', { courseId: 'c-2', courseDate: '2026-10-21' });
+    });
+
     it('does not throw when clicking cohort card if onNavigate is not provided', () => {
         const cohorts: UpcomingCohortItem[] = [
             {
