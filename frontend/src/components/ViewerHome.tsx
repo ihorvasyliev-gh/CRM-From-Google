@@ -7,6 +7,7 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
 import { ErrorState, Kbd, StatusDistributionBar } from './Viewer/ViewerUI';
 import { daysFromToday, pluralize, relativeDay, weekdayDate } from './Viewer/viewerUtils';
+import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
 
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
 
@@ -91,6 +92,8 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                 <StatTile label="Awaiting admin approval" value={stats.awaiting} icon={<Clock size={16} />} tone="violet" loading={loading} />
             </div>
 
+            <RegistrationLinkCard variant="compact" className="lg:hidden" />
+
             {(coursesError || upcomingError) && (
                 <ErrorState title="Some data failed to load" error={coursesError || upcomingError} onRetry={() => { refetchCourses(); refetchUpcoming(); }} />
             )}
@@ -130,6 +133,8 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
 
                 {/* Side column */}
                 <aside className="space-y-6">
+                    <RegistrationLinkCard variant="card" className="hidden lg:block" />
+
                     {attention.length > 0 && (
                         <section className="space-y-2">
                             <h2 className="text-sm font-bold text-primary flex items-center gap-2"><Clock size={15} className="text-amber-500" /> Awaiting admin approval</h2>
@@ -222,7 +227,17 @@ function SessionRow({ session, onOpen }: { session: ViewerUpcomingCourse; onOpen
                 <div className="text-xs text-muted">{weekdayDate(session.course_date)} · {relativeDay(session.course_date)}</div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-bold tabular-nums">
-                <span className="px-2 py-0.5 rounded-full status-pill-confirmed" title="Confirmed">{session.confirmed_count}<span className="hidden sm:inline font-semibold"> confirmed</span></span>
+                {session.max_capacity != null ? (
+                    <span
+                        className={`px-2 py-0.5 rounded-full ${session.is_full ? 'status-pill-rejected' : 'status-pill-confirmed'}`}
+                        title={session.is_full ? `Full — ${session.max_capacity} places` : `Confirmed of ${session.max_capacity} places`}
+                    >
+                        {session.confirmed_count}/{session.max_capacity}
+                        <span className="hidden sm:inline font-semibold">{session.is_full ? ' full' : ' confirmed'}</span>
+                    </span>
+                ) : (
+                    <span className="px-2 py-0.5 rounded-full status-pill-confirmed" title="Confirmed">{session.confirmed_count}<span className="hidden sm:inline font-semibold"> confirmed</span></span>
+                )}
                 {session.pending_count > 0 && (
                     <span className="px-2 py-0.5 rounded-full status-pill-invited" title="Invited, waiting for a reply">{session.pending_count}<span className="hidden sm:inline font-semibold"> pending</span></span>
                 )}

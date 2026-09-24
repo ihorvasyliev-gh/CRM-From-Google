@@ -73,6 +73,40 @@ describe('ViewerHome', () => {
         expect(screen.getByTestId('location').textContent).toBe('/courses/c-1?status=awaiting');
     });
 
+    it('shows confirmed out of max places and marks full sessions red', async () => {
+        (supabase.rpc as any).mockImplementation((name: string) => {
+            if (name === 'get_viewer_courses') return Promise.resolve({ data: courses, error: null });
+            if (name === 'get_viewer_upcoming_courses') return Promise.resolve({
+                data: [
+                    { course_id: 'c-1', course_name: 'Manual Handling', course_date: TOMORROW, confirmed_count: 12, pending_count: 3, max_capacity: 12, is_full: true },
+                    { course_id: 'c-2', course_name: 'Safe Pass', course_date: LATER, confirmed_count: 5, pending_count: 2, max_capacity: 20, is_full: false },
+                    { course_id: 'c-2', course_name: 'Safe Pass', course_date: isoFromToday(40), confirmed_count: 4, pending_count: 0, max_capacity: null, is_full: false },
+                ],
+                error: null,
+            });
+            return Promise.resolve({ data: null, error: null });
+        });
+        render();
+
+        const full = await screen.findByTitle('Full — 12 places');
+        expect(full).toHaveTextContent('12/12 full');
+        expect(full).toHaveClass('status-pill-rejected');
+
+        const open = screen.getByTitle('Confirmed of 20 places');
+        expect(open).toHaveTextContent('5/20 confirmed');
+        expect(open).toHaveClass('status-pill-confirmed');
+        expect(screen.getAllByTitle('Invited, waiting for a reply').map(el => el.textContent)).toEqual(['3 pending', '2 pending']);
+
+        // No limit set: just the confirmed count
+        expect(screen.getByText('4', { selector: '[title="Confirmed"]' })).toBeInTheDocument();
+    });
+
+    it('shows the registration form link', async () => {
+        render();
+        expect((await screen.findAllByText('Registration Form')).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('link', { name: /Open/ })[0]).toHaveAttribute('href', 'https://forms.gle/9U4DsSe5UYnsakJZ8');
+    });
+
     it('shows pinned courses first when there are any', async () => {
         window.localStorage.setItem('viewer_pinned_courses', JSON.stringify(['c-2']));
         render();

@@ -43,6 +43,9 @@ export function useViewerUpcoming() {
                     pending_count: Number(row.pending_count || 0),
                     completed_count: Number(row.completed_count || 0),
                     total_active_count: Number(row.total_active_count || 0),
+                    // Before migration 66 these columns don't exist: no limit, never full
+                    max_capacity: row.max_capacity == null ? null : Number(row.max_capacity),
+                    is_full: row.is_full === true,
                 }))
                 .filter(s => s.confirmed_count + s.pending_count + s.completed_count > 0);
         },
