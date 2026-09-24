@@ -114,7 +114,7 @@ export default function ViewerHeader({
                             <p className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Viewer access</p>
                         </div>
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDarkMode}>
-                            {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-400" />}
+                            {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-brand-500" />}
                             <span className="flex-1 text-left">{darkMode ? 'Light theme' : 'Dark theme'}</span>
                             <Kbd>Ctrl ⇧ D</Kbd>
                         </button>
