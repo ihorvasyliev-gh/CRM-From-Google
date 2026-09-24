@@ -5,6 +5,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { useRequestCompletion } from '../hooks/useApprovals';
 import { getAvatarGradient } from '../lib/types';
 import { cleanVariant } from '../lib/types';
+import { todayISO } from '../lib/dateUtils';
 import Toast, { ToastData } from './Toast';
 import { 
     Search, Sparkles, Loader2, Users, Mail, Phone, MapPin, 
@@ -187,7 +188,7 @@ export default function StudentLookup() {
     // Completion modal state for viewer
     const [completionModalOpen, setCompletionModalOpen] = useState(false);
     const [targetEnrollment, setTargetEnrollment] = useState<EnrollmentDetail | null>(null);
-    const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [selectedCompletionDate, setSelectedCompletionDate] = useState<string>(() => todayISO());
     const [toast, setToast] = useState<ToastData | null>(null);
     const requestCompletionMutation = useRequestCompletion();
 
@@ -823,7 +824,7 @@ export default function StudentLookup() {
                                                                 <button
                                                                     onClick={() => {
                                                                         setTargetEnrollment(en);
-                                                                        setSelectedCompletionDate(en.confirmed_date || en.invited_date || new Date().toISOString().split('T')[0]);
+                                                                        setSelectedCompletionDate(en.confirmed_date || en.invited_date || todayISO());
                                                                         setCompletionModalOpen(true);
                                                                     }}
                                                                     className="px-3 py-1.5 text-xs font-bold text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"

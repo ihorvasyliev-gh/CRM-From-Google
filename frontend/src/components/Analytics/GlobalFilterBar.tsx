@@ -27,7 +27,11 @@ interface GlobalFilterBarProps {
     actions?: ReactNode;
 }
 
-const isoDaysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+const isoDaysAgo = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export default function GlobalFilterBar({
     filters,

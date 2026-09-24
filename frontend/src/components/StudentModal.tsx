@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { User, AlertTriangle } from 'lucide-react';
 import { StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
+import { todayISO } from '../lib/dateUtils';
 import { normalizePhone } from '../lib/contactUtils';
 import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -222,7 +223,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                             <input
                                 id="student-dob"
                                 type="date"
-                                max={new Date().toISOString().slice(0, 10)}
+                                max={todayISO()}
                                 className={INPUT_CLASS}
                                 value={form.dob}
                                 onChange={update('dob')}

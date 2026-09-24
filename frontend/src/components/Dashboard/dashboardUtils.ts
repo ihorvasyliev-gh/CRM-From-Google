@@ -1,4 +1,5 @@
 import { cleanVariant } from '../../lib/types';
+import { todayISO } from '../../lib/dateUtils';
 
 export interface ExpiredInviteItem {
     id: string;
@@ -66,7 +67,7 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
     return items.sort((a, b) => a.deadlineMs - b.deadlineMs);
 }
 
-export function groupUpcomingCohorts(enrollments: any[], todayIso: string = new Date().toISOString().split('T')[0]): UpcomingCohortItem[] {
+export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
     const cohortMap = new Map<string, UpcomingCohortItem>();
 
     for (const en of enrollments) {

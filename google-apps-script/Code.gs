@@ -450,7 +450,7 @@ function syncRowsRange(sheet, startRow, endRow) {
   var batchEmails = uniqueStudents.map(function(s) { return s.email; });
   var existingStudents = [];
   if (batchEmails.length > 0) {
-    var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.(' + batchEmails.map(encodeURIComponent).join(',') + ')';
+    var queryParams = 'select=id,first_name,last_name,email,phone,address,eircode,dob&email=in.' + pgrstInList_(batchEmails);
     existingStudents = _fetch('students?' + queryParams, 'get') || [];
   }
 
@@ -590,7 +590,7 @@ function resubscribeReRegisteredEmails_(rowMap) {
   var emails = Object.keys(latestByEmail);
   if (emails.length === 0) return;
 
-  var optOuts = _fetch('email_opt_outs?select=email,opted_out_at&email=in.(' + emails.map(encodeURIComponent).join(',') + ')', 'get');
+  var optOuts = _fetch('email_opt_outs?select=email,opted_out_at&email=in.' + pgrstInList_(emails), 'get');
   if (!optOuts || !optOuts.length) return; // nobody unsubscribed (or migration 62 not applied yet)
 
   for (var j = 0; j < optOuts.length; j++) {
@@ -605,6 +605,16 @@ function resubscribeReRegisteredEmails_(rowMap) {
 // ==========================================
 // API HELPERS (with retry & resilience)
 // ==========================================
+
+/**
+ * Builds a URL-encoded PostgREST in.(...) list. Every value is double-quoted,
+ * so a comma, parenthesis or quote typed into a form field can't break the filter.
+ */
+function pgrstInList_(values) {
+  return '(' + values.map(function(v) {
+    return encodeURIComponent('"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"');
+  }).join(',') + ')';
+}
 
 /**
  * Fetches all rows from a Supabase table using range-based pagination.

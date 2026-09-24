@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import webpush from 'npm:web-push';
 
+// A confirmation older than this is not announced again
+const RECENT_CONFIRMATION_MS = 10 * 60 * 1000;
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -62,6 +65,8 @@ Deno.serve(async (req) => {
             .from('enrollments')
             .select(`
                 id,
+                status,
+                confirmed_at,
                 students ( first_name, last_name ),
                 courses ( name )
             `)
@@ -72,19 +77,38 @@ Deno.serve(async (req) => {
             throw new Error(`Enrollment not found: ${enrollmentError?.message || ''}`);
         }
 
+        // The anon key is public, so anyone can call this function: only notify about
+        // an enrollment that really was just confirmed (no spoofed or replayed pushes).
+        const confirmedAt = enrollment.confirmed_at ? new Date(enrollment.confirmed_at).getTime() : NaN;
+        if (enrollment.status !== 'confirmed' || !(Date.now() - confirmedAt <= RECENT_CONFIRMATION_MS)) {
+            return new Response(JSON.stringify({ message: 'Enrollment is not a recent confirmation; nothing to notify.' }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
         const student = (enrollment as any).students;
         const course = (enrollment as any).courses;
         const studentName = student ? `${student.first_name} ${student.last_name}` : 'A student';
         const courseName = course?.name || 'a course';
 
-        // 4. Fetch all active push subscriptions
-        const { data: subscriptions, error: subsError } = await supabase
+        // 4. Fetch push subscriptions of admins only: viewers must not receive student names
+        const { data: allSubscriptions, error: subsError } = await supabase
             .from('user_push_subscriptions')
             .select('*');
 
         if (subsError) {
             throw new Error(`Failed to fetch subscriptions: ${subsError.message}`);
         }
+
+        const userIds = [...new Set((allSubscriptions || []).map((sub) => sub.user_id as string))];
+        const adminIds = new Set<string>();
+        await Promise.all(userIds.map(async (id) => {
+            const { data, error } = await supabase.auth.admin.getUserById(id);
+            // Same rule as is_app_admin(): anyone who is not a viewer
+            if (!error && data?.user && data.user.app_metadata?.role !== 'viewer') adminIds.add(id);
+        }));
+        const subscriptions = (allSubscriptions || []).filter((sub) => adminIds.has(sub.user_id));
 
         if (!subscriptions || subscriptions.length === 0) {
             return new Response(JSON.stringify({ message: 'No push subscriptions found to notify.' }), {
