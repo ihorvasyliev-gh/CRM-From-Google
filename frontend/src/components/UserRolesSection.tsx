@@ -201,7 +201,7 @@ export default function UserRolesSection() {
 
                 <p className="text-[11px] text-muted flex items-start gap-1.5">
                     <Info size={12} className="mt-0.5 shrink-0" />
-                    “External Lists” users only see Outcomes → External lists: they can create and delete lists, import, add and export people, and change their status. Promotion to admin is one-way — admins can't be changed back here. Role changes apply after the user signs in again (or within about an hour).
+                    Viewers also get External Lists. “External Lists” users see only Outcomes → External lists: they can create and delete lists, import, add and export people, and change their status. Promotion to admin is one-way — admins can't be changed back here. Role changes apply after the user signs in again (or within about an hour).
                 </p>
             </div>
 

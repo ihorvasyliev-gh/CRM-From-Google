@@ -67,7 +67,8 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
     return items.sort((a, b) => a.deadlineMs - b.deadlineMs);
 }
 
-export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
+/** Confirmed course dates from today on, one item per course + date, soonest first. */
+export function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
     const cohortMap = new Map<string, UpcomingCohortItem>();
 
     for (const en of enrollments) {
@@ -89,8 +90,12 @@ export function groupUpcomingCohorts(enrollments: any[], todayIso: string = toda
         }
     }
 
-    const sorted = Array.from(cohortMap.values())
+    return Array.from(cohortMap.values())
         .sort((a, b) => a.date.localeCompare(b.date) || a.courseName.localeCompare(b.courseName));
+}
+
+export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
+    const sorted = groupConfirmedSessions(enrollments, todayIso);
     if (sorted.length <= 12) return sorted;
     // Cap at 12, but never split a day: the dashboard groups same-day courses into one card.
     const lastDate = sorted[11].date;
@@ -312,4 +317,13 @@ export function countStaleRequests(enrollments: any[], days = 7, nowMs: number =
         if (!isNaN(t) && nowMs - t > days * DAY_MS) count++;
     }
     return count;
+}
+
+/** Key of a course date, as stored in invite_dates (course_id + invite_date). */
+export const sessionKey = (courseId: string, date: string) => `${courseId}|${date}`;
+
+/** Course dates within `days` whose attendance reminder hasn't been marked as sent. */
+export function dueReminders(enrollments: any[], sent: Set<string>, days = 7, todayIso: string = todayISO()): UpcomingCohortItem[] {
+    return groupConfirmedSessions(enrollments, todayIso)
+        .filter(c => daysBetween(todayIso, c.date) <= days && !sent.has(sessionKey(c.courseId, c.date)));
 }

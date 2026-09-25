@@ -1,7 +1,7 @@
 // ─── App roles ─────────────────────────────────────────────────
 // Stored in auth app_metadata.role (migrations 58, 65). A missing role means admin.
 //   admin    — everything
-//   viewer   — read-only viewer portal
+//   viewer   — read-only viewer portal + External Lists (migration 69)
 //   outreach — External Lists only (Outcomes → External lists, e.g. Action 11)
 import type { User } from '@supabase/supabase-js';
 

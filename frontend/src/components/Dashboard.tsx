@@ -9,13 +9,20 @@ import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
 import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
 import DashboardActivityFeed, { type ActivityFilter } from './Dashboard/DashboardActivityFeed';
 import StatusBreakdownCard from './Dashboard/StatusBreakdownCard';
+import SendRemindersBanner from './Dashboard/SendRemindersBanner';
+import { sendReminderEmail } from '../hooks/useInviteFlow';
+import { todayISO } from '../lib/dateUtils';
+import { toast } from '../lib/toast';
 import {
     buildActivityGroups,
     calculateExpiredInvites,
     countStaleRequests,
     daysBetween,
+    dueReminders,
     groupUpcomingCohorts,
     localDateKey,
+    sessionKey,
+    type UpcomingCohortItem,
 } from './Dashboard/dashboardUtils';
 import { useIsMobile } from '../hooks/useScreenSize';
 
@@ -162,6 +169,7 @@ export default function Dashboard({
     const handleRefresh = () => {
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        queryClient.invalidateQueries({ queryKey: ['reminders_sent'] });
     };
 
     const statusCounts = useMemo(() => {
@@ -175,6 +183,47 @@ export default function Dashboard({
     const expiredInvites = useMemo(() => calculateExpiredInvites(allEnrollments), [allEnrollments]);
     const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
     const staleRequests = useMemo(() => countStaleRequests(allEnrollments), [allEnrollments]);
+
+    // Course dates whose attendance reminder was marked as sent ("I've sent it")
+    const { data: sentReminderKeys = [] } = useQuery({
+        queryKey: ['reminders_sent'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('invite_dates')
+                .select('course_id, invite_date')
+                .not('reminder_sent_at', 'is', null)
+                .gte('invite_date', todayISO());
+            if (error) {
+                console.warn('Sent reminders unavailable (is migration 69 applied?):', error);
+                return [];
+            }
+            return (data || []).map((d: { course_id: string; invite_date: string }) => sessionKey(d.course_id, d.invite_date));
+        },
+        staleTime: 30_000,
+    });
+    const reminders = useMemo(
+        () => dueReminders(allEnrollments, new Set(sentReminderKeys)),
+        [allEnrollments, sentReminderKeys],
+    );
+
+    const sendReminder = (item: UpcomingCohortItem) => {
+        const people = allEnrollments.filter(e =>
+            e.status === 'confirmed' && e.course_id === item.courseId && e.confirmed_date?.split('T')[0] === item.date);
+        void sendReminderEmail(people, (message, type) => toast[type](message));
+    };
+
+    const markReminderSent = async (item: UpcomingCohortItem) => {
+        const key = sessionKey(item.courseId, item.date);
+        queryClient.setQueryData<string[]>(['reminders_sent'], (old = []) => [...old, key]);
+        const { error } = await supabase
+            .from('invite_dates')
+            .upsert({ course_id: item.courseId, invite_date: item.date, reminder_sent_at: new Date().toISOString() }, { onConflict: 'course_id,invite_date' });
+        if (error) {
+            console.error('Failed to mark reminder as sent:', error);
+            toast.error('Could not save "sent". Is migration 69 applied?');
+            queryClient.invalidateQueries({ queryKey: ['reminders_sent'] });
+        }
+    };
 
     const { groups: groupedActivity, total: totalActivityGroups } = useMemo(
         () => buildActivityGroups(allEnrollments, { filter: activityFilter, search: deferredSearch, limit: activityLimit }),
@@ -296,6 +345,7 @@ export default function Dashboard({
         <div className="w-full space-y-4 sm:space-y-6">
             {header}
             {approvalsBanner}
+            <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
             {kpis}
 
             {/* Only one layout is mounted to avoid rendering everything twice */}

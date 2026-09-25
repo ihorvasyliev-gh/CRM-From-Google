@@ -3,6 +3,7 @@ import {
     buildActivityGroups,
     calculateExpiredInvites,
     countStaleRequests,
+    dueReminders,
     groupUpcomingCohorts,
     relativeDayLabel,
     untilLabel,
@@ -284,5 +285,22 @@ describe('dashboardUtils - labels & metrics', () => {
             { status: 'requested', created_at: null },
         ];
         expect(countStaleRequests(enrollments, 7, now)).toBe(1);
+    });
+});
+
+describe('dashboardUtils - dueReminders', () => {
+    const en = (course_id: string, confirmed_date: string, status = 'confirmed') =>
+        ({ status, course_id, confirmed_date, courses: { name: course_id } });
+
+    it('lists course dates within 7 days that are not marked as sent', () => {
+        const enrollments = [
+            en('c1', '2026-10-01'), en('c1', '2026-10-01'),
+            en('c2', '2026-10-05'),                // marked as sent
+            en('c3', '2026-10-09'),                // 8 days away
+            en('c4', '2026-09-30'),                // past
+            en('c5', '2026-10-02', 'invited'),     // not confirmed
+        ];
+        const due = dueReminders(enrollments, new Set(['c2|2026-10-05']), 7, '2026-10-01');
+        expect(due).toEqual([{ date: '2026-10-01', courseId: 'c1', courseName: 'c1', confirmedCount: 2 }]);
     });
 });

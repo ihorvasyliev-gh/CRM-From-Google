@@ -24,7 +24,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             title: 'Global & Navigation',
             shortcuts: [
                 { keys: ['Ctrl', 'K'], description: 'Search students & courses' },
-                { keys: ['1', '–', '3'], description: 'Go to Home, Students, Courses' },
+                { keys: ['1', '–', '4'], description: 'Go to Home, Students, Courses, External Lists' },
                 { keys: ['/'], description: 'Focus the search bar on this page' },
                 { keys: ['?'], description: 'Open this cheat sheet' },
                 { keys: ['Esc'], description: 'Close a panel, clear a search or selection' },

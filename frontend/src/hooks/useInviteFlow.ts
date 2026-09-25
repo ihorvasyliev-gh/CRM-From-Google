@@ -76,6 +76,53 @@ async function copyHtmlAndOpenDraft(
     window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
 }
 
+/**
+ * Attendance reminder for confirmed people (one course + date): copies the email and opens
+ * a BCC draft. Status stays unchanged. Returns false if nothing was sent.
+ */
+export async function sendReminderEmail(
+    selected: EnrollmentRow[],
+    showToast: (msg: string, type: 'success' | 'error') => void
+): Promise<boolean> {
+    const confirmed = selected.filter(e => e.status === 'confirmed');
+    if (confirmed.length === 0) {
+        showToast('Reminders go to confirmed people — none selected.', 'error');
+        return false;
+    }
+    // Date the person confirmed for (older rows only have the invited date)
+    const courseDate = (e: EnrollmentRow) => (e.confirmed_date || e.invited_date || '').split('T')[0];
+    // One email = one course card, so everyone must share the course and date
+    if (new Set(confirmed.map(e => `${e.course_id}|${courseDate(e)}`)).size > 1) {
+        showToast('Select people from one course and the same date to send a reminder.', 'error');
+        return false;
+    }
+
+    let optedOut: Set<string>;
+    try {
+        optedOut = await fetchOptedOutEmails(confirmed.map(e => e.students?.email));
+    } catch (err) {
+        console.error('Failed to check the unsubscribe list:', err);
+        showToast('Could not check the unsubscribe list. Please try again.', 'error');
+        return false;
+    }
+    const { allowed, skipped } = partitionByOptOut(confirmed, e => e.students?.email, optedOut);
+    if (allowed.length === 0) {
+        showToast('Everyone selected has unsubscribed from emails — no reminder sent.', 'error');
+        return false;
+    }
+
+    const first = allowed[0];
+    const date = courseDate(first);
+    const courseName = getCoursePill(first);
+    const courseInfo = await fetchCourseInfo(first.course_id);
+    const htmlBody = buildEmailBodyHtml(courseName, date ? formatDateLongWithWeekday(date) : '', undefined, undefined, undefined, Boolean(first.courses?.requires_english), 'reminder', courseInfo);
+
+    const notConfirmed = selected.length - confirmed.length;
+    const note = skippedNote(skipped.length) + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '');
+    await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, date ? formatDateLong(date) : '', undefined, 'reminder'), note, showToast);
+    return true;
+}
+
 export function useInviteFlow({
     enrollments,
     setEnrollments,
@@ -286,46 +333,9 @@ export function useInviteFlow({
         setInviteDateTarget(null);
     }
 
-    /** Remind confirmed people that their course is coming up. Status stays unchanged. */
+    /** Remind the selected confirmed people that their course is coming up. */
     async function handleSendReminder(ids: string[]) {
-        const selected = enrollments.filter(e => ids.includes(e.id));
-        const confirmed = selected.filter(e => e.status === 'confirmed');
-        if (confirmed.length === 0) {
-            showToast('Reminders go to confirmed people — none selected.', 'error');
-            return;
-        }
-        // Date the person confirmed for (older rows only have the invited date)
-        const courseDate = (e: EnrollmentRow) => (e.confirmed_date || e.invited_date || '').split('T')[0];
-        // One email = one course card, so everyone must share the course and date
-        if (new Set(confirmed.map(e => `${e.course_id}|${courseDate(e)}`)).size > 1) {
-            showToast('Select people from one course and the same date to send a reminder.', 'error');
-            return;
-        }
-
-        let optedOut: Set<string>;
-        try {
-            optedOut = await fetchOptedOutEmails(confirmed.map(e => e.students?.email));
-        } catch (err) {
-            console.error('Failed to check the unsubscribe list:', err);
-            showToast('Could not check the unsubscribe list. Please try again.', 'error');
-            return;
-        }
-        const { allowed, skipped } = partitionByOptOut(confirmed, e => e.students?.email, optedOut);
-        if (allowed.length === 0) {
-            showToast('Everyone selected has unsubscribed from emails — no reminder sent.', 'error');
-            return;
-        }
-
-        const first = allowed[0];
-        const date = courseDate(first);
-        const courseName = getCoursePill(first);
-        const courseInfo = await fetchCourseInfo(first.course_id);
-        const htmlBody = buildEmailBodyHtml(courseName, date ? formatDateLongWithWeekday(date) : '', undefined, undefined, undefined, Boolean(first.courses?.requires_english), 'reminder', courseInfo);
-
-        const notConfirmed = selected.length - confirmed.length;
-        const note = skippedNote(skipped.length) + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '');
-        clearSelection();
-        await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, date ? formatDateLong(date) : '', undefined, 'reminder'), note, showToast);
+        if (await sendReminderEmail(enrollments.filter(e => ids.includes(e.id)), showToast)) clearSelection();
     }
 
     return {

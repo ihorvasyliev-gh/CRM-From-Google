@@ -45,6 +45,7 @@ const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
 const ViewerHome = lazyWithRetry(() => import('./components/ViewerHome'));
+const OutreachLists = lazyWithRetry(() => import('./components/OutreachLists'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
 import ViewerHeader from './components/Viewer/ViewerHeader';
@@ -154,9 +155,7 @@ function App() {
     const isViewer = role === 'viewer';
     // External Lists only (migration 65): gets its own minimal shell below
     const isOutreach = role === 'outreach';
-    const viewerTab: ViewerTab = location.pathname.startsWith('/courses')
-        ? 'courses'
-        : location.pathname.startsWith('/students') ? 'students' : 'home';
+    const viewerTab: ViewerTab = VIEWER_TABS.find(t => location.pathname.startsWith(`/${t.key}`))?.key ?? 'home';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && role === 'admin');
@@ -544,8 +543,8 @@ function App() {
                     return;
                 }
 
-                // 1-3 -> Viewer tab navigation
-                if (isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '3') {
+                // 1-4 -> Viewer tab navigation
+                if (isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= String(VIEWER_TABS.length)) {
                     e.preventDefault();
                     navigate(VIEWER_TABS[parseInt(e.key, 10) - 1].key);
                     return;
@@ -916,6 +915,7 @@ function App() {
                                         <Route path="/students" element={<ViewerStudentsDirectory />} />
                                         <Route path="/courses" element={<ViewerCourses />} />
                                         <Route path="/courses/:courseId" element={<ViewerCourses />} />
+                                        <Route path="/external-lists" element={<OutreachLists />} />
                                         <Route path="/lookup" element={<Navigate to="/students" replace />} />
                                         <Route path="*" element={<Navigate to="/home" replace />} />
                                     </>

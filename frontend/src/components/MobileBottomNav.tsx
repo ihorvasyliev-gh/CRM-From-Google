@@ -18,6 +18,7 @@ import {
     LogOut, 
     X,
     Search,
+    ListChecks,
     Home
 } from 'lucide-react';
 
@@ -126,6 +127,15 @@ export default function MobileBottomNav({
                                     <X size={18} />
                                 </button>
                             </div>
+
+                            <button
+                                onClick={() => { setMoreOpen(false); onNavigate('external-lists'); }}
+                                aria-current={activeTab === 'external-lists' ? 'page' : undefined}
+                                className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
+                            >
+                                <ListChecks size={16} className="text-emerald-500" />
+                                <span>External Lists</span>
+                            </button>
 
                             <div className="grid grid-cols-2 gap-2 mb-4">
                                 <button
