@@ -238,6 +238,13 @@ describe('appConfig', () => {
             const expected = '<font color="#ff0000" style="background-color:#ffff00;">text</font>';
             expect(replaceColorSpansWithFontTags(html)).toBe(expected);
         });
+
+        it('leaves pasted non-colour values alone (font color="inherit" renders green)', () => {
+            for (const value of ['inherit', 'var(--text)', 'currentColor']) {
+                const html = `<span style="color: ${value};">text</span>`;
+                expect(replaceColorSpansWithFontTags(html)).toBe(html);
+            }
+        });
     });
 
     describe('buildStatusEmailBodyHtml', () => {

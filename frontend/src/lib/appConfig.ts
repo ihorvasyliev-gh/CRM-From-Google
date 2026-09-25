@@ -376,7 +376,9 @@ export function replaceColorSpansWithFontTags(html: string): string {
         
         // Get the color value (last capture group)
         const color = colorMatch[colorMatch.length === 3 ? 2 : 1].trim();
-        if (!color) return match;
+        // <font color> reads any word as a hex code ("inherit" → bright green), so only
+        // hex values and real colour names are converted; pasted inherit/var(...) stay as CSS.
+        if (!/^#[0-9a-f]{3,8}$|^[a-z]+$/i.test(color) || /^(inherit|initial|unset|revert|currentcolor|transparent)$/i.test(color)) return match;
         
         // Check for background-color too
         const bgMatch = attrs.match(/background-color\s*:\s*([^;"']+)/i);
