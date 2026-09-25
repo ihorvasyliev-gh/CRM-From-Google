@@ -1,5 +1,5 @@
 -- ============================================================
--- Migration 69: Remember when attendance reminders were sent
+-- Migration 70: Remember when attendance reminders were sent
 --
 -- The admin dashboard asks to send reminders for course dates in
 -- the next 7 days until "I've sent it" is pressed; that stamps

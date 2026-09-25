@@ -194,7 +194,7 @@ export default function Dashboard({
                 .not('reminder_sent_at', 'is', null)
                 .gte('invite_date', todayISO());
             if (error) {
-                console.warn('Sent reminders unavailable (is migration 69 applied?):', error);
+                console.warn('Sent reminders unavailable (is migration 70 applied?):', error);
                 return [];
             }
             return (data || []).map((d: { course_id: string; invite_date: string }) => sessionKey(d.course_id, d.invite_date));
@@ -220,7 +220,7 @@ export default function Dashboard({
             .upsert({ course_id: item.courseId, invite_date: item.date, reminder_sent_at: new Date().toISOString() }, { onConflict: 'course_id,invite_date' });
         if (error) {
             console.error('Failed to mark reminder as sent:', error);
-            toast.error('Could not save "sent". Is migration 69 applied?');
+            toast.error('Could not save "sent". Is migration 70 applied?');
             queryClient.invalidateQueries({ queryKey: ['reminders_sent'] });
         }
     };
