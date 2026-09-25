@@ -1,12 +1,11 @@
 import { lazy, ComponentType } from 'react';
 
 /**
- * A wrapper for React.lazy that attempts to reload the component if it fails to load.
+ * React.lazy that reloads the page once (per 30s) when a chunk fails to load.
  * Handles production deployments where dynamic JS chunks are updated on the server.
  */
 export function lazyWithRetry(
-    componentImport: () => Promise<{ default: ComponentType<any> }>,
-    retriesLeft = 2
+    componentImport: () => Promise<{ default: ComponentType<any> }>
 ): ReturnType<typeof lazy> {
     return lazy(async () => {
         try {
@@ -25,15 +24,6 @@ export function lazyWithRetry(
                 sessionStorage.setItem('chunk_reload_time', now.toString());
                 window.location.reload();
                 return new Promise(() => {}); // pause execution while browser reloads
-            }
-
-            for (let i = 0; i < retriesLeft; i++) {
-                try {
-                    await new Promise((resolve) => setTimeout(resolve, 800 * (i + 1)));
-                    return await componentImport();
-                } catch (e) {
-                    if (i === retriesLeft - 1) throw e;
-                }
             }
             throw error;
         }

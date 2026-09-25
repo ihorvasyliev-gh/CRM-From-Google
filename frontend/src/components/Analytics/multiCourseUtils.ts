@@ -2,6 +2,7 @@ import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant, Student } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { normalizeCorkAddress } from './analyticsUtils';
+import { downloadBlob } from '../../lib/download';
 
 export interface AvailableCourseSummary {
     id: string;
@@ -233,8 +234,6 @@ export async function exportMultiCourseExcelReport(
 ) {
     const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const FileSaverModule = await import('file-saver');
-    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'CRM System';
@@ -356,5 +355,5 @@ export async function exportMultiCourseExcelReport(
     const filename = `CRM_Graduates_${safeFilenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, filename);
+    downloadBlob(blob, filename);
 }

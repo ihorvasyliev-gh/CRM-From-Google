@@ -107,37 +107,3 @@ export async function subscribeUserToPush(userId: string): Promise<boolean> {
         return false;
     }
 }
-
-/**
- * Unsubscribes the current browser subscription, and deletes it from Supabase.
- */
-export async function unsubscribeUserFromPush(_userId: string): Promise<boolean> {
-    try {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            return true;
-        }
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (!registration) return true;
-        const subscription = await registration.pushManager.getSubscription();
-        if (!subscription) return true;
-
-        const endpoint = subscription.endpoint;
-        
-        // 1. Unsubscribe via browser API
-        await subscription.unsubscribe();
-
-        // 2. Delete subscription from database
-        const { error } = await supabase
-            .from('user_push_subscriptions')
-            .delete()
-            .eq('endpoint', endpoint);
-
-        if (error) throw error;
-
-        console.log('Successfully removed Web Push subscription.');
-        return true;
-    } catch (err) {
-        console.error('Failed to unsubscribe from Web Push:', err);
-        return false;
-    }
-}

@@ -1,6 +1,6 @@
 import { useState, type JSX } from 'react';
 import { PieChart, GraduationCap, ChevronRight } from 'lucide-react';
-import DashboardCard from './DashboardCard';
+import DashboardCard from '../ui/Card';
 
 export interface StatusBreakdownCardProps {
     statusBreakdown: Record<string, number>;

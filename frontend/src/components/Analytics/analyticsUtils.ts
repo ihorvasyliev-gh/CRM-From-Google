@@ -1,6 +1,7 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
+import { downloadBlob } from '../../lib/download';
 
 // ─── Location & Geographic Intelligence Types ─────────────────
 
@@ -773,8 +774,6 @@ export async function exportExecutiveExcelReport(
 ) {
     const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const FileSaverModule = await import('file-saver');
-    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'CRM System';
@@ -985,5 +984,5 @@ export async function exportExecutiveExcelReport(
     // Save Workbook
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(blob, `Executive_CRM_Analytics_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadBlob(blob, `Executive_CRM_Analytics_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

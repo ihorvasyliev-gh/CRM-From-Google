@@ -1,6 +1,7 @@
 import type { ViewerCourseRosterItem } from './types';
 import { cleanVariant } from './types';
 import { formatDateDMY } from './dateUtils';
+import { downloadBlob } from './download';
 
 interface ExportViewerRosterOptions {
     items: ViewerCourseRosterItem[];
@@ -32,13 +33,8 @@ export async function exportViewerRosterToExcel({
     if (!items || items.length === 0) return;
 
     // Dynamic import to keep initial bundle size minimal
-    const [ExcelJSModule, FileSaverModule] = await Promise.all([
-        import('exceljs'),
-        import('file-saver'),
-    ]);
-
+    const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'CCP CRM';
@@ -159,5 +155,5 @@ export async function exportViewerRosterToExcel({
     const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    saveAs(blob, fileName);
+    downloadBlob(blob, fileName);
 }

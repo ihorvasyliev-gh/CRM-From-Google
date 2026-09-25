@@ -12,13 +12,6 @@ export function getNotificationPermission(): NotificationPermission | 'unsupport
     return Notification.permission;
 }
 
-/** Request notification permission from the user. Returns the resulting state. */
-export async function requestNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
-    if (!isNotificationSupported()) return 'unsupported';
-    const result = await Notification.requestPermission();
-    return result;
-}
-
 /** Show a native desktop notification if permission is granted. */
 export function showNotification(title: string, options?: NotificationOptions): Notification | null {
     if (!isNotificationSupported()) return null;

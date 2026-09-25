@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 import { AlarmClock, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import { ExpiredInviteItem } from './dashboardUtils';
-import DashboardCard from './DashboardCard';
+import DashboardCard from '../ui/Card';
 import StudentAvatar from './StudentAvatar';
 
 export interface ExpiredInvitesCardProps {

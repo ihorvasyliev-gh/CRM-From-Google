@@ -15,12 +15,6 @@ export const inputCls =
 /** Single-line input (36px). */
 export const fieldCls = `${inputCls} h-9`;
 
-/** Native select with room for the custom chevron. */
-export const selectCls = `${inputCls} h-9 pr-8 appearance-none cursor-pointer font-medium`;
-
-/** Multi-line text. */
-export const textareaCls = `${inputCls} py-2 leading-relaxed resize-y`;
-
 /** Form field label. */
 export const labelCls = 'block text-xs font-semibold text-muted mb-1.5';
 
@@ -38,9 +32,6 @@ export const tdCls = 'px-4 py-3 align-middle';
 
 /** Inner panel inside a card (a grouped block, a stat, a preview frame). */
 export const panelCls = 'rounded-xl bg-surface-elevated/60 border border-border-subtle';
-
-/** Card surface without header chrome. */
-export const cardCls = 'rounded-2xl bg-surface border border-border-subtle shadow-card';
 
 /** Inline callouts. */
 export const calloutCls = {

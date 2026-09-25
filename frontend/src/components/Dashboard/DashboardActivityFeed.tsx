@@ -1,6 +1,6 @@
 import { useState, type JSX } from 'react';
 import { Activity, Search, X, ChevronDown, Inbox } from 'lucide-react';
-import DashboardCard from './DashboardCard';
+import DashboardCard from '../ui/Card';
 import StudentAvatar from './StudentAvatar';
 import { relativeDayLabel, type ActivityGroup, type ActivityStatusFilter } from './dashboardUtils';
 

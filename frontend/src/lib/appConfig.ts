@@ -41,51 +41,54 @@ export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
     { header: 'Course Date', placeholder: 'courseDate' },
 ];
 
+/** Font stack inlined into every email element (email clients ignore <style>). */
+const FONT = "Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+
 export const DEFAULT_CONFIG: AppConfig = {
-    htmlEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your suitability and attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
+    htmlEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your suitability and attendance.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your suitability and attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
 {courseDetails}
 {englishWarning}
 {capacityNotice}
 {confirmationButton}
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
-<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:${FONT};">
   <li style="margin-bottom:4px;">You've already taken this course elsewhere</li>
   <li style="margin-bottom:4px;">You're not interested</li>
   <li>You’d prefer not to receive future emails</li>
 </ul>`,
-    htmlEmailTemplateStandard: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
+    htmlEmailTemplateStandard: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We are delighted to invite you to join our upcoming course. Please review the details below and confirm your attendance.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Places on this course are <strong>limited</strong> and allocated on a first-come, first-served basis, so please confirm your attendance <strong>as soon as possible</strong> (and no later than <strong>{responseDays} days</strong>) by clicking the button below.</p>
 {courseDetails}
 {capacityNotice}
 {confirmationButton}
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
-<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you have any questions, feel free to reply to this email. You can also let me know if:</p>
+<ul style="margin:0 0 16px 0;padding-left:20px;font-size:14px;line-height:22px;color:#64748b;font-family:${FONT};">
   <li style="margin-bottom:4px;">You've already taken this course elsewhere</li>
   <li style="margin-bottom:4px;">You're not interested</li>
   <li>You’d prefer not to receive future emails</li>
 </ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
-    statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our courses make and plan better ones for future participants.</p>
+    statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our courses make and plan better ones for future participants.</p>
 {statusDetails}
 {statusButton}
-<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, let us know in your reply — we are happy to help.</p>
-<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
+<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">Whether you are working or not yet, every answer counts. If you are still looking for work or another course, let us know in your reply — we are happy to help.</p>
+<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:${FONT};">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
     statusEmailSubjectFormat: 'How are things going since your course? (1-minute update)',
-    outreachEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">We hope you are keeping well! You have been supported by <strong>Cork City Partnership</strong>, and we would love to hear how things are going for you now.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our support makes and plan better services for the people we work with.</p>
+    outreachEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We hope you are keeping well! You have been supported by <strong>Cork City Partnership</strong>, and we would love to hear how things are going for you now.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Could you spare <strong>one minute</strong> to answer four quick questions? You can use the button below or simply reply to this email. Your answers help us see what difference our support makes and plan better services for the people we work with.</p>
 {statusDetails}
 {statusButton}
-<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Whether you are working or not yet, every answer counts. If you are still looking for work or a course, let us know in your reply — we are happy to help.</p>
-<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
+<p style="margin:0 0 16px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};"><strong>Prefer not to use the link?</strong> Simply reply to this email with your answers to the questions above — that works just as well.</p>
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">Whether you are working or not yet, every answer counts. If you are still looking for work or a course, let us know in your reply — we are happy to help.</p>
+<p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:${FONT};">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
     outreachEmailSubjectFormat: 'How are things going? (1-minute update from Cork City Partnership)',
     includeLogosInEmails: false,
 };
@@ -484,16 +487,16 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <td style="padding:16px 20px;font-family:${FONT};">
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
         <tr>
-          <td style="padding-bottom:10px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          <td style="padding-bottom:10px;font-family:${FONT};">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
             <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${safeCourseTitle}</div>
           </td>
         </tr>
         <tr>
-          <td style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+          <td style="font-family:${FONT};">
             ${dateRowHtml}
           </td>
         </tr>
@@ -505,9 +508,9 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const englishWarningHtml = `<!-- English Warning Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fffbeb;border:1px solid #fef08a;border-left:5px solid #f59e0b;border-radius:8px;">
   <tr>
-    <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <td style="padding:15px 20px;font-family:${FONT};">
       <div style="font-size:13px;font-weight:bold;color:#b45309;line-height:20px;margin-bottom:8px;">⚠️ Important note before you confirm:</div>
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:19px;color:#92400e;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:${FONT};font-size:13px;line-height:19px;color:#92400e;">
         <tr>
           <td style="padding:2px 8px 2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#b45309;width:12px;font-weight:bold;">&bull;</td>
           <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#92400e;">Please only accept this place if you feel confident with your English.</td>
@@ -529,7 +532,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const capacityNoticeHtml = `<!-- Limited Places Notice -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
   <tr>
-    <td style="padding:15px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <td style="padding:15px 20px;font-family:${FONT};">
       <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please read before you confirm</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;">Places on this course are allocated on a first-come, first-served basis. Once all places are taken, confirmation for ${isMultiDate ? "that date" : "this date"} will close — even if your ${days}-day response window has not yet expired.</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> If you confirm but don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>. If you can no longer attend, simply reply to this email as early as possible so we can offer your place to someone else.</div>
@@ -546,7 +549,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
           <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
-            <a href="${linkStr}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText} &rarr;</a>
+            <a href="${linkStr}" target="_blank" style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText} &rarr;</a>
           </td>
         </tr>
       </table>
@@ -611,24 +614,24 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
     const detailsHtml = `<!-- Status Questions Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td style="padding:16px 20px;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <td style="padding:16px 20px;font-family:${FONT};">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;margin-bottom:6px;">What we will ask</div>
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Are you working at the moment?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Are you working at the moment?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">If yes — when did you start?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">If yes — when did you start?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Where do you work (company or sector)?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Where do you work (company or sector)?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Is it full-time or part-time?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Is it full-time or part-time?</td>
         </tr>
       </table>
       <div style="font-size:13px;color:#0369a1;font-weight:bold;line-height:20px;margin-top:10px;">&#9201; Takes less than a minute &mdash; online or by replying to this email</div>
@@ -644,7 +647,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
           <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
-            <a href="${statusLink}" target="_blank" style="font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Share My Update &rarr;</a>
+            <a href="${statusLink}" target="_blank" style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Share My Update &rarr;</a>
           </td>
         </tr>
       </table>

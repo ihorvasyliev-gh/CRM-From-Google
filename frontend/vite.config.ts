@@ -13,10 +13,10 @@ export default defineConfig(({ command }) => ({
                 manualChunks: {
                     vendor: ['react', 'react-dom', 'lucide-react', 'react-router-dom', '@tanstack/react-query'],
                     charts: ['recharts'],
-                    dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+                    dnd: ['@dnd-kit/core'],
                     editor: ['react-quill-new'],
-                    'excel-export': ['exceljs', 'file-saver'],
-                    'docx-gen': ['docxtemplater', 'pizzip', 'jszip']
+                    'excel-export': ['exceljs'],
+                    'docx-gen': ['docxtemplater', 'pizzip']
                 }
             }
         },

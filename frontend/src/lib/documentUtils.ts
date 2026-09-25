@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 import { Student, Course, Enrollment, cleanVariant } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
 import type { ExcelColumn } from './appConfig';
+import { downloadBlob } from './download';
 
 /** Enrollment with joined student and course data (from Supabase select with joins). */
 export interface EnrollmentWithRelations extends Enrollment {
@@ -72,22 +73,16 @@ export async function generateDocumentsArchive(
     onWarning?: (message: string) => void
 ): Promise<GenerationResult> {
     // Dynamically import heavy libraries for document generation
-    const JSZipModule = await import('jszip');
-    const JSZip = JSZipModule.default || JSZipModule;
-    
     const PizZipModule = await import('pizzip');
     const PizZip = PizZipModule.default || PizZipModule;
     
     const DocxtemplaterModule = await import('docxtemplater');
     const Docxtemplater = DocxtemplaterModule.default || DocxtemplaterModule;
     
-    const FileSaverModule = await import('file-saver');
-    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
-    
     const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
-    const zip = new JSZip();
+    const zip = new PizZip();
     const useSubfolders = templates.length > 1;
 
     const result: GenerationResult = {
@@ -380,9 +375,8 @@ export async function generateDocumentsArchive(
     }
 
     // Download ZIP. Entries (.docx/.xlsx) are already deflated, so the outer
-    // archive just stores them — no point compressing twice.
-    const zipBlob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
-    saveAs(zipBlob, archiveName);
+    // archive just stores them (PizZip's default) — no point compressing twice.
+    downloadBlob(zip.generate({ type: 'blob', mimeType: 'application/zip' }), archiveName);
 
     return result;
 }

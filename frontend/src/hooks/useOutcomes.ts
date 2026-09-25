@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface GraduateRow {
@@ -105,12 +104,4 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
     return Array.from(studentMap.values()).sort(
         (a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
     );
-}
-
-export function useGraduatesQuery() {
-    return useQuery<GraduateRow[]>({
-        queryKey: ['outcomes_graduates'],
-        queryFn: fetchGraduatesFn,
-        staleTime: 30_000,
-    });
 }

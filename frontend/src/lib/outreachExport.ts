@@ -1,6 +1,7 @@
 import type { OutreachContact } from '../hooks/useOutreach';
 import { formatDateDMY } from './dateUtils';
 import { sanitizeExcelValue } from './excelExport';
+import { downloadBlob } from './download';
 
 const STATUS_LABELS: Record<OutreachContact['status'], string> = {
     not_contacted: 'Not contacted',
@@ -33,12 +34,8 @@ export function outreachExportRows(contacts: OutreachContact[]) {
 }
 
 export async function exportOutreachListToExcel(listName: string, contacts: OutreachContact[]): Promise<void> {
-    const [ExcelJSModule, FileSaverModule] = await Promise.all([
-        import('exceljs'),
-        import('file-saver'),
-    ]);
+    const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const saveAs = FileSaverModule.saveAs || (FileSaverModule.default && FileSaverModule.default.saveAs);
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'CCP CRM';
@@ -66,5 +63,5 @@ export async function exportOutreachListToExcel(listName: string, contacts: Outr
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const date = new Date().toISOString().slice(0, 10);
-    saveAs(blob, `${listName.replace(/[^\w-]+/g, '_')}_outcomes_${date}.xlsx`);
+    downloadBlob(blob, `${listName.replace(/[^\w-]+/g, '_')}_outcomes_${date}.xlsx`);
 }

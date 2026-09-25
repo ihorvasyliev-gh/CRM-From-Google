@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { CalendarDays, Users, ChevronRight, ChevronDown } from 'lucide-react';
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
-import DashboardCard from './DashboardCard';
+import DashboardCard from '../ui/Card';
 
 /** Course days shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
 const COLLAPSED_COUNT = 6;
