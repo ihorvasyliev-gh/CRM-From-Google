@@ -6,19 +6,23 @@
 //   SUPABASE_KEY = your-service-role-key
 // ==========================================
 
+var CONFIG_ = null; // read once per execution, not on every request
+
 function getConfig_() {
+  if (CONFIG_) return CONFIG_;
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty('SUPABASE_URL') || '';
   var key = props.getProperty('SUPABASE_KEY') || '';
   if (!url || !key) {
     throw new Error('SUPABASE_URL and SUPABASE_KEY must be set in Script Properties.');
   }
-  return { url: url, key: key };
+  CONFIG_ = { url: url, key: key };
+  return CONFIG_;
 }
 
-var BATCH_SIZE = 50; 
-var SOURCE_SHEET_NAME = 'Form responses 1'; // Откуда берем данные для Supabase
-var MIRROR_SHEET_NAME = 'CRM Mirror';       // Куда выгружаем данные из Supabase
+var BATCH_SIZE = 50;
+var SOURCE_SHEET_NAME = 'Form responses 1'; // Google Form answers → Supabase
+var MIRROR_SHEET_NAME = 'CRM Mirror';       // Supabase → read-only sheet
 
 // Limits for execution
 var MAX_EXECUTION_TIME = 4.5 * 60 * 1000; // 4.5 minutes in milliseconds
@@ -33,15 +37,14 @@ var COURSE_CACHE = {};
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🔄 CRM Sync (v2.4)')
-    .addItem('⬇️ Upload from Supabase to CRM Mirror', 'syncFromSupabase')
+    .createMenu('🔄 CRM Sync (v2.5)')
+    .addItem('⬇️ Refresh CRM Mirror now', 'syncFromSupabase')
     .addSeparator()
     .addItem('📞 Sync Missing Phone Numbers', 'syncMissingPhoneNumbers')
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
     .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
     .addSeparator()
     .addItem('🛠 Settings: Triggers (Automation)', 'setupTriggers')
-    .addItem('🛠 Configuration: Formatting CRM Mirror', 'setupMirrorSheetFormatting')
     .addToUi();
 }
 
@@ -93,129 +96,82 @@ function areNamesSimilar_(firstName1, lastName1, firstName2, lastName2) {
   return false;
 }
 
-/**
- * Checks whether a header string corresponds to a standard student field
- * or non-course metadata rather than an actual course.
- */
-function isNonCourseHeader_(header) {
-  if (!header) return true;
-  var h = String(header).trim().toLowerCase();
-  if (!h) return true;
-  
-  // If header looks like an email address or contains @
-  if (h.indexOf('@') !== -1) return true;
+// Student fields in the registration form, checked in this order (lower-cased header).
+var FIELD_MATCHERS_ = [
+  ['email',     function (h) { return /mail|почта/.test(h) || h === 'username'; }],
+  ['timestamp', function (h) { return /timestamp|отметка|дата подачи|submission/.test(h); }],
+  ['firstName', function (h) { return /first name|first_name/.test(h) || h === 'имя' || h === 'firstname' || h === 'first-name'; }],
+  ['lastName',  function (h) { return /last name|last_name|surname/.test(h) || h === 'фамилия' || h === 'lastname' || h === 'last-name'; }],
+  ['phone',     isPhoneHeader_],
+  ['dob',       function (h) { return /dob|birth|рождения/.test(h); }],
+  ['eircode',   function (h) { return /eircode|postcode|zip|индекс|postal/.test(h); }],
+  ['address',   function (h) { return /address|адрес|street/.test(h); }]
+];
+// Other questions that are not courses.
+var OTHER_NON_COURSE_RE_ = /@|score|балл|full ?name|consent|gdpr|agreement|согласие|gender|пол|age|возраст|pps|comment|notes|комментар|feedback|nationality|гражданство/;
 
-  // Email variants (e.g. Email address, E-mail, Email, Your email address, etc.)
-  if (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1 || h.indexOf('mail') !== -1 || h === 'username') return true;
-
-  // Timestamp & metadata
-  if (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1 || h.indexOf('submission') !== -1 || h.indexOf('score') !== -1 || h.indexOf('балл') !== -1) return true;
-
-  // Personal info
-  if (h.indexOf('first name') !== -1 || h.indexOf('first_name') !== -1 || h === 'имя' || h === 'firstname' || h === 'first-name') return true;
-  if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') return true;
-  if (h.indexOf('full name') !== -1 || h.indexOf('fullname') !== -1 || h === 'фио') return true;
-  if (isPhoneHeader_(h)) return true;
-  if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) return true;
-  if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) return true;
-  if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) return true;
-
-  // Additional non-course fields
-  if (h.indexOf('consent') !== -1 || h.indexOf('gdpr') !== -1 || h.indexOf('agreement') !== -1 || h.indexOf('согласие') !== -1) return true;
-  if (h.indexOf('gender') !== -1 || h.indexOf('пол') !== -1) return true;
-  if (h.indexOf('age') !== -1 || h.indexOf('возраст') !== -1) return true;
-  if (h.indexOf('pps') !== -1 || h.indexOf('ppsn') !== -1) return true;
-  if (h.indexOf('comment') !== -1 || h.indexOf('notes') !== -1 || h.indexOf('комментар') !== -1 || h.indexOf('feedback') !== -1) return true;
-  if (h.indexOf('nationality') !== -1 || h.indexOf('гражданство') !== -1) return true;
-
-  return false;
+function matchField_(h) {
+  for (var i = 0; i < FIELD_MATCHERS_.length; i++) {
+    if (FIELD_MATCHERS_[i][1](h)) return FIELD_MATCHERS_[i][0];
+  }
+  return null;
 }
 
 /**
- * Helper to identify column indices dynamically by analyzing header names.
+ * True when a header is a student field or other metadata rather than a course.
+ */
+function isNonCourseHeader_(header) {
+  var h = String(header || '').trim().toLowerCase();
+  return !h || h === 'фио' || !!matchField_(h) || OTHER_NON_COURSE_RE_.test(h);
+}
+
+/**
+ * Finds the column index of each student field, plus the course columns.
  */
 function getSourceHeaderMap_(headers) {
   var map = {
-    timestamp: -1,
-    firstName: -1,
-    lastName: -1,
-    phone: -1,
-    email: -1,
-    emailIndices: [],
-    address: -1,
-    eircode: -1,
-    dob: -1,
-    courseIndices: []
+    timestamp: -1, firstName: -1, lastName: -1, phone: -1, email: -1,
+    address: -1, eircode: -1, dob: -1, emailIndices: [], courseIndices: []
   };
-
-  var knownIndices = {};
+  var known = {};
 
   for (var c = 0; c < headers.length; c++) {
-    var h = String(headers[c] || "").trim().toLowerCase();
+    var h = String(headers[c] || '').trim().toLowerCase();
     if (!h) continue;
-
-    if (h.indexOf('email') !== -1 || h.indexOf('e-mail') !== -1 || h.indexOf('почта') !== -1 || h.indexOf('mail') !== -1 || h === 'username') {
-      if (map.email === -1) map.email = c;
-      map.emailIndices.push(c);
-      knownIndices[c] = true;
-    } else if (h.indexOf('timestamp') !== -1 || h.indexOf('отметка') !== -1 || h.indexOf('дата подачи') !== -1 || h.indexOf('submission') !== -1) {
-      if (map.timestamp === -1) map.timestamp = c;
-      knownIndices[c] = true;
-    } else if (h.indexOf('first name') !== -1 || h.indexOf('first_name') !== -1 || h === 'имя' || h === 'firstname' || h === 'first-name') {
-      if (map.firstName === -1) map.firstName = c;
-      knownIndices[c] = true;
-    } else if (h.indexOf('last name') !== -1 || h.indexOf('last_name') !== -1 || h.indexOf('surname') !== -1 || h === 'фамилия' || h === 'lastname' || h === 'last-name') {
-      if (map.lastName === -1) map.lastName = c;
-      knownIndices[c] = true;
-    } else if (isPhoneHeader_(h)) {
-      if (map.phone === -1) map.phone = c;
-      knownIndices[c] = true;
-    } else if (h.indexOf('dob') !== -1 || h.indexOf('birth') !== -1 || h.indexOf('рождения') !== -1) {
-      if (map.dob === -1) map.dob = c;
-      knownIndices[c] = true;
-    } else if (h.indexOf('eircode') !== -1 || h.indexOf('postcode') !== -1 || h.indexOf('zip') !== -1 || h.indexOf('индекс') !== -1 || h.indexOf('postal') !== -1) {
-      if (map.eircode === -1) map.eircode = c;
-      knownIndices[c] = true;
-    } else if (h.indexOf('address') !== -1 || h.indexOf('адрес') !== -1 || h.indexOf('street') !== -1) {
-      if (map.address === -1) map.address = c;
-      knownIndices[c] = true;
+    var field = matchField_(h);
+    if (field) {
+      if (map[field] === -1) map[field] = c;
+      if (field === 'email') map.emailIndices.push(c);
+      known[c] = true;
     } else if (isNonCourseHeader_(h)) {
-      knownIndices[c] = true;
+      known[c] = true;
     }
   }
 
-  // Safe fallbacks only for columns not explicitly identified and not colliding with already identified columns
-  if (map.timestamp === -1 && headers.length > 0 && !knownIndices[0]) map.timestamp = 0;
-  if (map.firstName === -1 && headers.length > 1 && !knownIndices[1]) map.firstName = 1;
-  if (map.lastName === -1 && headers.length > 2 && !knownIndices[2]) map.lastName = 2;
-  if (map.phone === -1 && headers.length > 3 && !knownIndices[3]) map.phone = 3;
-  if (map.email === -1 && headers.length > 4 && !knownIndices[4]) {
-    map.email = 4;
-    map.emailIndices.push(4);
-  }
-  if (map.address === -1 && headers.length > 5 && !knownIndices[5]) map.address = 5;
-  if (map.eircode === -1 && headers.length > 6 && !knownIndices[6]) map.eircode = 6;
-  if (map.dob === -1 && headers.length > 7 && !knownIndices[7]) map.dob = 7;
+  // Default Google Form layout as a fallback, only for columns nothing else claimed.
+  ['timestamp', 'firstName', 'lastName', 'phone', 'email', 'address', 'eircode', 'dob'].forEach(function (field, i) {
+    if (map[field] === -1 && i < headers.length && !known[i]) {
+      map[field] = i;
+      if (field === 'email') map.emailIndices.push(i);
+    }
+    if (map[field] !== -1) known[map[field]] = true;
+  });
 
-  if (map.timestamp !== -1) knownIndices[map.timestamp] = true;
-  if (map.firstName !== -1) knownIndices[map.firstName] = true;
-  if (map.lastName !== -1) knownIndices[map.lastName] = true;
-  if (map.phone !== -1) knownIndices[map.phone] = true;
-  if (map.email !== -1) knownIndices[map.email] = true;
-  if (map.address !== -1) knownIndices[map.address] = true;
-  if (map.eircode !== -1) knownIndices[map.eircode] = true;
-  if (map.dob !== -1) knownIndices[map.dob] = true;
-
-  // Remaining columns are course columns (as long as they are not marked non-course)
   for (var i = 0; i < headers.length; i++) {
-    if (!knownIndices[i] && headers[i] && String(headers[i]).trim() !== "") {
-      if (!isNonCourseHeader_(headers[i])) {
-        map.courseIndices.push(i);
-      }
-    }
+    if (!known[i] && !isNonCourseHeader_(headers[i])) map.courseIndices.push(i);
   }
-
   return map;
+}
+
+/**
+ * First non-empty email in the row (lower-cased), or ''.
+ */
+function getRowEmail_(row, headerMap) {
+  for (var i = 0; i < headerMap.emailIndices.length; i++) {
+    var v = String(row[headerMap.emailIndices[i]] || '').trim();
+    if (v) return v.toLowerCase();
+  }
+  return '';
 }
 
 /**
@@ -223,26 +179,20 @@ function getSourceHeaderMap_(headers) {
  */
 function onFormSubmit(e) {
   try {
-    log_('onFormSubmit trigger started [v2.4]', 'INFO');
     if (!e || !e.range) {
       log_('onFormSubmit: Event object or range is missing', 'WARN');
       return;
     }
     var sheet = e.range.getSheet();
-    var sheetName = sheet.getName();
-    log_('onFormSubmit: Form submitted to sheet "' + sheetName + '"', 'INFO');
-    
-    if (sheetName !== SOURCE_SHEET_NAME) {
-      log_('onFormSubmit: Sheet name "' + sheetName + '" does not match expected source sheet "' + SOURCE_SHEET_NAME + '". Skipping.', 'INFO');
+    if (sheet.getName() !== SOURCE_SHEET_NAME) {
+      Logger.log('onFormSubmit: sheet "' + sheet.getName() + '" is not "' + SOURCE_SHEET_NAME + '", skipping.');
       return;
     }
-    
+
     warmUpCourseCache();
-    
     var row = e.range.getRow();
-    log_('onFormSubmit: Starting sync for row ' + row, 'INFO');
     syncRowsRange(sheet, row, row);
-    log_('onFormSubmit: Row ' + row + ' sync completed successfully', 'INFO');
+    log_('onFormSubmit: row ' + row + ' synced', 'INFO');
   } catch (err) {
     log_('onFormSubmit error: ' + err + (err.stack ? '\nStack: ' + err.stack : ''), 'ERROR');
   }
@@ -255,12 +205,13 @@ function syncAllRecent() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
   if (!sheet) {
-    ss.toast('Лист ' + SOURCE_SHEET_NAME + ' не найден.', 'Ошибка');
+    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
     return;
   }
-  
+
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
+  warmUpCourseCache();
   var startRow = Math.max(2, lastRow - 20); 
   syncRowsRange(sheet, startRow, lastRow);
   ss.toast('The last rows have been uploaded to Supabase!', 'CRM Sync');
@@ -297,7 +248,7 @@ function syncAllRowsBatched() {
   var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
   
   if (!sheet) {
-    ss.toast('Лист ' + SOURCE_SHEET_NAME + ' не найден.', 'Ошибка');
+    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
     return;
   }
 
@@ -373,34 +324,19 @@ function syncRowsRange(sheet, startRow, endRow) {
   if (numCols < 3) return;
 
   var rangeValues = sheet.getRange(startRow, 1, numRows, numCols).getValues();
-  var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0];
+  var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0].map(String);
   var headerMap = getSourceHeaderMap_(headers);
-  
+
   var studentsToUpsert = [];
-  var rowMap = []; 
+  var rowMap = [];
 
   for (var i = 0; i < rangeValues.length; i++) {
     var rowData = rangeValues[i];
-    var email = "";
-    if (headerMap.email !== -1 && rowData[headerMap.email]) {
-      email = String(rowData[headerMap.email]).trim();
-    }
-    // Fallback to any other email column if primary is empty
-    if (!email && headerMap.emailIndices && headerMap.emailIndices.length > 0) {
-      for (var ei = 0; ei < headerMap.emailIndices.length; ei++) {
-        var altVal = rowData[headerMap.emailIndices[ei]];
-        if (altVal && String(altVal).trim()) {
-          email = String(altVal).trim();
-          break;
-        }
-      }
-    }
-    
-    if (!email || String(email).trim() === "") continue;
+    var eMail = getRowEmail_(rowData, headerMap);
+    if (!eMail) continue;
 
     var fName = headerMap.firstName !== -1 ? String(rowData[headerMap.firstName] || "").trim() : "";
     var lName = headerMap.lastName !== -1 ? String(rowData[headerMap.lastName] || "").trim() : "";
-    var eMail = String(email).trim().toLowerCase();
     var rawPhone = headerMap.phone !== -1 ? rowData[headerMap.phone] : "";
     var rawAddress = headerMap.address !== -1 ? rowData[headerMap.address] : "";
     var rawEircode = headerMap.eircode !== -1 ? rowData[headerMap.eircode] : "";
@@ -510,77 +446,63 @@ function syncRowsRange(sheet, startRow, endRow) {
     }
   }
 
-  // Build Enrollments
-  // 1. Fetch existing enrollments for matched students to prevent creating duplicate enrollments
-  // when a student is already enrolled (requested, invited, confirmed, completed) in a course.
-  var batchStudentIds = [];
+  // Build Enrollments. A student who already has an active (not withdrawn/rejected)
+  // enrollment in a course doesn't get a second one from a repeat form submission.
+  var batchStudentIds = {};
   for (var k in keyToIdMap) {
-    if (keyToIdMap[k] && batchStudentIds.indexOf(keyToIdMap[k]) === -1) {
-      batchStudentIds.push(keyToIdMap[k]);
-    }
+    if (keyToIdMap[k]) batchStudentIds[keyToIdMap[k]] = true;
   }
+  batchStudentIds = Object.keys(batchStudentIds);
 
-  var existingEnrollmentsByStudentAndCourse = {};
+  var activeEnrollment = {}; // "studentId_courseId" → true
   if (batchStudentIds.length > 0) {
-    var enrData = _fetch('enrollments?select=id,student_id,course_id,status,course_variant&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
+    var enrData = _fetch('enrollments?select=student_id,course_id,status&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
     for (var eIdx = 0; eIdx < enrData.length; eIdx++) {
       var enr = enrData[eIdx];
-      existingEnrollmentsByStudentAndCourse[enr.student_id + "_" + enr.course_id] = enr;
+      if (enr.status !== 'withdrawn' && enr.status !== 'rejected') {
+        activeEnrollment[enr.student_id + "_" + enr.course_id] = true;
+      }
     }
   }
 
   var enrollmentsToUpsert = [];
   var enrollmentKeys = {};
-  
+
   for (var m = 0; m < rowMap.length; m++) {
     var mapItem = rowMap[m];
     var sId = keyToIdMap[mapItem.key];
-    if (!sId) continue; 
+    if (!sId) continue;
 
-    var rData = mapItem.rowData;
     var rowTimestampIso = formatIsoDateTime(mapItem.rawTimestamp);
 
     for (var cIdx = 0; cIdx < headerMap.courseIndices.length; cIdx++) {
       var col = headerMap.courseIndices[cIdx];
       var courseName = headers[col];
-      var cellValue = rData[col];
-      
-      if (courseName && !isNonCourseHeader_(courseName) && courseName.indexOf('@') === -1 && cellValue && String(cellValue).trim() !== "") {
-        var strVal = String(cellValue).trim();
-        // Skip if cell value looks like an email address or contains @
-        if (strVal.indexOf('@') !== -1 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(strVal)) {
-          continue;
-        }
-        var cId = getCourseId(courseName); 
-        if (cId) {
-          // If student already has an active enrollment in this course, do not create a duplicate!
-          var existingEnr = existingEnrollmentsByStudentAndCourse[sId + "_" + cId];
-          if (existingEnr && existingEnr.status !== 'withdrawn' && existingEnr.status !== 'rejected') {
-            Logger.log('Student ' + sId + ' already has enrollment in course ' + cId + ' with status "' + existingEnr.status + '". Skipping duplicate enrollment creation.');
-            continue;
-          }
+      var strVal = String(mapItem.rowData[col] || '').trim();
+      if (!strVal || strVal.indexOf('@') !== -1) continue; // empty, or an email typed into a course column
 
-          var variants = strVal.split(',').map(function(s) { return s.trim(); });
-          for (var v = 0; v < variants.length; v++) {
-            var varText = variants[v];
-            if (!varText) continue;
-            // Skip variant if it looks like an email address or contains @
-            if (varText.indexOf('@') !== -1 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText)) {
-              continue;
-            }
-            var cleanedVariant = cleanVariant_(courseName, varText);
-            var uniqueKey = sId + "_" + cId + "_" + cleanedVariant; 
-            if (!enrollmentKeys[uniqueKey]) {
-              enrollmentsToUpsert.push({
-                student_id: sId,
-                course_id: cId,
-                course_variant: cleanedVariant,
-                status: 'requested',
-                created_at: rowTimestampIso
-              });
-              enrollmentKeys[uniqueKey] = true;
-            }
-          }
+      var cId = getCourseId(courseName);
+      if (!cId) continue;
+      if (activeEnrollment[sId + "_" + cId]) {
+        Logger.log('Student ' + sId + ' already has an active enrollment in course ' + cId + ', skipping.');
+        continue;
+      }
+
+      var variants = strVal.split(',');
+      for (var v = 0; v < variants.length; v++) {
+        var varText = variants[v].trim();
+        if (!varText) continue;
+        var cleanedVariant = cleanVariant_(courseName, varText);
+        var uniqueKey = sId + "_" + cId + "_" + cleanedVariant;
+        if (!enrollmentKeys[uniqueKey]) {
+          enrollmentsToUpsert.push({
+            student_id: sId,
+            course_id: cId,
+            course_variant: cleanedVariant,
+            status: 'requested',
+            created_at: rowTimestampIso
+          });
+          enrollmentKeys[uniqueKey] = true;
         }
       }
     }
@@ -639,35 +561,21 @@ function pgrstInList_(values) {
 }
 
 /**
- * Fetches all rows from a Supabase table using range-based pagination.
- * Handles tables with >1000 rows automatically.
+ * Fetches every row of a table, 1000 at a time. Ordered by id so pages never
+ * overlap or skip rows. Returns null if any page fails, never a partial list.
  */
 function _fetchAll(endpoint, selectQuery) {
   var allData = [];
   var limit = 1000;
-  var offset = 0;
-  var hasMore = true;
-  var emptyPages = 0;
-
-  while (hasMore) {
-    var rangeHeader = offset + "-" + (offset + limit - 1);
-    var res = _fetch(endpoint + '?' + selectQuery, 'get', null, { 
-      'Range-Unit': 'items', 
-      'Range': rangeHeader 
+  for (var offset = 0; ; offset += limit) {
+    var res = _fetch(endpoint + '?' + selectQuery + '&order=id', 'get', null, {
+      'Range-Unit': 'items',
+      'Range': offset + '-' + (offset + limit - 1)
     });
-
-    if (res && res.length > 0) {
-      allData = allData.concat(res);
-      offset += limit;
-      emptyPages = 0;
-      if (res.length < limit) hasMore = false;
-    } else {
-      emptyPages++;
-      if (emptyPages >= 2) hasMore = false;
-      else hasMore = false;
-    }
+    if (!Array.isArray(res)) return null;
+    allData = allData.concat(res);
+    if (res.length < limit) return allData;
   }
-  return allData;
 }
 
 /**
@@ -711,24 +619,18 @@ function warmUpCourseCache() {
   var allCourses = _fetchAll('courses', 'select=id,name');
   if (allCourses) {
     for (var i = 0; i < allCourses.length; i++) {
-      var normalized = normalizeCourseName_(allCourses[i].name);
-      COURSE_CACHE[normalized] = allCourses[i].id;
-      COURSE_CACHE[allCourses[i].name] = allCourses[i].id;
+      COURSE_CACHE[normalizeCourseName_(allCourses[i].name)] = allCourses[i].id;
     }
   }
 }
 
 /**
- * Gets a course ID by name.
+ * Gets a course ID by name, creating the course if it doesn't exist yet.
  */
 function getCourseId(name) {
   var normalized = normalizeCourseName_(name);
-  if (!normalized) return null;
-  if (normalized.indexOf('@') !== -1 || /email|e-mail|почта|username/i.test(normalized) || isNonCourseHeader_(normalized)) {
-    Logger.log('Ignored non-course name in getCourseId: "' + normalized + '"');
-    return null;
-  }
-  
+  // Re-check after whitespace cleanup so an odd "First Name" header never becomes a course.
+  if (isNonCourseHeader_(normalized)) return null;
   if (COURSE_CACHE[normalized]) return COURSE_CACHE[normalized];
   
   var res = _fetch('courses?name=eq.' + encodeURIComponent(normalized), 'get');
@@ -913,55 +815,6 @@ function formatIsoDateTime(dateObj) {
   return new Date().toISOString();
 }
 
-/**
- * Formats a date/datetime value for CRM Mirror Sheet display (dd/MM/yyyy).
- * Bulletproof against timezone day-shifts for ISO strings.
- */
-function formatDateForSheet(dateVal) {
-  if (!dateVal || String(dateVal).trim() === "") return "";
-  
-  if (dateVal instanceof Date) {
-    if (isNaN(dateVal.getTime())) return "";
-    return Utilities.formatDate(dateVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
-  }
-  
-  var str = String(dateVal).trim();
-  
-  // Direct parse for YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
-  var isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    // If date-only (like DOB), avoid timezone shifts entirely:
-    if (str.length === 10) {
-      return isoMatch[3] + "/" + isoMatch[2] + "/" + isoMatch[1];
-    }
-    var dIso = new Date(str);
-    if (!isNaN(dIso.getTime())) {
-      return Utilities.formatDate(dIso, Session.getScriptTimeZone(), "dd/MM/yyyy");
-    }
-  }
-
-  // Direct parse for DD/MM/YYYY
-  var dmyMatch = str.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/);
-  if (dmyMatch) {
-    var day = parseInt(dmyMatch[1], 10);
-    var month = parseInt(dmyMatch[2], 10);
-    var year = parseInt(dmyMatch[3], 10);
-    if (year < 100) year += 2000;
-    var dStr = day < 10 ? "0" + day : "" + day;
-    var mStr = month < 10 ? "0" + month : "" + month;
-    return dStr + "/" + mStr + "/" + year;
-  }
-  
-  try {
-    var d = new Date(str);
-    if (!isNaN(d.getTime())) {
-      return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
-    }
-  } catch (e) {}
-
-  return str;
-}
-
 function normalizePhone(phone) {
   if (!phone) return "";
   var cleaned = String(phone).replace(/[^\d+]/g, '');
@@ -995,352 +848,225 @@ function normalizePhone(phone) {
 // MIRROR SYNC (SUPABASE → GOOGLE SHEETS)
 // ==========================================
 
+// One row per enrollment; students with no enrollments get one row too.
+// This list is the single source of truth for column order, header, width and format.
+// r = { s: student, e: enrollment ({} when none), flags: [...], tz: spreadsheet time zone }
+var MIRROR_COLUMNS = [
+  { title: 'Course',      width: 200, value: function (r) { return r.e.course ? r.e.course.name : ''; } },
+  { title: 'Variant',     width: 90,  center: true, value: function (r) { return r.e.course_variant || ''; } },
+  { title: 'Status',      width: 110, center: true, value: function (r) { return statusLabel_(r.e.status); } },
+  { title: 'Priority',    width: 70,  center: true, value: function (r) { return r.e.is_priority ? '⭐' : ''; } },
+  { title: 'First Name',  width: 120, bold: true,   value: function (r) { return r.s.first_name || ''; } },
+  { title: 'Last Name',   width: 130, bold: true,   value: function (r) { return r.s.last_name || ''; } },
+  { title: 'Email',       width: 220, value: function (r) { return r.s.email || ''; } },
+  { title: 'Mobile',      width: 130, value: function (r) { return r.s.phone || ''; } },
+  { title: 'Flags',       width: 200, value: function (r) { return buildFlagsSummary_(r.flags); } },
+  { title: 'Notes',       width: 220, value: function (r) { return r.e.notes || ''; } },
+  { title: 'Course Date', width: 105, date: true, value: function (r) { return toSheetDate_(r.e.invited_date, r.tz); } },
+  { title: 'Confirmed',   width: 105, date: true, value: function (r) { return toSheetDate_(r.e.confirmed_date, r.tz); } },
+  { title: 'Completed',   width: 105, date: true, value: function (r) { return toSheetDate_(r.e.completed_date, r.tz); } },
+  { title: 'Registered',  width: 105, date: true, value: function (r) { return toSheetDate_(r.e.created_at || r.s.created_at, r.tz); } },
+  { title: 'DOB',         width: 100, date: true, value: function (r) { return toSheetDate_(r.s.dob, r.tz); } },
+  { title: 'Address',     width: 220, value: function (r) { return r.s.address || ''; } },
+  { title: 'Eircode',     width: 90,  center: true, value: function (r) { return r.s.eircode || ''; } },
+  { title: 'Enrollment ID', width: 60, hidden: true, value: function (r) { return r.e.id || ''; } },
+  { title: 'Student ID',    width: 60, hidden: true, value: function (r) { return r.s.id || r.e.student_id || ''; } }
+];
+
+// Board order, used to sort rows inside a course. [background, text colour]
+var STATUS_STYLES_ = {
+  Requested: ['#eeeeee', '#424242'],
+  Invited:   ['#fff9c4', '#f57f17'],
+  Confirmed: ['#c8e6c9', '#1b5e20'],
+  Completed: ['#bbdefb', '#0d47a1'],
+  Withdrawn: ['#ffcdd2', '#b71c1c'],
+  Rejected:  ['#f8bbd0', '#880e4f']
+};
+var STATUS_ORDER_ = Object.keys(STATUS_STYLES_);
+var NO_ENROLLMENT_LABEL_ = 'No enrollments';
+
+function statusLabel_(status) {
+  if (!status) return NO_ENROLLMENT_LABEL_;
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 /**
- * Syncs data from Supabase to CRM Mirror sheet.
- * Pulls ALL data: students, enrollments (with courses), and student_flags.
- * Builds a comprehensive mirror with proper formatting and flags.
+ * Supabase date ('2026-09-25') or timestamp → Sheets date serial number.
+ * A real date (not text) sorts and filters correctly and never shifts a day between time zones.
+ */
+function toSheetDate_(val, tz) {
+  if (!val) return '';
+  var ymd = String(val);
+  if (ymd.length !== 10) {
+    var d = new Date(ymd);
+    if (isNaN(d.getTime())) return '';
+    ymd = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+  }
+  var p = ymd.split('-');
+  return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000 + 25569; // 25569 = serial of 1970-01-01
+}
+
+function buildFlagsSummary_(flags) {
+  if (!flags || !flags.length) return '';
+  return '⚠ ' + flags.map(function (f) {
+    return (f.course ? f.course.name : 'Unknown') + (f.comment ? ' — ' + f.comment : '');
+  }).join('; ');
+}
+
+/**
+ * Rebuilds the CRM Mirror sheet from Supabase. Runs hourly and from the menu.
+ * If any download fails, the sheet is left as it was.
  */
 function syncFromSupabase() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(MIRROR_SHEET_NAME);
-  
-  if (!sheet) {
-    sheet = ss.insertSheet(MIRROR_SHEET_NAME);
-  }
-  
-  ss.toast("Downloading data from Supabase...", "CRM Mirror Sync");
-  
-  // ── 1. Fetch all data in parallel-safe order ──────────────────
-  var students = _fetchAll('students', 'select=*');
-  if (!students) {
-    ss.toast("Failed to fetch students. Check logs.", "CRM Mirror Sync Error");
+  var sheet = ss.getSheetByName(MIRROR_SHEET_NAME) || ss.insertSheet(MIRROR_SHEET_NAME);
+  ss.toast('Downloading data from Supabase...', 'CRM Mirror');
+
+  var students = _fetchAll('students', 'select=id,first_name,last_name,email,phone,address,eircode,dob,created_at');
+  var enrollments = students && _fetchAll('enrollments',
+    'select=id,student_id,status,course_variant,is_priority,notes,invited_date,confirmed_date,completed_date,created_at,course:courses(name)');
+  var flags = enrollments && _fetchAll('student_flags', 'select=id,student_id,comment,course:courses(name)');
+  if (!flags) {
+    log_('CRM Mirror: download from Supabase failed, sheet left unchanged', 'ERROR');
+    ss.toast('Could not download from Supabase. The sheet was left unchanged; details in SystemLogs.', 'CRM Mirror ❌');
     return;
   }
-  
-  var enrollments = _fetchAll('enrollments', 'select=*,course:courses(name)');
-  if (!enrollments) {
-    ss.toast("Failed to fetch enrollments. Check logs.", "CRM Mirror Sync Error");
-    return;
-  }
-  
-  var studentFlags = _fetchAll('student_flags', 'select=*,courses(name)');
-  if (!studentFlags) studentFlags = [];
-  
-  ss.toast("Processing " + students.length + " students, " + enrollments.length + " enrollments, " + studentFlags.length + " flags...", "CRM Mirror Sync");
-  
-  // ── 2. Build lookup maps ──────────────────────────────────────
-  var studentMap = {};
-  var enrolledStudentIds = {};
-  for (var i = 0; i < students.length; i++) {
-    studentMap[students[i].id] = students[i];
-  }
-  
-  var flagsByStudent = {};
-  for (var f = 0; f < studentFlags.length; f++) {
-    var flag = studentFlags[f];
-    var sid = flag.student_id;
-    if (!flagsByStudent[sid]) flagsByStudent[sid] = [];
-    flagsByStudent[sid].push(flag);
-  }
-  
-  // ── 3. Define output headers ──────────────────────────────────
-  var headers = [
-    'System ID',          // A (hidden)
-    'Enrollment ID',      // B (hidden)
-    'Student ID',         // C (hidden)
-    'Status',             // D
-    'Priority',           // E
-    'Flags',              // F
-    'First Name',         // G
-    'Last Name',          // H
-    'Email',              // I
-    'Mobile',             // J
-    'Address',            // K
-    'Eircode',            // L
-    'DOB',                // M
-    'Course',             // N
-    'Variant / Language', // O
-    'Invited Date',       // P
-    'Confirmed Date',     // Q
-    'Completed Date',     // R
-    'Created At',         // S
-    'Notes'               // T
-  ];
-  
-  var outputRows = [];
-  
-  // ── 4. Sort enrollments: Course Name → newest first ───────────
-  enrollments.sort(function(a, b) {
-    var aName = (a.course && a.course.name) ? a.course.name : "";
-    var bName = (b.course && b.course.name) ? b.course.name : "";
-    if (aName !== bName) return aName.localeCompare(bName);
-    return (b.created_at || "").localeCompare(a.created_at || "");
+
+  var tz = ss.getSpreadsheetTimeZone();
+  var studentById = {}, flagsByStudent = {}, enrolled = {};
+  students.forEach(function (s) { studentById[s.id] = s; });
+  flags.forEach(function (f) { (flagsByStudent[f.student_id] = flagsByStudent[f.student_id] || []).push(f); });
+
+  // Course A→Z, then board order (Requested → … → Rejected), then newest first.
+  enrollments.sort(function (a, b) {
+    var an = a.course ? a.course.name : '', bn = b.course ? b.course.name : '';
+    return an.localeCompare(bn) ||
+      STATUS_ORDER_.indexOf(statusLabel_(a.status)) - STATUS_ORDER_.indexOf(statusLabel_(b.status)) ||
+      String(b.created_at || '').localeCompare(String(a.created_at || ''));
   });
 
-  // ── 5. Build enrollment rows ──────────────────────────────────
-  for (var i = 0; i < enrollments.length; i++) {
-    var e = enrollments[i];
-    var s = studentMap[e.student_id] || {};
-    var cName = (e.course && e.course.name) ? e.course.name : "Unknown Course";
-    
-    enrolledStudentIds[e.student_id] = true;
-    var flagsSummary = buildFlagsSummary_(flagsByStudent[e.student_id]);
-    
-    outputRows.push([
-      e.id + "_" + e.student_id,                                // System ID
-      e.id,                                                      // Enrollment ID
-      e.student_id,                                               // Student ID
-      String(e.status || 'requested').toUpperCase(),              // Status
-      e.is_priority ? "⭐ High" : "Normal",                      // Priority
-      flagsSummary,                                               // Flags
-      s.first_name || "",                                         // First Name
-      s.last_name || "",                                          // Last Name
-      s.email || "",                                              // Email
-      s.phone || "",                                              // Mobile
-      s.address || "",                                            // Address
-      s.eircode || "",                                            // Eircode
-      formatDateForSheet(s.dob),                                  // DOB
-      cName,                                                      // Course
-      e.course_variant || "Standard",                             // Variant
-      formatDateForSheet(e.invited_date),                         // Invited Date
-      formatDateForSheet(e.confirmed_date),                       // Confirmed Date
-      formatDateForSheet(e.completed_date),                       // Completed Date
-      formatDateForSheet(e.created_at),                           // Created At
-      e.notes || ""                                               // Notes
-    ]);
+  var records = enrollments.map(function (e) {
+    enrolled[e.student_id] = true;
+    return { s: studentById[e.student_id] || {}, e: e };
+  });
+  students.forEach(function (s) {
+    if (!enrolled[s.id]) records.push({ s: s, e: {} });
+  });
+  var rows = records.map(function (r) {
+    r.flags = flagsByStudent[r.s.id || r.e.student_id];
+    r.tz = tz;
+    return MIRROR_COLUMNS.map(function (col) { return col.value(r); });
+  });
+
+  writeMirror_(sheet, rows, tz);
+  ss.toast('✅ ' + enrollments.length + ' enrollments, ' + students.length + ' students', 'CRM Mirror');
+}
+
+function writeMirror_(sheet, rows, tz) {
+  var numCols = MIRROR_COLUMNS.length;
+  var titles = MIRROR_COLUMNS.map(function (c) { return c.title; });
+
+  // Keep whatever filter people had set, matched by column title.
+  var savedCriteria = {};
+  var oldFilter = sheet.getFilter();
+  if (oldFilter) {
+    var fr = oldFilter.getRange();
+    sheet.getRange(1, fr.getColumn(), 1, fr.getNumColumns()).getValues()[0].forEach(function (title, i) {
+      var cr = oldFilter.getColumnFilterCriteria(fr.getColumn() + i);
+      if (cr && title) savedCriteria[title] = cr;
+    });
+    oldFilter.remove();
   }
-  
-  // ── 6. Add students with no enrollments ───────────────────────
-  for (var i = 0; i < students.length; i++) {
-    if (!enrolledStudentIds[students[i].id]) {
-      var s = students[i];
-      var flagsSummary = buildFlagsSummary_(flagsByStudent[s.id]);
-      
-      outputRows.push([
-        "no_enr_" + s.id,                          // System ID
-        "",                                          // Enrollment ID
-        s.id,                                        // Student ID
-        'NO ENROLLMENTS',                            // Status
-        '',                                          // Priority
-        flagsSummary,                                // Flags
-        s.first_name || "",                          // First Name
-        s.last_name || "",                           // Last Name
-        s.email || "",                               // Email
-        s.phone || "",                               // Mobile
-        s.address || "",                             // Address
-        s.eircode || "",                             // Eircode
-        formatDateForSheet(s.dob),                   // DOB
-        "None",                                      // Course
-        "",                                          // Variant
-        "",                                          // Invited Date
-        "",                                          // Confirmed Date
-        "",                                          // Completed Date
-        formatDateForSheet(s.created_at),             // Created At
-        ""                                           // Notes
-      ]);
-    }
-  }
-  
-  // ── 7. Write to sheet ─────────────────────────────────────────
-  ss.toast("Writing " + outputRows.length + " rows to sheet...", "CRM Mirror Sync");
-  
-  var lastRowCurrent = sheet.getLastRow();
-  var lastColCurrent = sheet.getLastColumn();
-  if (lastRowCurrent > 1 && lastColCurrent > 0) {
-    sheet.getRange(2, 1, lastRowCurrent - 1, Math.max(lastColCurrent, headers.length)).clearContent();
-  }
-  
-  // Write Headers
-  var headerRange = sheet.getRange(1, 1, 1, headers.length);
-  headerRange.setValues([headers])
-    .setFontWeight("bold")
+
+  sheet.clear(); // content + formats; column widths, protection and notes stay
+  sheet.clearConditionalFormatRules();
+  sheet.getBandings().forEach(function (b) { b.remove(); });
+  sheet.showColumns(1, sheet.getMaxColumns());
+
+  var needRows = Math.max(rows.length + 1, 2);
+  if (sheet.getMaxRows() < needRows) sheet.insertRowsAfter(sheet.getMaxRows(), needRows - sheet.getMaxRows());
+  var bodyRows = sheet.getMaxRows() - 1;
+
+  // Formats go on before the values: text columns are plain text, so '+353…' keeps
+  // its plus, '0871…' its zero, and a form answer starting with '=' is never run as a formula.
+  MIRROR_COLUMNS.forEach(function (col, i) {
+    var body = sheet.getRange(2, i + 1, bodyRows, 1);
+    body.setNumberFormat(col.date ? 'dd/mm/yyyy' : '@');
+    if (col.center) body.setHorizontalAlignment('center');
+    if (col.bold) body.setFontWeight('bold');
+    sheet.setColumnWidth(i + 1, col.width);
+  });
+  sheet.getRange(2, 1, bodyRows, numCols)
     .setFontSize(10)
-    .setFontColor("#ffffff")
-    .setBackground("#1a237e")
-    .setHorizontalAlignment("center")
-    .setVerticalAlignment("middle")
+    .setVerticalAlignment('middle')
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+
+  sheet.getRange(1, 1, 1, numCols).setValues([titles])
+    .setFontWeight('bold').setFontSize(10).setFontColor('#ffffff').setBackground('#1a237e')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
   sheet.setRowHeight(1, 32);
-  
-  // Write Data
-  if (outputRows.length > 0) {
-    var dataRange = sheet.getRange(2, 1, outputRows.length, headers.length);
-    dataRange.setValues(outputRows);
-    dataRange.setFontSize(10)
-      .setVerticalAlignment("middle");
-    sheet.setRowHeightsForced(2, outputRows.length, 26);
-  }
-  
-  // ── 8. Apply formatting ───────────────────────────────────────
-  applyMirrorFormatting_(sheet, headers.length, outputRows.length);
-  
-  ss.toast("✅ Sync complete: " + outputRows.length + " rows (" + studentFlags.length + " flags)", "CRM Mirror Sync");
-}
+  if (rows.length) sheet.getRange(2, 1, rows.length, numCols).setValues(rows);
 
-/**
- * Builds a human-readable flags summary for a student.
- */
-function buildFlagsSummary_(flags) {
-  if (!flags || flags.length === 0) return "";
-  
-  var parts = [];
-  for (var i = 0; i < flags.length; i++) {
-    var f = flags[i];
-    var courseName = (f.courses && f.courses.name) ? f.courses.name : "Unknown";
-    var part = courseName;
-    if (f.comment) part += " — " + f.comment;
-    parts.push(part);
-  }
-  return "⚠ " + parts.join("; ");
-}
-
-/**
- * Applies all formatting, conditional formatting, filters, and column settings
- * to the CRM Mirror sheet. Called automatically after each sync.
- */
-function applyMirrorFormatting_(sheet, numCols, numDataRows) {
-  try {
-    var colWidths = {
-       1: 60,    // A: System ID (hidden)
-       2: 60,    // B: Enrollment ID (hidden)
-       3: 60,    // C: Student ID (hidden)
-       4: 115,   // D: Status
-       5: 85,    // E: Priority
-       6: 200,   // F: Flags
-       7: 120,   // G: First Name
-       8: 120,   // H: Last Name
-       9: 210,   // I: Email
-      10: 130,   // J: Mobile
-      11: 180,   // K: Address
-      12: 80,    // L: Eircode
-      13: 95,    // M: DOB
-      14: 170,   // N: Course
-      15: 120,   // O: Variant
-      16: 100,   // P: Invited Date
-      17: 110,   // Q: Confirmed Date
-      18: 110,   // R: Completed Date
-      19: 100,   // S: Created At
-      20: 220    // T: Notes
-    };
-    for (var c in colWidths) {
-      sheet.setColumnWidth(parseInt(c), colWidths[c]);
-    }
-  } catch (cwErr) {
-    Logger.log("Column width error (non-critical): " + cwErr);
-  }
-  
-  if (numDataRows > 0) {
-    sheet.getRange("M2:M").setNumberFormat("dd/MM/yyyy"); // DOB
-    sheet.getRange("P2:P").setNumberFormat("dd/MM/yyyy"); // Invited Date
-    sheet.getRange("Q2:Q").setNumberFormat("dd/MM/yyyy"); // Confirmed Date
-    sheet.getRange("R2:R").setNumberFormat("dd/MM/yyyy"); // Completed Date
-    sheet.getRange("S2:S").setNumberFormat("dd/MM/yyyy"); // Created At
-  }
-  
-  if (numDataRows > 0) {
-    var centerCols = ['D', 'E', 'L', 'M', 'P', 'Q', 'R', 'S'];
-    for (var ci = 0; ci < centerCols.length; ci++) {
-      sheet.getRange(centerCols[ci] + "2:" + centerCols[ci]).setHorizontalAlignment("center");
-    }
-    
-    sheet.getRange("G2:G").setFontWeight("bold"); // First Name
-    sheet.getRange("H2:H").setFontWeight("bold"); // Last Name
-    
-    sheet.getRange("F2:F").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
-    sheet.getRange("K2:K").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
-    sheet.getRange("T2:T").setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
-  }
-  
-  try {
-    var bandings = sheet.getBandings();
-    for (var b = 0; b < bandings.length; b++) {
-      bandings[b].remove();
-    }
-    
-    if (numDataRows > 0) {
-      var bandRange = sheet.getRange(1, 1, numDataRows + 1, numCols);
-      bandRange.applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false);
-      var banding = sheet.getBandings()[0];
-      if (banding) {
-        banding.setFirstRowColor("#ffffff")
-               .setSecondRowColor("#f8f9fa")
-               .setHeaderRowColor("#1a237e")
-               .setFooterRowColor(null);
-      }
-    }
-  } catch (bandErr) {
-    Logger.log("Banding error (non-critical): " + bandErr);
-  }
-  
+  sheet.getRange(1, 1, rows.length + 1, numCols)
+    .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false)
+    .setHeaderRowColor('#1a237e').setFirstRowColor('#ffffff').setSecondRowColor('#f5f7fa');
   sheet.setFrozenRows(1);
-  
-  sheet.hideColumns(1); // System ID
-  sheet.hideColumns(2); // Enrollment ID 
-  sheet.hideColumns(3); // Student ID
-  
-  try {
-    if (sheet.getFilter() !== null) {
-      sheet.getFilter().remove();
-    }
-    sheet.getRange(1, 1, sheet.getMaxRows(), Math.max(sheet.getLastColumn(), numCols)).createFilter();
-  } catch (filterErr) {
-    Logger.log("Filter error (non-critical): " + filterErr);
-  }
-  
-  try {
-    sheet.clearConditionalFormatRules();
-    
-    var statusRange = sheet.getRange("D2:D");
-    var flagsRange = sheet.getRange("F2:F");
-    var priorityRange = sheet.getRange("E2:E");
-    
-    var rules = [];
-    
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('CONFIRMED').setBackground('#c8e6c9').setFontColor('#1b5e20').setBold(true)
-      .setRanges([statusRange]).build());
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('INVITED').setBackground('#fff9c4').setFontColor('#f57f17').setBold(true)
-      .setRanges([statusRange]).build());
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('COMPLETED').setBackground('#bbdefb').setFontColor('#0d47a1').setBold(true)
-      .setRanges([statusRange]).build());
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('WITHDRAWN').setBackground('#ffcdd2').setFontColor('#b71c1c').setBold(true)
-      .setRanges([statusRange]).build());
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('REQUESTED').setBackground('#e0e0e0').setFontColor('#424242').setBold(false)
-      .setRanges([statusRange]).build());
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextEqualTo('NO ENROLLMENTS').setBackground('#fafafa').setFontColor('#9e9e9e').setItalic(true)
-      .setRanges([statusRange]).build());
-    
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextStartsWith('⚠').setBackground('#fff3e0').setFontColor('#e65100').setBold(true)
-      .setRanges([flagsRange]).build());
-    
-    rules.push(SpreadsheetApp.newConditionalFormatRule()
-      .whenTextContains('⭐').setBackground('#fff8e1').setFontColor('#ff8f00').setBold(true)
-      .setRanges([priorityRange]).build());
-    
-    sheet.setConditionalFormatRules(rules);
-  } catch (fmtErr) {
-    Logger.log("Conditional formatting error (non-critical): " + fmtErr);
+  MIRROR_COLUMNS.forEach(function (col, i) { if (col.hidden) sheet.hideColumns(i + 1); });
+
+  var filter = sheet.getRange(1, 1, sheet.getMaxRows(), numCols).createFilter();
+  titles.forEach(function (title, i) {
+    if (savedCriteria[title]) filter.setColumnFilterCriteria(i + 1, savedCriteria[title]);
+  });
+
+  applyMirrorRules_(sheet, bodyRows);
+
+  sheet.getRange(1, 1).setNote(
+    'Last synced: ' + Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm') + '\n\n' +
+    'Read-only copy of the CRM, refreshed every hour. Make changes in the CRM app: ' +
+    'anything typed here is overwritten on the next sync.\n\n' +
+    'Tip: use Data → Filter views for your own filters that don\'t affect other people.');
+
+  if (!sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).length) {
+    sheet.protect().setWarningOnly(true)
+      .setDescription('CRM Mirror is overwritten every hour. Edit in the CRM app instead.');
   }
 }
+
+function applyMirrorRules_(sheet, bodyRows) {
+  var col = function (title) {
+    for (var i = 0; i < MIRROR_COLUMNS.length; i++) if (MIRROR_COLUMNS[i].title === title) return i + 1;
+  };
+  var body = function (title) { return sheet.getRange(2, col(title), bodyRows, 1); };
+  var statusLetter = sheet.getRange(1, col('Status')).getA1Notation().replace(/\d+/g, '');
+  var rules = [];
+
+  // Sheets applies the first matching rule per cell, so cell rules come before the row rule.
+  Object.keys(STATUS_STYLES_).forEach(function (label) {
+    rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(label)
+      .setBackground(STATUS_STYLES_[label][0]).setFontColor(STATUS_STYLES_[label][1]).setBold(true)
+      .setRanges([body('Status')]).build());
+  });
+  rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(NO_ENROLLMENT_LABEL_)
+    .setFontColor('#9e9e9e').setItalic(true).setRanges([body('Status')]).build());
+  rules.push(SpreadsheetApp.newConditionalFormatRule().whenCellNotEmpty()
+    .setBackground('#fff3e0').setFontColor('#e65100').setBold(true).setRanges([body('Flags')]).build());
+  rules.push(SpreadsheetApp.newConditionalFormatRule().whenCellNotEmpty()
+    .setBackground('#fff8e1').setRanges([body('Priority')]).build());
+
+  // Fade rows that are no longer active so the live pipeline stands out.
+  rules.push(SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=OR($' + statusLetter + '2="Withdrawn",$' + statusLetter + '2="Rejected",$' + statusLetter + '2="' + NO_ENROLLMENT_LABEL_ + '")')
+    .setFontColor('#9e9e9e')
+    .setRanges([sheet.getRange(2, 1, bodyRows, MIRROR_COLUMNS.length)]).build());
+
+  sheet.setConditionalFormatRules(rules);
+}
+
 
 // ==========================================
 // SETUP & TRIGGERS
 // ==========================================
-
-function setupMirrorSheetFormatting() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(MIRROR_SHEET_NAME);
-  if (!sheet) return ss.toast("Сначала запустите загрузку из Supabase хотя бы один раз.", "Ошибка");
-
-  applyMirrorFormatting_(sheet, 20, sheet.getLastRow() - 1);
-  ss.toast("Форматирование успешно применено!", "Setup");
-}
 
 function setupTriggers() {
   var triggers = ScriptApp.getProjectTriggers();
@@ -1348,30 +1074,23 @@ function setupTriggers() {
     ScriptApp.deleteTrigger(triggers[i]);
   }
   
-  // Скачиваем данные ИЗ Supabase В CRM Mirror каждый час
+  // Supabase → CRM Mirror every hour
   ScriptApp.newTrigger('syncFromSupabase').timeBased().everyHours(1).create();
-  
-  // Отправляем данные ИЗ Формы В Supabase при каждом новом ответе
+
+  // Form → Supabase on every new answer
   ScriptApp.newTrigger('onFormSubmit').forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet()).onFormSubmit().create();
-      
-  SpreadsheetApp.getActiveSpreadsheet().toast("Все фоновые триггеры успешно установлены.", "CRM Setup");
+
+  SpreadsheetApp.getActiveSpreadsheet().toast('Hourly mirror refresh and form-submit sync are on.', 'CRM Setup ✅');
 }
 
 /**
- * Logs a message to the Google Sheet (SystemLogs) and standard Logger.
+ * Logs a message to the execution log and the SystemLogs sheet (last ~1000 entries).
  */
 function log_(message, level) {
   level = level || 'INFO';
   var timestamp = new Date();
-  
-  var formattedMsg = '[' + level + '] ' + message;
-  if (level === 'ERROR') {
-    console.error(formattedMsg);
-    Logger.log(formattedMsg);
-  } else {
-    console.log(formattedMsg);
-    Logger.log(formattedMsg);
-  }
+  if (level === 'ERROR') console.error('[ERROR] ' + message);
+  else console.log('[' + level + '] ' + message);
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1384,9 +1103,10 @@ function log_(message, level) {
     }
     
     sheet.appendRow([timestamp, level, message]);
-    
+
+    // Trim in one go every ~100 entries instead of deleting a row on every call.
     var lastRow = sheet.getLastRow();
-    if (lastRow > 1000) {
+    if (lastRow > 1100) {
       sheet.deleteRows(2, lastRow - 1000);
     }
   } catch (e) {
@@ -1458,19 +1178,7 @@ function syncMissingPhoneNumbers() {
     var normalizedPhone = normalizePhone(rawPhone);
     if (!normalizedPhone) continue;
 
-    var email = '';
-    if (headerMap.email !== -1 && row[headerMap.email]) {
-      email = String(row[headerMap.email]).trim().toLowerCase();
-    }
-    if (!email && headerMap.emailIndices && headerMap.emailIndices.length > 0) {
-      for (var ei = 0; ei < headerMap.emailIndices.length; ei++) {
-        var altVal = row[headerMap.emailIndices[ei]];
-        if (altVal && String(altVal).trim()) {
-          email = String(altVal).trim().toLowerCase();
-          break;
-        }
-      }
-    }
+    var email = getRowEmail_(row, headerMap);
 
     var fName = headerMap.firstName !== -1 ? String(row[headerMap.firstName] || '').trim() : '';
     var lName = headerMap.lastName !== -1 ? String(row[headerMap.lastName] || '').trim() : '';

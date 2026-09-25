@@ -78,15 +78,11 @@ function onOpen() {
  */
 function onEmploymentFormSubmit(e) {
   try {
-    log_('=== onEmploymentFormSubmit TRIGGERED ===', 'INFO');
-    log_('Event object keys: ' + (e ? Object.keys(e).join(', ') : 'NULL'), 'INFO');
-
     var sheet, row;
 
     if (e && e.range) {
       sheet = e.range.getSheet();
       row = e.range.getRow();
-      log_('Event sheet: "' + sheet.getName() + '", row: ' + row, 'INFO');
 
       if (!isEmploymentFormSheet_(sheet.getName())) {
         log_('Sheet name "' + sheet.getName() + '" does not match expected form responses sheet. Skipping.', 'INFO');
@@ -107,10 +103,10 @@ function onEmploymentFormSubmit(e) {
         log_('No data rows found in sheet.', 'WARN');
         return;
       }
-      log_('Fallback: processing last row ' + row + ' of "' + sheet.getName() + '"', 'INFO');
     }
 
-    var result = processEmploymentRow_(sheet, row);
+    var values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var result = processEmploymentRow_(values, row);
 
     if (result === true) {
       log_('Row ' + row + ': ✅ successfully synced to Supabase', 'INFO');
@@ -168,8 +164,10 @@ function syncAllEmploymentResponses() {
   var errorCount = 0;
   var skippedCount = 0;
 
-  for (var row = 2; row <= lastRow; row++) {
-    var result = processEmploymentRow_(sheet, row);
+  // One sheet read for everything instead of one per row.
+  var allValues = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < allValues.length; i++) {
+    var result = processEmploymentRow_(allValues[i], i + 2);
     if (result === true) successCount++;
     else if (result === false) errorCount++;
     else skippedCount++;
@@ -187,14 +185,11 @@ function syncAllEmploymentResponses() {
 
 /**
  * Processes a single row from the Employment Form sheet.
- * @param {Sheet} sheet
- * @param {number} row - 1-indexed row number (data starts at 2).
+ * @param {Array} values - the row's cell values.
+ * @param {number} row - 1-indexed row number, for logs.
  * @returns {boolean|null} true=success, false=error, null=skipped.
  */
-function processEmploymentRow_(sheet, row) {
-  var numCols = sheet.getLastColumn();
-  var values = sheet.getRange(row, 1, 1, numCols).getValues()[0];
-
+function processEmploymentRow_(values, row) {
   // Column mapping (0-indexed):
   // 0 = Timestamp
   // 1 = Email
@@ -386,7 +381,8 @@ function _fetch(endpoint, method, payload, extraHeaders) {
       var content = response.getContentText();
 
       if (code >= 200 && code < 300) {
-        return content ? JSON.parse(content) : null;
+        // A success must never fall into the retry path below (it would re-submit the answer).
+        try { return content ? JSON.parse(content) : {}; } catch (parseErr) { return {}; }
       }
 
       // 4xx — client error, don't retry
@@ -450,15 +446,8 @@ function log_(message, level) {
   level = level || 'INFO';
   var timestamp = new Date();
   
-  // Also log to built-in Logger & console for standard debuggers
-  var formattedMsg = '[' + level + '] ' + message;
-  if (level === 'ERROR') {
-    console.error(formattedMsg);
-    Logger.log(formattedMsg);
-  } else {
-    console.log(formattedMsg);
-    Logger.log(formattedMsg);
-  }
+  if (level === 'ERROR') console.error('[ERROR] ' + message);
+  else console.log('[' + level + '] ' + message);
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -473,9 +462,9 @@ function log_(message, level) {
     // Append the log row
     sheet.appendRow([timestamp, level, message]);
     
-    // Keep logs to maximum of 1000 entries to prevent bloating the sheet
+    // Keep ~1000 entries; trim in one go every ~100 instead of on every call
     var lastRow = sheet.getLastRow();
-    if (lastRow > 1000) {
+    if (lastRow > 1100) {
       sheet.deleteRows(2, lastRow - 1000);
     }
   } catch (e) {
