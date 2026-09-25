@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Users, BookOpen, Languages, Globe, ArrowRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, BookOpen, Languages, Globe, ArrowRight, FileText } from 'lucide-react';
 import SearchInput from './ui/SearchInput';
 import Badge from './ui/Badge';
 import { Toolbar } from './ui/Card';
@@ -14,6 +14,7 @@ import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { fetchDocumentTemplates } from '../lib/documentUtils';
 
 interface EnrollmentCount {
     course_id: string;
@@ -166,27 +167,31 @@ export default function CourseList() {
         }
     }, [location.state, location.pathname, navigate]);
 
+    // Document templates switched on in settings — the ones a course can pick from
+    const { data: allTemplates = [] } = useQuery({ queryKey: ['doc_templates'], queryFn: fetchDocumentTemplates });
+    const activeTemplates = useMemo(() => allTemplates.filter(t => t.is_active), [allTemplates]);
+
     // Helper to update courses cache optimistically
     const setCourses = useCallback((updater: (prev: Course[]) => Course[]) => {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
     }, [queryClient]);
 
-    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null }) {
+    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[] }) {
         const maxCapacity = data.max_capacity ?? null;
         if (data.id) {
             const { error } = await supabase
                 .from('courses')
-                .update({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity })
+                .update({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids })
                 .eq('id', data.id);
             if (error) throw new Error(error.message);
-            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity } : c));
+            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity, template_ids: data.template_ids } : c));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase
                 .from('courses')
-                .insert({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity })
+                .insert({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids })
                 .select();
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
@@ -364,6 +369,20 @@ export default function CourseList() {
                                         <Users size={12} />
                                         <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
                                     </button>
+                                    {(() => {
+                                        const picked = activeTemplates.filter(t => course.template_ids?.includes(t.id));
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
+                                                title={picked.length ? `Documents: ${picked.map(t => t.name).join(', ')} (click to edit)` : 'Documents use all active templates (click to pick)'}
+                                                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition-colors active:scale-95"
+                                            >
+                                                <FileText size={12} />
+                                                <span>{picked.length ? `${picked.length} template${picked.length !== 1 ? 's' : ''}` : 'All templates'}</span>
+                                            </button>
+                                        );
+                                    })()}
                                     <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                         Open board <ArrowRight size={13} />
                                     </span>
@@ -378,6 +397,7 @@ export default function CourseList() {
                 <CourseModal
                     open={true}
                     course={editingCourse}
+                    templates={activeTemplates}
                     onSave={handleSave}
                     onClose={() => setModalOpen(false)}
                 />

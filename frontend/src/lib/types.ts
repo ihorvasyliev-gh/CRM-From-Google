@@ -21,6 +21,8 @@ export interface Course {
     requires_english?: boolean;
     /** Max confirmed participants per course date (null/undefined = unlimited) */
     max_capacity?: number | null;
+    /** Document templates used for this course; empty = all active templates */
+    template_ids?: string[] | null;
     created_at: string;
 }
 

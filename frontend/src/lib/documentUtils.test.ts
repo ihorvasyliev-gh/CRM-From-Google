@@ -7,7 +7,7 @@
  * generateDocumentsArchive is NOT tested here (requires heavy libs + Supabase storage).
  */
 import { describe, it, expect } from 'vitest';
-import { buildPlaceholderData } from './documentUtils';
+import { buildPlaceholderData, templatesForCourse } from './documentUtils';
 import type { EnrollmentWithRelations } from './documentUtils';
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
@@ -176,5 +176,29 @@ describe('buildPlaceholderData', () => {
         for (const key of requiredKeys) {
             expect(data).toHaveProperty(key);
         }
+    });
+});
+
+describe('templatesForCourse', () => {
+    const tpls = [
+        { id: 'a', is_active: true },
+        { id: 'b', is_active: true },
+        { id: 'c', is_active: true },
+        { id: 'off', is_active: false },
+    ];
+    const ids = (picked?: string[] | null) => templatesForCourse(tpls, picked).map(t => t.id);
+
+    it('uses only the templates picked for the course', () => {
+        expect(ids(['a', 'c'])).toEqual(['a', 'c']);
+    });
+
+    it('falls back to all active templates when nothing usable is picked', () => {
+        expect(ids([])).toEqual(['a', 'b', 'c']);
+        expect(ids(null)).toEqual(['a', 'b', 'c']);
+        expect(ids(['off'])).toEqual(['a', 'b', 'c']);
+    });
+
+    it('skips picked templates that were switched off', () => {
+        expect(ids(['a', 'off'])).toEqual(['a']);
     });
 });

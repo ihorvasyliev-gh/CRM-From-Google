@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { FileText, Download, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, Plus, Pencil, Check, CheckCircle2, Variable, Tag, Table2, BookOpen, Users, Braces, Copy, ClipboardList, ArrowRight } from 'lucide-react';
-import { generateDocumentsArchive, type TemplateDescriptor } from '../lib/documentUtils';
+import { generateDocumentsArchive, fetchDocumentTemplates, templatesForCourse, type TemplateDescriptor } from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
 import { DocumentTemplate, Course, TemplateVariable, cleanVariant } from '../lib/types';
@@ -74,6 +74,7 @@ export default function DocumentGenerator() {
     // ─── Cached data via React Query ────────────────────────
     const { data: courses = [], isLoading: coursesLoading } = useQuery({
         queryKey: ['doc_courses'],
+        staleTime: 0, // pick up template presets just edited on the Courses tab
         queryFn: async () => {
             const { data } = await supabase.from('courses').select('*').order('name');
             return (data || []) as Course[];
@@ -88,10 +89,7 @@ export default function DocumentGenerator() {
 
     const { data: templates = [], isLoading: templatesLoading } = useQuery({
         queryKey: ['doc_templates'],
-        queryFn: async () => {
-            const { data } = await supabase.from('document_templates').select('*').order('created_at', { ascending: true });
-            return (data || []) as DocumentTemplate[];
-        },
+        queryFn: fetchDocumentTemplates,
     });
 
     const { data: attTemplate = null } = useQuery({
@@ -195,6 +193,7 @@ export default function DocumentGenerator() {
     }, [enrollments, selectedCourseId]);
 
     const selectedCourse = courses.find(c => c.id === selectedCourseId);
+    const courseTemplates = useMemo(() => templatesForCourse(templates, selectedCourse?.template_ids), [templates, selectedCourse]);
 
     // ─── Template Upload (add new) ──────────────────────────
     async function handleUploadTemplate(file: File) {
@@ -450,7 +449,7 @@ export default function DocumentGenerator() {
 
     // ─── Generate Documents ─────────────────────────────────
     async function handleGenerate() {
-        if (activeTemplates.length === 0 || confirmedForCourse.length === 0) return;
+        if (courseTemplates.length === 0 || confirmedForCourse.length === 0) return;
 
         setGenerating(true);
         try {
@@ -462,7 +461,7 @@ export default function DocumentGenerator() {
             const courseStr = variant ? `${courseName} (${variant})` : courseName;
             const zipName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
 
-            const tplDescriptors: TemplateDescriptor[] = activeTemplates.map(t => ({
+            const tplDescriptors: TemplateDescriptor[] = courseTemplates.map(t => ({
                 name: t.name,
                 storagePath: t.storage_path,
             }));
@@ -530,9 +529,12 @@ export default function DocumentGenerator() {
         setNewColPlaceholder('');
     };
 
-    const canGenerate = activeTemplates.length > 0 && confirmedForCourse.length > 0;
+    const canGenerate = courseTemplates.length > 0 && confirmedForCourse.length > 0;
     const archiveContents = [
-        { label: `${activeTemplates.length} Word template${activeTemplates.length !== 1 ? 's' : ''} per student`, ok: activeTemplates.length > 0 },
+        {
+            label: `${courseTemplates.length} Word template${courseTemplates.length !== 1 ? 's' : ''} per student${courseTemplates.length ? `: ${courseTemplates.map(t => t.name).join(', ')}` : ''}`,
+            ok: courseTemplates.length > 0,
+        },
         { label: 'Attendance sheet', ok: !!attTemplate },
         { label: 'Address labels', ok: !!labelTemplate },
         { label: `Participants.xlsx (${excelColumns.length} column${excelColumns.length !== 1 ? 's' : ''})`, ok: excelColumns.length > 0 },
@@ -772,11 +774,11 @@ export default function DocumentGenerator() {
                                     loading={generating}
                                 >
                                     {generating ? (
-                                        <>Generating {confirmedForCourse.length} document(s) × {activeTemplates.length} template(s)...</>
+                                        <>Generating {confirmedForCourse.length} document(s) × {courseTemplates.length} template(s)...</>
                                     ) : (
                                         <>
                                             <FileArchive size={17} />
-                                            Generate & Download ZIP ({confirmedForCourse.length} student{confirmedForCourse.length !== 1 ? 's' : ''} × {activeTemplates.length} template{activeTemplates.length !== 1 ? 's' : ''})
+                                            Generate & Download ZIP ({confirmedForCourse.length} student{confirmedForCourse.length !== 1 ? 's' : ''} × {courseTemplates.length} template{courseTemplates.length !== 1 ? 's' : ''})
                                         </>
                                     )}
                                 </Button>

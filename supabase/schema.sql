@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS students (
 CREATE TABLE IF NOT EXISTS courses (
     id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name       TEXT UNIQUE NOT NULL,
+    template_ids UUID[] NOT NULL DEFAULT '{}', -- document template preset; empty = all active (migration 67)
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

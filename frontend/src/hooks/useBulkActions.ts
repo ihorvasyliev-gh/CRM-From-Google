@@ -2,8 +2,8 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { generateDocumentsArchive } from '../lib/documentUtils';
-import { cleanVariant } from '../lib/types';
+import { generateDocumentsArchive, templatesForCourse } from '../lib/documentUtils';
+import { cleanVariant, type DocumentTemplate } from '../lib/types';
 import { todayISO, formatDateSpaces } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -336,11 +336,14 @@ export function useBulkActions({
         if (selectedIds.size === 0) return;
         setGeneratingDocs(true);
         try {
-            const [docRes, attRes, varsRes, lblRes] = await Promise.all([
+            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
+            const firstSelected = selectedEnrollments[0];
+            const [docRes, attRes, varsRes, lblRes, courseRes] = await Promise.all([
                 supabase.from('document_templates').select('*').eq('is_active', true).order('created_at', { ascending: true }),
                 supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
                 supabase.from('template_variables').select('var_key, var_value'),
-                supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1)
+                supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1),
+                supabase.from('courses').select('template_ids').eq('id', firstSelected?.course_id ?? '').maybeSingle(),
             ]);
 
             const customVars: Record<string, string> = {};
@@ -351,21 +354,20 @@ export function useBulkActions({
             }
 
             const error = docRes.error;
-            const data = docRes.data;
+            // Course preset (same course the archive is named after)
+            const data = templatesForCourse((docRes.data || []) as DocumentTemplate[], courseRes.data?.template_ids);
 
-            if (error || !data || data.length === 0) {
+            if (error || data.length === 0) {
                 throw new Error('No active template found. Please upload and activate at least one template.');
             }
 
-            const templateDescriptors = data.map((t: { name: string; storage_path: string }) => ({
+            const templateDescriptors = data.map(t => ({
                 name: t.name,
                 storagePath: t.storage_path,
             }));
             const attTemplate = attRes.data && attRes.data.length > 0 ? attRes.data[0] : null;
             const lblTemplate = lblRes.data && lblRes.data.length > 0 ? lblRes.data[0] : null;
 
-            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
-            const firstSelected = selectedEnrollments[0];
             const courseStr = firstSelected ? getCoursePill(firstSelected) : 'Selected_Enrollments';
             const rawDate = firstSelected?.confirmed_date || firstSelected?.invited_date || firstSelected?.completed_date;
             const dateStr = formatDateSpaces(rawDate) || formatDateSpaces(todayISO());

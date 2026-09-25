@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Users, Globe, Languages } from 'lucide-react';
-import { Course } from '../lib/types';
+import { Course, DocumentTemplate } from '../lib/types';
 import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { fieldCls, labelCls } from './ui/styles';
@@ -8,14 +8,18 @@ import { fieldCls, labelCls } from './ui/styles';
 interface Props {
     open: boolean;
     course: Course | null;
-    onSave: (data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null }) => Promise<void>;
+    /** Active document templates the course can pick from */
+    templates: DocumentTemplate[];
+    onSave: (data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[] }) => Promise<void>;
     onClose: () => void;
 }
 
-export default function CourseModal({ open, course, onSave, onClose }: Props) {
+export default function CourseModal({ open, course, templates, onSave, onClose }: Props) {
     const [name, setName] = useState('');
     const [requiresEnglish, setRequiresEnglish] = useState(false);
     const [maxCapacity, setMaxCapacity] = useState('');
+    // Includes ids of switched-off templates too, so they come back if re-enabled
+    const [templateIds, setTemplateIds] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -24,6 +28,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
             setName(course?.name || '');
             setRequiresEnglish(Boolean(course?.requires_english));
             setMaxCapacity(course?.max_capacity ? String(course.max_capacity) : '');
+            setTemplateIds(course?.template_ids || []);
             setError('');
         }
     }, [open, course]);
@@ -32,7 +37,8 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         if (saving) return;
         const dirty = name.trim() !== (course?.name || '').trim()
             || requiresEnglish !== Boolean(course?.requires_english)
-            || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '');
+            || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '')
+            || templateIds.join() !== (course?.template_ids || []).join();
         if (dirty && !window.confirm('Discard unsaved changes?')) return;
         onClose();
     };
@@ -53,7 +59,7 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
         setSaving(true);
         setError('');
         try {
-            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish, max_capacity: capacity });
+            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish, max_capacity: capacity, template_ids: templateIds });
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -155,6 +161,30 @@ export default function CourseModal({ open, course, onSave, onClose }: Props) {
                         {templateOption(false, Globe, 'Standard Course', 'Standard invitation letter with [Confirm My Place] button.')}
                         {templateOption(true, Languages, 'High English Required', 'Includes English warning notes & [I Am Confident in English — Confirm My Place] button.')}
                     </div>
+                </div>
+
+                <div>
+                    <span className={labelCls}>Document templates</span>
+                    {templates.length === 0 ? (
+                        <p className="text-[11px] text-muted">No active templates — upload and switch them on in Documents.</p>
+                    ) : (
+                        <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle max-h-56 overflow-y-auto">
+                            {templates.map(t => (
+                                <label key={t.id} className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-primary cursor-pointer hover:bg-surface-elevated/50">
+                                    <input
+                                        type="checkbox"
+                                        className="accent-brand-500"
+                                        checked={templateIds.includes(t.id)}
+                                        onChange={() => setTemplateIds(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
+                                    />
+                                    <span className="truncate" title={t.name}>{t.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                    <p className="text-[11px] text-muted mt-1.5">
+                        Used when generating documents for this course. Pick none to use all active templates.
+                    </p>
                 </div>
             </form>
         </Modal>

@@ -1,7 +1,7 @@
 // Document generation libraries are imported dynamically in generateDocumentsArchive
 // to reduce the main bundle size and improve initial load time.
 import { supabase } from './supabase';
-import { Student, Course, Enrollment, cleanVariant } from './types';
+import { Student, Course, Enrollment, DocumentTemplate, cleanVariant } from './types';
 import { formatDateDMY, formatDateLong } from './dateUtils';
 import type { ExcelColumn } from './appConfig';
 import { downloadBlob } from './download';
@@ -16,6 +16,18 @@ export interface EnrollmentWithRelations extends Enrollment {
 export interface TemplateDescriptor {
     name: string;
     storagePath: string;
+}
+
+export async function fetchDocumentTemplates(): Promise<DocumentTemplate[]> {
+    const { data } = await supabase.from('document_templates').select('*').order('created_at', { ascending: true });
+    return (data || []) as DocumentTemplate[];
+}
+
+/** Course preset: the active templates picked for the course, or every active template if none are picked. */
+export function templatesForCourse<T extends { id: string; is_active: boolean }>(templates: T[], templateIds?: string[] | null): T[] {
+    const active = templates.filter(t => t.is_active);
+    const picked = active.filter(t => templateIds?.includes(t.id));
+    return picked.length ? picked : active;
 }
 
 export function buildPlaceholderData(enrollment: EnrollmentWithRelations): Record<string, string> {
