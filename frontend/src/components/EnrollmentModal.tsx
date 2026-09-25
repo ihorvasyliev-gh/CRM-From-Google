@@ -460,7 +460,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         </button>
                         <button
                             type="submit"
-                            disabled={saving}
+                            disabled={saving || !!existingEnrollment}
                             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving && <Loader2 size={16} className="animate-spin" />}

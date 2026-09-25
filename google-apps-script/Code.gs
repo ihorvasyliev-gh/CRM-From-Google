@@ -515,6 +515,24 @@ function syncRowsRange(sheet, startRow, endRow) {
   }
 
   // Build Enrollments
+  // 1. Fetch existing enrollments for matched students to prevent creating duplicate enrollments
+  // when a student is already enrolled (requested, invited, confirmed, completed) in a course.
+  var batchStudentIds = [];
+  for (var k in keyToIdMap) {
+    if (keyToIdMap[k] && batchStudentIds.indexOf(keyToIdMap[k]) === -1) {
+      batchStudentIds.push(keyToIdMap[k]);
+    }
+  }
+
+  var existingEnrollmentsByStudentAndCourse = {};
+  if (batchStudentIds.length > 0) {
+    var enrData = _fetch('enrollments?select=id,student_id,course_id,status,course_variant&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
+    for (var eIdx = 0; eIdx < enrData.length; eIdx++) {
+      var enr = enrData[eIdx];
+      existingEnrollmentsByStudentAndCourse[enr.student_id + "_" + enr.course_id] = enr;
+    }
+  }
+
   var enrollmentsToUpsert = [];
   var enrollmentKeys = {};
   
@@ -539,6 +557,13 @@ function syncRowsRange(sheet, startRow, endRow) {
         }
         var cId = getCourseId(courseName); 
         if (cId) {
+          // If student already has an active enrollment in this course, do not create a duplicate!
+          var existingEnr = existingEnrollmentsByStudentAndCourse[sId + "_" + cId];
+          if (existingEnr && existingEnr.status !== 'withdrawn' && existingEnr.status !== 'rejected') {
+            Logger.log('Student ' + sId + ' already has enrollment in course ' + cId + ' with status "' + existingEnr.status + '". Skipping duplicate enrollment creation.');
+            continue;
+          }
+
           var variants = strVal.split(',').map(function(s) { return s.trim(); });
           for (var v = 0; v < variants.length; v++) {
             var varText = variants[v];
@@ -547,12 +572,13 @@ function syncRowsRange(sheet, startRow, endRow) {
             if (varText.indexOf('@') !== -1 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varText)) {
               continue;
             }
-            var uniqueKey = sId + "_" + cId + "_" + varText; 
+            var cleanedVariant = cleanVariant_(courseName, varText);
+            var uniqueKey = sId + "_" + cId + "_" + cleanedVariant; 
             if (!enrollmentKeys[uniqueKey]) {
               enrollmentsToUpsert.push({
                 student_id: sId,
                 course_id: cId,
-                course_variant: varText,
+                course_variant: cleanedVariant,
                 status: 'requested',
                 created_at: rowTimestampIso
               });
@@ -657,6 +683,32 @@ function normalizeCourseName_(raw) {
     .replace(/[\s\u00A0\u200B\u200C\u200D\uFEFF\r\n\t]+/g, ' ')
     .replace(/ {2,}/g, ' ')
     .trim();
+}
+
+/**
+ * Normalizes course variant to match CRM frontend cleanVariant logic.
+ * E.g. "SNA (English)" -> "English", "" / null -> "English", "ECDL Ukrainian" -> "Ukrainian"
+ */
+function cleanVariant_(courseName, variant) {
+  if (!variant || !String(variant).trim()) return 'English';
+  var v = String(variant).trim();
+  // Extract text inside parentheses
+  var match = v.match(/\((.*?)\)/);
+  if (match && match[1].trim()) {
+    v = match[1].trim();
+  } else {
+    // Remove course name from beginning
+    var lowerV = v.toLowerCase();
+    var lowerName = (courseName || '').toLowerCase();
+    if (lowerName && lowerV.indexOf(lowerName) === 0) {
+      var stripped = v.substring(courseName.length).trim();
+      stripped = stripped.replace(/^[-()_:]+|[-()_:]+$/g, '').trim();
+      if (stripped) {
+        v = stripped;
+      }
+    }
+  }
+  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
 }
 
 function warmUpCourseCache() {
