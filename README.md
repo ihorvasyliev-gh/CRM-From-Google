@@ -1,322 +1,307 @@
-# 🎓 CCP CRM System
-
 <div align="center">
 
-[![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.2-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-7.3-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vitest](https://img.shields.io/badge/Tests-200%20Passed-729B1B?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
-[![Cloudflare Pages](https://img.shields.io/badge/Deploy-Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflare-pages&logoColor=white)](https://pages.cloudflare.com/)
-[![License](https://img.shields.io/badge/License-Private-lightgrey?style=flat-square)](#-license)
+<img src="frontend/public/logos-banner.png" alt="Cork City Partnership · SICAP" width="720" />
 
-**A high-performance, real-time CCP CRM and student management platform.**  
-Seamlessly synchronizes Google Forms and Google Sheets with Supabase PostgreSQL, featuring interactive drag-and-drop enrollment pipelines, automated Outlook-ready invitation delivery, instant public student portals, client-side document generation, and graduate outcome tracking.
+<h1>🎓 CCP CRM</h1>
 
-[Features](#-key-features) • [Architecture](#-system-architecture) • [Tech Stack](#-tech-stack) • [Quick Start](#-quick-start--local-development) • [Deployment](#-deployment) • [Troubleshooting](#-troubleshooting)
+<p><strong>Student enrollment, course and graduate-outcome management for Cork City Partnership.</strong><br/>
+Google Forms in, a real-time Kanban board in the middle, invitations, certificates and outcome surveys out.</p>
+
+<p>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18"/></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/></a>
+  <a href="https://vitejs.dev/"><img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 7"/></a>
+  <a href="https://tailwindcss.com/"><img src="https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS"/></a>
+  <br/>
+  <a href="https://supabase.com/"><img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase"/></a>
+  <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Google_Apps_Script-Sync-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Apps Script"/></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-417_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="417 tests passing"/></a>
+  <a href="https://pages.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Pages-F38020?style=for-the-badge&logo=cloudflarepages&logoColor=white" alt="Cloudflare Pages"/></a>
+</p>
+
+<p>
+  <a href="#-features">Features</a> ·
+  <a href="#-how-it-works">How it works</a> ·
+  <a href="#-roles">Roles</a> ·
+  <a href="#-tech-stack">Tech stack</a> ·
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-deployment">Deployment</a> ·
+  <a href="#-troubleshooting">Troubleshooting</a>
+</p>
 
 </div>
 
 ---
 
-## 🌟 Overview
+## ✨ Features
 
-The **CCP CRM System** was built to streamline course administration, reduce administrative overhead, and automate the student lifecycle from initial registration to post-graduation employment tracking. 
+<table>
+<tr>
+<td width="50%" valign="top">
 
-Built on a **serverless, client-first architecture**, it pairs a responsive React SPA with Supabase PostgreSQL (secured with Row Level Security and PostgreSQL RPC stored procedures) and a resilient two-way sync engine written in Google Apps Script (GAS) to seamlessly bridge Google Forms and Google Sheets.
+### 📋 Enrollment board
+- Drag-and-drop Kanban from **Requested → Invited → Confirmed → Completed**, with **Withdrawn / Rejected** kept to one side
+- Live updates for every coordinator through Supabase Realtime
+- Bulk invite, move, copy emails, generate documents and delete
+- A one-click **Undo** for destructive moves
+- Priority stars, notes, per-course queue positions and student flags
+- Duplicate enrollments blocked in the database, the UI and the sync script
+
+</td>
+<td width="50%" valign="top">
+
+### ✉️ Invitations & public pages
+- Outlook-ready HTML invitations and reminders, with a template for each course
+- Short token links (`/c/:token`) for one-tap confirmation
+- **Multi-date invites**: the student picks the session that suits them
+- **Course capacity**: a live "places left" counter, and the form closes when the course is full
+- Google Calendar and `.ics` downloads once confirmed
+- The dashboard reminds you when a session is 7 days away
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 👥 Students & data quality
+- Instant search by name, email, phone, Eircode or notes
+- Duplicate detection (email, phone, fuzzy names with swaps) and a **merge tool**
+- A "not a duplicate" memory so resolved pairs stay resolved
+- Phone numbers normalised to international format (`+353…`, `+44…`, `+380…`)
+- A shared email opt-out list, respected by every bulk email action
+
+</td>
+<td valign="top">
+
+### 📄 Documents, in the browser
+- `.docx` certificates, attendance sheets and address labels via `docxtemplater`
+- Per-course template presets and custom variables
+- Styled `.xlsx` exports via `exceljs`
+- Student data never leaves the browser to render documents
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎓 Graduate outcomes
+- Survey graduates, then track who responded and who is working, in what field, and full- or part-time
+- A public self-report page (`/status`)
+- **External lists** (e.g. Action 11 from IRIS): import contacts from Excel, survey them and export the results
+
+</td>
+<td valign="top">
+
+### 📊 Analytics
+- Pipeline & velocity · Geography & demographics
+- Courses & cohorts · Graduate outcomes
+- Data explorer with drill-down · Multi-course completers
+- One-click email copy and CSV / Excel export on every view
+
+</td>
+</tr>
+</table>
+
+> **Also:** `Ctrl + K` command palette · full keyboard shortcuts (`?`) · light and dark themes · compact density · mobile bottom nav · offline / sync indicator · web push for new confirmations.
 
 ---
 
-## ✨ Key Features
-
-### 📋 Interactive Kanban Enrollment Pipeline
-* **Fluid Drag-and-Drop:** Move candidate cards across lifecycle stages (`Requested` ➔ `Invited` ➔ `Confirmed` ➔ `Completed` ➔ `Withdrawn` / `Rejected`) powered by `@dnd-kit`.
-* **Real-Time State Updates:** Supabase PostgreSQL Realtime channels automatically update the board across all active coordinator dashboards without page refreshes.
-* **Bulk Operation Workflows:** Batch-invite students, update enrollment stages in bulk, or perform confirmed deletions.
-* **Priority Pinning & Contextual Notes:** Star high-priority students to pin them to the top of columns, and attach administrative notes (`📝`) directly to enrollment cards.
-* **Smart Invite Date Memory:** Remembers recently selected invitation dates per course for rapid one-click scheduling.
-
-### ✉️ Outlook-Ready Invitations & Student Portal
-* **One-Click Email Invitations:** Generate rich HTML emails compatible with Microsoft Outlook desktop and web clients using dynamic template placeholders (`{first_name}`, `{course_name}`, `{invited_date}`, `{confirmationLink}`).
-* **Instant Tokenized Confirmations (`/c/:token`):** Students receive short, secure 7-character token links to view course details and confirm their attendance in a single click.
-* **Calendar Integration:** Confirmed students can download an `.ics` calendar invitation file with course dates, location, and coordinator notes.
-* **Dynamic Expiration Windows:** Configurable invitation deadlines (`response_days`, defaults to 7 days). Expired invitations prompt an informative expiration alert.
-* **Secure Mailto Decline Flow:** Safe cancellation and decline workflows directing inquiries directly to program coordinators.
-
-### 👥 Student Directory & Smart Deduplication
-* **Global Search & Filter:** Instant search by name, email, phone, Eircode/postcode, address, or language preferences.
-* **Interactive Student Merge Tool (`MergeModal`):** Automatically detects duplicate records by email, phone, or normalized name, enabling coordinators to compare profiles and merge enrollments and notes into a primary profile without data loss.
-* **Student History & Flags:** Full audit log of completed courses, invitations, attendance rates, and behavioral/administrative flags.
-
-### 📄 Zero-Server Document & Label Generator
-* **Client-Side `.docx` Template Compilation:** Generate course certificates and attendance sheets directly in the browser via `docxtemplater` and `pizzip` without transmitting sensitive student data to third-party APIs.
-* **Attendance Sheets:** Auto-populates attendance sheets formatted for up to 34 students per page.
-* **Mailing Sticker Labels:** Formatted layouts for Avery-compatible address label stickers for physical mailouts.
-* **Formatted Excel Export (`.xlsx`):** Produces styled spreadsheets with auto-fitted columns and headers via `exceljs`.
-* **ZIP Archive Packaging:** Downloads batched documents in an organized `.zip` file archive via `jszip` and `file-saver`.
-
-### 🎓 Graduate Outcomes Tracking
-* **Post-Graduation Surveys:** Coordinators transition completed students to `Pending Outcomes` to track employment progression.
-* **Public Self-Reporting Portal (`/status`):** Students verify via email and submit employment details (employment status, sector, contract type, and start dates).
-* **Automated Sync:** Submissions process through secure PostgreSQL RPC functions (`submit_employment_status`) and reflect immediately in CRM reports.
-
-### 🔄 Two-Way Google Sheets & Forms Sync Engine
-* **Form Submission Hook (`onFormSubmit`):** Google Form applications instantly validate, standardize phone numbers into E.164 international format (e.g., `+353...`), and upsert student and enrollment records into Supabase.
-* **Formatted `CRM Mirror` Sheet:** Creates and refreshes a formatted Google Sheet mirror with custom headers, status-based row coloring, priority stars, and hidden UUID columns for administrative reporting.
-* **Execution Limit Resilience:** Solves Google Apps Script's 6-minute hard timeout by evaluating execution timers at 4.5 minutes, persisting the cursor in `ScriptProperties`, and scheduling a chained one-shot trigger to resume large batch operations.
-
-### 🛡️ Role-Based Access & Tutor View
-* **Coordinator Admin View:** Full management over courses, templates, settings, and enrollments.
-* **Tutor Portal (`ViewerCourses`):** Dedicated read-only view for course tutors to inspect rosters, verify candidate details, and request completion sign-offs (`PendingApprovalsModal`).
-
-### ⌨️ Command Palette & Mobile-First Design
-* **Global Command Palette:** Hit `Ctrl+K` or `Cmd+K` anywhere in the app to quickly jump between courses, search students, switch views, or toggle theme modes.
-* **Full Keyboard Navigation:** Complete shortcut mapping accessible via `?` modal.
-* **Responsive Mobile UI:** Dedicated bottom navigation bar (`MobileBottomNav`) and quick-action floating buttons (`MobileFloatingActions`) optimized for touchscreens.
-
----
-
-## 🏗️ System Architecture
+## 🧭 How it works
 
 ```mermaid
-graph TD
-    %% Public & Client Layer
-    subgraph Client ["Client Layer (React 18 + Vite 7 SPA)"]
-        Admin[Coordinator Admin App]
-        Tutor[Tutor Roster View]
-        PublicPortal["Public Student Portal (/c/:token, /status)"]
-        CmdPalette[Ctrl+K Command Palette]
-        DocEngine["Client-Side Docx / Excel / ZIP Engines"]
+flowchart LR
+    subgraph Google["Google Workspace"]
+        Form["📝 Registration<br/>Google Form"] --> Sheet["Form responses"]
+        Sheet -->|onFormSubmit| GAS["⚙️ Code.gs"]
+        GAS --> Mirror["📊 CRM Mirror sheet"]
+        Survey["📝 Employment form"] --> GAS2["⚙️ EmploymentFormSync.gs"]
     end
 
-    %% Edge Hosting
-    subgraph Hosting ["Hosting & Delivery"]
-        CF[Cloudflare Pages CDN]
+    subgraph Supabase["Supabase"]
+        DB[("PostgreSQL<br/>+ RLS")]
+        RPC["SECURITY DEFINER<br/>RPCs"]
+        RT["Realtime"]
+        ST[("Storage<br/>templates")]
     end
 
-    %% Database & BaaS Layer
-    subgraph Supabase ["Supabase Cloud (PostgreSQL 15)"]
-        DB[("PostgreSQL Database")]
-        Storage[("Supabase Storage (/templates)")]
-        Realtime["Supabase Realtime WebSocket"]
-        Auth["Supabase Auth Engine"]
-        RPC["SECURITY DEFINER Stored Procedures"]
+    subgraph Web["React SPA · Cloudflare Pages"]
+        Admin["🧑‍💼 Admin"]
+        Viewer["👀 Viewer"]
+        Outreach["📋 External Lists"]
+        Public["🌐 /c/:token · /status"]
     end
 
-    %% Google Workspace Integration
-    subgraph GoogleWorkspace ["Google Workspace Integration"]
-        GForm["Google Forms Registration"]
-        GAS_Sync["Google Apps Script (Code.gs)"]
-        GAS_Outcomes["Google Apps Script (EmploymentFormSync.gs)"]
-        Sheet_Resp["Form Responses Sheet"]
-        Sheet_Mirror["CRM Mirror Sheet"]
-    end
+    GAS <-->|REST upsert / mirror| DB
+    GAS2 -->|submit_employment_status| RPC
+    Admin & Viewer & Outreach <-->|PostgREST| DB
+    Admin & Viewer <-.->|live updates| RT
+    Admin <--> ST
+    Public -->|anonymous| RPC --> DB
+```
 
-    %% Interactions
-    CF --> Client
-    Admin --> |REST / PostgREST| DB
-    Tutor --> |REST / PostgREST| DB
-    Admin --> |Session Auth| Auth
-    Tutor --> |Session Auth| Auth
-    Admin <--> |Realtime Subscriptions| Realtime
-    Tutor <--> |Realtime Subscriptions| Realtime
-    DocEngine <--> |Download Docx Templates| Storage
-    PublicPortal --> |Anonymous RPC Invocations| RPC
-    RPC --> |Internal DB Mutations| DB
+### Enrollment lifecycle
 
-    GForm --> Sheet_Resp
-    Sheet_Resp --> |onFormSubmit Trigger| GAS_Sync
-    GAS_Sync --> |Batch Upsert REST| DB
-    DB --> |Fetch All Records| GAS_Sync
-    GAS_Sync --> |Format & Style| Sheet_Mirror
-    GAS_Outcomes --> |POST submit_employment_status| RPC
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Requested: Google Form
+    Requested --> Invited: invitation email
+    Invited --> Confirmed: student taps link
+    Confirmed --> Completed: course done
+    Completed --> [*]: outcome survey
+    Requested --> Withdrawn
+    Invited --> Withdrawn
+    Confirmed --> Withdrawn
+    Requested --> Rejected
 ```
 
 ---
 
-## 💻 Tech Stack
+## 🔐 Roles
 
-| Domain | Technology / Library | Description |
-| :--- | :--- | :--- |
-| **Frontend Core** | [React 18.2](https://react.dev/) + [TypeScript 5.2](https://www.typescriptlang.org/) | Strict-type component architecture |
-| **Build & Bundler** | [Vite 7.3](https://vitejs.dev/) | Ultra-fast HMR and optimized chunk splitting |
-| **Styling & UI** | [Tailwind CSS 3.4](https://tailwindcss.com/) + [Lucide Icons](https://lucide.dev/) | Utility-first responsive design with CSS variable theming |
-| **Routing** | [React Router v7](https://reactrouter.com/) | Public routes, authenticated layouts, tutor views |
-| **Server State & Cache** | [@tanstack/react-query v5](https://tanstack.com/query/latest) | Memory-optimized query caching with event-driven invalidation |
-| **Drag & Drop** | [@dnd-kit/core](https://dnd-kit.com/) + `@dnd-kit/sortable` | Accessible, touch-friendly Kanban column movements |
-| **Document Generation** | `docxtemplater`, `pizzip`, `exceljs`, `jszip` | In-browser client-side `.docx`, `.xlsx`, and `.zip` building |
-| **Rich Text Editor** | `react-quill-new` | Template authoring with variable validation |
-| **Charts & Metrics** | `recharts` | Visual enrollment funnels and outcome distributions |
-| **Backend & Storage** | [Supabase](https://supabase.com/) | PostgreSQL 15, Row Level Security, Realtime, Object Storage |
-| **Automation** | Google Apps Script (GAS) | Form listeners, phone normalization, mirror sync |
-| **Testing** | [Vitest 4.1](https://vitest.dev/) + React Testing Library | 200 unit and integration tests with `jsdom` |
+Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **viewers**, and admins promote them in **Settings → Users & Roles**.
+
+| Role | Sees | Can |
+| :-- | :-- | :-- |
+| 🧑‍💼 **Admin** | Everything | Manage students, courses, enrollments, templates, analytics, settings and user roles |
+| 👀 **Viewer** | Home · Students · Courses · External Lists | Read-only rosters, and request course completion for admin approval |
+| 📋 **External Lists** | External Lists only | Import, survey and export outreach contacts |
+
+Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They go through hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else.
 
 ---
 
-## 📂 Repository Structure
+## 🛠 Tech stack
+
+| Layer | Choice |
+| :-- | :-- |
+| UI | React 18, TypeScript, Tailwind CSS, Lucide icons, Radix Tooltip |
+| Routing & data | React Router 7, TanStack Query 5 (cache + prefetch on hover) |
+| Board | `@dnd-kit/core` |
+| Documents | `docxtemplater`, `pizzip`, `exceljs` |
+| Editor & charts | `react-quill-new`, `recharts` |
+| Backend | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, Edge Function for web push |
+| Automation | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
+| Quality | Vitest + Testing Library (417 tests), ESLint with zero warnings allowed, `tsc` strict |
+| Hosting | Cloudflare Pages with strict security headers and a CSP (`frontend/public/_headers`) |
+
+---
+
+## 📁 Project structure
 
 ```text
 CRM-From-Google/
-├── frontend/                     # React + Vite TypeScript SPA
-│   ├── src/
-│   │   ├── components/           # UI components (Kanban board, modals, lists, navigation)
-│   │   │   ├── Analytics/        # Conversion & outcome charts
-│   │   │   ├── EnrollmentBoard/  # Kanban columns, cards, bulk actions
-│   │   │   ├── ui/               # Reusable primitives (Buttons, Dialogs, Badges)
-│   │   │   ├── CommandPalette.tsx# Global Ctrl+K command palette
-│   │   │   ├── ConfirmationPage.tsx # Public student confirmation portal
-│   │   │   ├── DocumentGenerator.tsx# Client-side docx/xlsx generator
-│   │   │   ├── MergeModal.tsx    # Student duplicate merger
-│   │   │   ├── ViewerCourses.tsx # Tutor-specific roster view
-│   │   │   └── ...
-│   │   ├── contexts/             # AuthContext, NotificationContext
-│   │   ├── hooks/                # Custom React hooks (Realtime, media queries)
-│   │   ├── lib/                  # Supabase client, phone formatting, calendar helpers
-│   │   ├── App.tsx               # Root component & navigation container
-│   │   └── main.tsx              # Router setup & query client configuration
-│   ├── package.json              # Frontend dependencies and scripts
-│   ├── tailwind.config.js        # Design tokens and theme customization
-│   └── vite.config.ts            # Vite configuration & chunking strategy
-├── supabase/                     # Database migrations & schemas
-│   ├── schema.sql                # Base database schema definitions
-│   └── [01-62]_*.sql             # Sequential migrations (RPCs, indexes, RLS, features)
-├── google-apps-script/           # Google Workspace automation
-│   ├── Code.gs                   # CRM Sheets integration & form sync
-│   └── EmploymentFormSync.gs     # Graduate outcomes Google Form sync
-├── docs/                         # Additional project documentation & audits
-├── .env.example                  # Environment configuration template
-└── README.md                     # Project documentation
+├── frontend/                   React + Vite SPA
+│   ├── public/                 _headers (CSP, caching), service worker, logo
+│   └── src/
+│       ├── components/
+│       │   ├── Analytics/      six analytics views + shared utils
+│       │   ├── Dashboard/      KPI cards, activity feed, reminders banner
+│       │   ├── EnrollmentBoard/ columns, cards, filters, bulk bar
+│       │   ├── Viewer/         read-only viewer portal
+│       │   └── ui/             Button, Modal, Badge, Tabs, StatTile…
+│       ├── hooks/              data hooks (enrollments, outcomes, realtime…)
+│       ├── lib/                Supabase client, queries, email templates, utils
+│       ├── App.tsx             admin shell, navigation, shortcuts
+│       └── main.tsx            routes, public pages, query client
+├── supabase/
+│   ├── schema.sql              base schema
+│   ├── NN_*.sql                numbered migrations, applied in order
+│   └── functions/              send-push-notification Edge Function
+├── google-apps-script/
+│   ├── Code.gs                 registration form ⇄ Supabase ⇄ CRM Mirror
+│   └── EmploymentFormSync.gs   employment survey → Supabase (own project)
+└── backups/                    backup scripts & guide (dumps are git-ignored)
 ```
 
 ---
 
-## 🔐 Database & Security Model
+## 🚀 Quick start
 
-The database is built on Supabase PostgreSQL with robust security primitives:
+**Prerequisites:** Node.js 18+ and a Supabase project.
 
-1. **Row Level Security (RLS):**
-   * Default CRUD operations on tables (`students`, `courses`, `enrollments`, `document_templates`, etc.) are restricted strictly to authenticated coordinators (`auth.role() = 'authenticated'`).
-2. **Hardened `SECURITY DEFINER` Stored Procedures:**
-   * Public interactions (invitation confirmation and outcome reporting) invoke PostgreSQL RPC functions operating under `SECURITY DEFINER`.
-   * To prevent **search path hijacking (CWE-426)**, all stored functions explicitly enforce `SET search_path = public`.
-3. **Core RPC Procedures:**
-   * `resolve_confirmation_token(p_token)`: Safely validates and activates a student confirmation token.
-   * `public_confirm_enrollment(...)`: Confirms attendance while strictly verifying the `response_days` deadline window.
-   * `public_decline_enrollment(...)`: Securely processes student decline requests.
-   * `submit_employment_status(...)`: Records graduate employment outcomes without granting direct table update privileges.
-   * `merge_students(...)`: Transacts duplicate student profiles, updating all associated enrollments, flags, and notes atomically.
-
----
-
-## 🚀 Quick Start & Local Development
-
-### Prerequisites
-* [Node.js](https://nodejs.org/) (v18.0 or newer recommended)
-* [npm](https://www.npmjs.com/) (or yarn / pnpm)
-* A [Supabase](https://supabase.com/) project
-* (Optional) Google Workspace account with Google Sheets & Forms
-
----
-
-### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/ihorvasyliev-gh/CRM-From-Google.git
-cd CRM-From-Google
+cd CRM-From-Google/frontend
+cp ../.env.example .env        # then fill in the two values below
+npm install
+npm run dev                    # http://localhost:5173
 ```
 
----
-
-### Step 2: Configure Supabase Database
-1. Open your project dashboard on [Supabase](https://supabase.com/).
-2. Navigate to the **SQL Editor**.
-3. Run [supabase/schema.sql](supabase/schema.sql) to set up core tables and baseline RLS policies.
-4. Apply the migrations in [supabase/](supabase/) sequentially from `01` through `62`.
-5. Navigate to **Storage** and create a public bucket named `templates` for document and certificate files.
-
----
-
-### Step 3: Configure Environment Variables
-Navigate to the `frontend` folder and create your `.env` file:
-```bash
-cd frontend
-cp ../.env.example .env
-```
-Populate `.env` with your Supabase credentials:
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-public-key
 ```
 
----
+<details>
+<summary><b>🗄️ Database setup</b></summary>
 
-### Step 4: Install Dependencies & Run Frontend
+1. In the Supabase **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+2. Apply every numbered migration in [`supabase/`](supabase/) in order (`01_…` up to the latest).
+3. In **Storage**, create a bucket named `templates` for `.docx` templates.
+4. *(Optional, for web push)* deploy [`supabase/functions/send-push-notification`](supabase/functions/send-push-notification).
+
+</details>
+
+<details>
+<summary><b>⚙️ Google Apps Script setup</b></summary>
+
+1. Open the Google Sheet linked to the registration form and go to **Extensions → Apps Script**.
+2. Paste [`google-apps-script/Code.gs`](google-apps-script/Code.gs).
+3. In **Project Settings → Script Properties**, add:
+   - `SUPABASE_URL`: your project URL
+   - `SUPABASE_KEY`: the `service_role` key (background sync bypasses RLS, so keep it secret)
+4. Reload the sheet and choose **🔄 CRM Sync → 🛠 Settings: Triggers** to install the form and hourly mirror triggers.
+5. For the employment survey, repeat with [`EmploymentFormSync.gs`](google-apps-script/EmploymentFormSync.gs) in the survey form's own project.
+
+Large backfills run in batches and resume automatically, so they stay under Apps Script's 6-minute limit.
+
+</details>
+
+<details>
+<summary><b>🧪 Checks</b></summary>
+
 ```bash
-# Inside the frontend/ directory
-npm install
-
-# Start the Vite development server
-npm run dev
-```
-Open `http://localhost:5173` in your browser.
-
----
-
-### Step 5: Run Automated Tests
-Execute the full Vitest suite (all 200 unit and component tests):
-```bash
-# Run tests once
-npm run test:run
-
-# Run in interactive watch mode
-npm run test
+npm run test:run   # 417 unit & component tests
+npm run lint       # ESLint, zero warnings allowed
+npm run build      # tsc + production build
 ```
 
----
-
-### Step 6: Deploy Google Apps Script Integration
-1. Open your target Google Sheet linked to student registration Google Forms.
-2. In the top menu, navigate to **Extensions** ➔ **Apps Script**.
-3. Paste the contents of [google-apps-script/Code.gs](google-apps-script/Code.gs) into the editor.
-4. In **Project Settings** (gear icon), add the following **Script Properties**:
-   * `SUPABASE_URL`: Your Supabase project URL (`https://xyz.supabase.co`).
-   * `SUPABASE_KEY`: Your Supabase `service_role` secret key (required to bypass RLS for background ingestion).
-5. In the script editor, select `setupTriggers` from the function dropdown and click **Run** to register the form submission listener.
-6. *(Optional)* For graduate survey forms, follow the same procedure with [google-apps-script/EmploymentFormSync.gs](google-apps-script/EmploymentFormSync.gs).
+</details>
 
 ---
 
 ## 🌐 Deployment
 
-### Cloudflare Pages (Recommended)
-1. Link your GitHub repository to [Cloudflare Pages](https://pages.cloudflare.com/).
-2. Set the build configuration:
-   * **Root directory:** `frontend`
-   * **Build command:** `npm run build`
-   * **Build output directory:** `dist`
-3. Add environment variables:
-   * `VITE_SUPABASE_URL`
-   * `VITE_SUPABASE_ANON_KEY`
-4. The frontend includes standard single-page app (SPA) fallback redirects configured for seamless client-side routing on Cloudflare Pages.
+**Cloudflare Pages**
 
-### Vercel / Netlify
-Alternatively, deploy via the Vercel or Netlify CLI by specifying `frontend` as the root directory and `dist` as the publish directory.
+| Setting | Value |
+| :-- | :-- |
+| Root directory | `frontend` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+
+Security headers, the CSP and cache rules ship from [`frontend/public/_headers`](frontend/public/_headers). SPA routing works out of the box.
 
 ---
 
-## 🔍 Troubleshooting
+## 🩺 Troubleshooting
 
-| Issue | Cause | Solution |
-| :--- | :--- | :--- |
-| **401 Unauthorized / RLS Errors** | Missing or expired Supabase session | Verify user is authenticated; check table RLS policies in `schema.sql`. |
-| **GAS Script Timeout Error** | Processing large sheet backfills exceeding 6 min | Use the built-in batched sync `syncFromSupabase()` which auto-schedules trigger continuations. |
-| **Phone Formats Not Matching** | Non-standard inputs in Google Form | `normalizePhone()` automatically cleans spaces, dashes, and prepends international country codes (`+353`, `+380`). Verify script regex in `Code.gs`. |
-| **Docx Template Placeholders Unfilled** | Missing or misspelled variable tag | Ensure template variables match `{first_name}`, `{last_name}`, `{course_name}`, `{invited_date}`, or custom variables configured in Settings. |
-| **Token Link Shows Expired** | Passed `response_days` deadline | Check the `response_days` setting on the course/enrollment (default 7 days) or resend an invitation with an updated timeframe. |
+| Symptom | Likely cause | Fix |
+| :-- | :-- | :-- |
+| `401` / RLS errors | Session expired, or the role lacks access | Sign in again and check the user's role in **Settings → Users & Roles** |
+| Invitation link says **expired** | Past the `response_days` window | Resend the invitation from the board |
+| Confirmation page says **course full** | Capacity reached | Raise `max_capacity` on the course, or offer another date |
+| Apps Script timeout | Very large backfill | Use **Export ALL answers**; it batches and resumes on its own |
+| Template placeholders left empty | Misspelled tag | Use `{first_name}`, `{last_name}`, `{course_name}`, `{invited_date}` or a custom variable from Settings |
+| Student missing from a bulk email | They unsubscribed | See **Settings → Unsubscribed emails** |
 
 ---
 
-## 📄 License
+<div align="center">
 
-Private Repository. All rights reserved.  
-Developed for **Cork City Partnership** educational and community training programs.
+**Private repository. All rights reserved.**<br/>
+Built for <b>Cork City Partnership CLG</b> education & community training programmes, supported by <b>SICAP</b>.
+
+</div>
