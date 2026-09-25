@@ -23,7 +23,16 @@ export interface Course {
     max_capacity?: number | null;
     /** Document templates used for this course; empty = all active templates */
     template_ids?: string[] | null;
+    /** This course's own invitation/reminder wording; missing keys use the Settings templates */
+    email_templates?: CourseEmailTemplates | null;
     created_at: string;
+}
+
+export interface CourseEmailTemplates {
+    invite_subject?: string;
+    invite_body?: string;
+    reminder_subject?: string;
+    reminder_body?: string;
 }
 
 export interface Enrollment {

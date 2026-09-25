@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
-import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
+import { buildEmailBodyHtml, buildEmailSubject, getConfig, withCourseTemplates, type AppConfig } from '../lib/appConfig';
 import { getCoursePill } from './useBulkActions';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -17,6 +17,77 @@ interface UseInviteFlowProps {
     setEnrollments: React.Dispatch<React.SetStateAction<EnrollmentRow[]>>;
     clearSelection: () => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Global email templates with the course's own wording on top (global only if it can't be loaded). */
+async function fetchCourseEmailConfig(courseId: string | undefined): Promise<AppConfig> {
+    const config = getConfig();
+    if (!courseId) return config;
+    try {
+        const { data, error } = await supabase.from('courses').select('email_templates').eq('id', courseId).maybeSingle();
+        if (error) throw error;
+        return withCourseTemplates(config, data?.email_templates);
+    } catch (err) {
+        console.warn('Course email templates unavailable (is migration 68 applied?):', err);
+        return config;
+    }
+}
+
+/** Short token link to the confirmation page; null if a multi-date link can't be made. */
+async function createConfirmLink(courseId: string | undefined, dates: string[]): Promise<string | null> {
+    const isMulti = dates.length > 1;
+    try {
+        const { data: token, error } = isMulti
+            ? await supabase.rpc('create_confirmation_token_multi', { p_course_id: courseId, p_course_dates: dates })
+            : await supabase.rpc('create_confirmation_token', { p_course_id: courseId, p_course_date: dates[0] });
+        if (!error && token) return `${window.location.origin}/c/${token}`;
+        if (isMulti) {
+            console.error('Multi-date token generation failed:', error);
+            return null;
+        }
+    } catch (err) {
+        console.error('Token generation failed, using long URL:', err);
+        if (isMulti) return null;
+    }
+    // The legacy long URL can carry only one date
+    return `${window.location.origin}/confirm?course_id=${courseId || ''}&date=${dates[0]}`;
+}
+
+/** Put the HTML email on the clipboard and open a BCC draft in the mail client. */
+async function copyHtmlAndOpenDraft(
+    htmlBody: string,
+    emails: (string | null | undefined)[],
+    subject: string,
+    note: string,
+    showToast: (msg: string, type: 'success' | 'error') => void
+) {
+    try {
+        await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([htmlBody], { type: 'text/html' }),
+            'text/plain': new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' }),
+        })]);
+        showToast(`HTML template copied! Press Ctrl+V in your email client.${note}`, 'success');
+    } catch (err) {
+        console.error('Failed to copy HTML to clipboard:', err);
+        showToast('Could not copy HTML to clipboard.', 'error');
+    }
+    const unique = [...new Set(emails.filter((e): e is string => !!e && e.trim() !== ''))];
+    const bcc = unique.map(e => encodeURIComponent(e)).join(',');
+    window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
+}
+
+/** Dates an invitation offers (one, or several for a multi-date invite). */
+function offeredDates(e: EnrollmentRow): string[] {
+    return normalizeDateList(e.invited_dates?.length ? e.invited_dates : (e.invited_date ? [e.invited_date] : []));
+}
+
+/** Whole days until the invitation expires (<= 0 = expired). */
+export function daysLeft(e: Pick<EnrollmentRow, 'invited_at' | 'response_days'>, now = Date.now()): number {
+    const days = e.response_days ?? 7;
+    if (!e.invited_at) return days;
+    return Math.ceil((new Date(e.invited_at).getTime() + days * DAY_MS - now) / DAY_MS);
 }
 
 export function useInviteFlow({
@@ -204,41 +275,16 @@ export function useInviteFlow({
         const dates = normalizeDateList(selectedDates);
         const isMulti = dates.length > 1;
 
-        const emails = selectedEnrollments
-            .map(e => e.students?.email)
-            .filter((email): email is string => !!email && email.trim() !== '');
-        const uniqueEmails = [...new Set(emails)];
         const first = selectedEnrollments[0];
         const courseName = first ? getCoursePill(first) : 'Course';
         const dateFormatted = isMulti ? formatDateChoiceList(dates) : formatDateLong(dates[0]);
-        const subject = encodeURIComponent(buildEmailSubject(courseName, dateFormatted));
 
-        // The legacy long URL can carry only one date, so multi-date invites rely on the token link
-        let confirmLink = `${window.location.origin}/confirm?course_id=${first?.course_id || ''}&date=${dates[0]}`;
-        try {
-            const { data: token, error } = isMulti
-                ? await supabase.rpc('create_confirmation_token_multi', {
-                    p_course_id: first?.course_id,
-                    p_course_dates: dates,
-                })
-                : await supabase.rpc('create_confirmation_token', {
-                    p_course_id: first?.course_id,
-                    p_course_date: dates[0],
-                });
-            if (!error && token) {
-                confirmLink = `${window.location.origin}/c/${token}`;
-            } else if (isMulti) {
-                console.error('Multi-date token generation failed:', error);
-                showToast('Could not create the multi-date confirmation link. Is migration 59 applied?', 'error');
-                return;
-            }
-        } catch (err) {
-            console.error('Token generation failed, using long URL:', err);
-            if (isMulti) {
-                showToast('Could not create the multi-date confirmation link.', 'error');
-                return;
-            }
+        const confirmLink = await createConfirmLink(first?.course_id, dates);
+        if (!confirmLink) {
+            showToast('Could not create the multi-date confirmation link. Is migration 59 applied?', 'error');
+            return;
         }
+        const config = await fetchCourseEmailConfig(first?.course_id);
 
         // Await the database update so mailto navigation doesn't abort the HTTP request
         try {
@@ -249,26 +295,61 @@ export function useInviteFlow({
         }
 
         const requiresEnglish = Boolean(first?.courses?.requires_english);
-        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, undefined, responseDays, requiresEnglish);
+        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, config, responseDays, requiresEnglish);
+        await copyHtmlAndOpenDraft(htmlBody, selectedEnrollments.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted, config), skippedNote(skipped.length), showToast);
+        setInviteDateTarget(null);
+    }
 
-        try {
-            const blobHtml = new Blob([htmlBody], { type: "text/html" });
-            const blobText = new Blob(["Please view this email in an HTML-compatible client."], { type: "text/plain" });
-            const data = [new ClipboardItem({
-                "text/html": blobHtml,
-                "text/plain": blobText,
-            })];
-            await navigator.clipboard.write(data);
-            showToast(`HTML template copied! Press Ctrl+V in your email client.${skippedNote(skipped.length)}`, 'success');
-        } catch (err) {
-            console.error('Failed to copy HTML to clipboard:', err);
-            showToast('Could not copy HTML to clipboard.', 'error');
+    /** Re-send the confirmation email to invited people who haven't confirmed yet. Status stays unchanged. */
+    async function handleSendReminder(ids: string[]) {
+        const selected = enrollments.filter(e => ids.includes(e.id));
+        const now = Date.now();
+        // Expired invitations can no longer be confirmed, so a reminder would lead nowhere
+        const open = selected.filter(e => e.status === 'invited' && daysLeft(e, now) > 0);
+        if (open.length === 0) {
+            showToast('Reminders go to invited people whose invitation has not expired — none selected.', 'error');
+            return;
+        }
+        // One email = one confirm link, so everyone must share the course and offered date(s)
+        const groupKey = (e: EnrollmentRow) => `${e.course_id}|${offeredDates(e).join(',')}`;
+        if (new Set(open.map(groupKey)).size > 1) {
+            showToast('Select invitations for one course and the same date(s) to send a reminder.', 'error');
+            return;
         }
 
-        const bcc = uniqueEmails.map(e => encodeURIComponent(e)).join(',');
+        let optedOut: Set<string>;
+        try {
+            optedOut = await fetchOptedOutEmails(open.map(e => e.students?.email));
+        } catch (err) {
+            console.error('Failed to check the unsubscribe list:', err);
+            showToast('Could not check the unsubscribe list. Please try again.', 'error');
+            return;
+        }
+        const { allowed, skipped } = partitionByOptOut(open, e => e.students?.email, optedOut);
+        if (allowed.length === 0) {
+            showToast('Everyone selected has unsubscribed from emails — no reminder sent.', 'error');
+            return;
+        }
 
-        window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
-        setInviteDateTarget(null);
+        const first = allowed[0];
+        const dates = offeredDates(first);
+        const isMulti = dates.length > 1;
+        const confirmLink = await createConfirmLink(first.course_id, dates);
+        if (!confirmLink) {
+            showToast('Could not create the multi-date confirmation link.', 'error');
+            return;
+        }
+        const config = await fetchCourseEmailConfig(first.course_id);
+        const courseName = getCoursePill(first);
+        const dateFormatted = isMulti ? formatDateChoiceList(dates) : formatDateLong(dates[0]);
+        // {responseDays} in a reminder = days left for the most urgent person
+        const days = Math.min(...allowed.map(e => daysLeft(e, now)));
+        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, config, days, Boolean(first.courses?.requires_english), 'reminder');
+
+        const notPending = selected.length - open.length;
+        const note = skippedNote(skipped.length) + (notPending ? ` · ${notPending} not pending or expired skipped` : '');
+        clearSelection();
+        await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted, config, 'reminder'), note, showToast);
     }
 
     return {
@@ -291,6 +372,7 @@ export function useInviteFlow({
         getDateStats,
         openInviteModal,
         handleInviteWithDate,
-        handleInviteAndEmail
+        handleInviteAndEmail,
+        handleSendReminder
     };
 }

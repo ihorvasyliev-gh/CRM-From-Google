@@ -1,6 +1,7 @@
 // ─── App Configuration (localStorage/Supabase-based) ───────────
 // Centralized config for email templates, display preferences, etc.
 import { supabase } from './supabase';
+import type { CourseEmailTemplates } from './types';
 
 export interface ExcelColumn {
     /** Column header text shown in the Excel file */
@@ -16,6 +17,10 @@ export interface AppConfig {
     htmlEmailTemplateStandard: string;
     /** Email subject format. Supports placeholders: {courseName}, {date} */
     emailSubjectFormat: string;
+    /** Reminder to people who haven't confirmed their invitation yet. Same placeholders as the invitation; {responseDays} = days left */
+    reminderEmailTemplate: string;
+    /** Reminder subject. Supports placeholders: {courseName}, {date} */
+    reminderEmailSubjectFormat: string;
     /** Columns to include in the Excel spreadsheet exported with the archive */
     excelColumns: ExcelColumn[];
     /** HTML Email body template for status clarification. Supports: {statusButton}, {statusLink} */
@@ -71,6 +76,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   <li>You’d prefer not to receive future emails</li>
 </ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
+    reminderEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">This is a friendly reminder about your invitation to our upcoming course. We have not received your confirmation yet, and your place is <strong>not reserved</strong> until you confirm.</p>
+<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Please confirm <strong>as soon as possible</strong> (you have <strong>{responseDays} day(s)</strong> left) by clicking the button below.</p>
+{courseDetails}
+{englishWarning}
+{capacityNotice}
+{confirmationButton}
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you can no longer attend or you'd prefer not to receive future emails, simply reply to this email and let us know.</p>`,
+    reminderEmailSubjectFormat: 'Reminder: please confirm your place on {courseName} ({date})',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
@@ -92,6 +106,25 @@ export const DEFAULT_CONFIG: AppConfig = {
     outreachEmailSubjectFormat: 'How are things going? (1-minute update from Cork City Partnership)',
     includeLogosInEmails: false,
 };
+
+/** Invitation-type templates are useless without the confirm button or link. */
+export function hasConfirmationTag(tpl: string): boolean {
+    return tpl.includes('{confirmationButton}') || tpl.includes('{confirmationLink}');
+}
+
+export type InviteEmailKind = 'invite' | 'reminder';
+
+/** Lay a course's own invitation/reminder wording over the global templates. */
+export function withCourseTemplates(config: AppConfig, t?: CourseEmailTemplates | null): AppConfig {
+    if (!t) return config;
+    return {
+        ...config,
+        ...(t.invite_body ? { htmlEmailTemplate: t.invite_body, htmlEmailTemplateStandard: t.invite_body } : {}),
+        ...(t.invite_subject ? { emailSubjectFormat: t.invite_subject } : {}),
+        ...(t.reminder_body ? { reminderEmailTemplate: t.reminder_body } : {}),
+        ...(t.reminder_subject ? { reminderEmailSubjectFormat: t.reminder_subject } : {}),
+    };
+}
 
 /** Read the full config, merging saved values over defaults. */
 export function getConfig(): AppConfig {
@@ -151,7 +184,10 @@ export function getConfig(): AppConfig {
         if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
             saved.htmlEmailTemplateStandard = DEFAULT_CONFIG.htmlEmailTemplateStandard;
         }
-        
+        if (saved.reminderEmailTemplate && !hasConfirmationTag(saved.reminderEmailTemplate)) {
+            saved.reminderEmailTemplate = DEFAULT_CONFIG.reminderEmailTemplate;
+        }
+
         return { ...DEFAULT_CONFIG, ...saved };
     } catch {
         return { ...DEFAULT_CONFIG };
@@ -377,12 +413,14 @@ export function hasUnsubscribeText(html: string): boolean {
     return UNSUBSCRIBE_TEXT_RE.test(html.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|&#39;|&apos;/g, "'"));
 }
 
-function getEmailWrapper(content: string, type: 'invite' | 'status', includeLogos: boolean) {
+function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
-    const isInvite = type === 'invite';
-    const heroTitle = isInvite ? "You're Invited!" : "How Are Things Going?";
-    const heroSubtitle = isInvite ? "Cork City Partnership course invitation" : "Cork City Partnership participant update";
+    const [heroTitle, heroSubtitle] = {
+        invite: ["You're Invited!", 'Cork City Partnership course invitation'],
+        reminder: ['Please Confirm Your Place', 'Reminder about your Cork City Partnership course invitation'],
+        status: ['How Are Things Going?', 'Cork City Partnership participant update'],
+    }[type];
     const cacheBuster = Date.now();
 
     const unsubscribeHtml = hasUnsubscribeText(content) ? '' : `
@@ -467,7 +505,8 @@ export function buildEmailBodyHtml(
     confirmationLink?: string, 
     customConfig?: AppConfig, 
     responseDays?: number,
-    requiresEnglish: boolean = false
+    requiresEnglish: boolean = false,
+    kind: InviteEmailKind = 'invite'
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
@@ -558,7 +597,9 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
 </table>`
         : '';
         
-    let body = requiresEnglish
+    let body = kind === 'reminder'
+        ? (config.reminderEmailTemplate || DEFAULT_CONFIG.reminderEmailTemplate)
+        : requiresEnglish
         ? (config.htmlEmailTemplate || DEFAULT_CONFIG.htmlEmailTemplate)
         : (config.htmlEmailTemplateStandard || DEFAULT_CONFIG.htmlEmailTemplateStandard);
 
@@ -591,13 +632,13 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(days));
 
-    return getEmailWrapper(body, 'invite', config.includeLogosInEmails ?? false);
+    return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false);
 }
 
 /** Build the email subject by replacing placeholders. */
-export function buildEmailSubject(courseName: string, date: string, customConfig?: AppConfig): string {
+export function buildEmailSubject(courseName: string, date: string, customConfig?: AppConfig, kind: InviteEmailKind = 'invite'): string {
     const config = customConfig || getConfig();
-    return config.emailSubjectFormat
+    return (kind === 'reminder' ? config.reminderEmailSubjectFormat || DEFAULT_CONFIG.reminderEmailSubjectFormat : config.emailSubjectFormat)
         .replace(/\{courseName\}/g, courseName)
         .replace(/\{date\}/g, date);
 }

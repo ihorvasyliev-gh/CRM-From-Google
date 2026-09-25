@@ -8,7 +8,7 @@ import Badge from './ui/Badge';
 import { Toolbar } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import { EmptyState } from './ui/States';
-import { Course, getAvatarGradient } from '../lib/types';
+import { Course, CourseEmailTemplates, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
@@ -176,22 +176,22 @@ export default function CourseList() {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
     }, [queryClient]);
 
-    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[] }) {
+    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[]; email_templates: CourseEmailTemplates }) {
         const maxCapacity = data.max_capacity ?? null;
         if (data.id) {
             const { error } = await supabase
                 .from('courses')
-                .update({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids })
+                .update({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids, email_templates: data.email_templates })
                 .eq('id', data.id);
             if (error) throw new Error(error.message);
-            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity, template_ids: data.template_ids } : c));
+            setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity, template_ids: data.template_ids, email_templates: data.email_templates } : c));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             setToast({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase
                 .from('courses')
-                .insert({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids })
+                .insert({ name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity, template_ids: data.template_ids, email_templates: data.email_templates })
                 .select();
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));

@@ -601,12 +601,13 @@ export default function EnrollmentBoard({
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
                 bulkUpdateStatus={handleBulkUpdateStatus}
                 handleGenerateDocuments={bulkActions.handleGenerateDocuments}
+                sendReminder={() => inviteFlow.handleSendReminder(Array.from(bulkActions.selectedIds))}
                 setBulkDeleteOpen={setBulkDeleteOpen}
                 clearSelection={bulkActions.clearSelection}
                 toggleSelect={bulkActions.toggleSelect}
             />
         );
-    }, [enrollments, filteredEnrollments, bulkActions, handleBulkUpdateStatus]);
+    }, [enrollments, filteredEnrollments, bulkActions, handleBulkUpdateStatus, inviteFlow]);
 
     const boardContainerRef = useRef<HTMLDivElement | null>(null);
 

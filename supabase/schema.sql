@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS courses (
     id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name       TEXT UNIQUE NOT NULL,
     template_ids UUID[] NOT NULL DEFAULT '{}', -- document template preset; empty = all active (migration 67)
+    email_templates JSONB NOT NULL DEFAULT '{}', -- per-course invite/reminder wording; empty = global (migration 68)
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

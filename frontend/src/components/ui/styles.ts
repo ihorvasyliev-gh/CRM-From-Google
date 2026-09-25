@@ -31,6 +31,9 @@ export const trCls = 'transition-colors hover:bg-surface-elevated/50';
 export const tdCls = 'px-4 py-3 align-middle';
 
 /** Inner panel inside a card (a grouped block, a stat, a preview frame). */
+/** Wrapper for a ReactQuill email editor (editor stays light in dark mode, like the email). */
+export const quillWrapCls = 'w-full bg-surface border border-border-subtle rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-colors text-primary [&_.ql-toolbar]:bg-surface-elevated/60 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:rounded-b-xl dark:[&_.ql-editor]:bg-[#f8fafc] dark:[&_.ql-editor]:text-slate-900 [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white';
+
 export const panelCls = 'rounded-xl bg-surface-elevated/60 border border-border-subtle';
 
 /** Inline callouts. */

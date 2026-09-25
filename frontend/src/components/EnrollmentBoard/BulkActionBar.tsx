@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, CheckCircle, GraduationCap, Ban, Loader2, FileArchive, Trash2, X } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, Loader2, FileArchive, Trash2, X } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import { CustomTooltip } from '../ui/Tooltip';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -11,6 +11,7 @@ interface BulkActionBarProps {
     handleCopySelectedEmails: () => void;
     bulkUpdateStatus: (status: string) => void;
     handleGenerateDocuments: () => void;
+    sendReminder: () => void;
     setBulkDeleteOpen: (open: boolean) => void;
     clearSelection: () => void;
     toggleSelect: (id: string) => void;
@@ -23,6 +24,7 @@ export default function BulkActionBar({
     handleCopySelectedEmails,
     bulkUpdateStatus,
     handleGenerateDocuments,
+    sendReminder,
     setBulkDeleteOpen,
     clearSelection,
     toggleSelect
@@ -105,6 +107,17 @@ export default function BulkActionBar({
                         <Send size={15} />
                     </button>
                 </CustomTooltip>
+
+                {selectedEnrollments.some(e => e.status === 'invited') && (
+                    <CustomTooltip content="Send reminder to pending invitations">
+                        <button
+                            onClick={sendReminder}
+                            className="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm"
+                        >
+                            <BellRing size={15} />
+                        </button>
+                    </CustomTooltip>
+                )}
 
                 <CustomTooltip content="Confirm">
                     <button

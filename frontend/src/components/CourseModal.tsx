@@ -1,17 +1,35 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Users, Globe, Languages } from 'lucide-react';
-import { Course, DocumentTemplate } from '../lib/types';
+import { BookOpen, Users, Globe, Languages, Mail, BellRing } from 'lucide-react';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
+import { Course, CourseEmailTemplates, DocumentTemplate } from '../lib/types';
+import { buildEmailBodyHtml, buildEmailSubject, getConfig, hasConfirmationTag, withCourseTemplates, type InviteEmailKind } from '../lib/appConfig';
 import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
-import { fieldCls, labelCls } from './ui/styles';
+import { Segmented } from './ui/Tabs';
+import { fieldCls, labelCls, quillWrapCls } from './ui/styles';
 
 interface Props {
     open: boolean;
     course: Course | null;
     /** Active document templates the course can pick from */
     templates: DocumentTemplate[];
-    onSave: (data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[] }) => Promise<void>;
+    onSave: (data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[]; email_templates: CourseEmailTemplates }) => Promise<void>;
     onClose: () => void;
+}
+
+const quillModules = {
+    toolbar: [
+        ['bold', 'italic', 'underline'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['link'],
+        ['clean'],
+    ]
+};
+
+/** Drop empty keys so an untouched course keeps following the Settings templates. */
+function compactTemplates(t: CourseEmailTemplates): CourseEmailTemplates {
+    return Object.fromEntries(Object.entries(t).filter(([, v]) => v && v.trim())) as CourseEmailTemplates;
 }
 
 export default function CourseModal({ open, course, templates, onSave, onClose }: Props) {
@@ -20,6 +38,8 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
     const [maxCapacity, setMaxCapacity] = useState('');
     // Includes ids of switched-off templates too, so they come back if re-enabled
     const [templateIds, setTemplateIds] = useState<string[]>([]);
+    const [emailTemplates, setEmailTemplates] = useState<CourseEmailTemplates>({});
+    const [emailKind, setEmailKind] = useState<InviteEmailKind>('invite');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -29,6 +49,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
             setRequiresEnglish(Boolean(course?.requires_english));
             setMaxCapacity(course?.max_capacity ? String(course.max_capacity) : '');
             setTemplateIds(course?.template_ids || []);
+            setEmailTemplates(course?.email_templates || {});
             setError('');
         }
     }, [open, course]);
@@ -38,7 +59,8 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
         const dirty = name.trim() !== (course?.name || '').trim()
             || requiresEnglish !== Boolean(course?.requires_english)
             || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '')
-            || templateIds.join() !== (course?.template_ids || []).join();
+            || templateIds.join() !== (course?.template_ids || []).join()
+            || JSON.stringify(compactTemplates(emailTemplates)) !== JSON.stringify(compactTemplates(course?.email_templates || {}));
         if (dirty && !window.confirm('Discard unsaved changes?')) return;
         onClose();
     };
@@ -56,10 +78,15 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
             setError('Max participants must be a whole number of at least 1 (or leave empty for unlimited)');
             return;
         }
+        const email_templates = compactTemplates(emailTemplates);
+        if ([email_templates.invite_body, email_templates.reminder_body].some(b => b && !hasConfirmationTag(b))) {
+            setError('Course emails must keep the {confirmationButton} or {confirmationLink} tag');
+            return;
+        }
         setSaving(true);
         setError('');
         try {
-            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish, max_capacity: capacity, template_ids: templateIds });
+            await onSave({ id: course?.id, name: name.trim(), requires_english: requiresEnglish, max_capacity: capacity, template_ids: templateIds, email_templates });
             onClose();
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -73,6 +100,22 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
     }
 
     const isEditing = !!course?.id;
+
+    // Course-specific invitation / reminder wording (exact time, address, what to bring...)
+    const [showPreview, setShowPreview] = useState(false);
+    const bodyKey = emailKind === 'invite' ? 'invite_body' : 'reminder_body';
+    const subjectKey = emailKind === 'invite' ? 'invite_subject' : 'reminder_subject';
+    const customBody = emailTemplates[bodyKey];
+    const customiseEmail = () => {
+        const global = getConfig();
+        setEmailTemplates(prev => ({
+            ...prev,
+            [bodyKey]: emailKind === 'reminder' ? global.reminderEmailTemplate : requiresEnglish ? global.htmlEmailTemplate : global.htmlEmailTemplateStandard,
+            [subjectKey]: emailKind === 'reminder' ? global.reminderEmailSubjectFormat : global.emailSubjectFormat,
+        }));
+    };
+    const resetToGlobalEmail = () => setEmailTemplates(prev => ({ ...prev, [bodyKey]: '', [subjectKey]: '' }));
+    const previewConfig = showPreview ? withCourseTemplates(getConfig(), compactTemplates(emailTemplates)) : null;
 
     const templateOption = (value: boolean, Icon: typeof Globe, title: string, desc: string) => {
         const active = requiresEnglish === value;
@@ -106,6 +149,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
             title={isEditing ? 'Edit Course' : 'Add Course'}
             icon={BookOpen}
             tone="completed"
+            size="xl"
             labelId="course-modal-title"
             dismissible={!saving}
             footer={
@@ -185,6 +229,78 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                     <p className="text-[11px] text-muted mt-1.5">
                         Used when generating documents for this course. Pick none to use all active templates.
                     </p>
+                </div>
+
+                <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className={labelCls + ' !mb-0'}>Course emails</span>
+                        <Segmented<InviteEmailKind>
+                            ariaLabel="Course email"
+                            size="sm"
+                            value={emailKind}
+                            onChange={setEmailKind}
+                            options={[
+                                { value: 'invite', label: 'Invitation', icon: <Mail size={12} /> },
+                                { value: 'reminder', label: 'Reminder', icon: <BellRing size={12} /> },
+                            ]}
+                        />
+                    </div>
+                    {!customBody ? (
+                        <div className="rounded-xl border border-dashed border-border-subtle p-3 flex items-center justify-between gap-3">
+                            <p className="text-[11px] text-muted">
+                                Uses the {emailKind === 'invite' ? 'invitation' : 'reminder'} template from Settings. Customise it to add the exact time, address and other details for this course.
+                            </p>
+                            <Button variant="secondary" size="sm" type="button" onClick={customiseEmail}>Customise</Button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <input
+                                type="text"
+                                aria-label="Email subject"
+                                className={fieldCls}
+                                value={emailTemplates[subjectKey] || ''}
+                                onChange={e => setEmailTemplates(prev => ({ ...prev, [subjectKey]: e.target.value }))}
+                                placeholder="Subject — {courseName}, {date} are filled in"
+                            />
+                            <div className={`${quillWrapCls} [&_.ql-editor]:min-h-[180px] [&_.ql-editor]:max-h-[320px]`}>
+                                <ReactQuill
+                                    key={emailKind}
+                                    theme="snow"
+                                    value={customBody}
+                                    onChange={(content, _delta, source) => {
+                                        // Quill normalises the HTML on mount; only keep real edits
+                                        if (source === 'user') setEmailTemplates(prev => ({ ...prev, [bodyKey]: content }));
+                                    }}
+                                    modules={quillModules}
+                                />
+                            </div>
+                            <p className="text-[11px] text-muted">
+                                Keep <code>{'{confirmationButton}'}</code>. Also: <code>{'{courseDetails}'}</code>, <code>{'{capacityNotice}'}</code>, <code>{'{englishWarning}'}</code>, <code>{'{responseDays}'}</code>{emailKind === 'reminder' ? ' (days left)' : ''}.
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="ghost" size="sm" type="button" onClick={() => setShowPreview(v => !v)}>
+                                    {showPreview ? 'Hide preview' : 'Preview'}
+                                </Button>
+                                <Button variant="ghost" size="sm" type="button" onClick={resetToGlobalEmail} className="hover:!text-status-rejected">
+                                    Use Settings template
+                                </Button>
+                            </div>
+                            {previewConfig && (
+                                <div className="rounded-xl border border-border-subtle p-2">
+                                    <div className="text-[11px] text-muted px-1 pb-2">
+                                        <span className="font-semibold">Subject: </span>
+                                        {buildEmailSubject(name || 'Course', '15 Mar 2026', previewConfig, emailKind)}
+                                    </div>
+                                    <iframe
+                                        srcDoc={buildEmailBodyHtml(name || 'Course', '15 Mar 2026', '#', previewConfig, emailKind === 'reminder' ? 3 : 7, requiresEnglish, emailKind)}
+                                        title="Course email preview"
+                                        sandbox=""
+                                        className="w-full h-[420px] border border-border-subtle rounded-lg bg-white"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </form>
         </Modal>

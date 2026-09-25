@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, SlidersHorizontal, ShieldCheck, MailX } from 'lucide-react';
+import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, SlidersHorizontal, ShieldCheck, MailX } from 'lucide-react';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
+import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, hasConfirmationTag, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
@@ -13,7 +13,7 @@ import Badge from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
 import { Segmented } from './ui/Tabs';
 import { EmptyState } from './ui/States';
-import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls } from './ui/styles';
+import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls, quillWrapCls } from './ui/styles';
 import { toast } from '../lib/toast';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
@@ -37,6 +37,18 @@ const quillModules = {
         [{ 'color': [] }, { 'background': [] }],
     ]
 };
+
+type InviteTab = 'high_english' | 'standard' | 'reminder';
+const INVITE_BODY_KEY = {
+    high_english: 'htmlEmailTemplate',
+    standard: 'htmlEmailTemplateStandard',
+    reminder: 'reminderEmailTemplate',
+} as const;
+const inviteTabOptions = [
+    { value: 'high_english' as const, label: 'High English', icon: <Languages size={13} /> },
+    { value: 'standard' as const, label: 'Standard', icon: <Globe size={13} /> },
+    { value: 'reminder' as const, label: 'Reminder', icon: <BellRing size={13} /> },
+];
 
 export default function Settings() {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
@@ -65,12 +77,14 @@ export default function Settings() {
         return () => window.removeEventListener('densitychange', handleDensityChange);
     }, []);
 
-    const [inviteTemplateTab, setInviteTemplateTab] = useState<'high_english' | 'standard'>('high_english');
+    const [inviteTemplateTab, setInviteTemplateTab] = useState<InviteTab>('high_english');
     const [previewMultiDate, setPreviewMultiDate] = useState(false);
+    const isReminderTab = inviteTemplateTab === 'reminder';
+    const inviteBodyKey = INVITE_BODY_KEY[inviteTemplateTab];
+    const inviteSubjectKey = isReminderTab ? 'reminderEmailSubjectFormat' : 'emailSubjectFormat';
 
-    const isValidHighEnglishTemplate = config.htmlEmailTemplate.includes('{confirmationLink}') || config.htmlEmailTemplate.includes('{confirmationButton}');
-    const isValidStandardTemplate = (config.htmlEmailTemplateStandard || '').includes('{confirmationLink}') || (config.htmlEmailTemplateStandard || '').includes('{confirmationButton}');
-    const isValidTemplate = isValidHighEnglishTemplate && isValidStandardTemplate;
+    const isValidCurrentInviteTemplate = hasConfirmationTag(config[inviteBodyKey] || '');
+    const isValidTemplate = Object.values(INVITE_BODY_KEY).every(k => hasConfirmationTag(config[k] || ''));
     const hasStatusTag = (tpl: string) => tpl.includes('{statusLink}') || tpl.includes('{statusButton}');
     const isValidStatusTemplate = hasStatusTag(config.statusEmailTemplate) && hasStatusTag(config.outreachEmailTemplate);
     // Survey email tab: CRM graduates or external lists (e.g. Action 11)
@@ -137,8 +151,8 @@ export default function Settings() {
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
     const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
     const previewDates = previewMultiDate ? ['Wed, 11 Mar 2026', 'Thu, 12 Mar 2026', 'Fri, 13 Mar 2026'] : '15 Mar 2026';
-    const previewBody = buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, 7, inviteTemplateTab === 'high_english');
-    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config);
+    const previewBody = buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, isReminderTab ? 3 : 7, inviteTemplateTab === 'high_english', isReminderTab ? 'reminder' : 'invite');
+    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config, isReminderTab ? 'reminder' : 'invite');
 
     // Status template preview
     const statusLinkStr = `${window.location.origin}/status${statusAudience === 'outreach' ? '?list=example' : ''}`;
@@ -412,16 +426,12 @@ export default function Settings() {
         }
     }, [runDuplicateScan]);
 
-    const insertVariable = useCallback((variable: string, target: 'invitation_high_english' | 'invitation_standard' | 'status' | 'outreach') => {
-        if (target === 'invitation_high_english') {
+    const insertVariable = useCallback((variable: string, target: InviteTab | 'status' | 'outreach') => {
+        if (target in INVITE_BODY_KEY) {
+            const key = INVITE_BODY_KEY[target as InviteTab];
             editConfig(prev => ({
                 ...prev,
-                htmlEmailTemplate: prev.htmlEmailTemplate ? `${prev.htmlEmailTemplate} ${variable}` : variable
-            }));
-        } else if (target === 'invitation_standard') {
-            editConfig(prev => ({
-                ...prev,
-                htmlEmailTemplateStandard: prev.htmlEmailTemplateStandard ? `${prev.htmlEmailTemplateStandard} ${variable}` : variable
+                [key]: prev[key] ? `${prev[key]} ${variable}` : variable
             }));
         } else if (target === 'outreach') {
             editConfig(prev => ({
@@ -436,7 +446,6 @@ export default function Settings() {
         }
     }, [editConfig]);
 
-    const quillWrapCls = 'w-full bg-surface border border-border-subtle rounded-xl text-sm focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-colors text-primary [&_.ql-toolbar]:bg-surface-elevated/60 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-border-subtle [&_.ql-toolbar]:rounded-t-xl [&_.ql-container]:border-none [&_.ql-container]:rounded-b-xl [&_.ql-editor]:rounded-b-xl dark:[&_.ql-editor]:bg-[#f8fafc] dark:[&_.ql-editor]:text-slate-900 [&_.ql-editor]:overflow-y-auto [&_.ql-editor]:p-4 [&_.ql-stroke]:stroke-primary dark:[&_.ql-stroke]:stroke-white [&_.ql-fill]:fill-primary dark:[&_.ql-fill]:fill-white [&_.ql-picker]:text-primary dark:[&_.ql-picker]:text-white';
     const chipCls = (present: boolean) =>
         `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-mono border transition-colors active:scale-95 ${
             present
@@ -457,7 +466,7 @@ export default function Settings() {
         );
 
     const sections = [
-        { id: 'settings-invitation', label: 'Invitation email', icon: Mail },
+        { id: 'settings-invitation', label: 'Invitation & reminder', icon: Mail },
         { id: 'settings-survey', label: 'Outcomes survey', icon: Briefcase },
         { id: 'settings-unsubscribes', label: 'Unsubscribed', icon: MailX },
         { id: 'settings-duplicates', label: 'Duplicate profiles', icon: GitMerge },
@@ -513,20 +522,17 @@ export default function Settings() {
                     <Card
                         id="settings-invitation"
                         className="scroll-mt-20"
-                        title="Course invitation email"
-                        subtitle="Subject and body sent to invited students"
+                        title="Course invitation & reminder email"
+                        subtitle="Subject and body sent to invited students, and the reminder for those who haven't confirmed"
                         icon={Mail}
                         divided
                         action={
                             <div className="hidden sm:flex items-center gap-2">
-                                <Segmented<'high_english' | 'standard'>
+                                <Segmented<InviteTab>
                                     ariaLabel="Invitation template"
                                     value={inviteTemplateTab}
                                     onChange={setInviteTemplateTab}
-                                    options={[
-                                        { value: 'high_english', label: 'High English', icon: <Languages size={13} /> },
-                                        { value: 'standard', label: 'Standard', icon: <Globe size={13} /> },
-                                    ]}
+                                    options={inviteTabOptions}
                                 />
                                 <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)}>
                                     {showPreview ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -536,14 +542,11 @@ export default function Settings() {
                         }
                     >
                         <div className="sm:hidden mb-4 flex items-center justify-between gap-2">
-                            <Segmented<'high_english' | 'standard'>
+                            <Segmented<InviteTab>
                                 ariaLabel="Invitation template"
                                 value={inviteTemplateTab}
                                 onChange={setInviteTemplateTab}
-                                options={[
-                                    { value: 'high_english', label: 'High English', icon: <Languages size={13} /> },
-                                    { value: 'standard', label: 'Standard', icon: <Globe size={13} /> },
-                                ]}
+                                options={inviteTabOptions}
                             />
                             <IconButton label={showPreview ? 'Hide preview' : 'Show preview'} onClick={() => setShowPreview(!showPreview)}>
                                 {showPreview ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -552,15 +555,19 @@ export default function Settings() {
                         <div className={`grid grid-cols-1 ${showPreview ? '2xl:grid-cols-2 items-start' : ''} gap-6`}>
                             <div className="space-y-5 min-w-0">
                                 <div className={`${calloutCls.info} p-3 flex items-start gap-2.5 text-xs`}>
-                                    {inviteTemplateTab === 'high_english'
+                                    {isReminderTab
+                                        ? <BellRing size={15} className="text-status-invited flex-shrink-0 mt-px" />
+                                        : inviteTemplateTab === 'high_english'
                                         ? <Languages size={15} className="text-status-invited flex-shrink-0 mt-px" />
                                         : <Globe size={15} className="text-status-invited flex-shrink-0 mt-px" />}
                                     <div className="space-y-0.5">
                                         <div className="font-semibold text-primary">
-                                            {inviteTemplateTab === 'high_english' ? 'High English required template' : 'Standard course template'}
+                                            {isReminderTab ? 'Reminder template' : inviteTemplateTab === 'high_english' ? 'High English required template' : 'Standard course template'}
                                         </div>
                                         <div className="text-muted leading-relaxed">
-                                            {inviteTemplateTab === 'high_english'
+                                            {isReminderTab
+                                                ? 'Sent from the board (select invited people → bell button) to those who have not confirmed yet. Same confirm button as the invitation; {englishWarning} shows only for High English courses and {responseDays} is the number of days left. A course can override this wording in Courses → edit course.'
+                                                : inviteTemplateTab === 'high_english'
                                                 ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Am Confident in English — Confirm My Place] button.'
                                                 : 'Used for general courses. Does not include language warnings and uses standard [Confirm My Place] button.'}
                                         </div>
@@ -572,8 +579,8 @@ export default function Settings() {
                                     <input
                                         id="invite-subject"
                                         type="text"
-                                        value={config.emailSubjectFormat}
-                                        onChange={e => editConfig(prev => ({ ...prev, emailSubjectFormat: e.target.value }))}
+                                        value={config[inviteSubjectKey]}
+                                        onChange={e => editConfig(prev => ({ ...prev, [inviteSubjectKey]: e.target.value }))}
                                         className={`${inputCls} h-10`}
                                         placeholder="e.g. You are Invited to join our {courseName} course"
                                     />
@@ -586,7 +593,7 @@ export default function Settings() {
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className={labelCls + ' !mb-0'}>
-                                            {inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
+                                            {isReminderTab ? 'Email body (Reminder)' : inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
                                         </span>
                                         <span className="text-[11px] text-muted">Click a tag to insert it</span>
                                     </div>
@@ -597,21 +604,17 @@ export default function Settings() {
                                             { tag: '{date}', label: 'Date' },
                                             { tag: '{responseDays}', label: 'Days' },
                                             { tag: '{courseDetails}', label: 'Course Card' },
-                                            ...(inviteTemplateTab === 'high_english' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
+                                            ...(inviteTemplateTab !== 'standard' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
                                             { tag: '{capacityNotice}', label: 'Limited Places & No-Show Policy' },
                                             { tag: '{confirmationButton}', label: 'Confirm Button' },
                                             { tag: '{confirmationLink}', label: 'Confirm URL' },
                                         ].map(item => {
-                                            const activeContent = inviteTemplateTab === 'high_english'
-                                                ? config.htmlEmailTemplate
-                                                : (config.htmlEmailTemplateStandard || '');
-                                            const isPresent = activeContent.includes(item.tag);
-                                            const target = inviteTemplateTab === 'high_english' ? 'invitation_high_english' : 'invitation_standard';
+                                            const isPresent = (config[inviteBodyKey] || '').includes(item.tag);
                                             return (
                                                 <button
                                                     key={item.tag}
                                                     type="button"
-                                                    onClick={() => insertVariable(item.tag, target)}
+                                                    onClick={() => insertVariable(item.tag, inviteTemplateTab)}
                                                     className={chipCls(isPresent)}
                                                     title={`${item.label} — click to insert ${item.tag}`}
                                                 >
@@ -625,17 +628,10 @@ export default function Settings() {
                                         <ReactQuill
                                             key={inviteTemplateTab}
                                             theme="snow"
-                                            value={inviteTemplateTab === 'high_english' ? config.htmlEmailTemplate : (config.htmlEmailTemplateStandard || '')}
+                                            value={config[inviteBodyKey] || ''}
                                             onChange={(content, _delta, source) => {
-                                                const update = source === 'user' ? editConfig : setLocalConfig;
-                                                if (inviteTemplateTab === 'high_english') {
-                                                    if (content !== config.htmlEmailTemplate) {
-                                                        update(prev => ({ ...prev, htmlEmailTemplate: content }));
-                                                    }
-                                                } else {
-                                                    if (content !== config.htmlEmailTemplateStandard) {
-                                                        update(prev => ({ ...prev, htmlEmailTemplateStandard: content }));
-                                                    }
+                                                if (content !== config[inviteBodyKey]) {
+                                                    (source === 'user' ? editConfig : setLocalConfig)(prev => ({ ...prev, [inviteBodyKey]: content }));
                                                 }
                                             }}
                                             modules={quillModules}
@@ -643,15 +639,13 @@ export default function Settings() {
                                     </div>
                                 </div>
 
-                                {inviteTemplateTab === 'high_english'
-                                    ? validNote(isValidHighEnglishTemplate, 'Confirmation button/link tag is valid and configured.', <><strong>Warning:</strong> High English template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</>)
-                                    : validNote(isValidStandardTemplate, 'Confirmation button/link tag is valid and configured.', <><strong>Warning:</strong> Standard Course template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</>)}
+                                {validNote(isValidCurrentInviteTemplate, 'Confirmation button/link tag is valid and configured.', <><strong>Warning:</strong> This template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</>)}
                             </div>
 
                             {showPreview && (
                                 <div className="space-y-3 animate-fadeIn flex flex-col min-w-0 2xl:sticky 2xl:top-6">
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className={eyebrowCls}>Live preview · {inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'}</span>
+                                        <span className={eyebrowCls}>Live preview · {isReminderTab ? 'Reminder' : inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'}</span>
                                         <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
                                             <input
                                                 type="checkbox"

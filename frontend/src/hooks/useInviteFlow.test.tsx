@@ -377,4 +377,22 @@ describe('useInviteFlow multi-date invitations', () => {
         expect(supabaseMocks.rpc).not.toHaveBeenCalledWith('create_confirmation_token', expect.anything());
         vi.unstubAllGlobals();
     });
+
+    it('sends a reminder for the original date to pending invites only, without changing status', async () => {
+        supabaseMocks.rpc.mockClear();
+        supabaseMocks.update.mockClear();
+        vi.stubGlobal('ClipboardItem', class { constructor(public items: unknown) {} });
+        const { result } = renderInviteFlow();
+        // en-1 is pending, en-2 expired
+        await act(async () => {
+            await result.current.handleSendReminder(['en-1', 'en-2']);
+        });
+
+        expect(supabaseMocks.rpc).toHaveBeenCalledWith('create_confirmation_token', {
+            p_course_id: 'c-1',
+            p_course_date: '2026-08-26',
+        });
+        expect(supabaseMocks.update).not.toHaveBeenCalled();
+        vi.unstubAllGlobals();
+    });
 });
