@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { X, Save, AlertCircle, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 
 /** Survey answer as stored for a graduate or an outreach list contact. */
@@ -21,6 +21,77 @@ interface OutcomeEditModalProps {
     /** Optional "remove" action shown in the footer (e.g. remove a contact from a list). */
     onDelete?: () => Promise<void>;
     deleteLabel?: string;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Inline year stepper + month grid; value is "YYYY-MM" or ''. */
+function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const now = new Date();
+    const [year, setYear] = useState(value ? Number(value.slice(0, 4)) : now.getFullYear());
+    const selYear = value ? Number(value.slice(0, 4)) : null;
+    const selMonth = value ? Number(value.slice(5, 7)) - 1 : null;
+
+    return (
+        <div className="rounded-xl border border-border-subtle bg-background p-3">
+            <div className="flex items-center justify-between mb-3">
+                <button type="button" onClick={() => setYear(year - 1)} aria-label="Previous year"
+                    className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface transition-colors">
+                    <ChevronLeft size={16} />
+                </button>
+                <span className="text-sm font-bold text-primary tabular-nums">{year}</span>
+                <button type="button" onClick={() => setYear(year + 1)} aria-label="Next year"
+                    className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface transition-colors">
+                    <ChevronRight size={16} />
+                </button>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+                {MONTHS.map((m, i) => {
+                    const selected = selYear === year && selMonth === i;
+                    const current = now.getFullYear() === year && now.getMonth() === i;
+                    return (
+                        <button
+                            key={m}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => onChange(selected ? '' : `${year}-${String(i + 1).padStart(2, '0')}`)}
+                            className={`py-2 rounded-lg text-xs font-semibold border transition-all ${
+                                selected
+                                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-sm'
+                                    : current
+                                        ? 'text-primary border-border-strong hover:bg-surface'
+                                        : 'text-muted border-transparent hover:text-primary hover:bg-surface'
+                            }`}
+                        >
+                            {m}
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-2 border-t border-border-subtle text-xs">
+                <span className="text-muted">
+                    {selYear !== null && selMonth !== null ? `${MONTHS[selMonth]} ${selYear}` : 'Not set'}
+                </span>
+                <div className="flex gap-3">
+                    {value && (
+                        <button type="button" onClick={() => onChange('')} className="font-semibold text-muted hover:text-primary">
+                            Clear
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setYear(now.getFullYear());
+                            onChange(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                        }}
+                        className="font-semibold text-brand-400 hover:text-brand-500"
+                    >
+                        This month
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export default function OutcomeEditModal({ isOpen, person: graduate, onClose, onSaved, onSave, onDelete, deleteLabel = 'Remove' }: OutcomeEditModalProps) {
@@ -198,12 +269,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                             <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
                                                 Started Month
                                             </label>
-                                            <input
-                                                type="month"
-                                                value={startedMonth}
-                                                onChange={(e) => setStartedMonth(e.target.value)}
-                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium [color-scheme:dark]"
-                                            />
+                                            <MonthPicker value={startedMonth} onChange={setStartedMonth} />
                                         </div>
 
                                         <div>
