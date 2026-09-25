@@ -301,33 +301,12 @@ export default function ConfirmationPage() {
                 console.warn('find_students_by_email exception:', findErr);
             }
 
-            if (!students || students.length === 0) {
+            // No match or a single match: confirm straight away
+            if (!students || students.length <= 1) {
                 const { data, error } = await supabase.rpc('public_confirm_enrollment', {
                     p_email: trimmedEmail,
                     p_course_id: courseId,
-                    p_student_id: null,
-                    ...chosenDateArg(),
-                });
-                if (error) {
-                    setInlineError(error.message || 'Something went wrong. Please try again.');
-                    return;
-                }
-                if (data && data.success) {
-                    setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you.');
-                    setState('success');
-                } else if (data?.code === 'course_full') {
-                    await handleCourseFull();
-                } else {
-                    setInlineError(data?.message || 'Confirmation failed.');
-                }
-                return;
-            }
-
-            if (students.length === 1) {
-                const { data, error } = await supabase.rpc('public_confirm_enrollment', {
-                    p_email: trimmedEmail,
-                    p_course_id: courseId,
-                    p_student_id: students[0].student_id,
+                    p_student_id: students?.[0]?.student_id ?? null,
                     ...chosenDateArg(),
                 });
                 if (error) {
@@ -394,26 +373,17 @@ export default function ConfirmationPage() {
                 });
             }
 
-            const allSuccess = results.every(r => r.success);
-            const anySuccess = results.some(r => r.success);
-
-            if (allSuccess) {
-                const names = matchedStudents
-                    .filter(s => selectedStudentIds.has(s.student_id))
-                    .map(s => `${s.first_name} ${s.last_name}`.trim())
-                    .join(', ');
-
-                setResultMessage(`Attendance confirmed for: ${names}. We look forward to seeing you!`);
-                setState('success');
-            } else if (anySuccess) {
+            if (results.some(r => r.success)) {
                 const confirmedNames = matchedStudents
                     .filter(s => results.some(r => r.success && r.id === s.student_id))
                     .map(s => `${s.first_name} ${s.last_name}`.trim())
                     .join(', ');
-                const fullNote = results.some(r => r.code === 'course_full')
-                    ? ` Unfortunately the course filled up before everyone could be confirmed — please email ${ORGANIZER_EMAIL} about the next course.`
-                    : '';
-                setResultMessage(`Attendance confirmed for: ${confirmedNames}.${fullNote}`);
+                const note = results.every(r => r.success)
+                    ? ' We look forward to seeing you!'
+                    : results.some(r => r.code === 'course_full')
+                        ? ` Unfortunately the course filled up before everyone could be confirmed — please email ${ORGANIZER_EMAIL} about the next course.`
+                        : '';
+                setResultMessage(`Attendance confirmed for: ${confirmedNames}.${note}`);
                 setState('success');
             } else if (results.some(r => r.code === 'course_full')) {
                 await handleCourseFull();
@@ -435,29 +405,20 @@ export default function ConfirmationPage() {
         setTimeout(() => setCopiedCoordinatorEmail(false), 2000);
     }
 
-    function getRescheduleMailtoUrl(): string {
-        const subject = `Waiting list / Reschedule: ${courseName || 'Course'}`;
-        const dateFormatted = invitationDatesLabel();
+    /** mailto: to the coordinator; `message` is the paragraph(s) between the greeting and the email line. */
+    function coordinatorMailto(subjectPrefix: string, message: string): string {
+        const subject = `${subjectPrefix}: ${courseName || 'Course'}`;
         const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
-        const body = `Hello Igor,\n\nI am unable to attend the upcoming session for "${courseName}" on ${dateFormatted}.\n\nPlease keep me on the waiting list for future dates.\n\n${emailLine}Thank you!`;
+        const body = `Hello Igor,\n\n${message}\n\n${emailLine}Thank you!`;
         return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
 
-    function getPriorityMailtoUrl(): string {
-        const subject = `Priority for next course: ${courseName || 'Course'}`;
-        const dateFormatted = invitationDatesLabel();
-        const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
-        const body = `Hello Igor,\n\nI received an invitation for "${courseName}" on ${dateFormatted}, but all places were already taken when I tried to confirm.\n\nI am still interested — please give me priority for the next available course date.\n\n${emailLine}Thank you!`;
-        return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    }
-
-    function getWithdrawMailtoUrl(): string {
-        const subject = `Cancel registration: ${courseName || 'Course'}`;
-        const dateFormatted = invitationDatesLabel();
-        const emailLine = email.trim() ? `Registered email: ${email.trim()}\n` : '';
-        const body = `Hello Igor,\n\nI am no longer interested in attending "${courseName}" on ${dateFormatted}.\n\nPlease cancel my registration and remove me from the waiting list.\n\n${emailLine}Thank you!`;
-        return `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    }
+    const getRescheduleMailtoUrl = () => coordinatorMailto('Waiting list / Reschedule',
+        `I am unable to attend the upcoming session for "${courseName}" on ${invitationDatesLabel()}.\n\nPlease keep me on the waiting list for future dates.`);
+    const getPriorityMailtoUrl = () => coordinatorMailto('Priority for next course',
+        `I received an invitation for "${courseName}" on ${invitationDatesLabel()}, but all places were already taken when I tried to confirm.\n\nI am still interested — please give me priority for the next available course date.`);
+    const getWithdrawMailtoUrl = () => coordinatorMailto('Cancel registration',
+        `I am no longer interested in attending "${courseName}" on ${invitationDatesLabel()}.\n\nPlease cancel my registration and remove me from the waiting list.`);
 
     // ─── Render ─────────────────────────────────────────────
 

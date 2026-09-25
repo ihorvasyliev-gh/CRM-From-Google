@@ -21,3 +21,16 @@ class MockIntersectionObserver {
     disconnect = vi.fn();
 }
 window.IntersectionObserver = MockIntersectionObserver as any;
+
+// jsdom has no matchMedia: evaluate (max-width: Npx) against innerWidth, fire 'change' on resize
+window.matchMedia = (query: string) => {
+    const max = /max-width:\s*(\d+)px/.exec(query)?.[1];
+    const evaluate = () => max !== undefined && window.innerWidth <= Number(max);
+    const mql = Object.assign(new EventTarget(), { media: query }) as MediaQueryList;
+    Object.defineProperty(mql, 'matches', { get: evaluate });
+    let last = evaluate();
+    window.addEventListener('resize', () => {
+        if (evaluate() !== last) { last = evaluate(); mql.dispatchEvent(new Event('change')); }
+    });
+    return mql;
+};

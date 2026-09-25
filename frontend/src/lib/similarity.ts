@@ -66,19 +66,7 @@ export function areNamesSimilar(
 
     if (!f1 || !l1 || !f2 || !l2) return false;
 
-    // 1. Direct comparison
-    const distFirstDirect = levenshteinDistance(f1, f2);
-    const distLastDirect = levenshteinDistance(l1, l2);
-    if (distFirstDirect <= 2 && distLastDirect <= 2) {
-        return true;
-    }
-
-    // 2. Swapped comparison (first and last names swapped)
-    const distFirstSwap = levenshteinDistance(f1, l2);
-    const distLastSwap = levenshteinDistance(l1, f2);
-    if (distFirstSwap <= 2 && distLastSwap <= 2) {
-        return true;
-    }
-
-    return false;
+    const close = (a: string, b: string) => levenshteinDistance(a, b) <= 2;
+    // Direct, or with first and last names swapped
+    return (close(f1, f2) && close(l1, l2)) || (close(f1, l2) && close(l1, f2));
 }

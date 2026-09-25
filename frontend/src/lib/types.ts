@@ -172,19 +172,6 @@ export interface TemplateVariable {
     created_at: string;
 }
 
-export interface EmploymentStatus {
-    id: string;
-    student_id: string;
-    email: string | null;
-    is_working: boolean | null;
-    started_month: string | null;
-    field_of_work: string | null;
-    employment_type: string | null; // 'full_time' | 'part_time'
-    status: 'pending' | 'responded';
-    last_invited_at: string | null;
-    last_responded_at: string | null;
-}
-
 export interface StudentFlag {
     id: string;
     student_id: string;
@@ -192,12 +179,6 @@ export interface StudentFlag {
     comment: string | null;
     created_at: string;
     courses?: Course | null;
-}
-
-export interface NonDuplicate {
-    student_a_id: string;
-    student_b_id: string;
-    created_at?: string;
 }
 
 export interface ViewerStudentDirectoryItem {

@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useDeferredValue, type ReactNode } from '
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, UserPlus, BookOpen, KanbanSquare, Clock, RefreshCw, ArrowRight, type LucideIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchDashboardStats } from '../lib/queries';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import DashboardKPIs, { type KpiHint, type KpiKey } from './Dashboard/DashboardKPIs';
 import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
@@ -136,18 +137,7 @@ export default function Dashboard({
         isFetching: statsFetching,
     } = useQuery({
         queryKey: ['dashboard_stats'],
-        queryFn: async () => {
-            const [studRes, courseRes, enrollRes] = await Promise.all([
-                supabase.from('students').select('*', { count: 'exact', head: true }),
-                supabase.from('courses').select('*', { count: 'exact', head: true }),
-                supabase.from('enrollments').select('*', { count: 'exact', head: true }),
-            ]);
-            return {
-                students: studRes.count || 0,
-                courses: courseRes.count || 0,
-                enrollments: enrollRes.count || 0,
-            };
-        },
+        queryFn: fetchDashboardStats,
         staleTime: 30_000,
     });
 

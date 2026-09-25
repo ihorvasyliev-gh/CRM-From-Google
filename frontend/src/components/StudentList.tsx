@@ -17,9 +17,7 @@ import { EmptyState, SkeletonRows } from './ui/States';
 import { tableCls, theadCls, thCls, tbodyCls, tdCls } from './ui/styles';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
 import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
-import { buildStudentSearchFilters } from '../lib/searchUtils';
-
-const PAGE_SIZE = 30;
+import { fetchStudentsPage } from '../lib/queries';
 
 function SkeletonRow() {
     return (
@@ -43,30 +41,6 @@ function SkeletonRow() {
 
 interface StudentListProps {
     onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
-}
-
-async function fetchStudentsPage({ pageParam = 0, queryKey }: any) {
-    const [_key, search] = queryKey;
-    const limit = PAGE_SIZE;
-    const from = pageParam * limit;
-    const to = from + limit - 1;
-
-    let query = supabase.from('students').select('*', { count: 'exact' }).order('created_at', { ascending: false });
-
-    if (search) {
-        buildStudentSearchFilters(search).forEach(filter => {
-            query = query.or(filter);
-        });
-    }
-
-    const { data, count, error } = await query.range(from, to);
-    if (error) throw error;
-
-    return {
-        data: (data || []) as Student[],
-        count: count || 0,
-        nextPage: (data && data.length === limit) ? pageParam + 1 : undefined
-    };
 }
 
 export default function StudentList({ onNavigate }: StudentListProps) {

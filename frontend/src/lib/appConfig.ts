@@ -405,7 +405,7 @@ export function hasUnsubscribeText(html: string): boolean {
 }
 
 function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean, safeCourseTitle = '') {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const origin = window.location.origin;
     
     const [heroTitle, heroSubtitle] = {
         invite: ["You're Invited!", 'Cork City Partnership course invitation'],

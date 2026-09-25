@@ -15,6 +15,7 @@ import Toast, { ToastData } from './Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { fetchDocumentTemplates } from '../lib/documentUtils';
+import { fetchCourses } from '../lib/queries';
 
 interface EnrollmentCount {
     course_id: string;
@@ -27,11 +28,6 @@ interface EnrollmentCount {
     rejected: number;
 }
 
-async function fetchCourses(): Promise<Course[]> {
-    const { data, error } = await supabase.from('courses').select('*').order('name');
-    if (error) throw error;
-    return (data || []) as Course[];
-}
 
 
 // ─── Status Bar (extracted to module-level) ────────────────

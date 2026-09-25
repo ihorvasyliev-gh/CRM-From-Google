@@ -55,32 +55,12 @@ const inviteTabOptions = [
     { value: 'reminder' as const, label: 'Reminder', icon: <BellRing size={13} /> },
 ];
 
-export default function Settings() {
+type Density = 'comfortable' | 'compact';
+
+export default function Settings({ density, onDensityChange }: { density: Density; onDensityChange: (d: Density) => void }) {
     const [config, setLocalConfig] = useState<AppConfig>(getConfig);
     const [saved, setSaved] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
-    const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
-        try {
-            const saved = window.localStorage.getItem('view_density');
-            return (saved === 'compact' || saved === 'comfortable') ? saved : 'comfortable';
-        } catch {
-            return 'comfortable';
-        }
-    });
-
-    useEffect(() => {
-        const handleDensityChange = (e: Event) => {
-            const customEvent = e as CustomEvent<'comfortable' | 'compact'>;
-            if (customEvent.detail) {
-                setDensity(customEvent.detail);
-            } else {
-                const saved = window.localStorage.getItem('view_density');
-                if (saved === 'compact' || saved === 'comfortable') setDensity(saved);
-            }
-        };
-        window.addEventListener('densitychange', handleDensityChange);
-        return () => window.removeEventListener('densitychange', handleDensityChange);
-    }, []);
 
     const [inviteTemplateTab, setInviteTemplateTab] = useState<InviteTab>('high_english');
     const [previewMultiDate, setPreviewMultiDate] = useState(false);
@@ -1019,12 +999,7 @@ export default function Settings() {
                                                 key={opt.value}
                                                 type="button"
                                                 aria-pressed={active}
-                                                onClick={() => {
-                                                    document.documentElement.classList.toggle('density-compact', opt.value === 'compact');
-                                                    window.localStorage.setItem('view_density', opt.value);
-                                                    setDensity(opt.value);
-                                                    window.dispatchEvent(new CustomEvent('densitychange', { detail: opt.value }));
-                                                }}
+                                                onClick={() => onDensityChange(opt.value)}
                                                 className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-colors ${
                                                     active
                                                         ? 'bg-brand-500/[0.06] border-brand-500 ring-1 ring-brand-500'

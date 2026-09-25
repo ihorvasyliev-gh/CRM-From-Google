@@ -1,24 +1,10 @@
 import { supabase } from './supabase';
 
-// ─── VAPID Key Helper ──────────────────────────────────────────
-// Converts the base64 URL-safe VAPID public key to a Uint8Array.
-function urlB64ToUint8Array(base64String: string): Uint8Array {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding)
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-}
+// Converts the base64 URL-safe VAPID public key to a Uint8Array (atob accepts missing padding).
+const urlB64ToUint8Array = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 
 // ─── Service Worker Registration ────────────────────────────────
-export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         console.warn('Service Workers or Push Manager are not supported in this browser.');
         return null;

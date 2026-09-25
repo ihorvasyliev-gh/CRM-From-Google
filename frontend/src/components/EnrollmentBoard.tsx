@@ -29,6 +29,14 @@ const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
 
+/** The course date an enrollment is about (YYYY-MM-DD), or '' when it has none. */
+const courseDateOf = (e: EnrollmentRow) => (e.confirmed_date || e.invited_date || e.completed_date || '').split('T')[0];
+
+// dnd-kit config (module-level so the objects are stable)
+const MOUSE_SENSOR_OPTS = { activationConstraint: { distance: 5 } };
+const MEASURING_CONFIG = { droppable: { strategy: MeasuringStrategy.BeforeDragging } };
+const DROP_ANIMATION = { sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) };
+
 export default function EnrollmentBoard({
     initialCourseFilter,
     initialCourseDate,
@@ -124,23 +132,16 @@ export default function EnrollmentBoard({
         inviteFlowRef.current?.openInviteModal(ids, bulk);
     }, []);
 
-    const openConfirmModalSingle = useCallback((id: string, defDate: string) => {
-        setConfirmDateTarget({ ids: [id], bulk: false });
-        setConfirmDate(defDate);
-        const first = enrollmentsRef.current.find(e => e.id === id);
-        if (first?.course_id) {
-            inviteFlowRef.current?.fetchCourseDates(first.course_id);
-        }
-    }, []);
-
-    const openConfirmModalBulk = useCallback((ids: string[], defDate: string) => {
-        setConfirmDateTarget({ ids, bulk: true });
+    const openConfirmModal = useCallback((ids: string[], defDate: string, bulk: boolean) => {
+        setConfirmDateTarget({ ids, bulk });
         setConfirmDate(defDate);
         const first = enrollmentsRef.current.find(e => ids.includes(e.id));
         if (first?.course_id) {
             inviteFlowRef.current?.fetchCourseDates(first.course_id);
         }
     }, []);
+    const openConfirmModalSingle = useCallback((id: string, defDate: string) => openConfirmModal([id], defDate, false), [openConfirmModal]);
+    const openConfirmModalBulk = useCallback((ids: string[], defDate: string) => openConfirmModal(ids, defDate, true), [openConfirmModal]);
 
     const enrollmentsHook = useEnrollments({
         showToast,
@@ -187,20 +188,14 @@ export default function EnrollmentBoard({
                 if (cleaned.toLowerCase() !== selectedVariant.toLowerCase()) return;
             }
 
-            const rawDate = item.confirmed_date || item.invited_date || item.completed_date;
-            if (rawDate) {
-                const cleanD = rawDate.split('T')[0];
-                const d = new Date(cleanD);
-                // Only include today and future dates
-                if (!isNaN(d.getTime()) && cleanD >= today) {
-                    dateMap.set(cleanD, (dateMap.get(cleanD) || 0) + 1);
-                }
-            }
+            // Only include today and future dates (ISO strings compare chronologically)
+            const date = courseDateOf(item);
+            if (date && date >= today) dateMap.set(date, (dateMap.get(date) || 0) + 1);
         });
 
         return Array.from(dateMap.entries())
             .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            .sort((a, b) => a.date.localeCompare(b.date));
     }, [enrollments, selectedCourse, selectedVariant]);
 
     // Reset selectedCourseDate if no longer present in available dates
@@ -219,13 +214,7 @@ export default function EnrollmentBoard({
         if (selectedVariant !== 'all') {
             result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === selectedVariant.toLowerCase());
         }
-        if (selectedCourseDate !== 'all') {
-            result = result.filter(e => {
-                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
-                if (!rawDate) return false;
-                return rawDate.split('T')[0] === selectedCourseDate;
-            });
-        }
+        if (selectedCourseDate !== 'all') result = result.filter(e => courseDateOf(e) === selectedCourseDate);
         if (debouncedSearchQuery.trim()) {
             result = result.filter(e =>
                 matchesSearch({
@@ -248,22 +237,12 @@ export default function EnrollmentBoard({
             result = result.filter(e => new Date(e.created_at) <= to);
         }
         if (courseDateFrom) {
-            const cFromStr = courseDateFrom.split('T')[0];
-            result = result.filter(e => {
-                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
-                if (!rawDate) return false;
-                const cDateStr = rawDate.split('T')[0];
-                return cDateStr >= cFromStr;
-            });
+            const from = courseDateFrom.split('T')[0];
+            result = result.filter(e => { const d = courseDateOf(e); return !!d && d >= from; });
         }
         if (courseDateTo) {
-            const cToStr = courseDateTo.split('T')[0];
-            result = result.filter(e => {
-                const rawDate = e.confirmed_date || e.invited_date || e.completed_date;
-                if (!rawDate) return false;
-                const cDateStr = rawDate.split('T')[0];
-                return cDateStr <= cToStr;
-            });
+            const to = courseDateTo.split('T')[0];
+            result = result.filter(e => { const d = courseDateOf(e); return !!d && d <= to; });
         }
         return result;
     }, [enrollments, selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
@@ -465,22 +444,8 @@ export default function EnrollmentBoard({
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [hasSelection, clearSelection]);
 
-    const mouseSensorOpts = useMemo(() => ({ activationConstraint: { distance: 5 } }), []);
-    const mouseSensor = useSensor(MouseSensor, mouseSensorOpts);
+    const mouseSensor = useSensor(MouseSensor, MOUSE_SENSOR_OPTS);
     const sensors = useSensors(mouseSensor);
-
-    const measuringConfig = useMemo(() => ({
-        droppable: {
-            strategy: MeasuringStrategy.BeforeDragging
-        }
-    }), []);
-
-    // п.8: drop animation config
-    const dropAnimation = useMemo(() => ({
-        sideEffects: defaultDropAnimationSideEffects({
-            styles: { active: { opacity: '0.4' } }
-        })
-    }), []);
 
     // Applies a status change; for destructive moves (rejected / withdrawn) captures the previous
     // state of every affected row first and offers a one-click Undo that restores it exactly.
@@ -614,7 +579,7 @@ export default function EnrollmentBoard({
     // Synchronize activeMobileColumn with currently scrolled column
     useEffect(() => {
         const container = boardContainerRef.current;
-        if (!container || typeof window === 'undefined') return;
+        if (!container) return;
 
         let timer: ReturnType<typeof setTimeout> | null = null;
         const handleScroll = () => {
@@ -723,7 +688,7 @@ export default function EnrollmentBoard({
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
-                measuring={measuringConfig}
+                measuring={MEASURING_CONFIG}
             >
                 <div 
                     ref={boardContainerRef}
@@ -761,7 +726,7 @@ export default function EnrollmentBoard({
                 </div>
 
                 {/* п.8: drop animation enabled */}
-                <DragOverlay dropAnimation={dropAnimation}>
+                <DragOverlay dropAnimation={DROP_ANIMATION}>
                     {activeId ? (() => {
                         const activeEnrollment = enrollments.find(e => e.id === activeId);
                         if (!activeEnrollment) return null;

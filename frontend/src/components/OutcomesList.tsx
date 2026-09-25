@@ -2,11 +2,13 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSearchParams } from 'react-router-dom';
-import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, Filter, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
+import { Briefcase, Mail, Copy, Loader2, Filter, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { Segmented } from './ui/Tabs';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
-import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
+import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
+import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
+import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
@@ -123,20 +125,7 @@ function GraduateOutcomes() {
         });
     }
 
-    async function handleCopyEmails() {
-        const all = [...new Set(graduates.filter(g => selectedIds.has(g.student_id)).map(g => g.email).filter(Boolean))];
-        if (all.length === 0) { showToast('No emails to copy', 'error'); return; }
-        try {
-            // Leave out people who unsubscribed from our emails
-            const optedOut = await fetchOptedOutEmails(all);
-            const { allowed: emails, skipped } = partitionByOptOut(all, e => e, optedOut);
-            if (emails.length === 0) { showToast('Everyone selected has unsubscribed from emails', 'error'); return; }
-            await navigator.clipboard.writeText(emails.join('; '));
-            showToast(`${emails.length} email(s) copied!${skippedNote(skipped.length)}`, 'success');
-        } catch {
-            showToast('Could not copy the emails', 'error');
-        }
-    }
+    const handleCopyEmails = () => copyOptedInEmails(graduates.filter(g => selectedIds.has(g.student_id)).map(g => g.email), showToast);
 
     async function handleSendStatusRequest() {
         if (selectedIds.size === 0) return;
@@ -160,35 +149,14 @@ function GraduateOutcomes() {
             });
             if (rpcError) throw rpcError;
 
-            // Build bulk generic email
-            const statusLink = `${window.location.origin}/status`;
-            const htmlBody = buildStatusEmailBodyHtml(statusLink);
-            const subject = encodeURIComponent(buildStatusEmailSubject());
-
-            let copied = true;
-            try {
-                const blobHtml = new Blob([htmlBody], { type: 'text/html' });
-                const blobText = new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' });
-                await navigator.clipboard.write([new ClipboardItem({
-                    'text/html': blobHtml,
-                    'text/plain': blobText,
-                })]);
-            } catch (clipErr) {
-                console.error('Clipboard write failed:', clipErr);
-                copied = false;
-            }
-
-            showToast(
-                copied
-                    ? `Status requests sent to ${selected.length} graduate(s). Template copied!${skippedNote(skipped.length)}`
-                    : `Marked ${selected.length} graduate(s) as pending, but the email template could not be copied`,
-                copied ? 'success' : 'error'
-            );
-
-            // Open mailto with bcc
-            const emails = [...new Set(selected.map(g => g.email).filter(Boolean))];
-            const bcc = emails.map(e => encodeURIComponent(e)).join(',');
-            window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
+            await copySurveyAndOpenMailto({
+                html: buildStatusEmailBodyHtml(`${window.location.origin}/status`),
+                subject: buildStatusEmailSubject(),
+                emails: selected.map(g => g.email),
+                noun: 'graduate',
+                skipped: skipped.length,
+                showToast,
+            });
 
             // Refresh data to show updated token statuses
             await fetchGraduates();
@@ -227,37 +195,6 @@ function GraduateOutcomes() {
                 ...(responded ? { last_responded_at: new Date().toISOString() } : {}),
             }, { onConflict: 'student_id' });
         if (upsertErr) throw upsertErr;
-    }
-
-    function getTrackingBadge(status: GraduateRow['tracking_status']) {
-        switch (status) {
-            case 'responded':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed"><CheckCircle size={10} /> Responded</span>;
-            case 'pending':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-info/15 text-status-invited"><Send size={10} /> Pending</span>;
-            default:
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/15 text-muted"><Mail size={10} /> Not Contacted</span>;
-        }
-    }
-
-    function getEmploymentBadge(grad: GraduateRow) {
-        if (grad.tracking_status !== 'responded') {
-            return <span className="text-xs text-muted italic">No data</span>;
-        }
-        if (grad.is_working) {
-            const type = grad.employment_type === 'full_time' ? 'Full-time' : grad.employment_type === 'part_time' ? 'Part-time' : '';
-            return (
-                <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed">
-                        <Briefcase size={10} /> Working {type && `· ${type}`}
-                    </span>
-                    {grad.field_of_work && (
-                        <span className="text-[10px] text-muted">in {grad.field_of_work}</span>
-                    )}
-                </div>
-            );
-        }
-        return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Not working</span>;
     }
 
     if (loading) {
@@ -443,13 +380,13 @@ function GraduateOutcomes() {
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
-                                                {getTrackingBadge(grad.tracking_status)}
+                                                <TrackingBadge status={grad.tracking_status} />
                                                 {grad.tracking_status === 'pending' && grad.last_sent_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4">
-                                                {getEmploymentBadge(grad)}
+                                                <EmploymentBadge status={grad.tracking_status} row={grad} />
                                                 {grad.is_working && grad.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">
                                                         Since {new Date(grad.started_month + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}

@@ -18,8 +18,6 @@ export function setupSleepAndWakeListener(
     onWake: (reason: 'visibility' | 'focus' | 'online' | 'sleep_gap') => void,
     options: SleepWakeOptions = {}
 ): () => void {
-    if (typeof window === 'undefined') return () => {};
-
     const sleepThresholdMs = options.sleepThresholdMs ?? 10000;
     const checkIntervalMs = options.checkIntervalMs ?? 2500;
 
@@ -137,9 +135,7 @@ export async function reconnectSupabaseRealtime(): Promise<void> {
         }
 
         // Broadcast a custom event for any listeners (e.g. queries or channels) to resync
-        if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('crm:realtime-reconnect'));
-        }
+        window.dispatchEvent(new CustomEvent('crm:realtime-reconnect'));
     } catch (err) {
         console.error('[realtimeSync] reconnectSupabaseRealtime error:', err);
     }

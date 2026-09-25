@@ -22,7 +22,7 @@ export function usePersistentState<T>(
 ): [T, Dispatch<SetStateAction<T>>] {
     const [value, setValue] = useState<T>(() => {
         const fallback = typeof initialValue === 'function' ? (initialValue as () => T)() : initialValue;
-        const store = typeof window !== 'undefined' ? getStorage(storage) : null;
+        const store = getStorage(storage);
         if (!store) return fallback;
         try {
             const raw = store.getItem(key);

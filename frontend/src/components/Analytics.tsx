@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useDeferredValue, startTransition, memo, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { fetchEmploymentStatuses } from '../lib/queries';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { 
@@ -87,13 +87,7 @@ export default function Analytics() {
 
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('employment_status')
-                .select('*');
-            if (error) throw error;
-            return data || [];
-        },
+        queryFn: fetchEmploymentStatuses,
         staleTime: 60_000,
     });
 

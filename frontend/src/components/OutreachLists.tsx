@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Mail, Copy, CheckCircle, Send, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
+import { Briefcase, Mail, Copy, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
-import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
+import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
+import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
+import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
@@ -154,20 +156,7 @@ export default function OutreachLists() {
         showToast(`List "${name}" deleted`, 'success');
     }
 
-    async function handleCopyEmails() {
-        const all = [...new Set(contacts.filter(c => selectedIds.has(c.id)).map(c => c.email).filter(Boolean))];
-        if (all.length === 0) { showToast('No emails to copy', 'error'); return; }
-        try {
-            // Leave out people who unsubscribed from our emails
-            const optedOut = await fetchOptedOutEmails(all);
-            const { allowed: emails, skipped } = partitionByOptOut(all, e => e, optedOut);
-            if (emails.length === 0) { showToast('Everyone selected has unsubscribed from emails', 'error'); return; }
-            await navigator.clipboard.writeText(emails.join('; '));
-            showToast(`${emails.length} email(s) copied!${skippedNote(skipped.length)}`, 'success');
-        } catch {
-            showToast('Could not copy the emails', 'error');
-        }
-    }
+    const handleCopyEmails = () => copyOptedInEmails(contacts.filter(c => selectedIds.has(c.id)).map(c => c.email), showToast);
 
     async function handleSendStatusRequest() {
         if (selectedIds.size === 0 || !listId) return;
@@ -188,31 +177,15 @@ export default function OutreachLists() {
             });
             if (rpcError) throw rpcError;
 
-            // The link carries the list, so answers are saved to this list only
-            const statusLink = `${window.location.origin}/status?list=${listId}`;
-            const htmlBody = buildStatusEmailBodyHtml(statusLink, undefined, 'outreach');
-            const subject = encodeURIComponent(buildStatusEmailSubject(undefined, 'outreach'));
-
-            let copied = true;
-            try {
-                await navigator.clipboard.write([new ClipboardItem({
-                    'text/html': new Blob([htmlBody], { type: 'text/html' }),
-                    'text/plain': new Blob(['Please view this email in an HTML-compatible client.'], { type: 'text/plain' }),
-                })]);
-            } catch (clipErr) {
-                console.error('Clipboard write failed:', clipErr);
-                copied = false;
-            }
-
-            showToast(
-                copied
-                    ? `Status requests sent to ${selected.length} contact(s). Template copied!${skippedNote(skipped.length)}`
-                    : `Marked ${selected.length} contact(s) as pending, but the email template could not be copied`,
-                copied ? 'success' : 'error'
-            );
-
-            const bcc = [...new Set(selected.map(c => c.email))].map(e => encodeURIComponent(e)).join(',');
-            window.location.href = `mailto:?bcc=${bcc}&subject=${subject}`;
+            await copySurveyAndOpenMailto({
+                // The link carries the list, so answers are saved to this list only
+                html: buildStatusEmailBodyHtml(`${window.location.origin}/status?list=${listId}`, undefined, 'outreach'),
+                subject: buildStatusEmailSubject(undefined, 'outreach'),
+                emails: selected.map(c => c.email),
+                noun: 'contact',
+                skipped: skipped.length,
+                showToast,
+            });
 
             await refetchContacts();
             setSelectedIds(new Set());
@@ -263,37 +236,6 @@ export default function OutreachLists() {
         });
         await refetchContacts();
         showToast(`${contact.first_name || contact.email} removed from the list`, 'success');
-    }
-
-    function getTrackingBadge(status: OutreachContact['status']) {
-        switch (status) {
-            case 'responded':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed"><CheckCircle size={10} /> Responded</span>;
-            case 'pending':
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-info/15 text-status-invited"><Send size={10} /> Pending</span>;
-            default:
-                return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/15 text-muted"><Mail size={10} /> Not Contacted</span>;
-        }
-    }
-
-    function getEmploymentBadge(contact: OutreachContact) {
-        if (contact.status !== 'responded') {
-            return <span className="text-xs text-muted italic">No data</span>;
-        }
-        if (contact.is_working) {
-            const type = contact.employment_type === 'full_time' ? 'Full-time' : contact.employment_type === 'part_time' ? 'Part-time' : '';
-            return (
-                <div className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-status-confirmed">
-                        <Briefcase size={10} /> Working {type && `· ${type}`}
-                    </span>
-                    {contact.field_of_work && (
-                        <span className="text-[10px] text-muted">in {contact.field_of_work}</span>
-                    )}
-                </div>
-            );
-        }
-        return <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Not working</span>;
     }
 
     if (listsLoading) {
@@ -551,13 +493,13 @@ export default function OutreachLists() {
                                                 <span className="text-xs text-muted">{contact.external_ref || '—'}</span>
                                             </td>
                                             <td className="py-3 px-4">
-                                                {getTrackingBadge(contact.status)}
+                                                <TrackingBadge status={contact.status} />
                                                 {contact.status === 'pending' && contact.last_invited_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(contact.last_invited_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4">
-                                                {getEmploymentBadge(contact)}
+                                                <EmploymentBadge status={contact.status} row={contact} />
                                                 {contact.status === 'responded' && contact.is_working && contact.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">
                                                         Since {new Date(contact.started_month + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}

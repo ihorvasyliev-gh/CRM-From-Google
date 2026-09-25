@@ -1,47 +1,20 @@
 import { useSyncExternalStore } from 'react';
 
-// One shared, rAF-throttled resize listener for every subscriber. Each Kanban card uses these
-// hooks, so a per-hook listener meant hundreds of window handlers firing on every resize event.
-const listeners = new Set<() => void>();
-let frame: number | null = null;
-
-function notify() {
-    frame = null;
-    listeners.forEach(cb => cb());
-}
-
-function onResize() {
-    if (frame === null) frame = window.requestAnimationFrame(notify);
-}
-
-function subscribe(callback: () => void) {
-    if (typeof window === 'undefined') return () => {};
-    listeners.add(callback);
-    if (listeners.size === 1) window.addEventListener('resize', onResize);
-    return () => {
-        listeners.delete(callback);
-        if (listeners.size === 0) {
-            window.removeEventListener('resize', onResize);
-            if (frame !== null) {
-                window.cancelAnimationFrame(frame);
-                frame = null;
-            }
-        }
+// matchMedia fires 'change' only when the breakpoint is crossed, so the hundreds of Kanban
+// cards using these hooks cost nothing on ordinary resize events.
+function mediaStore(query: string) {
+    const mql = window.matchMedia(query);
+    return {
+        subscribe: (cb: () => void) => {
+            mql.addEventListener('change', cb);
+            return () => mql.removeEventListener('change', cb);
+        },
+        get: () => mql.matches,
     };
 }
 
-export function useIsMobile(): boolean {
-    return useSyncExternalStore(
-        subscribe,
-        () => (typeof window !== 'undefined' ? window.innerWidth < 1024 : false),
-        () => false
-    );
-}
+const mobile = mediaStore('(max-width: 1023px)');
+const small = mediaStore('(max-width: 767px)');
 
-export function useIsSmallScreen(): boolean {
-    return useSyncExternalStore(
-        subscribe,
-        () => (typeof window !== 'undefined' ? window.innerWidth < 768 : false),
-        () => false
-    );
-}
+export const useIsMobile = () => useSyncExternalStore(mobile.subscribe, mobile.get, () => false);
+export const useIsSmallScreen = () => useSyncExternalStore(small.subscribe, small.get, () => false);

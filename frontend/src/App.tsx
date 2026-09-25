@@ -13,6 +13,7 @@ import { fetchGraduatesFn } from './hooks/useOutcomes';
 import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
+import { fetchCourses, fetchDashboardStats, fetchEmploymentStatuses, fetchStudentsPage } from './lib/queries';
 import { Student, StudentPayload } from './lib/types';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
@@ -41,6 +42,7 @@ const EnrollmentBoard = lazyWithRetry(() => import('./components/EnrollmentBoard
 const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGenerator'));
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
+type Density = 'comfortable' | 'compact';
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
@@ -53,42 +55,33 @@ import { VIEWER_TABS, type ViewerTab } from './components/Viewer/viewerMeta';
 import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/studentDrawer';
 import { usePendingApprovalsCount } from './hooks/useApprovals';
 
-const NAV_ITEMS = [
-    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Overview & metrics', group: 'Workspace' },
-    { key: 'students', label: 'Students', icon: Users, desc: 'Manage students', group: 'Workspace' },
-    { key: 'courses', label: 'Courses', icon: BookOpen, desc: 'Course catalog', group: 'Workspace' },
-    { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, desc: 'Registration board', group: 'Workspace' },
-    { key: 'outcomes', label: 'Outcomes', icon: Briefcase, desc: 'Graduate tracking', group: 'Insights' },
-    { key: 'documents', label: 'Documents', icon: FileText, desc: 'Generate forms', group: 'Insights' },
-    { key: 'analytics', label: 'Analytics', icon: PieChart, desc: 'Insights & Stats', group: 'Insights' },
-    { key: 'settings', label: 'Settings', icon: SettingsIcon, desc: 'App configuration', group: 'System' },
+// `title` (page header) defaults to `label` (sidebar)
+const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof Users; subtitle: string; group: string }[] = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subtitle: 'Welcome back — here\'s your overview', group: 'Workspace' },
+    { key: 'students', label: 'Students', icon: Users, subtitle: 'Manage your student database', group: 'Workspace' },
+    { key: 'courses', label: 'Courses', icon: BookOpen, subtitle: 'View and manage the course catalog', group: 'Workspace' },
+    { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, subtitle: 'Track and manage enrollments', group: 'Workspace' },
+    { key: 'outcomes', label: 'Outcomes', icon: Briefcase, subtitle: 'Track graduate employment status', group: 'Insights' },
+    { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Insights' },
+    { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
+    { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
 ];
 const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
+// Hover prefetch per tab: its data, plus its chunk (idle prewarm skips heavy chunks on slow connections)
+const enrollmentsQuery = { queryKey: ['enrollments'], queryFn: fetchAllEnrollments };
+const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: () => Promise<unknown> }[]; chunk?: () => Promise<unknown> }> = {
+    dashboard: { queries: [{ queryKey: ['dashboard_stats'], queryFn: fetchDashboardStats }, enrollmentsQuery] },
+    courses: { queries: [{ queryKey: ['courses'], queryFn: fetchCourses }, enrollmentsQuery], chunk: () => import('./components/CourseList') },
+    enrollments: { queries: [enrollmentsQuery] },
+    outcomes: { queries: [{ queryKey: ['outcomes_graduates'], queryFn: fetchGraduatesFn }], chunk: () => import('./components/OutcomesList') },
+    documents: { queries: [enrollmentsQuery, { queryKey: ['doc_courses'], queryFn: fetchCourses }], chunk: () => import('./components/DocumentGenerator') },
+    analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('./components/Analytics') },
+    settings: { chunk: () => import('./components/Settings') },
+};
+
 const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
 const NOTIF_BANNER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-
-const PAGE_SUBTITLES: Record<string, string> = {
-    dashboard: 'Welcome back — here\'s your overview',
-    students: 'Manage your student database',
-    courses: 'View and manage the course catalog',
-    enrollments: 'Track and manage enrollments',
-    outcomes: 'Track graduate employment status',
-    documents: 'Generate personalised documents from templates',
-    analytics: 'Course, enrollment and outcome statistics',
-    settings: 'Email templates, data quality and preferences',
-};
-
-const PAGE_TITLES: Record<string, string> = {
-    dashboard: 'Dashboard',
-    students: 'Students',
-    courses: 'Courses',
-    enrollments: 'Enrollments',
-    outcomes: 'Outcomes',
-    documents: 'Documents',
-    analytics: 'Analytics & Insights',
-    settings: 'Settings',
-};
 
 function App() {
     const { user, loading, signOut } = useAuth();
@@ -119,33 +112,21 @@ function App() {
         checkPushSubscription();
     }, []);
 
-    // Prewarm heavy route component chunks during browser idle time so tab clicks have zero delay
+    // Viewers: prewarm their route chunks during idle time (admin tabs are warmed further below)
     useEffect(() => {
-        if (!user) return;
-        const role = getUserRole(user);
-        if (role === 'outreach') return;
-        const prewarm = role === 'viewer'
-            ? () => {
-                import('./components/ViewerHome');
-                import('./components/ViewerStudentsDirectory');
-                import('./components/ViewerCourses');
-                import('./components/StudentDetailDrawer');
-            }
-            : () => {
-                import('./components/Dashboard');
-                import('./components/EnrollmentBoard');
-                import('./components/StudentList');
-                import('./components/CourseList');
-            };
-        if (typeof window !== 'undefined') {
-            if ('requestIdleCallback' in window) {
-                const handle = (window as any).requestIdleCallback(prewarm, { timeout: 2000 });
-                return () => (window as any).cancelIdleCallback(handle);
-            } else {
-                const timer = setTimeout(prewarm, 1000);
-                return () => clearTimeout(timer);
-            }
+        if (getUserRole(user) !== 'viewer') return;
+        const prewarm = () => {
+            import('./components/ViewerHome');
+            import('./components/ViewerStudentsDirectory');
+            import('./components/ViewerCourses');
+            import('./components/StudentDetailDrawer');
+        };
+        if ('requestIdleCallback' in window) {
+            const handle = requestIdleCallback(prewarm, { timeout: 2000 });
+            return () => cancelIdleCallback(handle);
         }
+        const timer = setTimeout(prewarm, 1000);
+        return () => clearTimeout(timer);
     }, [user]);
 
     const location = useLocation();
@@ -157,6 +138,8 @@ function App() {
     const isOutreach = role === 'outreach';
     const viewerTab: ViewerTab = VIEWER_TABS.find(t => location.pathname.startsWith(`/${t.key}`))?.key ?? 'home';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
+    const activeNav = NAV_ITEMS.find(n => n.key === activeTab);
+    const pageTitle = activeNav?.title ?? activeNav?.label;
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && role === 'admin');
 
@@ -170,10 +153,10 @@ function App() {
             ? 'External Lists'
             : isViewer
                 ? (VIEWER_TABS.find(t => t.key === activeTab)?.label || 'Home')
-                : (PAGE_TITLES[activeTab] || 'Dashboard');
+                : (pageTitle || 'Dashboard');
         const prefix = !isViewer && pendingApprovalsCount > 0 ? `(${pendingApprovalsCount}) ` : '';
         document.title = `${prefix}${page} · CCP CRM`;
-    }, [user, isViewer, isOutreach, activeTab, pendingApprovalsCount]);
+    }, [user, isViewer, isOutreach, activeTab, pageTitle, pendingApprovalsCount]);
 
     // Escape closes the mobile sidebar drawer
     useModalBehavior(sidebarOpen, () => setSidebarOpen(false));
@@ -190,12 +173,9 @@ function App() {
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
-        if (typeof window !== 'undefined') {
-            const saved = window.localStorage.getItem('theme');
-            if (saved) return saved === 'dark';
-            return window.matchMedia('(prefers-color-scheme: dark)').matches;
-        }
-        return true; // Default to dark as requested
+        const saved = window.localStorage.getItem('theme');
+        if (saved) return saved === 'dark';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
     });
 
     // Apply dark mode class to root element (+ keep the mobile browser chrome colour in sync)
@@ -234,13 +214,10 @@ function App() {
         }
     }, []);
 
-    const [density, setDensity] = useState<'comfortable' | 'compact'>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = window.localStorage.getItem('view_density');
-            if (saved === 'compact' || saved === 'comfortable') return saved;
-        }
-        return 'comfortable';
-    });
+    // Owned here; Settings gets it as props
+    const [density, setDensity] = useState<Density>(() =>
+        window.localStorage.getItem('view_density') === 'compact' ? 'compact' : 'comfortable'
+    );
 
     useEffect(() => {
         document.documentElement.classList.toggle('density-compact', density === 'compact');
@@ -251,162 +228,25 @@ function App() {
         }
     }, [density]);
 
-    useEffect(() => {
-        const handleDensityChange = (e: Event) => {
-            const customEvent = e as CustomEvent<'comfortable' | 'compact'>;
-            if (customEvent.detail && customEvent.detail !== density) {
-                setDensity(customEvent.detail);
-            }
-        };
-        window.addEventListener('densitychange', handleDensityChange);
-        return () => window.removeEventListener('densitychange', handleDensityChange);
-    }, [density]);
-
     const toggleDensity = useCallback(() => {
-        setDensity(prev => {
-            const next = prev === 'comfortable' ? 'compact' : 'comfortable';
-            window.dispatchEvent(new CustomEvent('densitychange', { detail: next }));
-            return next;
-        });
+        setDensity(prev => prev === 'comfortable' ? 'compact' : 'comfortable');
     }, []);
 
     const queryClient = useQueryClient();
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Prefetch data for a tab on hover so it's ready when the user clicks
-    const prefetchForTab = useCallback((tab: string) => {
-        switch (tab) {
-            case 'dashboard':
-                queryClient.prefetchQuery({
-                    queryKey: ['dashboard_stats'],
-                    queryFn: async () => {
-                        const [s, c, e] = await Promise.all([
-                            supabase.from('students').select('*', { count: 'exact', head: true }),
-                            supabase.from('courses').select('*', { count: 'exact', head: true }),
-                            supabase.from('enrollments').select('*', { count: 'exact', head: true }),
-                        ]);
-                        return { students: s.count || 0, courses: c.count || 0, enrollments: e.count || 0 };
-                    },
-                    staleTime: 30_000,
-                });
-                queryClient.prefetchQuery({
-                    queryKey: ['enrollments'],
-                    queryFn: fetchAllEnrollments,
-                    staleTime: 30_000,
-                });
-                break;
-            case 'students':
-                queryClient.prefetchInfiniteQuery({
-                    queryKey: ['students', ''],
-                    queryFn: async ({ pageParam = 0 }: any) => {
-                        const limit = 30; // Matches PAGE_SIZE in StudentList.tsx
-                        const from = pageParam * limit;
-                        const to = from + limit - 1;
-                        const { data, count, error } = await supabase
-                            .from('students')
-                            .select('*', { count: 'exact' })
-                            .order('created_at', { ascending: false })
-                            .range(from, to);
-                        if (error) throw error;
-                        return {
-                            data: (data || []) as any[],
-                            count: count || 0,
-                            nextPage: (data && data.length === limit) ? pageParam + 1 : undefined
-                        };
-                    },
-                    initialPageParam: 0,
-                    staleTime: 30_000,
-                });
-                break;
-            case 'courses':
-                queryClient.prefetchQuery({
-                    queryKey: ['courses'],
-                    queryFn: async () => {
-                        const { data } = await supabase.from('courses').select('*').order('name');
-                        return data || [];
-                    },
-                    staleTime: 30_000,
-                });
-                queryClient.prefetchQuery({
-                    queryKey: ['enrollments'],
-                    queryFn: fetchAllEnrollments,
-                    staleTime: 30_000,
-                });
-                break;
-            case 'analytics':
-                queryClient.prefetchQuery({
-                    queryKey: ['enrollments'],
-                    queryFn: fetchAllEnrollments,
-                    staleTime: 30_000,
-                });
-                queryClient.prefetchQuery({
-                    queryKey: ['analytics_employment_statuses_v1'],
-                    queryFn: async () => {
-                        const { data, error } = await supabase
-                            .from('employment_status')
-                            .select('*');
-                        if (error) throw error;
-                        return data || [];
-                    },
-                    staleTime: 60_000,
-                });
-                break;
-            case 'enrollments':
-                queryClient.prefetchQuery({
-                    queryKey: ['enrollments'],
-                    queryFn: fetchAllEnrollments,
-                    staleTime: 30_000,
-                });
-                break;
-            case 'documents':
-                queryClient.prefetchQuery({
-                    queryKey: ['enrollments'],
-                    queryFn: fetchAllEnrollments,
-                    staleTime: 30_000,
-                });
-                queryClient.prefetchQuery({
-                    queryKey: ['doc_courses'],
-                    queryFn: async () => {
-                        const { data } = await supabase.from('courses').select('*').order('name');
-                        return data || [];
-                    },
-                    staleTime: 30_000,
-                });
-                break;
-            case 'outcomes':
-                queryClient.prefetchQuery({
-                    queryKey: ['outcomes_graduates'],
-                    queryFn: fetchGraduatesFn,
-                    staleTime: 30_000,
-                });
-                break;
-        }
-    }, [queryClient]);
-
+    // Hover intent (debounced so a cursor sweeping past tabs doesn't fire them all)
     const handleTabMouseEnter = useCallback((tab: string) => {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
         hoverTimerRef.current = setTimeout(() => {
-            prefetchForTab(tab);
-            // Intent-based chunk prewarming: load heavy components only when hovered with intent
-            switch (tab) {
-                case 'documents':
-                    import('./components/DocumentGenerator');
-                    break;
-                case 'analytics':
-                    import('./components/Analytics');
-                    break;
-                case 'settings':
-                    import('./components/Settings');
-                    break;
-                case 'outcomes':
-                    import('./components/OutcomesList');
-                    break;
-                case 'courses':
-                    import('./components/CourseList');
-                    break;
+            const { queries = [], chunk } = TAB_PREFETCH[tab] ?? {};
+            queries.forEach(q => queryClient.prefetchQuery({ ...q, staleTime: 30_000 }));
+            if (tab === 'students') {
+                queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0, staleTime: 30_000 });
             }
-        }, 150); // 150ms debounce prevents hover-storm when cursor sweeps past tabs
-    }, [prefetchForTab]);
+            chunk?.();
+        }, 150);
+    }, [queryClient]);
 
     const handleTabMouseLeave = useCallback(() => {
         if (hoverTimerRef.current) {
@@ -471,13 +311,6 @@ function App() {
         });
     }, [navigateFn]);
 
-    // Called from child components (e.g., StudentDetail, Dashboard) to navigate with filters
-    const handleNavigate = useCallback((tab: string, filter?: any) => {
-        setSidebarOpen(false);
-        startTransition(() => {
-            navigateFn(`/${tab}`, filter ? { state: filter } : undefined);
-        });
-    }, [navigateFn]);
 
     const handleOpenStudentDetail = useCallback(async (studentId: string) => {
         try {
@@ -820,7 +653,7 @@ function App() {
                                 <div className="w-7 h-7 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-sm shadow-brand-500/20 flex-shrink-0">
                                     C
                                 </div>
-                                <span className="font-semibold text-sm text-primary tracking-tight truncate">{PAGE_TITLES[activeTab]}</span>
+                                <span className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</span>
                             </div>
                             <div className="flex items-center gap-0.5">
                                 <IconButton label="Search (Ctrl+K)" onClick={() => setCommandPaletteOpen(true)}>
@@ -845,9 +678,9 @@ function App() {
                     {!isViewer && (
                         <header className="hidden lg:flex sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-8 items-center justify-between gap-4">
                             <div className="flex items-baseline gap-3 min-w-0">
-                                <h2 className="text-lg font-semibold text-primary tracking-tight">{PAGE_TITLES[activeTab]}</h2>
-                                {PAGE_SUBTITLES[activeTab] && (
-                                    <p className="text-[13px] text-muted truncate">{PAGE_SUBTITLES[activeTab]}</p>
+                                <h2 className="text-lg font-semibold text-primary tracking-tight">{pageTitle}</h2>
+                                {activeNav && (
+                                    <p className="text-[13px] text-muted truncate">{activeNav.subtitle}</p>
                                 )}
                             </div>
 
@@ -926,7 +759,7 @@ function App() {
                                             path="/dashboard"
                                             element={
                                                 <Dashboard
-                                                    onNavigate={handleNavigate}
+                                                    onNavigate={navigate}
                                                     onOpenStudentDetail={handleOpenStudentDetail}
                                                     pendingApprovalsCount={pendingApprovalsCount}
                                                     onOpenApprovals={() => setApprovalsModalOpen(true)}
@@ -935,13 +768,13 @@ function App() {
                                                 />
                                             }
                                         />
-                                        <Route path="/students" element={<StudentList onNavigate={handleNavigate} />} />
+                                        <Route path="/students" element={<StudentList onNavigate={navigate} />} />
                                         <Route path="/courses" element={<CourseList />} />
                                         <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} initialCourseDate={location.state?.courseDate} />} />
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />
-                                        <Route path="/settings" element={<Settings />} />
+                                        <Route path="/settings" element={<Settings density={density} onDensityChange={setDensity} />} />
                                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                                     </>
                                 )}
@@ -992,7 +825,7 @@ function App() {
             <CommandPalette
                 open={commandPaletteOpen}
                 onClose={() => setCommandPaletteOpen(false)}
-                onNavigate={handleNavigate}
+                onNavigate={navigate}
                 onOpenStudentDetail={student => {
                     if (isViewer) {
                         viewerDrawer.open(student.id);
@@ -1070,7 +903,7 @@ function App() {
                 <StudentDetail
                     student={globalStudentDetail}
                     onClose={() => setGlobalStudentDetail(null)}
-                    onNavigate={handleNavigate}
+                    onNavigate={navigate}
                     onStudentUpdated={setGlobalStudentDetail}
                     onEnroll={() => {
                         setGlobalEnrollStudentId(globalStudentDetail.id);

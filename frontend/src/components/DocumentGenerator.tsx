@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { fetchCourses } from '../lib/queries';
 import { FileText, Download, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, Plus, Pencil, Check, CheckCircle2, Variable, Tag, Table2, BookOpen, Users, Braces, Copy, ClipboardList, ArrowRight } from 'lucide-react';
 import { generateDocumentsArchive, fetchDocumentTemplates, templatesForCourse, type TemplateDescriptor } from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
-import { DocumentTemplate, Course, TemplateVariable, cleanVariant } from '../lib/types';
+import { DocumentTemplate, TemplateVariable, cleanVariant } from '../lib/types';
 import { getConfig, setConfig as persistConfig, type ExcelColumn } from '../lib/appConfig';
 import Toast, { type ToastData } from './Toast';
 import ConfirmDialog from './ConfirmDialog';
@@ -75,10 +76,7 @@ export default function DocumentGenerator() {
     const { data: courses = [], isLoading: coursesLoading } = useQuery({
         queryKey: ['doc_courses'],
         staleTime: 0, // pick up template presets just edited on the Courses tab
-        queryFn: async () => {
-            const { data } = await supabase.from('courses').select('*').order('name');
-            return (data || []) as Course[];
-        },
+        queryFn: fetchCourses,
     });
 
     // Reuse global enrollments cache (same key as useEnrollments / Dashboard)

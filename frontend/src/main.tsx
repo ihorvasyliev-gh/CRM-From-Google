@@ -12,21 +12,6 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 
-// Early preconnect to Supabase for faster mobile RPC connections
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-if (typeof document !== 'undefined' && supabaseUrl) {
-    try {
-        const origin = new URL(supabaseUrl).origin
-        const link = document.createElement('link')
-        link.rel = 'preconnect'
-        link.href = origin
-        link.crossOrigin = 'anonymous'
-        document.head.appendChild(link)
-    } catch {
-        // ignore
-    }
-}
-
 // Code-split routes so public confirmation pages don't download heavy admin bundles
 const App = lazyWithRetry(() => import('./App.tsx'))
 const ConfirmationPage = lazyWithRetry(() => import('./components/ConfirmationPage'))

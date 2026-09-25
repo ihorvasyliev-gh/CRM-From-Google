@@ -34,3 +34,6 @@ update_manual_handling_attendance.sql
 
 
 
+
+# Supabase CLI cache
+supabase/.temp/
