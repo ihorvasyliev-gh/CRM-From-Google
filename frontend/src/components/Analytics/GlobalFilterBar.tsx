@@ -8,6 +8,7 @@ import { SelectField } from '../Viewer/ViewerUI';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
+import { DateInput } from '../ui/DatePicker';
 
 export interface AnalyticsFilterState {
     datePreset: 'all' | '30' | '90' | '180' | '365' | 'custom';
@@ -268,11 +269,11 @@ export default function GlobalFilterBar({
                 <div className="space-y-3">
                     <div>
                         <label htmlFor="range-start" className={labelCls}>Start date</label>
-                        <input id="range-start" type="date" value={tempStart} onChange={e => setTempStart(e.target.value)} className={fieldCls} />
+                        <DateInput id="range-start" value={tempStart} onChange={setTempStart} className={fieldCls} />
                     </div>
                     <div>
                         <label htmlFor="range-end" className={labelCls}>End date</label>
-                        <input id="range-end" type="date" value={tempEnd} onChange={e => setTempEnd(e.target.value)} className={fieldCls} />
+                        <DateInput id="range-end" value={tempEnd} onChange={setTempEnd} className={fieldCls} />
                     </div>
                 </div>
             </Modal>

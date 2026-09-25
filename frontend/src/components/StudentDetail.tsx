@@ -9,6 +9,7 @@ import { formatDateDMY, todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import MergeModal from './MergeModal';
+import { CalendarPanel } from './ui/DatePicker';
 import Toast, { ToastData } from './Toast';
 
 interface Enrollment {
@@ -85,9 +86,9 @@ function InlineEditField({
         setEditValue(value);
     }, [value]);
 
-    async function handleSave() {
+    async function handleSave(next = editValue) {
         if (savingRef.current) return;
-        if (editValue.trim() === value.trim()) {
+        if (next.trim() === value.trim()) {
             setEditValue(value);
             setEditing(false);
             return;
@@ -95,13 +96,13 @@ function InlineEditField({
         savingRef.current = true;
         setSaving(true);
 
-        let cleanValue = editValue.trim();
+        let cleanValue = next.trim();
         if (field === 'phone') {
-            cleanValue = normalizePhone(editValue);
+            cleanValue = normalizePhone(next);
         } else if (field === 'email') {
-            cleanValue = editValue.trim().toLowerCase();
+            cleanValue = next.trim().toLowerCase();
         } else if (field === 'eircode') {
-            cleanValue = editValue.trim().toUpperCase();
+            cleanValue = next.trim().toUpperCase();
         }
 
         try {
@@ -138,6 +139,25 @@ function InlineEditField({
         }
     }
 
+    if (editing && type === 'date') {
+        return (
+            <div className="p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20" onKeyDown={handleKeyDown}>
+                <div className="flex items-center gap-3 mb-2">
+                    <span className="text-brand-500 flex-shrink-0">{icon}</span>
+                    <p className="flex-1 text-[10px] text-muted font-medium">{label}</p>
+                    {saving ? (
+                        <Loader2 size={14} className="animate-spin text-brand-500" />
+                    ) : (
+                        <button onClick={() => setEditing(false)} className="p-1 text-muted hover:text-primary rounded transition-all" title="Cancel">
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+                <CalendarPanel mode="date" value={editValue} max={todayISO()} onChange={handleSave} className="bg-surface" />
+            </div>
+        );
+    }
+
     if (editing) {
         return (
             <div className="flex items-center gap-3 p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20">
@@ -149,7 +169,7 @@ function InlineEditField({
                         value={editValue}
                         onChange={e => setEditValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        onBlur={handleSave}
+                        onBlur={() => handleSave()}
                         autoFocus
                         className="w-full text-sm text-primary bg-transparent border-none outline-none p-0"
                     />
@@ -158,7 +178,7 @@ function InlineEditField({
                     <Loader2 size={14} className="animate-spin text-brand-500 flex-shrink-0" />
                 ) : (
                     <button
-                        onClick={handleSave}
+                        onClick={() => handleSave()}
                         className="p-1 text-brand-500 hover:bg-brand-500/10 rounded transition-all flex-shrink-0"
                     >
                         <Check size={14} />

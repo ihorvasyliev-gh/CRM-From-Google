@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     AlertCircle,
@@ -16,6 +16,8 @@ import {
     XCircle,
 } from 'lucide-react';
 import { suggestEmailCorrection } from '../lib/emailValidation';
+import { todayISO } from '../lib/dateUtils';
+import { MonthPicker } from './ui/DatePicker';
 
 type PageState = 'form' | 'pick' | 'success';
 type EmploymentType = 'full_time' | 'part_time';
@@ -64,8 +66,7 @@ export default function StatusUpdatePage() {
     const [email, setEmail] = useState('');
     const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
     const [isWorking, setIsWorking] = useState<boolean | null>(null);
-    const [startMonth, setStartMonth] = useState('');
-    const [startYear, setStartYear] = useState('');
+    const [startedMonthValue, setStartedMonthValue] = useState('');
     const [fieldOfWork, setFieldOfWork] = useState('');
     const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,16 +77,9 @@ export default function StatusUpdatePage() {
     // Guard against double-submit
     const submittingRef = useRef(false);
 
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const years = useMemo(
-        () => Array.from({ length: YEARS_BACK + 1 }, (_, i) => String(currentYear - i)),
-        [currentYear],
-    );
     // Don't allow a start month in the future
-    const maxMonth = startYear === String(currentYear) ? currentMonth : 12;
-    const startedMonthValue = startYear && startMonth ? `${startYear}-${startMonth.padStart(2, '0')}` : '';
+    const thisMonth = todayISO().slice(0, 7);
+    const earliestMonth = `${Number(thisMonth.slice(0, 4)) - YEARS_BACK}-01`;
 
     function handleEmailInputChange(val: string) {
         const lower = val.toLowerCase();
@@ -101,13 +95,6 @@ export default function StatusUpdatePage() {
             setEmailSuggestion(null);
             setInlineError('');
         }
-    }
-
-    function handleYearChange(year: string) {
-        setStartYear(year);
-        setInlineError('');
-        // Reset a month that became "in the future" for the chosen year
-        if (year === String(currentYear) && Number(startMonth) > currentMonth) setStartMonth('');
     }
 
     function validate(): string | null {
@@ -348,34 +335,13 @@ export default function StatusUpdatePage() {
                                             <legend className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
                                                 <CalendarDays size={13} className="text-brand-400" /> When did you start?
                                             </legend>
-                                            <div className="grid grid-cols-[1fr_auto] gap-2.5">
-                                                <select
-                                                    aria-label="Start month"
-                                                    value={startMonth}
-                                                    disabled={isSubmitting}
-                                                    onChange={(e) => { setStartMonth(e.target.value); setInlineError(''); }}
-                                                    className={`${inputClass} cursor-pointer [color-scheme:dark]`}
-                                                >
-                                                    <option value="">Month</option>
-                                                    {MONTHS.map((name, i) => (
-                                                        <option key={name} value={String(i + 1)} disabled={i + 1 > maxMonth}>
-                                                            {name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <select
-                                                    aria-label="Start year"
-                                                    value={startYear}
-                                                    disabled={isSubmitting}
-                                                    onChange={(e) => handleYearChange(e.target.value)}
-                                                    className={`${inputClass} cursor-pointer [color-scheme:dark] min-w-[104px]`}
-                                                >
-                                                    <option value="">Year</option>
-                                                    {years.map((y) => (
-                                                        <option key={y} value={y}>{y}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            <MonthPicker
+                                                label="Start month"
+                                                value={startedMonthValue}
+                                                min={earliestMonth}
+                                                max={thisMonth}
+                                                onChange={(v) => { setStartedMonthValue(v); setInlineError(''); }}
+                                            />
                                         </fieldset>
 
                                         {/* 4. Where */}

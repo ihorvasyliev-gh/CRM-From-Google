@@ -6,6 +6,7 @@ import { todayISO } from '../../lib/dateUtils';
 import { toast } from '../../lib/toast';
 import { addDaysISO, daysFromToday, pluralize, weekdayDate } from './viewerUtils';
 import { Button } from './ViewerUI';
+import { DateInput } from '../ui/DatePicker';
 
 export interface CompletionTarget {
     enrollmentId: string;
@@ -126,11 +127,10 @@ export default function CompletionRequestModal({
                             </button>
                         ))}
                     </div>
-                    <input
+                    <DateInput
                         id="completion-date-input"
-                        type="date"
                         value={date}
-                        onChange={e => setDate(e.target.value)}
+                        onChange={setDate}
                         className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     />
                     {inFuture ? (

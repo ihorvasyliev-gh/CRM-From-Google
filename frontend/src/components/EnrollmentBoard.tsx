@@ -24,6 +24,7 @@ import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
+import { DateInput } from './ui/DatePicker';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -966,13 +967,11 @@ export default function EnrollmentBoard({
                                     {inviteFlow.savedInviteDates.length > 0 ? 'Or add a new date' : 'Add course dates'}
                                 </label>
                                 <div className="flex gap-2">
-                                    <input
-                                        type="date"
+                                    <DateInput
                                         id="invite-date"
-                                        name="inviteDate"
                                         value={inviteFlow.inviteDate}
                                         min={todayISO()}
-                                        onChange={e => inviteFlow.setInviteDate(e.target.value)}
+                                        onChange={inviteFlow.setInviteDate}
                                         className="flex-1 min-w-0 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
                                     />
                                     <button
@@ -1024,13 +1023,11 @@ export default function EnrollmentBoard({
                             <label className="block text-sm font-medium text-primary mb-1.5">
                                 {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
                             </label>
-                            <input
-                                type="date"
+                            <DateInput
                                 id="invite-date"
-                                name="inviteDate"
                                 value={inviteFlow.inviteDate}
                                 min={todayISO()}
-                                onChange={e => inviteFlow.setInviteDate(e.target.value)}
+                                onChange={inviteFlow.setInviteDate}
                                 className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
                             />
                             {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
@@ -1163,12 +1160,10 @@ export default function EnrollmentBoard({
                         <label className="block text-sm font-medium text-primary mb-1.5">
                             {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Confirmation Date'}
                         </label>
-                        <input
-                            type="date"
+                        <DateInput
                             id="confirm-date"
-                            name="confirmDate"
                             value={confirmDate}
-                            onChange={e => setConfirmDate(e.target.value)}
+                            onChange={setConfirmDate}
                             className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface"
                         />
                         {confirmDate && !inviteFlow.savedInviteDates.includes(confirmDate) && (

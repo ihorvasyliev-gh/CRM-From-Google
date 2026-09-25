@@ -26,7 +26,6 @@ describe('StatusUpdatePage', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
         expect(screen.getByLabelText(/start month/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/start year/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/where do you work/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^full-time$/i })).toBeInTheDocument();
 
@@ -55,8 +54,10 @@ describe('StatusUpdatePage', () => {
         render(<StatusUpdatePage />);
         fillEmail('Anna@Example.com');
         fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
-        fireEvent.change(screen.getByLabelText(/start year/i), { target: { value: '2024' } });
-        fireEvent.change(screen.getByLabelText(/start month/i), { target: { value: '3' } });
+        for (let y = new Date().getFullYear(); y > 2024; y--) {
+            fireEvent.click(screen.getByRole('button', { name: /previous year/i }));
+        }
+        fireEvent.click(screen.getByRole('button', { name: 'March 2024' }));
         fireEvent.change(screen.getByLabelText(/where do you work/i), { target: { value: 'Retail' } });
         fireEvent.click(screen.getByRole('button', { name: /^part-time$/i }));
         fireEvent.click(screen.getByRole('button', { name: /send my update/i }));

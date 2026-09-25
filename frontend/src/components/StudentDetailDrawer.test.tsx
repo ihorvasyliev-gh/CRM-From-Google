@@ -176,7 +176,7 @@ describe('StudentDetailDrawer Component', () => {
 
         const dialog = await screen.findByRole('dialog', { name: 'Request completion' });
         expect(dialog).toHaveTextContent('Barista Training');
-        expect(screen.getByLabelText('Completion date')).toHaveValue('2026-01-15');
+        expect(screen.getByLabelText('Completion date')).toHaveTextContent('15/01/2026');
 
         fireEvent.click(screen.getByRole('button', { name: /Submit request/i }));
 

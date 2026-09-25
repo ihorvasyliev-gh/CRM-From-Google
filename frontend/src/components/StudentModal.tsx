@@ -8,6 +8,7 @@ import { normalizePhone } from '../lib/contactUtils';
 import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { calloutCls, fieldCls, labelCls } from './ui/styles';
+import { DateInput } from './ui/DatePicker';
 
 interface Props {
     open: boolean;
@@ -220,13 +221,12 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                         </div>
                         <div>
                             <label htmlFor="student-dob" className={LABEL_CLASS}>Date of Birth</label>
-                            <input
+                            <DateInput
                                 id="student-dob"
-                                type="date"
                                 max={todayISO()}
                                 className={INPUT_CLASS}
                                 value={form.dob}
-                                onChange={update('dob')}
+                                onChange={v => setForm(prev => ({ ...prev, dob: v }))}
                             />
                         </div>
                     </div>
