@@ -404,12 +404,12 @@ export function hasUnsubscribeText(html: string): boolean {
     return UNSUBSCRIBE_TEXT_RE.test(html.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|&#39;|&apos;/g, "'"));
 }
 
-function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean) {
+function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean, safeCourseTitle = '') {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const [heroTitle, heroSubtitle] = {
         invite: ["You're Invited!", 'Cork City Partnership course invitation'],
-        reminder: ['See You Soon!', 'Reminder about your Cork City Partnership course'],
+        reminder: ['See You Soon!', safeCourseTitle ? `Reminder about your ${safeCourseTitle} course` : 'Reminder about your Cork City Partnership course'],
         status: ['How Are Things Going?', 'Cork City Partnership participant update'],
     }[type];
     const cacheBuster = Date.now();
@@ -649,7 +649,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(days));
 
-    return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false);
+    return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false, safeCourseTitle);
 }
 
 /** Build the email subject by replacing placeholders. */

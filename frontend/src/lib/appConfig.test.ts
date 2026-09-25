@@ -215,6 +215,11 @@ describe('appConfig', () => {
         });
     });
 
+    it('names the course in the reminder header', () => {
+        const html = buildEmailBodyHtml('SafePass (English)', 'Wed, 7 Oct 2026', undefined, undefined, undefined, false, 'reminder');
+        expect(html).toContain('Reminder about your SafePass (English) course');
+    });
+
     describe('replaceColorSpansWithFontTags', () => {
         it('replaces color spans with font tags', () => {
             const html = '<span style="color: #e60000;">text</span>';
