@@ -8,7 +8,7 @@ import Badge from './ui/Badge';
 import { Toolbar } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import { EmptyState } from './ui/States';
-import { Course, CourseEmailTemplates, getAvatarGradient } from '../lib/types';
+import { Course, CourseEmailInfo, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
@@ -176,7 +176,7 @@ export default function CourseList() {
         queryClient.setQueryData<Course[]>(['courses'], (old = []) => updater(old));
     }, [queryClient]);
 
-    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[]; email_templates: CourseEmailTemplates }) {
+    async function handleSave(data: { id?: string; name: string; requires_english?: boolean; max_capacity?: number | null; template_ids: string[]; email_templates: CourseEmailInfo }) {
         const maxCapacity = data.max_capacity ?? null;
         if (data.id) {
             const { error } = await supabase

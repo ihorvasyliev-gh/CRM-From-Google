@@ -378,21 +378,35 @@ describe('useInviteFlow multi-date invitations', () => {
         vi.unstubAllGlobals();
     });
 
-    it('sends a reminder for the original date to pending invites only, without changing status', async () => {
+    it('sends a reminder to confirmed people only, without a confirm link or status change', async () => {
         supabaseMocks.rpc.mockClear();
         supabaseMocks.update.mockClear();
-        vi.stubGlobal('ClipboardItem', class { constructor(public items: unknown) {} });
+        vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
+        const write = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
         const { result } = renderInviteFlow();
-        // en-1 is pending, en-2 expired
+        // en-1 is only invited, en-3 confirmed for 26 Aug
         await act(async () => {
-            await result.current.handleSendReminder(['en-1', 'en-2']);
+            await result.current.handleSendReminder(['en-1', 'en-3']);
         });
 
-        expect(supabaseMocks.rpc).toHaveBeenCalledWith('create_confirmation_token', {
-            p_course_id: 'c-1',
-            p_course_date: '2026-08-26',
-        });
+        expect(write).toHaveBeenCalledTimes(1);
+        const html = await (write.mock.calls[0][0][0].items['text/html'] as Blob).text();
+        expect(html).toContain('Your place is reserved');
+        expect(html).toContain('26 Aug 2026');
+        expect(html).not.toContain('Confirm My Place');
+        expect(supabaseMocks.rpc).not.toHaveBeenCalled();
         expect(supabaseMocks.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a reminder for people on different dates', async () => {
+        const write = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            await result.current.handleSendReminder(['en-3', 'en-6']);
+        });
+        expect(write).not.toHaveBeenCalled();
         vi.unstubAllGlobals();
     });
 });

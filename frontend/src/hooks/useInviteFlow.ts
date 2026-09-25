@@ -3,7 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
-import { buildEmailBodyHtml, buildEmailSubject, getConfig, withCourseTemplates, type AppConfig } from '../lib/appConfig';
+import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
+import type { CourseEmailInfo } from '../lib/types';
 import { getCoursePill } from './useBulkActions';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -19,19 +20,16 @@ interface UseInviteFlowProps {
     showToast: (msg: string, type: 'success' | 'error') => void;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Global email templates with the course's own wording on top (global only if it can't be loaded). */
-async function fetchCourseEmailConfig(courseId: string | undefined): Promise<AppConfig> {
-    const config = getConfig();
-    if (!courseId) return config;
+/** The course's own text for the email course card (none if it can't be loaded). */
+async function fetchCourseInfo(courseId: string | undefined): Promise<CourseEmailInfo | null> {
+    if (!courseId) return null;
     try {
         const { data, error } = await supabase.from('courses').select('email_templates').eq('id', courseId).maybeSingle();
         if (error) throw error;
-        return withCourseTemplates(config, data?.email_templates);
+        return data?.email_templates ?? null;
     } catch (err) {
-        console.warn('Course email templates unavailable (is migration 68 applied?):', err);
-        return config;
+        console.warn('Course email text unavailable (is migration 68 applied?):', err);
+        return null;
     }
 }
 
@@ -76,18 +74,6 @@ async function copyHtmlAndOpenDraft(
     const unique = [...new Set(emails.filter((e): e is string => !!e && e.trim() !== ''))];
     const bcc = unique.map(e => encodeURIComponent(e)).join(',');
     window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
-}
-
-/** Dates an invitation offers (one, or several for a multi-date invite). */
-function offeredDates(e: EnrollmentRow): string[] {
-    return normalizeDateList(e.invited_dates?.length ? e.invited_dates : (e.invited_date ? [e.invited_date] : []));
-}
-
-/** Whole days until the invitation expires (<= 0 = expired). */
-export function daysLeft(e: Pick<EnrollmentRow, 'invited_at' | 'response_days'>, now = Date.now()): number {
-    const days = e.response_days ?? 7;
-    if (!e.invited_at) return days;
-    return Math.ceil((new Date(e.invited_at).getTime() + days * DAY_MS - now) / DAY_MS);
 }
 
 export function useInviteFlow({
@@ -284,7 +270,7 @@ export function useInviteFlow({
             showToast('Could not create the multi-date confirmation link. Is migration 59 applied?', 'error');
             return;
         }
-        const config = await fetchCourseEmailConfig(first?.course_id);
+        const courseInfo = await fetchCourseInfo(first?.course_id);
 
         // Await the database update so mailto navigation doesn't abort the HTTP request
         try {
@@ -295,61 +281,51 @@ export function useInviteFlow({
         }
 
         const requiresEnglish = Boolean(first?.courses?.requires_english);
-        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, config, responseDays, requiresEnglish);
-        await copyHtmlAndOpenDraft(htmlBody, selectedEnrollments.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted, config), skippedNote(skipped.length), showToast);
+        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, undefined, responseDays, requiresEnglish, 'invite', courseInfo);
+        await copyHtmlAndOpenDraft(htmlBody, selectedEnrollments.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted), skippedNote(skipped.length), showToast);
         setInviteDateTarget(null);
     }
 
-    /** Re-send the confirmation email to invited people who haven't confirmed yet. Status stays unchanged. */
+    /** Remind confirmed people that their course is coming up. Status stays unchanged. */
     async function handleSendReminder(ids: string[]) {
         const selected = enrollments.filter(e => ids.includes(e.id));
-        const now = Date.now();
-        // Expired invitations can no longer be confirmed, so a reminder would lead nowhere
-        const open = selected.filter(e => e.status === 'invited' && daysLeft(e, now) > 0);
-        if (open.length === 0) {
-            showToast('Reminders go to invited people whose invitation has not expired — none selected.', 'error');
+        const confirmed = selected.filter(e => e.status === 'confirmed');
+        if (confirmed.length === 0) {
+            showToast('Reminders go to confirmed people — none selected.', 'error');
             return;
         }
-        // One email = one confirm link, so everyone must share the course and offered date(s)
-        const groupKey = (e: EnrollmentRow) => `${e.course_id}|${offeredDates(e).join(',')}`;
-        if (new Set(open.map(groupKey)).size > 1) {
-            showToast('Select invitations for one course and the same date(s) to send a reminder.', 'error');
+        // Date the person confirmed for (older rows only have the invited date)
+        const courseDate = (e: EnrollmentRow) => (e.confirmed_date || e.invited_date || '').split('T')[0];
+        // One email = one course card, so everyone must share the course and date
+        if (new Set(confirmed.map(e => `${e.course_id}|${courseDate(e)}`)).size > 1) {
+            showToast('Select people from one course and the same date to send a reminder.', 'error');
             return;
         }
 
         let optedOut: Set<string>;
         try {
-            optedOut = await fetchOptedOutEmails(open.map(e => e.students?.email));
+            optedOut = await fetchOptedOutEmails(confirmed.map(e => e.students?.email));
         } catch (err) {
             console.error('Failed to check the unsubscribe list:', err);
             showToast('Could not check the unsubscribe list. Please try again.', 'error');
             return;
         }
-        const { allowed, skipped } = partitionByOptOut(open, e => e.students?.email, optedOut);
+        const { allowed, skipped } = partitionByOptOut(confirmed, e => e.students?.email, optedOut);
         if (allowed.length === 0) {
             showToast('Everyone selected has unsubscribed from emails — no reminder sent.', 'error');
             return;
         }
 
         const first = allowed[0];
-        const dates = offeredDates(first);
-        const isMulti = dates.length > 1;
-        const confirmLink = await createConfirmLink(first.course_id, dates);
-        if (!confirmLink) {
-            showToast('Could not create the multi-date confirmation link.', 'error');
-            return;
-        }
-        const config = await fetchCourseEmailConfig(first.course_id);
+        const date = courseDate(first);
         const courseName = getCoursePill(first);
-        const dateFormatted = isMulti ? formatDateChoiceList(dates) : formatDateLong(dates[0]);
-        // {responseDays} in a reminder = days left for the most urgent person
-        const days = Math.min(...allowed.map(e => daysLeft(e, now)));
-        const htmlBody = buildEmailBodyHtml(courseName, isMulti ? dates.map(formatDateLongWithWeekday) : dateFormatted, confirmLink, config, days, Boolean(first.courses?.requires_english), 'reminder');
+        const courseInfo = await fetchCourseInfo(first.course_id);
+        const htmlBody = buildEmailBodyHtml(courseName, date ? formatDateLongWithWeekday(date) : '', undefined, undefined, undefined, Boolean(first.courses?.requires_english), 'reminder', courseInfo);
 
-        const notPending = selected.length - open.length;
-        const note = skippedNote(skipped.length) + (notPending ? ` · ${notPending} not pending or expired skipped` : '');
+        const notConfirmed = selected.length - confirmed.length;
+        const note = skippedNote(skipped.length) + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '');
         clearSelection();
-        await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted, config, 'reminder'), note, showToast);
+        await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, date ? formatDateLong(date) : '', undefined, 'reminder'), note, showToast);
     }
 
     return {

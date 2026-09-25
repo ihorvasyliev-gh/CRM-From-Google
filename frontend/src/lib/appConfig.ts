@@ -1,7 +1,7 @@
 // ─── App Configuration (localStorage/Supabase-based) ───────────
 // Centralized config for email templates, display preferences, etc.
 import { supabase } from './supabase';
-import type { CourseEmailTemplates } from './types';
+import type { CourseEmailInfo } from './types';
 
 export interface ExcelColumn {
     /** Column header text shown in the Excel file */
@@ -17,7 +17,7 @@ export interface AppConfig {
     htmlEmailTemplateStandard: string;
     /** Email subject format. Supports placeholders: {courseName}, {date} */
     emailSubjectFormat: string;
-    /** Reminder to people who haven't confirmed their invitation yet. Same placeholders as the invitation; {responseDays} = days left */
+    /** Attendance reminder for confirmed people. Supports: {courseDetails}, {attendanceNotice} */
     reminderEmailTemplate: string;
     /** Reminder subject. Supports placeholders: {courseName}, {date} */
     reminderEmailSubjectFormat: string;
@@ -77,14 +77,11 @@ export const DEFAULT_CONFIG: AppConfig = {
 </ul>`,
     emailSubjectFormat: 'You are Invited to join our {courseName} course which will take place on {date}',
     reminderEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
-<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">This is a friendly reminder about your invitation to our upcoming course. We have not received your confirmation yet, and your place is <strong>not reserved</strong> until you confirm.</p>
-<p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Please confirm <strong>as soon as possible</strong> (you have <strong>{responseDays} day(s)</strong> left) by clicking the button below.</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">This is a friendly reminder that you have a place on our upcoming course. Please check the date, time and location below — we look forward to seeing you!</p>
 {courseDetails}
-{englishWarning}
-{capacityNotice}
-{confirmationButton}
-<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you can no longer attend or you'd prefer not to receive future emails, simply reply to this email and let us know.</p>`,
-    reminderEmailSubjectFormat: 'Reminder: please confirm your place on {courseName} ({date})',
+{attendanceNotice}
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you have any questions, feel free to reply to this email.</p>`,
+    reminderEmailSubjectFormat: 'Reminder: your {courseName} course on {date}',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
@@ -113,18 +110,6 @@ export function hasConfirmationTag(tpl: string): boolean {
 }
 
 export type InviteEmailKind = 'invite' | 'reminder';
-
-/** Lay a course's own invitation/reminder wording over the global templates. */
-export function withCourseTemplates(config: AppConfig, t?: CourseEmailTemplates | null): AppConfig {
-    if (!t) return config;
-    return {
-        ...config,
-        ...(t.invite_body ? { htmlEmailTemplate: t.invite_body, htmlEmailTemplateStandard: t.invite_body } : {}),
-        ...(t.invite_subject ? { emailSubjectFormat: t.invite_subject } : {}),
-        ...(t.reminder_body ? { reminderEmailTemplate: t.reminder_body } : {}),
-        ...(t.reminder_subject ? { reminderEmailSubjectFormat: t.reminder_subject } : {}),
-    };
-}
 
 /** Read the full config, merging saved values over defaults. */
 export function getConfig(): AppConfig {
@@ -184,8 +169,12 @@ export function getConfig(): AppConfig {
         if (!saved.htmlEmailTemplateStandard || (!saved.htmlEmailTemplateStandard.includes('{confirmationButton}') && !saved.htmlEmailTemplateStandard.includes('{confirmationLink}'))) {
             saved.htmlEmailTemplateStandard = DEFAULT_CONFIG.htmlEmailTemplateStandard;
         }
-        if (saved.reminderEmailTemplate && !hasConfirmationTag(saved.reminderEmailTemplate)) {
+        // MIGRATION: the first reminder asked people to confirm; reminders now go to confirmed people
+        if (saved.reminderEmailTemplate?.includes('{confirmationButton}')) {
             saved.reminderEmailTemplate = DEFAULT_CONFIG.reminderEmailTemplate;
+        }
+        if (saved.reminderEmailSubjectFormat === 'Reminder: please confirm your place on {courseName} ({date})') {
+            saved.reminderEmailSubjectFormat = DEFAULT_CONFIG.reminderEmailSubjectFormat;
         }
 
         return { ...DEFAULT_CONFIG, ...saved };
@@ -418,7 +407,7 @@ function getEmailWrapper(content: string, type: InviteEmailKind | 'status', incl
     
     const [heroTitle, heroSubtitle] = {
         invite: ["You're Invited!", 'Cork City Partnership course invitation'],
-        reminder: ['Please Confirm Your Place', 'Reminder about your Cork City Partnership course invitation'],
+        reminder: ['See You Soon!', 'Reminder about your Cork City Partnership course'],
         status: ['How Are Things Going?', 'Cork City Partnership participant update'],
     }[type];
     const cacheBuster = Date.now();
@@ -497,6 +486,15 @@ export function escapeHtml(str: string): string {
         .replace(/'/g, '&#039;');
 }
 
+/** Course's own rich text (Quill HTML) inside the course card, with email-safe spacing. */
+function cardText(html?: string | null): string {
+    if (!html || !html.replace(/<[^>]+>|&nbsp;/g, '').trim()) return '';
+    const styled = html
+        .replace(/<p>/g, '<p style="margin:0 0 4px 0;">')
+        .replace(/<(ul|ol)>/g, '<$1 style="margin:4px 0;padding-left:20px;">');
+    return `<div style="font-size:14px;line-height:21px;color:#334155;margin-top:6px;font-family:${FONT};">${styled}</div>`;
+}
+
 /** Build the email body HTML by replacing placeholders. */
 export function buildEmailBodyHtml(
     courseTitle: string, 
@@ -506,7 +504,9 @@ export function buildEmailBodyHtml(
     customConfig?: AppConfig, 
     responseDays?: number,
     requiresEnglish: boolean = false,
-    kind: InviteEmailKind = 'invite'
+    kind: InviteEmailKind = 'invite',
+    /** The course's own text shown in the course card */
+    courseInfo?: CourseEmailInfo | null
 ): string {
     const config = customConfig || getConfig();
     const linkStr = confirmationLink || '#';
@@ -532,11 +532,13 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
           <td style="padding-bottom:10px;font-family:${FONT};">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
             <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${safeCourseTitle}</div>
+            ${cardText(courseInfo?.description)}
           </td>
         </tr>
         <tr>
           <td style="font-family:${FONT};">
             ${dateRowHtml}
+            ${cardText(courseInfo?.details)}
           </td>
         </tr>
       </table>
@@ -579,6 +581,17 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
   </tr>
 </table>`;
 
+    const attendanceNoticeHtml = `<!-- Attendance Notice -->
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
+  <tr>
+    <td style="padding:15px 20px;font-family:${FONT};">
+      <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Your place is reserved — please let us know if you can't come</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;">You have confirmed your place on this course and it is being kept for you. Places are limited and other people are waiting for one.</div>
+      <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>If you can no longer attend, please reply to this email as early as possible</strong> so we can offer your place to someone else. If you don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>.</div>
+    </td>
+  </tr>
+</table>`;
+
     const buttonHtml = confirmationLink
         ? `<!-- Action Button Container -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:22px 0;">
@@ -608,10 +621,11 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     body = body.replace(/<p>\s*\{englishWarning\}\s*<\/p>/g, '{englishWarning}');
     body = body.replace(/<p>\s*\{confirmationButton\}\s*<\/p>/g, '{confirmationButton}');
     body = body.replace(/<p>\s*\{capacityNotice\}\s*<\/p>/g, '{capacityNotice}');
+    body = body.replace(/<p>\s*\{attendanceNotice\}\s*<\/p>/g, '{attendanceNotice}');
 
     // Every invitation must mention limited places: inject the notice into
     // custom templates that don't include the placeholder yet.
-    if (!body.includes('{capacityNotice}')) {
+    if (kind === 'invite' && !body.includes('{capacityNotice}')) {
         body = body.includes('{confirmationButton}')
             ? body.replace('{confirmationButton}', '{capacityNotice}\n{confirmationButton}')
             : `${body}\n{capacityNotice}`;
@@ -629,6 +643,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         .replace(/\{courseDetails\}/g, courseDetailsHtml)
         .replace(/\{englishWarning\}/g, requiresEnglish ? englishWarningHtml : '')
         .replace(/\{capacityNotice\}/g, capacityNoticeHtml)
+        .replace(/\{attendanceNotice\}/g, attendanceNoticeHtml)
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(days));
 

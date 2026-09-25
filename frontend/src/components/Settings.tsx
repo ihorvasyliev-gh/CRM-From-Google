@@ -39,6 +39,11 @@ const quillModules = {
 };
 
 type InviteTab = 'high_english' | 'standard' | 'reminder';
+/** Sample of the per-course text (Courses → edit course) so the preview shows the full card */
+const PREVIEW_COURSE_INFO = {
+    description: '<p><strong>Overview:</strong> Course description written for this course.</p>',
+    details: '<ul><li><strong>Time:</strong> 10:00 AM – 2:00 PM</li><li><strong>Address:</strong> Course venue address</li></ul>',
+};
 const INVITE_BODY_KEY = {
     high_english: 'htmlEmailTemplate',
     standard: 'htmlEmailTemplateStandard',
@@ -83,8 +88,9 @@ export default function Settings() {
     const inviteBodyKey = INVITE_BODY_KEY[inviteTemplateTab];
     const inviteSubjectKey = isReminderTab ? 'reminderEmailSubjectFormat' : 'emailSubjectFormat';
 
-    const isValidCurrentInviteTemplate = hasConfirmationTag(config[inviteBodyKey] || '');
-    const isValidTemplate = Object.values(INVITE_BODY_KEY).every(k => hasConfirmationTag(config[k] || ''));
+    // Invitations need the confirm button; the reminder goes to people who already confirmed
+    const isValidCurrentInviteTemplate = isReminderTab || hasConfirmationTag(config[inviteBodyKey] || '');
+    const isValidTemplate = hasConfirmationTag(config.htmlEmailTemplate) && hasConfirmationTag(config.htmlEmailTemplateStandard || '');
     const hasStatusTag = (tpl: string) => tpl.includes('{statusLink}') || tpl.includes('{statusButton}');
     const isValidStatusTemplate = hasStatusTag(config.statusEmailTemplate) && hasStatusTag(config.outreachEmailTemplate);
     // Survey email tab: CRM graduates or external lists (e.g. Action 11)
@@ -151,8 +157,10 @@ export default function Settings() {
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
     const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
     const previewDates = previewMultiDate ? ['Wed, 11 Mar 2026', 'Thu, 12 Mar 2026', 'Fri, 13 Mar 2026'] : '15 Mar 2026';
-    const previewBody = buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, isReminderTab ? 3 : 7, inviteTemplateTab === 'high_english', isReminderTab ? 'reminder' : 'invite');
-    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config, isReminderTab ? 'reminder' : 'invite');
+    const previewBody = isReminderTab
+        ? buildEmailBodyHtml(previewCourseName, 'Sun, 15 Mar 2026', undefined, config, undefined, false, 'reminder', PREVIEW_COURSE_INFO)
+        : buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, 7, inviteTemplateTab === 'high_english', 'invite', PREVIEW_COURSE_INFO);
+    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate && !isReminderTab ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config, isReminderTab ? 'reminder' : 'invite');
 
     // Status template preview
     const statusLinkStr = `${window.location.origin}/status${statusAudience === 'outreach' ? '?list=example' : ''}`;
@@ -566,7 +574,7 @@ export default function Settings() {
                                         </div>
                                         <div className="text-muted leading-relaxed">
                                             {isReminderTab
-                                                ? 'Sent from the board (select invited people → bell button) to those who have not confirmed yet. Same confirm button as the invitation; {englishWarning} shows only for High English courses and {responseDays} is the number of days left. A course can override this wording in Courses → edit course.'
+                                                ? 'Sent from the board to confirmed people (select them → bell button) before the course. {attendanceNotice} asks them to let you know in advance if they can\'t come. The course card takes the course\'s own description and time/address from Courses → edit course.'
                                                 : inviteTemplateTab === 'high_english'
                                                 ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Am Confident in English — Confirm My Place] button.'
                                                 : 'Used for general courses. Does not include language warnings and uses standard [Confirm My Place] button.'}
@@ -598,17 +606,20 @@ export default function Settings() {
                                         <span className="text-[11px] text-muted">Click a tag to insert it</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                        {[
+                                        {(isReminderTab ? [
+                                            { tag: '{courseDetails}', label: 'Course Card' },
+                                            { tag: '{attendanceNotice}', label: 'Can\'t Come? Let Us Know' },
+                                        ] : [
                                             { tag: '{studentName}', label: 'Student Name' },
                                             { tag: '{courseName}', label: 'Course Name' },
                                             { tag: '{date}', label: 'Date' },
                                             { tag: '{responseDays}', label: 'Days' },
                                             { tag: '{courseDetails}', label: 'Course Card' },
-                                            ...(inviteTemplateTab !== 'standard' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
+                                            ...(inviteTemplateTab === 'high_english' ? [{ tag: '{englishWarning}', label: 'Warning Box' }] : []),
                                             { tag: '{capacityNotice}', label: 'Limited Places & No-Show Policy' },
                                             { tag: '{confirmationButton}', label: 'Confirm Button' },
                                             { tag: '{confirmationLink}', label: 'Confirm URL' },
-                                        ].map(item => {
+                                        ]).map(item => {
                                             const isPresent = (config[inviteBodyKey] || '').includes(item.tag);
                                             return (
                                                 <button
@@ -646,7 +657,7 @@ export default function Settings() {
                                 <div className="space-y-3 animate-fadeIn flex flex-col min-w-0 2xl:sticky 2xl:top-6">
                                     <div className="flex items-center justify-between gap-2">
                                         <span className={eyebrowCls}>Live preview · {isReminderTab ? 'Reminder' : inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'}</span>
-                                        <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
+                                        {!isReminderTab && <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
                                             <input
                                                 type="checkbox"
                                                 checked={previewMultiDate}
@@ -654,7 +665,7 @@ export default function Settings() {
                                                 className="rounded border-border-strong accent-brand-500"
                                             />
                                             Multi-date invitation
-                                        </label>
+                                        </label>}
                                     </div>
                                     <div className={`${panelCls} p-3 flex-1 flex flex-col`}>
                                         <div className="text-xs text-muted px-1 pb-2.5 mb-3 border-b border-border-subtle">

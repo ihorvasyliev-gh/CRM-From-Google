@@ -108,8 +108,8 @@ export default function BulkActionBar({
                     </button>
                 </CustomTooltip>
 
-                {selectedEnrollments.some(e => e.status === 'invited') && (
-                    <CustomTooltip content="Send reminder to pending invitations">
+                {selectedEnrollments.some(e => e.status === 'confirmed') && (
+                    <CustomTooltip content="Send reminder to confirmed">
                         <button
                             onClick={sendReminder}
                             className="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm"
