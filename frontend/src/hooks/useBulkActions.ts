@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { generateDocumentsArchive, templatesForCourse } from '../lib/documentUtils';
+import { generateDocumentsArchive, summarizeGeneration, templatesForCourse } from '../lib/documentUtils';
 import { cleanVariant, type DocumentTemplate } from '../lib/types';
 import { todayISO, formatDateSpaces } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
@@ -304,7 +304,7 @@ export function useBulkActions({
     }, [selectedIds, bulkDeleteMutation]);
 
     const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
-        let skipped = 0;
+        let skipped: number;
         try {
             // Leave out people who unsubscribed from our emails
             const optedOut = await fetchOptedOutEmails(items.map(e => e.students?.email));
@@ -376,19 +376,19 @@ export function useBulkActions({
             const { getConfig } = await import('../lib/appConfig');
             const excelColumns = getConfig().excelColumns;
 
-            await generateDocumentsArchive(
-                selectedEnrollments,
-                templateDescriptors,
-                archiveName,
-                attTemplate?.storage_path,
-                customVars,
-                lblTemplate?.storage_path,
+            const result = await generateDocumentsArchive(archiveName, {
+                enrollments: selectedEnrollments,
+                templates: templateDescriptors,
+                attendanceTemplatePath: attTemplate?.storage_path,
+                labelTemplatePath: lblTemplate?.storage_path,
+                customVariables: customVars,
                 excelColumns,
-                (msg) => showToast(msg, 'error')
-            );
+            });
 
-            showToast(`Generated ${selectedEnrollments.length} document(s) with ${templateDescriptors.length} template(s)!`, 'success');
-            clearSelection();
+            const { message, type } = summarizeGeneration(result);
+            showToast(message, type, type === 'success' ? undefined : { duration: 15000 });
+            // Keep the selection when something failed, so the run can be retried
+            if (type !== 'error') clearSelection();
         } catch (err: unknown) {
             console.error('Generation error:', err);
             const msg = err instanceof Error ? err.message : 'Unknown error';

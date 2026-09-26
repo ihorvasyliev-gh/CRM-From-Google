@@ -3,11 +3,15 @@
  *
  * Covers:
  *   - buildPlaceholderData: maps enrollment fields to template placeholder keys
- *
- * generateDocumentsArchive is NOT tested here (requires heavy libs + Supabase storage).
+ *   - buildSheetPages: numbered slots and pagination for attendance sheets / labels
+ *   - buildDocumentsArchive: renders real .docx templates (built in memory) into a ZIP
  */
 import { describe, it, expect } from 'vitest';
-import { buildPlaceholderData, templatesForCourse } from './documentUtils';
+import PizZip from 'pizzip';
+import {
+    buildPlaceholderData, templatesForCourse, buildSheetPages, buildDocumentsArchive, checkTemplate,
+    safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, PLACEHOLDER_KEYS,
+} from './documentUtils';
 import type { EnrollmentWithRelations } from './documentUtils';
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
@@ -171,7 +175,7 @@ describe('buildPlaceholderData', () => {
             'isCompleted', 'completedAt',
             'isInvited', 'invitedAt',
             'confirmedDate', 'courseDate',
-            'enrollmentStatus', 'enrollmentNotes',
+            'enrollmentStatus', 'enrollmentNotes', 'today',
         ];
         for (const key of requiredKeys) {
             expect(data).toHaveProperty(key);
@@ -200,5 +204,201 @@ describe('templatesForCourse', () => {
 
     it('skips picked templates that were switched off', () => {
         expect(ids(['a', 'off'])).toEqual(['a']);
+    });
+});
+
+// ─── Rendering real templates ────────────────────────────────────────────────
+
+/** A minimal but valid .docx whose body is one paragraph per line. */
+function makeDocx(...lines: string[]): ArrayBuffer {
+    const zip = new PizZip();
+    zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+    const body = lines.map(l => `<w:p><w:r><w:t xml:space="preserve">${l}</w:t></w:r></w:p>`).join('');
+    zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`);
+    return zip.generate({ type: 'arraybuffer' });
+}
+
+/** Text of every .docx in the archive, keyed by path. */
+async function readArchive(blob: Blob): Promise<Record<string, string>> {
+    const zip = new PizZip(await blob.arrayBuffer());
+    const out: Record<string, string> = {};
+    for (const name of Object.keys(zip.files)) {
+        if (!name.endsWith('.docx')) { out[name] = ''; continue; }
+        const xml = new PizZip(zip.file(name)!.asArrayBuffer()).file('word/document.xml')!.asText();
+        out[name] = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).join('\n');
+    }
+    return out;
+}
+
+function person(id: string, first: string, last: string): EnrollmentWithRelations {
+    const e = makeFullEnrollment();
+    return { ...e, id, students: { ...e.students!, id: `s-${id}`, first_name: first, last_name: last } };
+}
+
+const files = (map: Record<string, ArrayBuffer>) => async (path: string) => {
+    if (!map[path]) throw new Error('File not found');
+    return map[path];
+};
+
+describe('buildSheetPages', () => {
+    it('fills numbered slots alphabetically by surname and blanks the rest', () => {
+        const [page] = buildSheetPages([person('1', 'Zoe', 'Byrne'), person('2', 'Adam', 'Walsh'), person('3', 'Mary', 'Ahern')], 34);
+        expect(page.fullName1).toBe('Mary Ahern');
+        expect(page.fullName2).toBe('Zoe Byrne');
+        expect(page.fullName3).toBe('Adam Walsh');
+        expect(page.fullName4).toBe('');
+        expect(page.fullName34).toBe('');
+        expect(page.fullName35).toBeUndefined();
+        expect(page.participantCount).toBe('3');
+        expect((page.students as unknown[]).length).toBe(3);
+    });
+
+    it('splits participants beyond the slot count onto extra pages', () => {
+        const people = Array.from({ length: 30 }, (_, i) => person(String(i), `P${i}`, `Surname${String(i).padStart(2, '0')}`));
+        const pages = buildSheetPages(people, 28);
+        expect(pages).toHaveLength(2);
+        expect(pages[1].firstName1).toBe('P28');
+        expect(pages[1].firstName3).toBe('');
+        expect(pages[1].page).toBe('2');
+        expect(pages[1].pages).toBe('2');
+        expect((pages[1].students as { n: string }[])[0].n).toBe('29');
+    });
+
+    it('keeps everyone on one page when slots is null (loop templates)', () => {
+        const people = Array.from({ length: 50 }, (_, i) => person(String(i), 'A', `B${i}`));
+        const pages = buildSheetPages(people, null);
+        expect(pages).toHaveLength(1);
+        expect((pages[0].students as unknown[]).length).toBe(50);
+    });
+});
+
+describe('buildDocumentsArchive', () => {
+    it('renders one document per student and fills placeholders and custom variables', async () => {
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Olena', 'Kovalenko'), person('2', 'Seán', 'Ó Briain')],
+            templates: [{ name: 'Certificate.docx', storagePath: 'cert' }],
+            customVariables: { Tutor: 'Jane Doe' },
+            fetchTemplate: files({ cert: makeDocx('Awarded to {fullName}', 'Tutor: {Tutor}', 'Course: {courseTitle}') }),
+        });
+        expect(result.totalDocs).toBe(2);
+        expect(result.successTemplates).toEqual(['Certificate.docx']);
+        const docs = await readArchive(blob);
+        expect(Object.keys(docs).sort()).toEqual(['Olena_Kovalenko.docx', 'Seán_Ó_Briain.docx']);
+        expect(docs['Seán_Ó_Briain.docx']).toBe('Awarded to Seán Ó Briain\nTutor: Jane Doe\nCourse: Python 101');
+    });
+
+    it('does not overwrite students who share a name', async () => {
+        const { blob } = await buildDocumentsArchive({
+            enrollments: [person('1', 'John', 'Murphy'), person('2', 'John', 'Murphy')],
+            templates: [{ name: 'a.docx', storagePath: 'a' }],
+            fetchTemplate: files({ a: makeDocx('{fullName}') }),
+        });
+        expect(Object.keys(await readArchive(blob)).sort()).toEqual(['John_Murphy.docx', 'John_Murphy_2.docx']);
+    });
+
+    it('renders unknown placeholders blank and reports them', async () => {
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Olena', 'Kovalenko')],
+            templates: [{ name: 'a.docx', storagePath: 'a' }],
+            fetchTemplate: files({ a: makeDocx('Hi {firstName}{Tuter}!') }),
+        });
+        expect((await readArchive(blob))['Olena_Kovalenko.docx']).toBe('Hi Olena!');
+        expect(result.unknownTags).toEqual([{ template: 'a.docx', tags: ['Tuter'] }]);
+        expect(summarizeGeneration(result).type).toBe('info');
+    });
+
+    it('fails a broken template once with a readable reason, and keeps going', async () => {
+        const { result } = await buildDocumentsArchive({
+            enrollments: [person('1', 'A', 'B'), person('2', 'C', 'D')],
+            templates: [{ name: 'broken.docx', storagePath: 'broken' }, { name: 'missing.docx', storagePath: 'nope' }, { name: 'ok.docx', storagePath: 'ok' }],
+            fetchTemplate: files({ broken: makeDocx('Hi {firstName'), ok: makeDocx('{firstName}') }),
+        });
+        expect(result.failedTemplates).toEqual([
+            { name: 'broken.docx', error: expect.stringContaining('unclosed') },
+            { name: 'missing.docx', error: 'Download failed: File not found' },
+        ]);
+        expect(result.failedDocs).toEqual([]);
+        expect(result.totalDocs).toBe(2);
+        expect(summarizeGeneration(result).type).toBe('error');
+    });
+
+    it('paginates the attendance sheet and puts templates in subfolders', async () => {
+        const people = Array.from({ length: 40 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const progress: number[] = [];
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [{ name: 'One.docx', storagePath: 'a' }, { name: 'Two.docx', storagePath: 'a' }],
+            attendanceTemplatePath: 'att',
+            fetchTemplate: files({ a: makeDocx('{firstName}'), att: makeDocx('{courseTitle} p{page}/{pages}: {fullName1}') }),
+            onProgress: done => progress.push(done),
+        });
+        const docs = await readArchive(blob);
+        expect(docs['One/P0_S00.docx']).toBe('P0');
+        expect(docs['Two/P0_S00.docx']).toBe('P0');
+        expect(docs['Attendance_Sheet_1_of_2.docx']).toBe('Python 101 p1/2: P0 S00');
+        expect(docs['Attendance_Sheet_2_of_2.docx']).toBe('Python 101 p2/2: P34 S34');
+        expect(result.extras).toEqual([{ label: 'Attendance sheet', ok: true, files: 2 }]);
+        expect(progress[progress.length - 1]).toBe(81);
+    });
+
+    it('keeps a {#students} loop attendance sheet on a single page', async () => {
+        const people = Array.from({ length: 40 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [],
+            attendanceTemplatePath: 'att',
+            fetchTemplate: files({ att: makeDocx('{#students}{n}. {fullName}', '{/students}') }),
+        });
+        const text = (await readArchive(blob))['Attendance_Sheet.docx'];
+        expect(text).toContain('1. P0 S00');
+        expect(text).toContain('40. P39 S39');
+    });
+});
+
+describe('checkTemplate', () => {
+    const blob = (buf: ArrayBuffer) => new Blob([buf]);
+
+    it('accepts known placeholders and custom variables', async () => {
+        expect(await checkTemplate(blob(makeDocx('{fullName} {today} {Tutor}')), 'document', { Tutor: 'x' })).toEqual({ unknownTags: [] });
+    });
+
+    it('lists unknown placeholders', async () => {
+        expect(await checkTemplate(blob(makeDocx('{fullname} {firstName1}')), 'document')).toEqual({ unknownTags: ['firstName1', 'fullname'] });
+        expect(await checkTemplate(blob(makeDocx('{firstName1} {phone34} {firstName35}')), 'attendance')).toEqual({ unknownTags: ['firstName35'] });
+    });
+
+    it('explains syntax errors', async () => {
+        const res = await checkTemplate(blob(makeDocx('{{Tutor}}')), 'document');
+        expect(res.error).toBeTruthy();
+    });
+});
+
+describe('helpers', () => {
+    it('safeFileName keeps accented and Cyrillic letters', () => {
+        expect(safeFileName('Seán Ó Briain')).toBe('Seán_Ó_Briain');
+        expect(safeFileName('Олена')).toBe('Олена');
+        expect(safeFileName('a/b:c*')).toBe('abc');
+        expect(safeFileName('???')).toBe('Unknown');
+    });
+
+    it('describeDocxError unwraps multi errors', () => {
+        const err = Object.assign(new Error('Multi error'), {
+            properties: { errors: [{ properties: { explanation: 'The tag "x" is unclosed' } }] },
+        });
+        expect(describeDocxError(err)).toBe('The tag "x" is unclosed');
+        expect(describeDocxError(new Error('plain'))).toBe('plain');
+    });
+
+    it('validateVariableKey only allows tag-safe names', () => {
+        expect(validateVariableKey('Tutor')).toBeNull();
+        expect(validateVariableKey('venue_name')).toBeNull();
+        expect(validateVariableKey('')).toBeTruthy();
+        expect(validateVariableKey('{Tutor}')).toBeTruthy();
+        expect(validateVariableKey('Tutor Name')).toBeTruthy();
+    });
+
+    it('the placeholder catalogue matches buildPlaceholderData', () => {
+        expect(new Set(Object.keys(buildPlaceholderData(makeFullEnrollment())))).toEqual(PLACEHOLDER_KEYS);
     });
 });

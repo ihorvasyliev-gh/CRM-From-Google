@@ -2,8 +2,12 @@ import { useState, useMemo, useCallback, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { fetchCourses } from '../lib/queries';
-import { FileText, Download, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, Plus, Pencil, Check, CheckCircle2, Variable, Tag, Table2, BookOpen, Users, Braces, Copy, ClipboardList, ArrowRight } from 'lucide-react';
-import { generateDocumentsArchive, fetchDocumentTemplates, templatesForCourse, type TemplateDescriptor } from '../lib/documentUtils';
+import { FileText, Download, ChevronDown, AlertCircle, Trash2, Info, X, FileArchive, Plus, Pencil, Check, CheckCircle2, Variable, Tag, Table2, BookOpen, Users, Braces, Copy, ClipboardList, ArrowRight, FlaskConical } from 'lucide-react';
+import {
+    generateDocumentsArchive, fetchDocumentTemplates, templatesForCourse, checkTemplate, uploadTemplateFile, summarizeGeneration,
+    validateVariableKey, PLACEHOLDER_CATEGORIES, PLACEHOLDER_KEYS, MAX_TEMPLATE_BYTES, ATTENDANCE_SLOTS, LABEL_SLOTS, SHEET_LOOP,
+    type TemplateKind,
+} from '../lib/documentUtils';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { formatDateLong, formatDateSpaces, todayISO } from '../lib/dateUtils';
 import { DocumentTemplate, TemplateVariable, cleanVariant } from '../lib/types';
@@ -19,54 +23,19 @@ import { Button, IconButton } from './ui/Button';
 import { copyText } from './Viewer/viewerUtils';
 import { calloutCls, eyebrowCls, fieldCls, panelCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from './ui/styles';
 
+const errorText = (err: unknown) => err instanceof Error ? err.message : 'Unknown error';
 
-// ─── Placeholder Categories ─────────────────────────────────
-const PLACEHOLDER_CATEGORIES = [
-    {
-        title: 'Student Information',
-        items: [
-            { key: 'userId', desc: 'User ID' },
-            { key: 'firstName', desc: 'First Name' },
-            { key: 'lastName', desc: 'Last Name' },
-            { key: 'fullName', desc: 'Full Name' },
-            { key: 'email', desc: 'Email' },
-            { key: 'mobileNumber', desc: 'Phone Number' },
-            { key: 'address', desc: 'Address' },
-            { key: 'eircode', desc: 'Eircode' },
-            { key: 'dateOfBirth', desc: 'Date of Birth (formatted)' },
-        ],
-    },
-    {
-        title: 'Course Information',
-        items: [
-            { key: 'courseId', desc: 'Course ID' },
-            { key: 'courseTitle', desc: 'Course Title' },
-            { key: 'courseVariant', desc: 'Course Variant (language)' },
-        ],
-    },
-    {
-        title: 'Registration Information',
-        items: [
-            { key: 'registeredAt', desc: 'Registration Date (DD/MM/YYYY)' },
-            { key: 'courseRegistrationDate', desc: 'Registration Date (formatted)' },
-            { key: 'isCompleted', desc: 'Completion Status (Yes/No)' },
-            { key: 'completedAt', desc: 'Completion Date (formatted)' },
-        ],
-    },
-    {
-        title: 'Enrollment & Dates',
-        items: [
-            { key: 'isInvited', desc: 'Invitation Status (Yes/No)' },
-            { key: 'invitedAt', desc: 'Invitation Date (formatted)' },
-            { key: 'confirmedDate', desc: 'Confirmed Date (formatted)' },
-            { key: 'courseDate', desc: 'Course Date (formatted)' },
-            { key: 'enrollmentStatus', desc: 'Current Status' },
-            { key: 'enrollmentNotes', desc: 'Admin Notes' },
-        ],
-    },
-];
+/** The attendance sheet and address labels: one current template each. */
+const SINGLE_TEMPLATES = {
+    attendance: { table: 'attendance_templates', queryKey: 'doc_att_template', prefix: 'template_att', label: 'Attendance template' },
+    labels: { table: 'label_templates', queryKey: 'doc_label_template', prefix: 'template_lbl', label: 'Label template' },
+} as const;
+type SingleKind = keyof typeof SINGLE_TEMPLATES;
 
-
+async function fetchSingleTemplate(kind: SingleKind): Promise<DocumentTemplate | null> {
+    const { data } = await supabase.from(SINGLE_TEMPLATES[kind].table).select('*').order('updated_at', { ascending: false }).limit(1);
+    return (data?.[0] as DocumentTemplate | undefined) ?? null;
+}
 
 // ─── Component ──────────────────────────────────────────────
 export default function DocumentGenerator() {
@@ -91,19 +60,13 @@ export default function DocumentGenerator() {
     });
 
     const { data: attTemplate = null } = useQuery({
-        queryKey: ['doc_att_template'],
-        queryFn: async () => {
-            const { data } = await supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1);
-            return (data && data.length > 0) ? data[0] as DocumentTemplate : null;
-        },
+        queryKey: [SINGLE_TEMPLATES.attendance.queryKey],
+        queryFn: () => fetchSingleTemplate('attendance'),
     });
 
     const { data: labelTemplate = null } = useQuery({
-        queryKey: ['doc_label_template'],
-        queryFn: async () => {
-            const { data } = await supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1);
-            return (data && data.length > 0) ? data[0] as DocumentTemplate : null;
-        },
+        queryKey: [SINGLE_TEMPLATES.labels.queryKey],
+        queryFn: () => fetchSingleTemplate('labels'),
     });
 
     const { data: customVars = [] } = useQuery({
@@ -118,10 +81,9 @@ export default function DocumentGenerator() {
 
     // ─── Non-cached UI state ────────────────────────────────
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-    const [uploading, setUploading] = useState(false);
-    const [attUploading, setAttUploading] = useState(false);
-    const [labelUploading, setLabelUploading] = useState(false);
-    const [generating, setGenerating] = useState(false);
+    const [uploading, setUploading] = useState<TemplateKind | null>(null);
+    const [progress, setProgress] = useState<{ done: number; total: number; sample: boolean } | null>(null);
+    const generating = progress !== null;
     const [toast, setToast] = useState<ToastData | null>(null);
     // Pending destructive action awaiting confirmation (template / variable deletion)
     const [pendingDelete, setPendingDelete] = useState<{ title: string; message: string; run: () => Promise<void> } | null>(null);
@@ -140,8 +102,8 @@ export default function DocumentGenerator() {
     const [newColHeader, setNewColHeader] = useState('');
     const [newColPlaceholder, setNewColPlaceholder] = useState('');
 
-    const showToast = useCallback((message: string, type: 'success' | 'error') => {
-        setToast({ message, type });
+    const showToast = useCallback((message: string, type: ToastData['type'], duration?: number) => {
+        setToast({ message, type, duration });
     }, []);
 
     useModalBehavior(courseDropdownOpen, () => setCourseDropdownOpen(false));
@@ -151,12 +113,8 @@ export default function DocumentGenerator() {
         queryClient.setQueryData<DocumentTemplate[]>(['doc_templates'], (old = []) => updater(old));
     }, [queryClient]);
 
-    const setAttTemplate = useCallback((value: DocumentTemplate | null) => {
-        queryClient.setQueryData<DocumentTemplate | null>(['doc_att_template'], value);
-    }, [queryClient]);
-
-    const setLabelTemplate = useCallback((value: DocumentTemplate | null) => {
-        queryClient.setQueryData<DocumentTemplate | null>(['doc_label_template'], value);
+    const setSingleTemplate = useCallback((kind: SingleKind, value: DocumentTemplate | null) => {
+        queryClient.setQueryData<DocumentTemplate | null>([SINGLE_TEMPLATES[kind].queryKey], value);
     }, [queryClient]);
 
     const setCustomVars = useCallback((updater: ((prev: TemplateVariable[]) => TemplateVariable[]) | TemplateVariable[]) => {
@@ -165,18 +123,23 @@ export default function DocumentGenerator() {
         );
     }, [queryClient]);
 
+    /** Build a Record from custom vars for template rendering */
+    const customVarMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        customVars.forEach(v => { map[v.var_key] = v.var_value; });
+        return map;
+    }, [customVars]);
+
     // ─── Active templates ───────────────────────────────────
     const activeTemplates = useMemo(() => templates.filter(t => t.is_active), [templates]);
 
     // ─── Courses with confirmed enrollments ─────────────────
-    const coursesWithConfirmed = useMemo(() => {
-        const courseIds = new Set(
-            enrollments
-                .filter(e => e.status === 'confirmed')
-                .map(e => e.course_id)
-        );
-        return courses.filter(c => courseIds.has(c.id));
-    }, [courses, enrollments]);
+    const confirmedCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const e of enrollments) if (e.status === 'confirmed') counts.set(e.course_id, (counts.get(e.course_id) || 0) + 1);
+        return counts;
+    }, [enrollments]);
+    const coursesWithConfirmed = useMemo(() => courses.filter(c => confirmedCounts.has(c.id)), [courses, confirmedCounts]);
 
     // ─── Confirmed enrollments for selected course ──────────
     const confirmedForCourse = useMemo(() => {
@@ -193,27 +156,37 @@ export default function DocumentGenerator() {
     const selectedCourse = courses.find(c => c.id === selectedCourseId);
     const courseTemplates = useMemo(() => templatesForCourse(templates, selectedCourse?.template_ids), [templates, selectedCourse]);
 
-    // ─── Template Upload (add new) ──────────────────────────
-    async function handleUploadTemplate(file: File) {
-        if (!file.name.endsWith('.docx')) {
+    // ─── Template upload ────────────────────────────────────
+    /**
+     * Check a .docx before it is stored: reject files docxtemplater cannot parse and
+     * return a note listing placeholders that nothing fills in (they would print blank).
+     */
+    async function vetTemplate(file: File, kind: TemplateKind): Promise<{ ok: boolean; note: string }> {
+        if (!/\.docx$/i.test(file.name)) {
             showToast('Only .docx files are supported', 'error');
-            return;
+            return { ok: false, note: '' };
         }
-        if (file.size > 5 * 1024 * 1024) {
+        if (file.size > MAX_TEMPLATE_BYTES) {
             showToast('File size must be less than 5MB', 'error');
-            return;
+            return { ok: false, note: '' };
         }
+        const check = await checkTemplate(file, kind, customVarMap);
+        if (check.error) {
+            showToast(`"${file.name}" has a placeholder error: ${check.error}. Fix it in Word and upload again.`, 'error', 12000);
+            return { ok: false, note: '' };
+        }
+        const note = check.unknownTags.length
+            ? ` Unknown placeholders will print blank: ${check.unknownTags.map(t => `{${t}}`).join(', ')}. Check the spelling or add them as custom variables.`
+            : '';
+        return { ok: true, note };
+    }
 
-        setUploading(true);
+    async function handleUploadTemplate(file: File) {
+        setUploading('document');
         try {
-            const storagePath = `template_${Date.now()}.docx`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('templates')
-                .upload(storagePath, file, { cacheControl: '3600', upsert: true });
-
-            if (uploadError) throw uploadError;
-
+            const { ok, note } = await vetTemplate(file, 'document');
+            if (!ok) return;
+            const storagePath = await uploadTemplateFile(file, 'template');
             const { data, error } = await supabase
                 .from('document_templates')
                 .insert({ name: file.name, storage_path: storagePath, is_active: true })
@@ -222,63 +195,50 @@ export default function DocumentGenerator() {
             if (error) throw error;
 
             setTemplates(prev => [...prev, data]);
-            showToast('Template uploaded successfully!', 'success');
+            showToast(`Template uploaded.${note}`, note ? 'info' : 'success', note ? 12000 : undefined);
         } catch (err: unknown) {
             console.error('Upload error:', err);
-            showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Upload failed: ${errorText(err)}`, 'error');
         } finally {
-            setUploading(false);
+            setUploading(null);
         }
     }
 
-    // ─── Attendance Template Upload ─────────────────────────
-    async function handleUploadAttendance(file: File) {
-        if (!file.name.endsWith('.docx')) {
-            showToast('Only .docx files are supported', 'error');
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('File size must be less than 5MB', 'error');
-            return;
-        }
-
-        setAttUploading(true);
+    async function handleUploadSingle(kind: SingleKind, file: File) {
+        const cfg = SINGLE_TEMPLATES[kind];
+        const current = kind === 'attendance' ? attTemplate : labelTemplate;
+        setUploading(kind);
         try {
-            const storagePath = `template_att_${Date.now()}.docx`;
+            const { ok, note } = await vetTemplate(file, kind);
+            if (!ok) return;
+            // Upload first and only then drop the old file, so a failed upload keeps the current template
+            const storagePath = await uploadTemplateFile(file, cfg.prefix);
+            const updatedAt = new Date().toISOString();
 
-            if (attTemplate?.storage_path) {
-                await supabase.storage.from('templates').remove([attTemplate.storage_path]);
-            }
-
-            const { error: uploadError } = await supabase.storage
-                .from('templates')
-                .upload(storagePath, file, { cacheControl: '3600', upsert: true });
-
-            if (uploadError) throw uploadError;
-
-            if (attTemplate) {
+            if (current) {
                 const { error } = await supabase
-                    .from('attendance_templates')
-                    .update({ name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() })
-                    .eq('id', attTemplate.id);
+                    .from(cfg.table)
+                    .update({ name: file.name, storage_path: storagePath, updated_at: updatedAt })
+                    .eq('id', current.id);
                 if (error) throw error;
-                setAttTemplate({ ...attTemplate, name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() });
+                setSingleTemplate(kind, { ...current, name: file.name, storage_path: storagePath, updated_at: updatedAt });
+                await supabase.storage.from('templates').remove([current.storage_path]);
             } else {
                 const { data, error } = await supabase
-                    .from('attendance_templates')
+                    .from(cfg.table)
                     .insert({ name: file.name, storage_path: storagePath })
                     .select()
                     .single();
                 if (error) throw error;
-                setAttTemplate(data);
+                setSingleTemplate(kind, data);
             }
 
-            showToast('Attendance Template uploaded successfully!', 'success');
+            showToast(`${cfg.label} uploaded.${note}`, note ? 'info' : 'success', note ? 12000 : undefined);
         } catch (err: unknown) {
             console.error('Upload error:', err);
-            showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Upload failed: ${errorText(err)}`, 'error');
         } finally {
-            setAttUploading(false);
+            setUploading(null);
         }
     }
 
@@ -293,7 +253,7 @@ export default function DocumentGenerator() {
             if (error) throw error;
             setTemplates(prev => prev.map(t => t.id === tpl.id ? { ...t, is_active: newActive } : t));
         } catch (err: unknown) {
-            showToast(`Failed to toggle: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Failed to toggle: ${errorText(err)}`, 'error');
         }
     }
 
@@ -306,92 +266,32 @@ export default function DocumentGenerator() {
             setTemplates(prev => prev.filter(t => t.id !== tpl.id));
             showToast('Template deleted', 'success');
         } catch (err: unknown) {
-            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Delete failed: ${errorText(err)}`, 'error');
         }
     }
 
-    async function handleDeleteAttendance() {
-        if (!attTemplate) return;
+    async function handleDeleteSingle(kind: SingleKind) {
+        const cfg = SINGLE_TEMPLATES[kind];
+        const current = kind === 'attendance' ? attTemplate : labelTemplate;
+        if (!current) return;
         try {
-            const { error } = await supabase.from('attendance_templates').delete().eq('id', attTemplate.id);
+            const { error } = await supabase.from(cfg.table).delete().eq('id', current.id);
             if (error) throw error;
-            await supabase.storage.from('templates').remove([attTemplate.storage_path]);
-            setAttTemplate(null);
-            showToast('Attendance Template deleted', 'success');
+            await supabase.storage.from('templates').remove([current.storage_path]);
+            setSingleTemplate(kind, null);
+            showToast(`${cfg.label} deleted`, 'success');
         } catch (err: unknown) {
-            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
-        }
-    }
-
-    // ─── Label Template Upload ───────────────────────────────
-    async function handleUploadLabels(file: File) {
-        if (!file.name.endsWith('.docx')) {
-            showToast('Only .docx files are supported', 'error');
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('File size must be less than 5MB', 'error');
-            return;
-        }
-
-        setLabelUploading(true);
-        try {
-            const storagePath = `template_lbl_${Date.now()}.docx`;
-
-            if (labelTemplate?.storage_path) {
-                await supabase.storage.from('templates').remove([labelTemplate.storage_path]);
-            }
-
-            const { error: uploadError } = await supabase.storage
-                .from('templates')
-                .upload(storagePath, file, { cacheControl: '3600', upsert: true });
-
-            if (uploadError) throw uploadError;
-
-            if (labelTemplate) {
-                const { error } = await supabase
-                    .from('label_templates')
-                    .update({ name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() })
-                    .eq('id', labelTemplate.id);
-                if (error) throw error;
-                setLabelTemplate({ ...labelTemplate, name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() });
-            } else {
-                const { data, error } = await supabase
-                    .from('label_templates')
-                    .insert({ name: file.name, storage_path: storagePath })
-                    .select()
-                    .single();
-                if (error) throw error;
-                setLabelTemplate(data);
-            }
-
-            showToast('Label Template uploaded successfully!', 'success');
-        } catch (err: unknown) {
-            console.error('Upload error:', err);
-            showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
-        } finally {
-            setLabelUploading(false);
-        }
-    }
-
-    async function handleDeleteLabels() {
-        if (!labelTemplate) return;
-        try {
-            const { error } = await supabase.from('label_templates').delete().eq('id', labelTemplate.id);
-            if (error) throw error;
-            await supabase.storage.from('templates').remove([labelTemplate.storage_path]);
-            setLabelTemplate(null);
-            showToast('Label Template deleted', 'success');
-        } catch (err: unknown) {
-            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Delete failed: ${errorText(err)}`, 'error');
         }
     }
 
     // ─── Custom Variable Handlers ────────────────────────────
     async function handleAddVariable() {
-        const key = newVarKey.trim();
+        const key = newVarKey.trim().replace(/^\{+|\}+$/g, '');
         const value = newVarValue.trim();
-        if (!key) { showToast('Variable name is required', 'error'); return; }
+        const invalid = validateVariableKey(key);
+        if (invalid) { showToast(invalid, 'error'); return; }
+        if (customVars.some(v => v.var_key === key)) { showToast(`{${key}} already exists — edit its value instead`, 'error'); return; }
 
         setAddingVar(true);
         try {
@@ -404,9 +304,10 @@ export default function DocumentGenerator() {
             setCustomVars(prev => [...prev, data]);
             setNewVarKey('');
             setNewVarValue('');
-            showToast(`Variable {${key}} added`, 'success');
+            if (PLACEHOLDER_KEYS.has(key)) showToast(`{${key}} added — it replaces the built-in {${key}} in every document`, 'info');
+            else showToast(`Variable {${key}} added`, 'success');
         } catch (err: unknown) {
-            showToast(`Failed to add variable: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Failed to add variable: ${errorText(err)}`, 'error');
         } finally {
             setAddingVar(false);
         }
@@ -419,7 +320,7 @@ export default function DocumentGenerator() {
             setCustomVars(prev => prev.filter(cv => cv.id !== v.id));
             showToast(`Variable {${v.var_key}} deleted`, 'success');
         } catch (err: unknown) {
-            showToast(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Delete failed: ${errorText(err)}`, 'error');
         }
     }
 
@@ -434,22 +335,17 @@ export default function DocumentGenerator() {
             setEditingVarId(null);
             showToast(`Variable {${v.var_key}} updated`, 'success');
         } catch (err: unknown) {
-            showToast(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Update failed: ${errorText(err)}`, 'error');
         }
     }
 
-    /** Build a Record from custom vars for template rendering */
-    const customVarMap = useMemo(() => {
-        const map: Record<string, string> = {};
-        customVars.forEach(v => { map[v.var_key] = v.var_value; });
-        return map;
-    }, [customVars]);
-
     // ─── Generate Documents ─────────────────────────────────
-    async function handleGenerate() {
+    /** `sample` renders only the first participant, to check the templates before a full run. */
+    async function handleGenerate(sample = false) {
         if (courseTemplates.length === 0 || confirmedForCourse.length === 0) return;
+        const participants = sample ? confirmedForCourse.slice(0, 1) : confirmedForCourse;
 
-        setGenerating(true);
+        setProgress({ done: 0, total: 0, sample });
         try {
             const courseName = selectedCourse?.name || 'Course';
             const firstEnr = confirmedForCourse[0];
@@ -457,49 +353,25 @@ export default function DocumentGenerator() {
             const dateStr = formatDateSpaces(rawDate) || formatDateSpaces(todayISO());
             const variant = firstEnr ? cleanVariant(courseName, firstEnr.course_variant) : '';
             const courseStr = variant ? `${courseName} (${variant})` : courseName;
-            const zipName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
+            const zipName = `${sample ? 'SAMPLE ' : ''}${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
 
-            const tplDescriptors: TemplateDescriptor[] = courseTemplates.map(t => ({
-                name: t.name,
-                storagePath: t.storage_path,
-            }));
+            const result = await generateDocumentsArchive(zipName, {
+                enrollments: participants,
+                templates: courseTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
+                attendanceTemplatePath: attTemplate?.storage_path,
+                labelTemplatePath: labelTemplate?.storage_path,
+                customVariables: customVarMap,
+                excelColumns,
+                onProgress: (done, total) => setProgress({ done, total, sample }),
+            });
 
-            const result = await generateDocumentsArchive(
-                confirmedForCourse,
-                tplDescriptors,
-                zipName,
-                attTemplate?.storage_path,
-                customVarMap,
-                labelTemplate?.storage_path,
-                excelColumns
-            );
-
-            // Build a detailed status message
-            if (result.failedTemplates.length > 0 || result.failedDocs.length > 0) {
-                const failedNames = result.failedTemplates.map(f => `"${f.name}": ${f.error}`).join('; ');
-                const failedDocDetails = result.failedDocs.length > 0
-                    ? ` | ${result.failedDocs.length} doc(s) failed to render`
-                    : '';
-                const msg = result.failedTemplates.length > 0
-                    ? `Failed templates: ${failedNames}${failedDocDetails}. Generated: ${result.totalDocs} doc(s) from ${result.successTemplates.length}/${result.totalTemplates} template(s).`
-                    : `${result.failedDocs.length} doc(s) failed: ${result.failedDocs.slice(0, 3).map(d => `${d.student} (${d.template}): ${d.error}`).join('; ')}. Total generated: ${result.totalDocs}.`;
-                showToast(msg, 'error');
-            } else {
-                showToast(`Generated ${result.totalDocs} document(s) with ${result.successTemplates.length} template(s)!`, 'success');
-            }
-
-            if (!result.attendanceOk && result.attendanceError) {
-                showToast(`Attendance sheet failed: ${result.attendanceError}`, 'error');
-            }
-
-            if (!result.labelsOk && result.labelsError) {
-                showToast(`Address labels failed: ${result.labelsError}`, 'error');
-            }
+            const { message, type } = summarizeGeneration(result);
+            showToast(message, type, type === 'success' ? undefined : 15000);
         } catch (err: unknown) {
             console.error('Generation error:', err);
-            showToast(`Generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showToast(`Generation failed: ${errorText(err)}`, 'error');
         } finally {
-            setGenerating(false);
+            setProgress(null);
         }
     }
 
@@ -526,6 +398,18 @@ export default function DocumentGenerator() {
         setNewColHeader('');
         setNewColPlaceholder('');
     };
+
+    const placeholderLabel = (key: string) =>
+        PLACEHOLDER_CATEGORIES.flatMap(c => c.items).find(i => i.key === key)?.desc.replace(/\s*\(.*\)$/, '') ?? key;
+
+    const sheetLoopTip = (
+        <p className="text-[11px] text-muted flex items-start gap-1.5">
+            <Info size={13} className="flex-shrink-0 mt-px" />
+            <span>
+                Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.
+            </span>
+        </p>
+    );
 
     const canGenerate = courseTemplates.length > 0 && confirmedForCourse.length > 0;
     const archiveContents = [
@@ -670,7 +554,7 @@ export default function DocumentGenerator() {
                                                 </div>
                                             ) : (
                                                 coursesWithConfirmed.map(c => {
-                                                    const count = enrollments.filter(e => e.course_id === c.id && e.status === 'confirmed').length;
+                                                    const count = confirmedCounts.get(c.id) || 0;
                                                     const active = selectedCourseId === c.id;
                                                     return (
                                                         <button
@@ -767,12 +651,12 @@ export default function DocumentGenerator() {
                                     variant={canGenerate ? 'success' : 'secondary'}
                                     size="lg"
                                     className="w-full !h-11"
-                                    onClick={handleGenerate}
+                                    onClick={() => handleGenerate()}
                                     disabled={!canGenerate || generating}
-                                    loading={generating}
+                                    loading={generating && !progress?.sample}
                                 >
-                                    {generating ? (
-                                        <>Generating {confirmedForCourse.length} document(s) × {courseTemplates.length} template(s)...</>
+                                    {generating && !progress?.sample ? (
+                                        <>Generating{progress?.total ? ` ${progress.done} / ${progress.total} files` : ''}…</>
                                     ) : (
                                         <>
                                             <FileArchive size={17} />
@@ -780,6 +664,19 @@ export default function DocumentGenerator() {
                                         </>
                                     )}
                                 </Button>
+                                {generating && progress && progress.total > 0 && (
+                                    <div className="mt-2 h-1.5 rounded-full bg-surface-elevated overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}>
+                                        <div className="h-full bg-success transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+                                    </div>
+                                )}
+                                {canGenerate && (
+                                    <div className="mt-2 flex justify-center">
+                                        <Button variant="ghost" size="sm" onClick={() => handleGenerate(true)} disabled={generating} loading={generating && progress?.sample}>
+                                            {!(generating && progress?.sample) && <FlaskConical size={14} />}
+                                            Try with one participant first
+                                        </Button>
+                                    </div>
+                                )}
                                 {activeTemplates.length === 0 && (
                                     <p className="mt-2 text-xs text-status-requested text-center font-medium flex items-center justify-center gap-1.5">
                                         <AlertCircle size={13} />
@@ -909,9 +806,9 @@ export default function DocumentGenerator() {
                             <FileDropzone
                                 accept=".docx"
                                 onChange={fileInputHandler(handleUploadTemplate)}
-                                uploading={uploading}
+                                uploading={uploading === 'document'}
                                 title="Add new template"
-                                hint="Drop a .docx here or click to browse · max 5MB"
+                                hint="Drop a .docx here or click to browse · max 5MB · placeholders are checked on upload"
                             />
                         </div>
                     </Card>
@@ -919,7 +816,7 @@ export default function DocumentGenerator() {
                     {/* Attendance sheet */}
                     <Card
                         title="Attendance sheet"
-                        subtitle={<>Numbered placeholders up to 34, e.g. {'{firstName1}'}, {'{phone1}'}</>}
+                        subtitle={<>Numbered placeholders up to {ATTENDANCE_SLOTS}, e.g. {'{firstName1}'}, {'{phone1}'} — larger groups continue on extra sheets</>}
                         icon={ClipboardList}
                         tone="info"
                     >
@@ -927,23 +824,24 @@ export default function DocumentGenerator() {
                             {singleTemplateRow(attTemplate, 'No attendance template uploaded yet', () => setPendingDelete({
                                 title: 'Delete Attendance Template',
                                 message: 'Delete the attendance sheet template? The file will be removed permanently.',
-                                run: handleDeleteAttendance,
+                                run: () => handleDeleteSingle('attendance'),
                             }))}
                             <FileDropzone
                                 compact
                                 accept=".docx"
-                                onChange={fileInputHandler(handleUploadAttendance)}
-                                uploading={attUploading}
+                                onChange={fileInputHandler(file => handleUploadSingle('attendance', file))}
+                                uploading={uploading === 'attendance'}
                                 title={attTemplate ? 'Replace Attendance Template' : 'Upload Attendance Template'}
-                                hint={<>Also supports {'{courseTitle}'}, {'{courseDate}'} … up to {'{email34}'}</>}
+                                hint={<>Also {'{courseTitle}'}, {'{courseDate}'}, {'{page}'}/{'{pages}'} … up to {`{email${ATTENDANCE_SLOTS}}`}</>}
                             />
+                            {sheetLoopTip}
                         </div>
                     </Card>
 
                     {/* Address labels */}
                     <Card
                         title="Address labels"
-                        subtitle={<>Numbered placeholders up to 28, e.g. {'{address1}'}, {'{eircode1}'}</>}
+                        subtitle={<>Numbered placeholders up to {LABEL_SLOTS}, e.g. {'{address1}'}, {'{eircode1}'} — larger groups continue on extra pages</>}
                         icon={Tag}
                         tone="warning"
                     >
@@ -951,16 +849,17 @@ export default function DocumentGenerator() {
                             {singleTemplateRow(labelTemplate, 'No label template uploaded yet', () => setPendingDelete({
                                 title: 'Delete Label Template',
                                 message: 'Delete the label template? The file will be removed permanently.',
-                                run: handleDeleteLabels,
+                                run: () => handleDeleteSingle('labels'),
                             }))}
                             <FileDropzone
                                 compact
                                 accept=".docx"
-                                onChange={fileInputHandler(handleUploadLabels)}
-                                uploading={labelUploading}
+                                onChange={fileInputHandler(file => handleUploadSingle('labels', file))}
+                                uploading={uploading === 'labels'}
                                 title={labelTemplate ? 'Replace Label Template' : 'Upload Label Template'}
                                 hint="Drop a .docx here or click to browse · max 5MB"
                             />
+                            {sheetLoopTip}
                         </div>
                     </Card>
 
@@ -1054,7 +953,7 @@ export default function DocumentGenerator() {
                                 </Button>
                             </div>
                             <p className="text-[11px] text-muted">
-                                Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded font-mono">{'{{VariableName}}'}</code> in your Word templates to reference these variables.
+                                Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded font-mono">{'{VariableName}'}</code> (single braces) in your Word templates. Names use letters, digits and _.
                             </p>
                         </div>
                     </Card>
@@ -1109,22 +1008,35 @@ export default function DocumentGenerator() {
                                     aria-label="Column Header"
                                     className={`${fieldCls} sm:flex-1`}
                                 />
-                                <input
-                                    type="text"
+                                <select
                                     value={newColPlaceholder}
-                                    onChange={e => setNewColPlaceholder(e.target.value)}
-                                    placeholder="Placeholder, e.g. fullName"
+                                    onChange={e => {
+                                        const key = e.target.value;
+                                        setNewColPlaceholder(key);
+                                        if (!newColHeader.trim()) setNewColHeader(placeholderLabel(key));
+                                    }}
                                     aria-label="Placeholder Key"
-                                    onKeyDown={e => { if (e.key === 'Enter') addExcelColumn(); }}
                                     className={`${fieldCls} sm:flex-1`}
-                                />
+                                >
+                                    <option value="">Value…</option>
+                                    {PLACEHOLDER_CATEGORIES.map(cat => (
+                                        <optgroup key={cat.title} label={cat.title}>
+                                            {cat.items.map(item => <option key={item.key} value={item.key}>{item.desc} — {`{${item.key}}`}</option>)}
+                                        </optgroup>
+                                    ))}
+                                    {customVars.length > 0 && (
+                                        <optgroup label="Custom Variables">
+                                            {customVars.map(v => <option key={v.id} value={v.var_key}>{`{${v.var_key}}`}</option>)}
+                                        </optgroup>
+                                    )}
+                                </select>
                                 <Button variant="secondary" onClick={addExcelColumn} disabled={!newColHeader.trim() || !newColPlaceholder.trim()}>
                                     <Plus size={14} />
                                     Add
                                 </Button>
                             </div>
                             <p className="text-[11px] text-muted">
-                                Use placeholder keys from Available variables (e.g. <code className="font-mono text-primary">firstName</code>, <code className="font-mono text-primary">email</code>, <code className="font-mono text-primary">courseDate</code>).
+                                Rows are sorted by surname. The header row is frozen and filterable.
                             </p>
                         </div>
                     </Card>
