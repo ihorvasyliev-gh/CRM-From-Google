@@ -566,7 +566,6 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
     const libs = await loadDocxLibs();
     const zip = new libs.PizZip();
     const usedPaths = new Set<string>();
-    const useSubfolders = templates.length > 1;
 
     const result: GenerationResult = {
         totalTemplates: templates.length,
@@ -619,7 +618,9 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         }
 
         const base = safeFileName(tpl.name.replace(/\.docx$/i, ''), 'Template');
-        const folder = useSubfolders ? `${base}/` : '';
+        // Archive layout: one folder per template with a file per person; everything that covers
+        // the whole group (combined files, attendance sheet, labels, Participants.xlsx) sits at the top
+        const folder = `${base}/`;
         const missing = new Set<string>();
         let templateOk = true;
 
@@ -650,7 +651,7 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
                 };
                 // Loops copy pictures, so give every copy its own drawing id (Word rejects duplicates)
                 const file = renderDoc(createDoc(libs, toCombinedTemplate(libs, tpl.buffer), undefined, [libs.fixDocPrCorruption]), data);
-                zip.file(uniquePath(usedPaths, `${folder}${base}_All.docx`), file);
+                zip.file(uniquePath(usedPaths, `${base}_All.docx`), file);
                 result.extras.push({ label, ok: true, files: 1 });
             } catch (err) {
                 result.extras.push({ label, ok: false, files: 0, error: describeDocxError(err) });

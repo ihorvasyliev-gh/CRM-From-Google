@@ -100,8 +100,8 @@ describe('GenerateDocsModal', () => {
 
         const { name, files, text } = await archive();
         expect(name).toBe('Python 101 (English) 01 10 2026.zip');
-        expect(files).toEqual(['Ann_Test.docx', 'Bob_Test.docx', 'Certificate_All.docx']);
-        expect(text('Ann_Test.docx')).toBe('cert: Ann Test, Jane, until 01 Oct 2028');
+        expect(files).toEqual(['Certificate/Ann_Test.docx', 'Certificate/Bob_Test.docx', 'Certificate_All.docx']);
+        expect(text('Certificate/Ann_Test.docx')).toBe('cert: Ann Test, Jane, until 01 Oct 2028');
         expect(text('Certificate_All.docx')).toContain('Bob Test, Jane, until 01 Oct 2028');
         expect(courseLookups).toEqual(['c1']);
 

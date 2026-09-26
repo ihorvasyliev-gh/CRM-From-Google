@@ -317,8 +317,8 @@ describe('buildDocumentsArchive', () => {
         expect(result.totalDocs).toBe(2);
         expect(result.successTemplates).toEqual(['Certificate.docx']);
         const docs = await readArchive(blob);
-        expect(Object.keys(docs).sort()).toEqual(['Olena_Kovalenko.docx', 'Seán_Ó_Briain.docx']);
-        expect(docs['Seán_Ó_Briain.docx']).toBe('Awarded to Seán Ó Briain\nTutor: Jane Doe\nCourse: Python 101');
+        expect(Object.keys(docs).sort()).toEqual(['Certificate/Olena_Kovalenko.docx', 'Certificate/Seán_Ó_Briain.docx']);
+        expect(docs['Certificate/Seán_Ó_Briain.docx']).toBe('Awarded to Seán Ó Briain\nTutor: Jane Doe\nCourse: Python 101');
     });
 
     it('does not overwrite students who share a name', async () => {
@@ -327,7 +327,7 @@ describe('buildDocumentsArchive', () => {
             templates: [{ name: 'a.docx', storagePath: 'a' }],
             fetchTemplate: files({ a: makeDocx('{fullName}') }),
         });
-        expect(Object.keys(await readArchive(blob)).sort()).toEqual(['John_Murphy.docx', 'John_Murphy_2.docx']);
+        expect(Object.keys(await readArchive(blob)).sort()).toEqual(['a/John_Murphy.docx', 'a/John_Murphy_2.docx']);
     });
 
     it('renders unknown placeholders blank and reports them', async () => {
@@ -336,7 +336,7 @@ describe('buildDocumentsArchive', () => {
             templates: [{ name: 'a.docx', storagePath: 'a' }],
             fetchTemplate: files({ a: makeDocx('Hi {firstName}{Tuter}!') }),
         });
-        expect((await readArchive(blob))['Olena_Kovalenko.docx']).toBe('Hi Olena!');
+        expect((await readArchive(blob))['a/Olena_Kovalenko.docx']).toBe('Hi Olena!');
         expect(result.unknownTags).toEqual([{ template: 'a.docx', tags: ['Tuter'] }]);
         expect(summarizeGeneration(result).type).toBe('info');
     });
@@ -490,7 +490,7 @@ describe('combined file', () => {
             fetchTemplate: files({ cert: makeDocxWithPicture('{fullName} — {Tutor}') }),
         });
         const zip = new PizZip(await blob.arrayBuffer());
-        expect(Object.keys(zip.files).sort()).toEqual(['Certificate_All.docx', 'Mary_Ahern.docx', 'Zoe_Byrne.docx']);
+        expect(Object.keys(zip.files).sort()).toEqual(['Certificate/Mary_Ahern.docx', 'Certificate/Zoe_Byrne.docx', 'Certificate_All.docx']);
         const xml = new PizZip(zip.file('Certificate_All.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
         const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).filter(Boolean);
         expect(texts).toEqual(['Mary Ahern — Jane', 'Zoe Byrne — Jane']);
@@ -592,13 +592,37 @@ describe('date variables', () => {
             }),
         });
         const docs = await readArchive(blob);
-        expect(docs['Ann_Ahern.docx']).toBe('Ann Ahern until 01 Oct 2028 (01/10/2030)');
-        expect(docs['Bob_Byrne.docx']).toBe('Bob Byrne until 05 Nov 2028 (05/11/2030)');
+        expect(docs['Cert/Ann_Ahern.docx']).toBe('Ann Ahern until 01 Oct 2028 (01/10/2030)');
+        expect(docs['Cert/Bob_Byrne.docx']).toBe('Bob Byrne until 05 Nov 2028 (05/11/2030)');
         expect(docs['Cert_All.docx']).toContain('Bob Byrne until 05 Nov 2028');
         // The sheet header uses the earliest date; each row its own
         expect(docs['Attendance_Sheet.docx']).toBe('Valid until 01 Oct 2028\nAnn Ahern: 01 Oct 2028\nBob Byrne: 05 Nov 2028');
 
         const xlsx = new PizZip(new PizZip(await blob.arrayBuffer()).file('Participants.xlsx')!.asArrayBuffer());
         expect(xlsx.file('xl/sharedStrings.xml')!.asText()).toContain('05 Nov 2028');
+    });
+});
+
+describe('archive layout', () => {
+    it('puts each template in its own folder with a file per person, and group files at the top', async () => {
+        const people = Array.from({ length: 12 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [{ name: 'Certificate.docx', storagePath: 'cert' }, { name: 'Welcome letter.docx', storagePath: 'letter' }],
+            attendanceTemplatePath: 'att',
+            labelTemplatePath: 'lbl',
+            excelColumns: [{ header: 'Name', placeholder: 'fullName' }],
+            combined: true,
+            fetchTemplate: files({ cert: makeDocx('{fullName}'), letter: makeDocx('{fullName}'), att: makeDocx('{fullName1}'), lbl: makeDocx('{address1}') }),
+        });
+        const paths = Object.keys(new PizZip(await blob.arrayBuffer()).files).filter(p => !p.endsWith('/'));
+        const inFolder = (folder: string) => paths.filter(p => p.startsWith(`${folder}/`));
+
+        expect(inFolder('Certificate')).toHaveLength(12);
+        expect(inFolder('Welcome_letter')).toHaveLength(12);
+        expect(paths.filter(p => !p.includes('/')).sort()).toEqual([
+            'Address_Labels.docx', 'Attendance_Sheet.docx', 'Certificate_All.docx', 'Participants.xlsx', 'Welcome_letter_All.docx',
+        ]);
+        expect(paths).toHaveLength(12 * 2 + 5);
     });
 });

@@ -170,7 +170,7 @@ describe('DocumentGenerator', () => {
         const [blob, name] = vi.mocked(downloadBlob).mock.calls[0];
         expect(name).toBe('Python 101 (English) 01 10 2099.zip');
         const zip = new PizZip(await (blob as Blob).arrayBuffer());
-        const doc = new PizZip(zip.file('Olena_Kovalenko-Shevchenko.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        const doc = new PizZip(zip.file('Certificate/Olena_Kovalenko-Shevchenko.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
         expect(doc).toContain('Olena Kovalenko-Shevchenko / Jane');
         expect(zip.file('Participants.xlsx')).toBeTruthy();
         expect(zip.file(/Ahern/)).toHaveLength(0);
@@ -188,7 +188,7 @@ describe('DocumentGenerator', () => {
         expect(await screen.findByText(/Left out 1 whose enrollment changed/)).toHaveTextContent('Mary Ahern');
         const zip = new PizZip(await (vi.mocked(downloadBlob).mock.calls[0][0] as Blob).arrayBuffer());
         expect(zip.file(/Ahern/)).toHaveLength(0);
-        expect(zip.file('Olena_Kovalenko.docx')).toBeTruthy();
+        expect(zip.file('Certificate/Olena_Kovalenko.docx')).toBeTruthy();
     });
 
     it('keeps Excel columns in this browser until the shared settings table exists', async () => {
@@ -316,7 +316,7 @@ describe('DocumentGenerator', () => {
         fireEvent.click(generateButton());
         await waitFor(() => expect(downloadBlob).toHaveBeenCalled());
         const zip = new PizZip(await (vi.mocked(downloadBlob).mock.calls[0][0] as Blob).arrayBuffer());
-        const doc = new PizZip(zip.file('Olena_Kovalenko.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        const doc = new PizZip(zip.file('Certificate/Olena_Kovalenko.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
         expect(doc).toContain('Olena Kovalenko until 01 Oct 2102');
     });
 
