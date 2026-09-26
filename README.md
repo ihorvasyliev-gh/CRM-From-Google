@@ -221,7 +221,7 @@ CRM-From-Google/
 
 ## 🚀 Quick start
 
-**Prerequisites:** Node.js 20.19+ or 22.12+ (required by Vite 8) and a Supabase project.
+**Prerequisites:** Node.js 24 LTS (at least 20.19 / 22.12, required by Vite 8) and a Supabase project.
 
 ```bash
 git clone https://github.com/ihorvasyliev-gh/CRM-From-Google.git
@@ -284,7 +284,7 @@ npm run build      # tsc + production build
 | Build command | `npm run build` |
 | Output directory | `dist` |
 | Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
-| Node.js | 22, pinned by [`frontend/.node-version`](frontend/.node-version) |
+| Node.js | 24 LTS, pinned by [`frontend/.node-version`](frontend/.node-version) |
 
 Security headers, the CSP and cache rules ship from [`frontend/public/_headers`](frontend/public/_headers). SPA routing works out of the box.
 
