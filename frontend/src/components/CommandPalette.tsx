@@ -403,7 +403,7 @@ export default function CommandPalette({
                 subtitle: s.email || s.phone || (s.eircode ? `Eircode: ${s.eircode}` : 'Student record'),
                 category: 'Students',
                 icon: (
-                    <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${getAvatarGradient(s.id)} flex items-center justify-center text-[10px] text-white font-bold`}>
+                    <div className={`w-5 h-5 rounded-full bg-linear-to-br ${getAvatarGradient(s.id)} flex items-center justify-center text-[10px] text-white font-bold`}>
                         {(s.first_name?.[0] || 'S').toUpperCase()}
                     </div>
                 ),
@@ -461,7 +461,7 @@ export default function CommandPalette({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4 animate-fadeIn"
+            className="fixed inset-0 z-100 flex items-start justify-center pt-[10vh] px-4 animate-fadeIn"
             onKeyDown={handleKeyDown}
         >
             {/* Backdrop */}
@@ -474,17 +474,17 @@ export default function CommandPalette({
             <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
                 {/* Search Input Bar */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle bg-surface/50">
-                    <Search size={19} className="text-muted flex-shrink-0" />
+                    <Search size={19} className="text-muted shrink-0" />
                     <input
                         ref={inputRef}
                         type="text"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         placeholder="Search students, courses, navigation, or actions..."
-                        className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-none focus-visible:shadow-none"
+                        className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-hidden focus-visible:shadow-none"
                     />
                     {loadingData && (
-                        <Loader2 size={16} className="animate-spin text-brand-500 flex-shrink-0" />
+                        <Loader2 size={16} className="animate-spin text-brand-500 shrink-0" />
                     )}
                     {query && (
                         <button
@@ -535,7 +535,7 @@ export default function CommandPalette({
                                                     }`}
                                                 >
                                                     <div className="flex items-center gap-3 min-w-0 pr-2">
-                                                        <span className={`flex-shrink-0 ${isSelected ? 'text-brand-500' : 'text-muted'}`}>
+                                                        <span className={`shrink-0 ${isSelected ? 'text-brand-500' : 'text-muted'}`}>
                                                             {item.icon}
                                                         </span>
                                                         <div className="min-w-0">
@@ -557,7 +557,7 @@ export default function CommandPalette({
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <div className="flex items-center gap-2 shrink-0">
                                                         {item.shortcut && (
                                                             <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md">
                                                                 {item.shortcut}
@@ -581,16 +581,16 @@ export default function CommandPalette({
                 <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-[11px] text-muted">
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1">
-                            <kbd className="px-1 py-0.5 rounded bg-surface border border-border-subtle text-[10px]">↑</kbd>
-                            <kbd className="px-1 py-0.5 rounded bg-surface border border-border-subtle text-[10px]">↓</kbd> Navigate
+                            <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↑</kbd>
+                            <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↓</kbd> Navigate
                         </span>
                         <span className="flex items-center gap-1">
-                            <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-subtle text-[10px]">↵</kbd> Select
+                            <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↵</kbd> Select
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
                         <span>Quick search</span>
-                        <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
+                        <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
                     </div>
                 </div>
             </div>

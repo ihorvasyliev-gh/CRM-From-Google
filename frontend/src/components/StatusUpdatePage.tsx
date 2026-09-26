@@ -39,13 +39,13 @@ const MONTHS = [
 const YEARS_BACK = 10;
 
 const inputClass =
-    'w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle px-4 py-3 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner';
+    'w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle px-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner';
 
 function choiceClass(selected: boolean, tone: 'emerald' | 'amber' | 'indigo') {
     const active = {
-        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-sm shadow-emerald-500/10',
-        amber: 'bg-amber-500/15 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/10',
-        indigo: 'bg-brand-500/15 text-brand-300 border-brand-500/50 shadow-sm shadow-brand-500/10',
+        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/10',
+        amber: 'bg-amber-500/15 text-amber-300 border-amber-500/50 shadow-xs shadow-amber-500/10',
+        indigo: 'bg-brand-500/15 text-brand-300 border-brand-500/50 shadow-xs shadow-brand-500/10',
     }[tone];
     return `flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-semibold border transition-all active:scale-[0.98] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
         selected ? active : 'bg-background text-muted border-border-subtle hover:border-border-strong hover:text-primary'
@@ -219,11 +219,11 @@ export default function StatusUpdatePage() {
     );
 
     return (
-        <div className="dark [color-scheme:dark] min-h-screen min-h-[100dvh] bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
+        <div className="dark scheme-dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
             {/* Ambient background glow optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/[0.09]" />
-                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/[0.065]" />
+                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/9" />
+                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/6.5" />
             </div>
 
             <div className="w-full max-w-md relative z-10 my-auto py-4">
@@ -233,7 +233,7 @@ export default function StatusUpdatePage() {
                     {state === 'form' && (
                         <form onSubmit={handleSubmit} noValidate className="flex flex-col">
                             {/* Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
                                     <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <Briefcase size={22} />
@@ -289,7 +289,7 @@ export default function StatusUpdatePage() {
                                             <button
                                                 type="button"
                                                 onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-brand-600/40"
+                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-xs shadow-brand-600/40"
                                             >
                                                 Fix
                                             </button>
@@ -394,14 +394,14 @@ export default function StatusUpdatePage() {
                                 {inlineError && (
                                     <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5 animate-fadeIn">
                                         <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-400" />
-                                        <p className="break-words leading-relaxed">{inlineError}</p>
+                                        <p className="wrap-break-word leading-relaxed">{inlineError}</p>
                                     </div>
                                 )}
 
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer"
+                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -429,7 +429,7 @@ export default function StatusUpdatePage() {
                     {/* ─── Shared email: pick your name ─── */}
                     {state === 'pick' && (
                         <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
                                     <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <User size={22} />
@@ -466,7 +466,7 @@ export default function StatusUpdatePage() {
                                 {inlineError && (
                                     <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5">
                                         <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                                        <p className="break-words leading-relaxed">{inlineError}</p>
+                                        <p className="wrap-break-word leading-relaxed">{inlineError}</p>
                                     </div>
                                 )}
 
@@ -544,7 +544,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-start justify-between gap-3">
             <span className="text-muted/80 text-xs uppercase tracking-wider font-semibold pt-0.5">{label}</span>
-            <span className="text-primary font-medium text-right break-words min-w-0">{value}</span>
+            <span className="text-primary font-medium text-right wrap-break-word min-w-0">{value}</span>
         </div>
     );
 }

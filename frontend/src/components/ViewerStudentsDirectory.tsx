@@ -242,7 +242,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
             onClick={onOpen}
             onKeyDown={onKeyDown}
             aria-label={`Open ${name}`}
-            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-none focus-visible:bg-brand-500/5 ${
+            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 ${
                 active ? 'bg-brand-500/[0.07]' : 'hover:bg-surface-elevated/60'
             }`}
         >

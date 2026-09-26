@@ -26,15 +26,15 @@ function SkeletonRow() {
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-muted/15" />
                     <div className="space-y-1.5">
-                        <div className="h-3.5 w-32 rounded bg-muted/15" />
-                        <div className="h-3 w-44 rounded bg-muted/10" />
+                        <div className="h-3.5 w-32 rounded-sm bg-muted/15" />
+                        <div className="h-3 w-44 rounded-sm bg-muted/10" />
                     </div>
                 </div>
             </td>
-            <td className={tdCls}><div className="h-3.5 w-28 rounded bg-muted/15" /></td>
-            <td className={`${tdCls} hidden lg:table-cell`}><div className="h-5 w-16 rounded bg-muted/15" /></td>
-            <td className={`${tdCls} hidden xl:table-cell`}><div className="h-3.5 w-20 rounded bg-muted/10" /></td>
-            <td className={tdCls}><div className="h-3.5 w-16 rounded bg-muted/10 ml-auto" /></td>
+            <td className={tdCls}><div className="h-3.5 w-28 rounded-sm bg-muted/15" /></td>
+            <td className={`${tdCls} hidden lg:table-cell`}><div className="h-5 w-16 rounded-sm bg-muted/15" /></td>
+            <td className={`${tdCls} hidden xl:table-cell`}><div className="h-3.5 w-20 rounded-sm bg-muted/10" /></td>
+            <td className={tdCls}><div className="h-3.5 w-16 rounded-sm bg-muted/10 ml-auto" /></td>
         </tr>
     );
 }
@@ -214,7 +214,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             {/* Toolbar */}
             <Toolbar>
                 <div className="hidden md:flex items-center gap-2.5 min-w-0">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex-shrink-0">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 shrink-0">
                         <Users size={16} />
                     </span>
                     <span className="text-sm font-semibold text-primary">All students</span>
@@ -257,7 +257,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 ) : displayedStudents.length === 0 ? (
                     <EmptyState
                         bare
-                        className="!py-16"
+                        className="py-16!"
                         icon={<Users size={24} />}
                         title={isError ? 'Could not load students' : 'No students found'}
                         description={isError ? 'Check your connection and try again' : search ? `Nothing matches "${search.trim()}"` : 'Add your first student to get started'}
@@ -283,7 +283,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                 >
                                     <div className="flex items-start justify-between gap-2.5">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-10 h-10 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
+                                            <div className={`w-10 h-10 bg-linear-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0`}>
                                                 {initialsOf(student)}
                                             </div>
                                             <div className="min-w-0">
@@ -298,7 +298,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                        <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                                             <button
                                                 type="button"
                                                 onClick={() => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
@@ -357,7 +357,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                     {displayedStudents.map(student => (
                                         <tr
                                             key={student.id}
-                                            className="cv-auto-row hover:bg-surface-elevated/50 focus-visible:bg-surface-elevated/60 cursor-pointer transition-colors group outline-none"
+                                            className="cv-auto-row hover:bg-surface-elevated/50 focus-visible:bg-surface-elevated/60 cursor-pointer transition-colors group outline-hidden"
                                             onClick={() => setDetailStudent(student)}
                                             tabIndex={0}
                                             onKeyDown={e => {
@@ -366,7 +366,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                         >
                                             <td className={tdCls}>
                                                 <div className="flex items-center gap-3 min-w-0">
-                                                    <div className={`table-avatar w-9 h-9 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
+                                                    <div className={`table-avatar w-9 h-9 bg-linear-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0`}>
                                                         {initialsOf(student)}
                                                     </div>
                                                     <div className="min-w-0">

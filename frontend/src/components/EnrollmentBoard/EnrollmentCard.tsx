@@ -60,8 +60,8 @@ function getRelativeTime(isoDate: string): string {
 // Shared class strings for the compact card layout
 const iconBtnBase = 'w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors';
 const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surface-elevated`;
-const contactBtn = 'w-6 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors flex-shrink-0';
-const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium flex-shrink-0 whitespace-nowrap';
+const contactBtn = 'w-6 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
+const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium shrink-0 whitespace-nowrap';
 
 const EnrollmentCardBody = function EnrollmentCardBody({
     enrollment,
@@ -267,7 +267,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {...(isOverlay || isMobile ? {} : dragListeners)}
             className={`group relative enrollment-card cv-auto-card flex items-start gap-2.5 p-2 md:p-2.5 rounded-lg md:rounded-xl border ${
                 isOverlay
-                    ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-[100] scale-[1.02] transform-gpu'
+                    ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-100 scale-[1.02] transform-gpu'
                     : isMobile
                         ? ''
                         : 'cursor-grab'
@@ -284,7 +284,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {/* Avatar — initials, doubles as the selection checkbox; queue position sits on its corner */}
             <div
                 aria-hidden="true"
-                className={`relative w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-[13px] font-extrabold select-none transition-colors ${
+                className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors ${
                     isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg
                 }`}
             >
@@ -293,7 +293,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 ) : (
                     <>
                         <span className="group-hover:opacity-0 transition-opacity">{initials}</span>
-                        <span className="absolute inset-0 m-auto w-4 h-4 rounded border-2 border-current opacity-0 group-hover:opacity-60 transition-opacity" />
+                        <span className="absolute inset-0 m-auto w-4 h-4 rounded-sm border-2 border-current opacity-0 group-hover:opacity-60 transition-opacity" />
                     </>
                 )}
                 {status === 'requested' && queuePosition !== undefined && (
@@ -346,7 +346,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         );
                     })()}
 
-                    <div className="card-actions-col flex items-center flex-shrink-0 -my-1 -mr-1">
+                    <div className="card-actions-col flex items-center shrink-0 -my-1 -mr-1">
                         {/* Secondary actions — revealed on hover (always visible on touch screens) */}
                         <div className="flex items-center lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
                             {!enrollment.notes && (
@@ -440,9 +440,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                             title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer flex-shrink-0 transition-colors"
+                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shrink-0 transition-colors"
                         >
-                            <Award size={10} strokeWidth={2.5} className="flex-shrink-0" />
+                            <Award size={10} strokeWidth={2.5} className="shrink-0" />
                             {completedCourses.length}
                         </button>
                     )}
@@ -461,15 +461,15 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         onClick={e => e.stopPropagation()}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors flex-shrink-0 mr-1"
+                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors shrink-0 mr-1"
                                         title="Click to call"
                                     >
-                                        <Phone size={11} className="flex-shrink-0 text-primary/50" />
+                                        <Phone size={11} className="shrink-0 text-primary/50" />
                                         <span>{enrollment.students.phone}</span>
                                     </a>
                                 ) : (
-                                    <span className="flex items-center gap-1 tabular-nums text-primary flex-shrink-0 mr-1">
-                                        <Phone size={11} className="flex-shrink-0 text-primary/50" />
+                                    <span className="flex items-center gap-1 tabular-nums text-primary shrink-0 mr-1">
+                                        <Phone size={11} className="shrink-0 text-primary/50" />
                                         {enrollment.students.phone}
                                     </span>
                                 )}
@@ -510,7 +510,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                     {/* Stage date — the most relevant date for the current status; all dates in the tooltip */}
                     <CustomTooltip content={dateTooltip}>
-                        <span className="card-info ml-auto text-[11px] text-primary/50 whitespace-nowrap tabular-nums flex-shrink-0 flex items-center gap-1">
+                        <span className="card-info ml-auto text-[11px] text-primary/50 whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
                             {stageDate}
                         </span>
                     </CustomTooltip>
@@ -521,9 +521,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
                         <button
                             onClick={handleStartEditNote}
-                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-status-requested bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded italic transition-colors text-left cursor-pointer min-w-0"
+                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-status-requested bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded-sm italic transition-colors text-left cursor-pointer min-w-0"
                         >
-                            <Pencil size={10} className="flex-shrink-0 text-status-requested" />
+                            <Pencil size={10} className="shrink-0 text-status-requested" />
                             <span className="truncate">{enrollment.notes}</span>
                         </button>
                     </CustomTooltip>
@@ -549,7 +549,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         onKeyDown={handleNoteKeyDown}
                         placeholder="Add quick note for this student..."
                         rows={2}
-                        className="w-full text-xs p-2 bg-background border border-border-subtle rounded-lg text-primary placeholder:text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 resize-none font-sans"
+                        className="w-full text-xs p-2 bg-background border border-border-subtle rounded-lg text-primary placeholder:text-muted focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500 resize-none font-sans"
                     />
                     <div className="flex items-center justify-end gap-1.5 mt-2">
                         <button
@@ -564,7 +564,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={() => handleSaveNote()}
                             disabled={isSavingNote}
-                            className="flex items-center gap-1 px-3 py-1 text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 rounded-lg shadow-xs transition-colors cursor-pointer"
+                            className="flex items-center gap-1 px-3 py-1 text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 rounded-lg shadow-2xs transition-colors cursor-pointer"
                         >
                             <Check size={12} />
                             Save
@@ -576,7 +576,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {/* Pending Completion Approval Highlight */}
             {enrollment.completion_request_status === 'pending' && (
                 <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
-                    <Clock size={11} className="flex-shrink-0" />
+                    <Clock size={11} className="shrink-0" />
                     <span className="truncate">
                         Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
                         {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
@@ -589,7 +589,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {/* Completed Courses Modal in Portal */}
             {showCompleted && createPortal(
                 <div 
-                    className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn" 
+                    className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn" 
                     onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
@@ -612,8 +612,8 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                             {completedCourses.map(c => (
-                                <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-sm">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                                <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-xs">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                                     <span className="text-[13px] font-bold text-primary">{c.name}</span>
                                 </div>
                             ))}
@@ -622,7 +622,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         <div className="mt-5 text-right">
                             <button
                                 onClick={(e) => { e.stopPropagation(); setShowCompleted(false); }}
-                                className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-sm active:scale-[0.98]"
+                                className="px-4 py-2 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all shadow-xs active:scale-[0.98]"
                             >
                                 Close
                             </button>
@@ -636,7 +636,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {showQuickMove && createPortal(
                 isSmallScreen ? (
                     <div
-                        className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60 animate-fadeIn"
+                        className="fixed inset-0 z-9999 flex items-end justify-center bg-black/60 animate-fadeIn"
                         onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
                         onPointerDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
@@ -645,7 +645,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             onClick={e => e.stopPropagation()}
                             onPointerDown={e => e.stopPropagation()}
                             onTouchStart={e => e.stopPropagation()}
-                            className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl shadow-float p-4 pb-6 space-y-3 z-[10000] animate-sheetSlideUp max-h-[85vh] flex flex-col"
+                            className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl shadow-float p-4 pb-6 space-y-3 z-10000 animate-sheetSlideUp max-h-[85vh] flex flex-col"
                         >
                             {/* Drag Handle Bar */}
                             <div className="w-12 h-1.5 bg-muted/30 rounded-full mx-auto cursor-pointer" onClick={() => setShowQuickMove(false)} />
@@ -681,10 +681,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                                 setShowQuickMove(false);
                                                 onMoveStatus?.(enrollment.id, status, st);
                                             }}
-                                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl border border-border-subtle text-sm font-semibold transition-all active:scale-[0.98] ${stCfg.bg} ${stCfg.color} hover:shadow-xs text-left cursor-pointer min-h-[48px]`}
+                                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl border border-border-subtle text-sm font-semibold transition-all active:scale-[0.98] ${stCfg.bg} ${stCfg.color} hover:shadow-2xs text-left cursor-pointer min-h-[48px]`}
                                         >
                                             <div className="flex items-center gap-2.5">
-                                                <span className="p-1.5 rounded-lg bg-white/20 dark:bg-black/20 flex-shrink-0">
+                                                <span className="p-1.5 rounded-lg bg-white/20 dark:bg-black/20 shrink-0">
                                                     {stCfg.icon}
                                                 </span>
                                                 <span>{stCfg.label}</span>
@@ -708,7 +708,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 ) : (
                     popoverPos && (
                         <div
-                            className="fixed inset-0 z-[9999] bg-transparent"
+                            className="fixed inset-0 z-9999 bg-transparent"
                             onClick={(e) => { e.stopPropagation(); setShowQuickMove(false); }}
                             onPointerDown={(e) => e.stopPropagation()}
                             onTouchStart={(e) => e.stopPropagation()}
@@ -721,13 +721,13 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 }}
                                 onClick={e => e.stopPropagation()}
                                 onPointerDown={e => e.stopPropagation()}
-                                className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-[10000] animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
+                                className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-10000 animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
                             >
                                 <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
                                     <span>Move to Status</span>
                                     <button
                                         onClick={() => setShowQuickMove(false)}
-                                        className="text-muted hover:text-primary p-0.5 rounded transition-colors"
+                                        className="text-muted hover:text-primary p-0.5 rounded-sm transition-colors"
                                     >
                                         <X size={12} />
                                     </button>

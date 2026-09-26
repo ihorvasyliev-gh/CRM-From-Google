@@ -153,7 +153,7 @@ export default function GlobalFilterBar({
                                 aria-selected={active}
                                 onClick={() => handlePresetClick(p.value)}
                                 className={`shrink-0 h-7 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                                    active ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
+                                    active ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
                                 }`}
                             >
                                 {p.label}
@@ -166,7 +166,7 @@ export default function GlobalFilterBar({
                         aria-selected={filters.datePreset === 'custom'}
                         onClick={() => handlePresetClick('custom')}
                         className={`shrink-0 flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                            filters.datePreset === 'custom' ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
+                            filters.datePreset === 'custom' ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
                         }`}
                     >
                         <Calendar size={13} />

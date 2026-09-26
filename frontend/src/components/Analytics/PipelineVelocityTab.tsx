@@ -169,7 +169,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                             <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted">
                                 <span className="truncate">{st.sub}</span>
                                 {st.days !== null && (
-                                    <span className="flex-shrink-0 tabular-nums">avg <span className="font-semibold text-primary">{st.days}d</span> {st.daysLabel}</span>
+                                    <span className="shrink-0 tabular-nums">avg <span className="font-semibold text-primary">{st.days}d</span> {st.daysLabel}</span>
                                 )}
                             </div>
                         </button>
@@ -203,7 +203,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                         ))}
                     </div>
                     <div className="mt-auto pt-4 text-[11px] text-muted flex items-start gap-1.5">
-                        <CheckCircle2 size={13} className="text-status-confirmed flex-shrink-0 mt-px" />
+                        <CheckCircle2 size={13} className="text-status-confirmed shrink-0 mt-px" />
                         <span>Short turnaround between request and invite noticeably improves completion rates.</span>
                     </div>
                 </Card>

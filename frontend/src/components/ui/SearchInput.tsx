@@ -37,7 +37,7 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
                     }
                     onKeyDown?.(e);
                 }}
-                className={`w-full h-9 sm:h-10 pl-9 pr-9 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors placeholder:text-muted/70 text-primary ${className}`}
+                className={`w-full h-9 sm:h-10 pl-9 pr-9 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors placeholder:text-muted/70 text-primary ${className}`}
                 {...rest}
             />
             {loading ? (

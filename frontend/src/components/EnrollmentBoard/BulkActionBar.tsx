@@ -93,7 +93,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Requested">
                     <button
                         onClick={() => bulkUpdateStatus('requested')}
-                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs"
                     >
                         <Clock size={15} />
                     </button>
@@ -102,7 +102,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Invite">
                     <button
                         onClick={() => bulkUpdateStatus('invited')}
-                        className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-xs"
                     >
                         <Send size={15} />
                     </button>
@@ -112,7 +112,7 @@ export default function BulkActionBar({
                     <CustomTooltip content="Send reminder to confirmed">
                         <button
                             onClick={sendReminder}
-                            className="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm"
+                            className="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-xs"
                         >
                             <BellRing size={15} />
                         </button>
@@ -122,7 +122,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Confirm">
                     <button
                         onClick={() => bulkUpdateStatus('confirmed')}
-                        className="p-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-xs"
                     >
                         <CheckCircle size={15} />
                     </button>
@@ -131,7 +131,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Complete">
                     <button
                         onClick={() => bulkUpdateStatus('completed')}
-                        className="p-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-xs"
                     >
                         <GraduationCap size={15} />
                     </button>
@@ -142,7 +142,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Rejected">
                     <button
                         onClick={() => setConfirmRejectOpen(true)}
-                        className="p-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white transition-all shadow-xs"
                     >
                         <Ban size={15} />
                     </button>
@@ -154,7 +154,7 @@ export default function BulkActionBar({
                     <button
                         onClick={handleGenerateDocuments}
                         disabled={generatingDocs}
-                        className={`p-2 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-sm`}
+                        className={`p-2 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-xs`}
                     >
                         {generatingDocs ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />}
                     </button>
@@ -163,7 +163,7 @@ export default function BulkActionBar({
                 <CustomTooltip content="Delete Selected">
                     <button
                         onClick={() => setBulkDeleteOpen(true)}
-                        className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm"
+                        className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all shadow-xs"
                     >
                         <Trash2 size={15} />
                     </button>

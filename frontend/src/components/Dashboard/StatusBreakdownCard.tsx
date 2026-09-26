@@ -26,13 +26,13 @@ const SEGMENT_GAP = 1.5;
 function SkeletonStatusBreakdown() {
     return (
         <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-5 animate-pulse">
-            <div className="w-32 h-32 rounded-full border-[14px] border-surface-elevated flex-shrink-0" />
+            <div className="w-32 h-32 rounded-full border-14 border-surface-elevated shrink-0" />
             <div className="flex flex-col gap-2 w-full">
                 {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
                         <div className="w-2 h-2 rounded-full bg-surface-elevated" />
-                        <div className="h-3 flex-1 rounded bg-surface-elevated" />
-                        <div className="h-3 w-8 rounded bg-surface-elevated" />
+                        <div className="h-3 flex-1 rounded-sm bg-surface-elevated" />
+                        <div className="h-3 w-8 rounded-sm bg-surface-elevated" />
                     </div>
                 ))}
             </div>
@@ -79,7 +79,7 @@ export default function StatusBreakdownCard({
             ) : (
                 <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-4 xl:gap-5">
                     {/* Donut */}
-                    <div className="relative w-32 h-32 flex-shrink-0" role="img" aria-label="Enrollment status distribution">
+                    <div className="relative w-32 h-32 shrink-0" role="img" aria-label="Enrollment status distribution">
                         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             <circle cx="50" cy="50" r={RADIUS} fill="none" strokeWidth="12" className="stroke-border-subtle/60" />
                             {segments.map(s => (
@@ -127,7 +127,7 @@ export default function StatusBreakdownCard({
                                     } ${count === 0 ? 'opacity-50' : ''}`}
                                     title={`View ${s.label} enrollments`}
                                 >
-                                    <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.color}`} />
+                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.color}`} />
                                     <span className="text-[13px] text-primary font-medium flex-1 truncate">{s.label}</span>
                                     <span className="text-[13px] font-semibold text-primary tabular-nums">{count}</span>
                                     <span className="text-[11px] text-muted w-9 text-right tabular-nums">{pct}%</span>

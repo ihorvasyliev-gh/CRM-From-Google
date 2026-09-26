@@ -55,7 +55,7 @@ export default function StatTile({
             <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 min-w-0">
                     {Icon && (
-                        <span className={`flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 ${toneChipCls[tone]}`}>
+                        <span className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 ${toneChipCls[tone]}`}>
                             <Icon size={14} />
                         </span>
                     )}
@@ -65,7 +65,7 @@ export default function StatTile({
                     <ArrowUpRight
                         size={14}
                         aria-hidden
-                        className="hidden sm:block text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        className="hidden sm:block text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                     />
                 )}
             </div>

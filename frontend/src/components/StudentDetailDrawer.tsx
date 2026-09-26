@@ -255,8 +255,8 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                 </>
                             ) : (
                                 <div className="space-y-1.5">
-                                    <div className="h-5 w-40 bg-muted/15 rounded animate-pulse" />
-                                    <div className="h-3 w-28 bg-muted/10 rounded animate-pulse" />
+                                    <div className="h-5 w-40 bg-muted/15 rounded-sm animate-pulse" />
+                                    <div className="h-3 w-28 bg-muted/10 rounded-sm animate-pulse" />
                                 </div>
                             )}
                         </div>

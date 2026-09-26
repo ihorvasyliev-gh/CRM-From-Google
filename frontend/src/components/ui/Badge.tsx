@@ -19,14 +19,14 @@ export default function Badge({
     icon,
     className = '',
     title,
-    shape = 'rounded',
+    shape = 'rounded-sm',
 }: {
     tone?: BadgeTone;
     children: ReactNode;
     icon?: ReactNode;
     className?: string;
     title?: string;
-    shape?: 'rounded' | 'pill';
+    shape?: 'rounded-sm' | 'pill';
 }) {
     return (
         <span

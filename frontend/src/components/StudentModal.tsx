@@ -142,7 +142,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
             icon={User}
             labelId="student-modal-title"
             size="lg"
-            zIndex="z-[60]"
+            zIndex="z-60"
             sheetOnMobile
             dismissible={!saving}
             footer={
@@ -159,7 +159,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
 
                     {duplicateWarning && (
                         <div className={`${calloutCls.warning} text-sm px-3.5 py-2.5 flex items-center gap-2.5 animate-slideDown`}>
-                            <AlertTriangle size={16} className="flex-shrink-0 text-status-requested" />
+                            <AlertTriangle size={16} className="shrink-0 text-status-requested" />
                             <span>{duplicateWarning}</span>
                         </div>
                     )}

@@ -95,13 +95,13 @@ export function Avatar({
 }) {
     const dims = size === 'sm' ? 'w-8 h-8 text-[11px]' : size === 'lg' ? 'w-12 h-12 text-sm' : 'w-9 h-9 text-xs';
     return (
-        <div className={`${dims} rounded-full bg-gradient-to-br ${getAvatarGradient(id)} flex items-center justify-center text-white font-bold shrink-0 shadow-sm select-none`}>
+        <div className={`${dims} rounded-full bg-linear-to-br ${getAvatarGradient(id)} flex items-center justify-center text-white font-bold shrink-0 shadow-xs select-none`}>
             {initials(person)}
         </div>
     );
 }
 
-const iconBtn = 'inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40';
+const iconBtn = 'inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40';
 
 /** Copy / mail / call / WhatsApp shortcuts for a contact. Never bubbles clicks to the row. */
 export function ContactActions({
@@ -212,7 +212,7 @@ export function SearchField({
                         onEnter();
                     }
                 }}
-                className="w-full h-10 pl-9 pr-16 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all shadow-card"
+                className="w-full h-10 pl-9 pr-16 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all shadow-card"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {value ? (
@@ -258,7 +258,7 @@ export function SelectField({
                 aria-label={label}
                 value={value}
                 onChange={e => onChange(e.target.value)}
-                className={`appearance-none w-full h-9 ${icon ? 'pl-8' : 'pl-3'} pr-8 bg-surface border rounded-xl text-xs font-semibold text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer truncate ${
+                className={`appearance-none w-full h-9 ${icon ? 'pl-8' : 'pl-3'} pr-8 bg-surface border rounded-xl text-xs font-semibold text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer truncate ${
                     active ? 'border-brand-500/50 bg-brand-500/5' : 'border-border-subtle'
                 }`}
             >

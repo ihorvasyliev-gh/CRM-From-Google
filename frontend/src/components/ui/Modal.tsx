@@ -62,7 +62,7 @@ export default function Modal({
     // Portal to <body> so the overlay covers the whole app (page content sits in its own stacking context)
     return createPortal(
         <div className={`fixed inset-0 ${zIndex} flex ${sheetOnMobile ? 'items-end sm:items-center' : 'items-center'} justify-center ${sheetOnMobile ? 'sm:p-4' : 'p-4'} animate-fadeIn`}>
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={dismissible ? onClose : undefined} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={dismissible ? onClose : undefined} />
             <div
                 role="dialog"
                 aria-modal="true"
@@ -106,10 +106,10 @@ export function ModalHeader({
     labelId?: string;
 }) {
     return (
-        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-border-subtle flex-shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-3 min-w-0">
                 {Icon && (
-                    <span className={`flex items-center justify-center w-9 h-9 rounded-xl flex-shrink-0 ${toneChipCls[tone]}`}>
+                    <span className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 ${toneChipCls[tone]}`}>
                         <Icon size={18} />
                     </span>
                 )}
@@ -120,7 +120,7 @@ export function ModalHeader({
                     {subtitle && <p className="text-xs text-muted truncate mt-0.5">{subtitle}</p>}
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
                 {action}
                 {onClose && (
                     <button
@@ -139,7 +139,7 @@ export function ModalHeader({
 
 export function ModalFooter({ children, className = '' }: { children: ReactNode; className?: string }) {
     return (
-        <div className={`flex items-center justify-end gap-2 px-5 sm:px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40 flex-shrink-0 ${className}`}>
+        <div className={`flex items-center justify-end gap-2 px-5 sm:px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40 shrink-0 ${className}`}>
             {children}
         </div>
     );

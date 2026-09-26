@@ -28,7 +28,7 @@ interface EnrollmentModalProps {
     onClose: () => void;
 }
 
-const FIELD_CLASS = 'w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated transition-all placeholder:text-muted';
+const FIELD_CLASS = 'w-full px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated transition-all placeholder:text-muted';
 const LABEL_CLASS = 'text-xs font-semibold text-muted mb-1.5 block';
 
 const NO_STUDENTS: Student[] = [];
@@ -246,8 +246,8 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={requestClose} />
+        <div className="fixed inset-0 z-60 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={requestClose} />
             <div
                 role="dialog"
                 aria-modal="true"
@@ -258,7 +258,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
                 {/* Header */}
-                <div className="sticky top-0 bg-surface border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 flex-shrink-0">
+                <div className="sticky top-0 bg-surface border-b border-border-subtle px-6 py-3.5 sm:py-4 z-10 shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-emerald-500/10 rounded-xl text-status-confirmed">
@@ -284,7 +284,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         <label htmlFor="enroll-student-search" className={LABEL_CLASS}>Student *</label>
                         {selectedStudent ? (
                             <div className="flex items-center gap-3 px-3.5 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm text-primary">
-                                <div className={`w-7 h-7 bg-gradient-to-br ${getAvatarGradient(selectedStudent.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                <div className={`w-7 h-7 bg-linear-to-br ${getAvatarGradient(selectedStudent.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0`}>
                                     {initials(selectedStudent)}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -296,7 +296,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                         type="button"
                                         onClick={() => { setSelectedStudent(null); setShowStudentDropdown(true); }}
                                         aria-label="Change student"
-                                        className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors flex-shrink-0"
+                                        className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors shrink-0"
                                     >
                                         <X size={14} />
                                     </button>
@@ -359,7 +359,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                                         onClick={() => selectStudent(s)}
                                                         className={`w-full text-left px-3.5 py-2.5 text-sm border-b border-border-subtle last:border-0 transition-all flex items-center gap-3 ${idx === highlightIndex ? 'bg-brand-500/10' : 'hover:bg-brand-500/5'}`}
                                                     >
-                                                        <div className={`w-7 h-7 bg-gradient-to-br ${getAvatarGradient(s.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
+                                                        <div className={`w-7 h-7 bg-linear-to-br ${getAvatarGradient(s.id)} rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0`}>
                                                             {initials(s)}
                                                         </div>
                                                         <div className="min-w-0">
@@ -393,7 +393,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         </select>
                         {existingEnrollment && (
                             <p className="mt-1.5 text-xs text-status-requested flex items-center gap-1.5">
-                                <AlertTriangle size={12} className="flex-shrink-0" />
+                                <AlertTriangle size={12} className="shrink-0" />
                                 Already enrolled in this course ({existingEnrollment.status}
                                 {existingEnrollment.course_variant ? `, ${cleanVariant(selectedCourseName, existingEnrollment.course_variant)}` : ''})
                             </p>
@@ -461,7 +461,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                         <button
                             type="submit"
                             disabled={saving || !!existingEnrollment}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving && <Loader2 size={16} className="animate-spin" />}
                             Enroll Student

@@ -215,7 +215,7 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-completed/15 text-status-completed flex-shrink-0">
+                                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-completed/15 text-status-completed shrink-0">
                                     <BookOpen size={15} />
                                 </span>
                                 <div className="min-w-0">
@@ -223,7 +223,7 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                                     <p className="text-[11px] text-muted">{c.variantsList.length} variant{c.variantsList.length === 1 ? '' : 's'}</p>
                                 </div>
                             </div>
-                            <Badge tone="brand" shape="pill" className="tabular-nums flex-shrink-0">{c.total} apps</Badge>
+                            <Badge tone="brand" shape="pill" className="tabular-nums shrink-0">{c.total} apps</Badge>
                         </div>
 
                         <div className="mt-4">

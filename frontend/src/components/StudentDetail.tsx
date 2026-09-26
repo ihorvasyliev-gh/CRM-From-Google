@@ -143,12 +143,12 @@ function InlineEditField({
         return (
             <div className="p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20" onKeyDown={handleKeyDown}>
                 <div className="flex items-center gap-3 mb-2">
-                    <span className="text-brand-500 flex-shrink-0">{icon}</span>
+                    <span className="text-brand-500 shrink-0">{icon}</span>
                     <p className="flex-1 text-[10px] text-muted font-medium">{label}</p>
                     {saving ? (
                         <Loader2 size={14} className="animate-spin text-brand-500" />
                     ) : (
-                        <button onClick={() => setEditing(false)} className="p-1 text-muted hover:text-primary rounded transition-all" title="Cancel">
+                        <button onClick={() => setEditing(false)} className="p-1 text-muted hover:text-primary rounded-sm transition-all" title="Cancel">
                             <X size={14} />
                         </button>
                     )}
@@ -161,7 +161,7 @@ function InlineEditField({
     if (editing) {
         return (
             <div className="flex items-center gap-3 p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20">
-                <span className="text-brand-500 flex-shrink-0">{icon}</span>
+                <span className="text-brand-500 shrink-0">{icon}</span>
                 <div className="flex-1 min-w-0">
                     <p className="text-[10px] text-muted font-medium mb-1">{label}</p>
                     <input
@@ -171,15 +171,15 @@ function InlineEditField({
                         onKeyDown={handleKeyDown}
                         onBlur={() => handleSave()}
                         autoFocus
-                        className="w-full text-sm text-primary bg-transparent border-none outline-none p-0"
+                        className="w-full text-sm text-primary bg-transparent border-none outline-hidden p-0"
                     />
                 </div>
                 {saving ? (
-                    <Loader2 size={14} className="animate-spin text-brand-500 flex-shrink-0" />
+                    <Loader2 size={14} className="animate-spin text-brand-500 shrink-0" />
                 ) : (
                     <button
                         onClick={() => handleSave()}
-                        className="p-1 text-brand-500 hover:bg-brand-500/10 rounded transition-all flex-shrink-0"
+                        className="p-1 text-brand-500 hover:bg-brand-500/10 rounded-sm transition-all shrink-0"
                     >
                         <Check size={14} />
                     </button>
@@ -214,7 +214,7 @@ function InlineEditField({
                     setEditValue(value);
                     setEditing(true);
                 }}
-                className="p-1.5 text-muted/30 group-hover:text-muted/70 hover:text-brand-500 dark:hover:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all flex-shrink-0"
+                className="p-1.5 text-muted/30 group-hover:text-muted/70 hover:text-brand-500 dark:hover:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all shrink-0"
                 title={`Edit ${label}`}
             >
                 <Edit2 size={12} />
@@ -406,7 +406,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end overflow-hidden animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={onClose} />
             <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-float overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
                 {/* Mobile pull handle */}
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
@@ -415,7 +415,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 <div className="sticky top-0 z-10 bg-surface border-b border-border-subtle px-5 py-3.5 sm:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className={`w-11 h-11 bg-gradient-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>
+                            <div className={`w-11 h-11 bg-linear-to-br ${getAvatarGradient(student.id)} rounded-full flex items-center justify-center text-white font-bold text-sm ring-2 ring-surface-elevated shadow-md`}>
                                 {(student.first_name?.[0] || '').toUpperCase()}{(student.last_name?.[0] || '').toUpperCase()}
                             </div>
                             <div>
@@ -463,7 +463,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                         )}
                         <button
                             onClick={handleCopySummary}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-sm active:scale-95"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-xs active:scale-95"
                             title="Copy full contact card (Name, Email, Phone, Address, Eircode, DOB)"
                         >
                             <Copy size={13} className="text-brand-500" />
@@ -504,7 +504,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     href={formatPhoneForWhatsApp(student.phone)!}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-confirmed bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 border border-emerald-500/25 rounded-lg shadow-2xs transition-all active:scale-95"
                                                     title="Chat on WhatsApp"
                                                 >
                                                     <MessageSquare size={14} />
@@ -513,7 +513,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {formatPhoneForCall(student.phone) && (
                                                 <a
                                                     href={formatPhoneForCall(student.phone)!}
-                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-invited bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-xs transition-all active:scale-95"
+                                                    className="flex items-center justify-center min-w-[28px] h-[28px] px-1.5 text-status-invited bg-blue-500/10 hover:bg-blue-500/20 active:bg-blue-500/30 border border-blue-500/25 rounded-lg shadow-2xs transition-all active:scale-95"
                                                     title="Call Phone Number"
                                                 >
                                                     <Phone size={14} />
@@ -591,8 +591,8 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                             <div className="space-y-2.5" aria-busy="true">
                                 {[0, 1].map(i => (
                                     <div key={i} className="p-3 rounded-xl bg-surface/50 border border-border-subtle animate-pulse space-y-2">
-                                        <div className="h-4 w-40 rounded bg-surface-elevated" />
-                                        <div className="h-3 w-24 rounded bg-surface-elevated" />
+                                        <div className="h-4 w-40 rounded-sm bg-surface-elevated" />
+                                        <div className="h-3 w-24 rounded-sm bg-surface-elevated" />
                                     </div>
                                 ))}
                             </div>
@@ -639,7 +639,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                     Completion requested for <strong>{en.pending_completion_date ? formatDateDMY(en.pending_completion_date) : 'Today'}</strong>
                                                     {en.completion_requested_by ? ` (${en.completion_requested_by})` : ''}
                                                 </span>
-                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                <div className="flex items-center gap-1 shrink-0">
                                                     <button
                                                         onClick={async () => {
                                                             try {
@@ -651,7 +651,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                             }
                                                         }}
                                                         disabled={approveMutation.isPending}
-                                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-sm"
+                                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-sm text-[10px] font-bold shadow-xs"
                                                     >
                                                         Approve
                                                     </button>
@@ -666,7 +666,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                             }
                                                         }}
                                                         disabled={rejectMutation.isPending}
-                                                        className="px-2 py-0.5 bg-danger/10 hover:bg-danger/20 text-status-rejected rounded text-[10px] font-semibold"
+                                                        className="px-2 py-0.5 bg-danger/10 hover:bg-danger/20 text-status-rejected rounded-sm text-[10px] font-semibold"
                                                     >
                                                         Reject
                                                     </button>
@@ -679,7 +679,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {en.status !== 'completed' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(en.id, 'completed')}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/20 transition-all"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-xs rounded-lg text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/20 transition-all"
                                                     title="Mark as Completed"
                                                 >
                                                     <GraduationCap size={12} /> Complete
@@ -688,7 +688,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             {en.status !== 'withdrawn' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(en.id, 'withdrawn')}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-muted hover:bg-surface hover:border-border-strong transition-all"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-surface-elevated border border-border-subtle shadow-xs rounded-lg text-xs font-medium text-muted hover:bg-surface hover:border-border-strong transition-all"
                                                     title="Withdraw"
                                                 >
                                                     <XCircle size={12} /> Withdraw
@@ -713,7 +713,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                             ) : (
                                                 <button
                                                     onClick={() => setConfirmDeleteId(en.id)}
-                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-sm rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
+                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-xs rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
                                                     title="Delete permanently"
                                                 >
                                                     <Trash2 size={12} />

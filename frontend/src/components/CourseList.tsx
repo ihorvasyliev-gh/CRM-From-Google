@@ -67,7 +67,7 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                     if (!alwaysShow.has(s.key) && s.count === 0) return null;
                     return (
                         <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-muted font-medium tabular-nums">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                             {s.count} {s.label}
                         </span>
                     );
@@ -248,7 +248,7 @@ export default function CourseList() {
             {/* Toolbar */}
             <Toolbar>
                 <div className="hidden md:flex items-center gap-2.5 min-w-0">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-completed/15 text-status-completed flex-shrink-0">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-completed/15 text-status-completed shrink-0">
                         <BookOpen size={16} />
                     </span>
                     <span className="text-sm font-semibold text-primary">Course catalog</span>
@@ -276,14 +276,14 @@ export default function CourseList() {
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-muted/15" />
                                 <div className="space-y-2">
-                                    <div className="h-3.5 w-32 rounded bg-muted/15" />
-                                    <div className="h-3 w-20 rounded bg-muted/10" />
+                                    <div className="h-3.5 w-32 rounded-sm bg-muted/15" />
+                                    <div className="h-3 w-20 rounded-sm bg-muted/10" />
                                 </div>
                             </div>
                             <div className="h-2 rounded-full bg-muted/10" />
                             <div className="flex gap-3">
-                                <div className="h-3 w-16 rounded bg-muted/10" />
-                                <div className="h-3 w-16 rounded bg-muted/10" />
+                                <div className="h-3 w-16 rounded-sm bg-muted/10" />
+                                <div className="h-3 w-16 rounded-sm bg-muted/10" />
                             </div>
                         </div>
                     ))}
@@ -313,12 +313,12 @@ export default function CourseList() {
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && e.target === e.currentTarget) openBoard();
                                 }}
-                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-none bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:border-border-strong transition-all duration-200 group cursor-pointer flex flex-col"
+                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-hidden bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:border-border-strong transition-all duration-200 group cursor-pointer flex flex-col"
                             >
                                 <div className="course-card-body p-5 flex-1 flex flex-col gap-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`course-card-icon w-10 h-10 bg-gradient-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}>
+                                            <div className={`course-card-icon w-10 h-10 bg-linear-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-semibold text-xs shrink-0`}>
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">

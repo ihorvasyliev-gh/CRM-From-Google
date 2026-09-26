@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 /** Long-lived vendor chunks, so an app deploy does not invalidate cached libraries. */
 const chunkGroups: Record<string, string[]> = {
@@ -15,7 +16,7 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     build: {
         rolldownOptions: {
             output: {

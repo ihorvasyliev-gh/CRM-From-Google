@@ -46,9 +46,9 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
 type ChipTone = 'brand' | 'violet' | 'emerald';
 
 const CHIP_ACTIVE: Record<ChipTone, string> = {
-    brand: 'bg-brand-500 text-white border-brand-500 shadow-sm',
-    violet: 'bg-violet-500 text-white border-violet-500 shadow-sm',
-    emerald: 'bg-emerald-600 text-white border-emerald-600 shadow-sm',
+    brand: 'bg-brand-500 text-white border-brand-500 shadow-xs',
+    violet: 'bg-violet-500 text-white border-violet-500 shadow-xs',
+    emerald: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
 };
 
 const CHIP_IDLE: Record<ChipTone, string> = {
@@ -71,7 +71,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }:
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            className={`inline-flex items-center gap-1.5 font-semibold rounded-full border whitespace-nowrap flex-shrink-0 transition-all active:scale-95 ${
+            className={`inline-flex items-center gap-1.5 font-semibold rounded-full border whitespace-nowrap shrink-0 transition-all active:scale-95 ${
                 size === 'lg' ? 'px-3.5 py-2 text-sm' : 'px-2.5 py-1 text-xs'
             } ${active ? CHIP_ACTIVE[tone] : `bg-surface-elevated text-muted border-border-strong ${CHIP_IDLE[tone]}`}`}
         >
@@ -88,7 +88,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }:
 /** Small uppercase caption in front of a chip group / sheet section. */
 function GroupLabel({ icon, children, className = '' }: { icon: ReactNode; children: ReactNode; className?: string }) {
     return (
-        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted flex-shrink-0 ${className}`}>
+        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted shrink-0 ${className}`}>
             {icon}
             {children}
         </span>
@@ -180,7 +180,7 @@ export default function FilterBar({
     const renderFilterChip = (filter: typeof activeFilters[number]) => (
         <span
             key={filter.id}
-            className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-xs whitespace-nowrap flex-shrink-0"
+            className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-xs whitespace-nowrap shrink-0"
         >
             <span className="text-muted text-[11px]">{filter.label}:</span>
             <span className="font-semibold text-primary max-w-[160px] truncate">{filter.value}</span>
@@ -258,7 +258,7 @@ export default function FilterBar({
     );
 
     return (
-        <div className="filter-bar-container flex-shrink-0 bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-3 space-y-1.5 md:space-y-2.5">
+        <div className="filter-bar-container shrink-0 bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-3 space-y-1.5 md:space-y-2.5">
             {/* Row 1: search + controls + Add */}
             <div className="flex items-center gap-1.5 md:gap-2">
                 <div className="relative flex-1 md:flex-none md:w-56 xl:w-80">
@@ -280,7 +280,7 @@ export default function FilterBar({
                                 setSearchQuery('');
                             }
                         }}
-                        className={`w-full h-9 pl-9 pr-8 bg-surface-elevated border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary [&::-webkit-search-cancel-button]:hidden ${
+                        className={`w-full h-9 pl-9 pr-8 bg-surface-elevated border rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary [&::-webkit-search-cancel-button]:hidden ${
                             searchQuery ? 'border-brand-400' : 'border-border-strong'
                         }`}
                         value={searchQuery}
@@ -303,7 +303,7 @@ export default function FilterBar({
                     type="button"
                     onClick={() => setSheetOpen(true)}
                     aria-label="Open filters"
-                    className={`md:hidden inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 flex-shrink-0 ${
+                    className={`md:hidden inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
                         activeFilters.length > 0
                             ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
                             : 'bg-surface-elevated text-muted border-border-strong'
@@ -325,7 +325,7 @@ export default function FilterBar({
                     aria-expanded={showRanges}
                     aria-label="Date range filters"
                     title="Filter by created / course date range"
-                    className={`hidden md:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 flex-shrink-0 ${
+                    className={`hidden md:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
                         showRanges || rangeCount > 0
                             ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
                             : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
@@ -340,13 +340,13 @@ export default function FilterBar({
                     )}
                 </button>
 
-                <label className="hidden md:inline-flex items-center gap-1.5 h-9 pl-3 pr-1 rounded-xl border border-border-strong bg-surface-elevated text-xs text-muted flex-shrink-0 focus-within:border-brand-500">
+                <label className="hidden md:inline-flex items-center gap-1.5 h-9 pl-3 pr-1 rounded-xl border border-border-strong bg-surface-elevated text-xs text-muted shrink-0 focus-within:border-brand-500">
                     <ArrowDownUp size={13} />
                     <span className="sr-only">Sort</span>
                     <select
                         value={sortOrder}
                         onChange={e => setSortOrder(e.target.value as SortOrder)}
-                        className="bg-transparent text-xs font-semibold text-primary pr-1 focus:outline-none cursor-pointer"
+                        className="bg-transparent text-xs font-semibold text-primary pr-1 focus:outline-hidden cursor-pointer"
                     >
                         {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -359,7 +359,7 @@ export default function FilterBar({
                     </div>
                 )}
 
-                <div className="hidden md:flex items-center gap-2 ml-auto flex-shrink-0">
+                <div className="hidden md:flex items-center gap-2 ml-auto shrink-0">
                     <span className="text-xs text-muted whitespace-nowrap" aria-live="polite">
                         {isFiltered ? (
                             <><span className="font-mono font-bold text-primary">{filteredCount}</span> of <span className="font-mono">{enrollmentCount}</span></>
@@ -380,7 +380,7 @@ export default function FilterBar({
                         type="button"
                         onClick={() => setEnrollModalOpen(true)}
                         aria-label="Add enrollment"
-                        className={buttonCls('primary', 'md', 'h-9 w-9 md:w-auto px-0 md:px-4 text-sm flex-shrink-0')}
+                        className={buttonCls('primary', 'md', 'h-9 w-9 md:w-auto px-0 md:px-4 text-sm shrink-0')}
                     >
                         <UserPlus size={16} />
                         <span className="hidden md:inline">Add</span>
@@ -395,7 +395,7 @@ export default function FilterBar({
                     <button
                         type="button"
                         onClick={clearFilters}
-                        className="text-[11px] font-semibold text-danger px-2 py-1 whitespace-nowrap flex-shrink-0"
+                        className="text-[11px] font-semibold text-danger px-2 py-1 whitespace-nowrap shrink-0"
                     >
                         Clear all
                     </button>
@@ -419,7 +419,7 @@ export default function FilterBar({
                             {renderLanguageChips('sm')}
                         </>
                     )}
-                    {showLanguages && availableCourseDates.length > 0 && <div className="h-4 w-px bg-border-strong mx-1.5 flex-shrink-0" />}
+                    {showLanguages && availableCourseDates.length > 0 && <div className="h-4 w-px bg-border-strong mx-1.5 shrink-0" />}
                     {availableCourseDates.length > 0 && (
                         <>
                             <GroupLabel icon={<Calendar size={12} />} className="mr-0.5 text-status-confirmed">Dates</GroupLabel>
@@ -493,7 +493,7 @@ export default function FilterBar({
                                 onClick={() => setSortOrder(o.value)}
                                 aria-pressed={sortOrder === o.value}
                                 className={`py-2 text-xs font-semibold rounded-lg transition-all ${
-                                    sortOrder === o.value ? 'bg-brand-500 text-white shadow-sm' : 'text-muted'
+                                    sortOrder === o.value ? 'bg-brand-500 text-white shadow-xs' : 'text-muted'
                                 }`}
                             >
                                 {o.label}

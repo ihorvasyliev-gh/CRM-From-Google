@@ -74,8 +74,8 @@ export default function CompletionRequestModal({
     const rest = targets.length - shown.length;
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !mutation.isPending && onClose()} />
+        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" onClick={() => !mutation.isPending && onClose()} />
             <form
                 role="dialog"
                 aria-modal="true"
@@ -131,7 +131,7 @@ export default function CompletionRequestModal({
                         id="completion-date-input"
                         value={date}
                         onChange={setDate}
-                        className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     />
                     {inFuture ? (
                         <p className="text-[11px] text-status-requested flex items-center gap-1">

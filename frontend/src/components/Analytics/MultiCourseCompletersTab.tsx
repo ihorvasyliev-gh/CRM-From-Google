@@ -257,7 +257,7 @@ export default function MultiCourseCompletersTab({
                                         : 'bg-surface text-primary border-border-subtle hover:border-border-strong hover:bg-surface-elevated'
                                 }`}
                             >
-                                <span className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                                <span className={`w-4 h-4 rounded-sm flex items-center justify-center border transition-colors ${
                                     isSelected ? 'bg-brand-500 border-brand-500 text-white' : 'border-border-strong bg-surface'
                                 }`}>
                                     {isSelected && <Check size={11} strokeWidth={3} />}
@@ -361,7 +361,7 @@ export default function MultiCourseCompletersTab({
                                     <tr key={profile.studentId} className={`${trCls} group`}>
                                         <td className={tdCls}>
                                             <div className="flex items-center gap-2.5">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[11px] bg-gradient-to-br ${getAvatarGradient(profile.fullName)} flex-shrink-0`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[11px] bg-linear-to-br ${getAvatarGradient(profile.fullName)} shrink-0`}>
                                                     {profile.firstName ? profile.firstName[0] : 'S'}
                                                 </div>
                                                 <div className="min-w-0">

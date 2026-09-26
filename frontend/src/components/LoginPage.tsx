@@ -130,14 +130,14 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
+        <div className="min-h-screen min-h-dvh bg-background flex flex-col items-center justify-start sm:justify-center px-4 pt-12 sm:pt-4 relative overflow-hidden">
             {/* One soft brand glow behind the card (radial gradient, no filter: blur) */}
-            <div aria-hidden className="orb absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] sm:w-[760px] sm:h-[760px] text-brand-500/[0.08] pointer-events-none" />
+            <div aria-hidden className="orb absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] sm:w-[760px] sm:h-[760px] text-brand-500/8 pointer-events-none" />
 
             <div className="relative w-full max-w-sm animate-scaleIn">
                 {/* Logo */}
                 <div className="text-center mb-7">
-                    <div className="w-12 h-12 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">
+                    <div className="w-12 h-12 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">
                         C
                     </div>
                     <h1 className="text-2xl font-bold text-primary tracking-tight">CCP CRM</h1>
@@ -163,7 +163,7 @@ export default function LoginPage() {
                                     autoComplete="username"
                                     inputMode="email"
                                     placeholder="admin@example.com"
-                                    className="w-full h-11 pl-10 pr-4 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full h-11 pl-10 pr-4 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
@@ -184,7 +184,7 @@ export default function LoginPage() {
                                     placeholder="••••••••"
                                     onKeyUp={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
                                     onKeyDown={e => setCapsLockOn(e.getModifierState?.('CapsLock') ?? false)}
-                                    className="w-full h-11 pl-10 pr-11 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full h-11 pl-10 pr-11 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={password}
                                     onChange={e => setPassword(e.target.value)}
                                     required
@@ -209,7 +209,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading || lockoutSecondsLeft > 0}
-                            className="w-full h-11 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-sm shadow-brand-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full h-11 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-colors shadow-xs shadow-brand-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                             {loading ? 'Signing in...' : 'Sign In'}

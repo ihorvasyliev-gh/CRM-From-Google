@@ -28,7 +28,7 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
     if (isCompact) {
         return (
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-surface border border-border-subtle shadow-card ${className}`}>
-                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 flex-shrink-0">
+                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 shrink-0">
                     <Link2 size={16} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -39,7 +39,7 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
                     type="button"
                     onClick={handleCopy}
                     aria-label={copied ? 'Copied' : 'Copy Link'}
-                    className={`h-8 px-3 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 flex-shrink-0 ${copyClasses}`}
+                    className={`h-8 px-3 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0 ${copyClasses}`}
                 >
                     {copied ? <Check size={13} /> : <Copy size={13} />}
                     <span>{copied ? 'Copied!' : 'Copy Link'}</span>
@@ -49,7 +49,7 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Open registration form"
-                    className="p-2 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors flex-shrink-0"
+                    className="p-2 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors shrink-0"
                     title="Open form in new tab"
                 >
                     <ExternalLink size={15} />
@@ -59,13 +59,13 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
     }
 
     return (
-        <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-card bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 ${className}`}>
+        <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-card bg-linear-to-br from-indigo-600 via-indigo-700 to-violet-800 ${className}`}>
             {/* Decorative glow */}
             <div aria-hidden className="orb absolute -top-20 -right-20 w-56 h-56 text-white/[0.14]" />
-            <div aria-hidden className="orb absolute -bottom-[88px] -left-[46px] w-48 h-48 text-white/[0.12]" />
+            <div aria-hidden className="orb absolute bottom-[-88px] left-[-46px] w-48 h-48 text-white/12" />
 
             <div className="relative flex items-center gap-3">
-                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 flex-shrink-0">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 shrink-0">
                     <Link2 size={17} />
                 </span>
                 <div className="min-w-0">

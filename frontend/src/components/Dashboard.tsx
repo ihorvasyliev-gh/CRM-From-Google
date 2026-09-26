@@ -70,7 +70,7 @@ function QuickActionButton({ action, compact = false }: { action: QuickAction; c
         <button
             type="button"
             onClick={action.onClick}
-            className={`flex items-center gap-1.5 flex-shrink-0 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer ${
+            className={`flex items-center gap-1.5 shrink-0 rounded-xl text-xs font-semibold transition-all active:scale-95 cursor-pointer ${
                 compact ? 'h-9 px-3' : 'h-9 px-3.5'
             } ${
                 action.primary
@@ -287,7 +287,7 @@ export default function Dashboard({
     const approvalsBanner: ReactNode = pendingApprovalsCount && pendingApprovalsCount > 0 ? (
         <div className="flex items-center justify-between gap-3 p-3 pl-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
             <div className="flex items-center gap-3 min-w-0">
-                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex-shrink-0">
+                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
                     <Clock size={16} />
                 </span>
                 <div className="min-w-0">
@@ -300,7 +300,7 @@ export default function Dashboard({
             <button
                 type="button"
                 onClick={onOpenApprovals}
-                className="flex items-center gap-1 h-8 px-3 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer flex-shrink-0"
+                className="flex items-center gap-1 h-8 px-3 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer shrink-0"
             >
                 Review <ArrowRight size={13} />
             </button>

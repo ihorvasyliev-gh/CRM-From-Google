@@ -126,12 +126,12 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
     return (
         <div
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleIn">
                 {/* Header */}
-                <div className="p-5 border-b border-border-subtle flex items-center justify-between flex-shrink-0">
+                <div className="p-5 border-b border-border-subtle flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-amber-500/10 text-status-requested rounded-2xl flex items-center justify-center">
                             <Clock size={22} className="animate-pulse" />
@@ -162,7 +162,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
                 {/* Batch Action Toolbar */}
                 {pendingList.length > 0 && (
-                    <div className="px-5 py-3 border-b border-border-subtle/70 bg-surface-elevated/20 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+                    <div className="px-5 py-3 border-b border-border-subtle/70 bg-surface-elevated/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
                         <button
                             onClick={toggleSelectAll}
                             className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-brand-500 transition-colors"
@@ -176,7 +176,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                 <button
                                     onClick={() => handleApproveBatch(Array.from(selectedIds))}
                                     disabled={approveMutation.isPending}
-                                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                                 >
                                     {approveMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={14} />}
                                     <span>Approve Selected ({selectedIds.size})</span>
@@ -185,7 +185,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                 <button
                                     onClick={() => handleApproveBatch(pendingList.map(p => p.enrollment_id))}
                                     disabled={approveMutation.isPending}
-                                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                                 >
                                     {approveMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <GraduationCap size={14} />}
                                     <span>Approve All ({pendingList.length})</span>
@@ -220,7 +220,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                     key={item.enrollment_id}
                                     className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                                         isSelected
-                                            ? 'bg-brand-500/5 border-brand-500 shadow-sm'
+                                            ? 'bg-brand-500/5 border-brand-500 shadow-xs'
                                             : 'bg-surface border-border-subtle hover:border-border-strong'
                                     }`}
                                 >
@@ -228,7 +228,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                     <div className="flex items-start gap-3 min-w-0 flex-1">
                                         <button
                                             onClick={() => toggleSelectItem(item.enrollment_id)}
-                                            className="mt-1 text-muted hover:text-brand-500 transition-colors flex-shrink-0"
+                                            className="mt-1 text-muted hover:text-brand-500 transition-colors shrink-0"
                                         >
                                             {isSelected ? <CheckSquare size={18} className="text-brand-500" /> : <Square size={18} />}
                                         </button>
@@ -242,7 +242,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                                     {item.course_name}
                                                 </span>
                                                 {item.course_variant && (
-                                                    <span className="text-[10px] bg-surface-elevated text-muted px-1.5 py-0.5 rounded border border-border-subtle">
+                                                    <span className="text-[10px] bg-surface-elevated text-muted px-1.5 py-0.5 rounded-sm border border-border-subtle">
                                                         {cleanVariant(item.course_name, item.course_variant)}
                                                     </span>
                                                 )}
@@ -267,11 +267,11 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                     </div>
 
                                     {/* Right: Actions */}
-                                    <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                                         <button
                                             onClick={() => handleApproveSingle(item)}
                                             disabled={approveMutation.isPending || rejectMutation.isPending}
-                                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
                                             title="Approve completion"
                                         >
                                             <CheckCircle size={14} />
@@ -298,7 +298,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-border-subtle bg-surface-elevated/40 flex items-center justify-between text-xs text-muted flex-shrink-0">
+                <div className="p-4 border-t border-border-subtle bg-surface-elevated/40 flex items-center justify-between text-xs text-muted shrink-0">
                     <span>Approving updates student status to <strong className="text-teal-600 dark:text-teal-400 font-bold">Completed</strong> with the specified date.</span>
                     <button
                         onClick={onClose}
@@ -312,7 +312,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
             {/* Rejection Prompt Modal */}
             {rejectionTargetId && (
                 <div
-                    className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+                    className="fixed inset-0 z-60 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
                     onClick={e => { if (e.target === e.currentTarget) setRejectionTargetId(null); }}
                 >
                     <div className="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3 animate-scaleIn">
@@ -329,7 +329,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                             value={rejectionReason}
                             onChange={e => setRejectionReason(e.target.value)}
                             rows={3}
-                            className="w-full p-2.5 bg-surface-elevated border border-border-strong rounded-xl text-xs text-primary focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                            className="w-full p-2.5 bg-surface-elevated border border-border-strong rounded-xl text-xs text-primary focus:outline-hidden focus:ring-2 focus:ring-red-500/50"
                         />
                         <div className="flex items-center justify-end gap-2 pt-1">
                             <button
@@ -341,7 +341,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                             <button
                                 onClick={handleRejectSingle}
                                 disabled={rejectMutation.isPending}
-                                className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all flex items-center gap-1 shadow-sm"
+                                className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all flex items-center gap-1 shadow-xs"
                             >
                                 {rejectMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                                 <span>Confirm Rejection</span>

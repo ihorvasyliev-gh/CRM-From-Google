@@ -61,7 +61,7 @@ function CoursePill({ en, small = false, onNavigate }: { en: Enrollment; small?:
             }`}
             title={`Filter board by ${en.courseName} (${en.status})`}
         >
-            <span className={`${small ? 'w-1 h-1' : 'w-1.5 h-1.5'} rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} flex-shrink-0`} />
+            <span className={`${small ? 'w-1 h-1' : 'w-1.5 h-1.5'} rounded-full ${STATUS_DOT[en.status] || 'bg-muted'} shrink-0`} />
             <span className="truncate">{en.courseName}</span>
             {en.courseVariant && <span className="opacity-70 font-normal truncate"> ({en.courseVariant})</span>}
         </button>
@@ -71,8 +71,8 @@ function CoursePill({ en, small = false, onNavigate }: { en: Enrollment; small?:
 function SkeletonActivityItem() {
     return (
         <div className="flex items-center gap-2.5 px-2 py-2 animate-pulse">
-            <div className="w-7 h-7 rounded-full bg-surface-elevated flex-shrink-0" />
-            <div className="h-3.5 w-32 rounded bg-surface-elevated" />
+            <div className="w-7 h-7 rounded-full bg-surface-elevated shrink-0" />
+            <div className="h-3.5 w-32 rounded-sm bg-surface-elevated" />
             <div className="h-5 w-28 rounded-full bg-surface-elevated" />
             <div className="h-5 w-20 rounded-full bg-surface-elevated" />
         </div>
@@ -114,13 +114,13 @@ function ActivityRow({
                             {group.studentName}
                         </button>
                         {group.isNew && (
-                            <span className="inline-flex items-center px-1 py-px rounded text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider flex-shrink-0 select-none">
+                            <span className="inline-flex items-center px-1 py-px rounded-sm text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider shrink-0 select-none">
                                 NEW
                             </span>
                         )}
                     </div>
 
-                    <div className="col-span-2 sm:col-span-1 order-last sm:order-none flex flex-wrap items-center gap-1 min-w-0">
+                    <div className="col-span-2 sm:col-span-1 order-last sm:order-0 flex flex-wrap items-center gap-1 min-w-0">
                         {(group.enrollments || []).map(en => (
                             <CoursePill key={en.id} en={en} onNavigate={onNavigate} />
                         ))}
@@ -149,8 +149,8 @@ function ActivityRow({
                 <ol className="mt-1.5 mb-1 ml-[46px] pl-3.5 border-l-2 border-border-subtle space-y-1.5 animate-fadeIn">
                     {Array.from(historyByDate.entries()).map(([date, ens]) => (
                         <li key={date} className="relative flex items-start gap-2.5">
-                            <span aria-hidden className="absolute -left-[19px] top-[5px] w-2 h-2 rounded-full bg-surface border-2 border-border-strong" />
-                            <span className="text-[10.5px] font-medium text-muted w-12 pt-0.5 flex-shrink-0 tabular-nums">{date}</span>
+                            <span aria-hidden className="absolute left-[-19px] top-[5px] w-2 h-2 rounded-full bg-surface border-2 border-border-strong" />
+                            <span className="text-[10.5px] font-medium text-muted w-12 pt-0.5 shrink-0 tabular-nums">{date}</span>
                             <div className="flex flex-wrap gap-1 min-w-0">
                                 {ens.map(en => (
                                     <CoursePill key={en.id} en={en} small onNavigate={onNavigate} />
@@ -199,7 +199,7 @@ export default function DashboardActivityFeed({
         >
             {/* Toolbar: search + status filters */}
             {!loading && (
-                <div className="flex flex-col gap-2.5 mb-2 flex-shrink-0">
+                <div className="flex flex-col gap-2.5 mb-2 shrink-0">
                     {onSearchChange && (
                         <div className="relative">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -209,7 +209,7 @@ export default function DashboardActivityFeed({
                                 onChange={e => onSearchChange(e.target.value)}
                                 placeholder="Search student or course…"
                                 aria-label="Search activity"
-                                className="w-full h-9 pl-8 pr-8 rounded-xl bg-surface-elevated border border-border-subtle focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 outline-none text-[13px] text-primary placeholder:text-muted transition-all [&::-webkit-search-cancel-button]:hidden"
+                                className="w-full h-9 pl-8 pr-8 rounded-xl bg-surface-elevated border border-border-subtle focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 outline-hidden text-[13px] text-primary placeholder:text-muted transition-all [&::-webkit-search-cancel-button]:hidden"
                             />
                             {search && (
                                 <button
@@ -234,14 +234,14 @@ export default function DashboardActivityFeed({
                                     type="button"
                                     onClick={() => setActivityFilter(f.key)}
                                     aria-pressed={isActive}
-                                    className={`flex-shrink-0 text-xs font-semibold pl-2.5 pr-1.5 h-8 rounded-full border transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 touch-manipulation ${
+                                    className={`shrink-0 text-xs font-semibold pl-2.5 pr-1.5 h-8 rounded-full border transition-all flex items-center gap-1.5 cursor-pointer select-none active:scale-95 touch-manipulation ${
                                         isActive
                                             ? FILTER_ACTIVE_CLASSES[f.key]
                                             : 'bg-surface-elevated text-muted hover:text-primary border-border-subtle hover:border-border-strong'
                                     }`}
                                 >
                                     {f.key !== 'all' && (
-                                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[f.key]} flex-shrink-0`} />
+                                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[f.key]} shrink-0`} />
                                     )}
                                     <span>{f.label}</span>
                                     <span

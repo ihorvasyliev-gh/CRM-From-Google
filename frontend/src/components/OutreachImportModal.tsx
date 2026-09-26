@@ -77,9 +77,9 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
     }
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
             <div
-                className="absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+                className="absolute inset-0 bg-background/80 backdrop-blur-xs transition-opacity"
                 onClick={!importing ? onClose : undefined}
             />
 
@@ -131,7 +131,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                             onChange={e => setPasteText(e.target.value)}
                             rows={4}
                             placeholder={'First Name\tLast Name\tEmail\nAnna\tSmith\tanna@example.com'}
-                            className="w-full bg-surface text-primary text-xs font-mono rounded-xl border border-border-subtle px-3 py-2 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 placeholder:text-muted/40"
+                            className="w-full bg-surface text-primary text-xs font-mono rounded-xl border border-border-subtle px-3 py-2 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 placeholder:text-muted/40"
                         />
                         <button
                             type="button"
@@ -179,7 +179,7 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
                         type="button"
                         onClick={handleImport}
                         disabled={importing || !parsed || parsed.rows.length === 0}
-                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-sm shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-xs shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {importing ? <><Loader2 size={16} className="animate-spin" /> Importing...</> : <><Upload size={16} /> Import</>}
                     </button>

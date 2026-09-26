@@ -68,7 +68,7 @@ export const PLACEHOLDER_CATEGORIES: { title: string; items: { key: string; desc
             { key: 'courseDate', desc: 'Course Date (formatted)' },
             { key: 'enrollmentStatus', desc: 'Current Status' },
             { key: 'enrollmentNotes', desc: 'Admin Notes' },
-            { key: 'today', desc: 'Date the document was generated' },
+            { key: 'today', desc: 'Generation date (formatted)' },
         ],
     },
 ];

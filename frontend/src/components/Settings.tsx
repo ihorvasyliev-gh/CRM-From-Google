@@ -443,12 +443,12 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     const validNote = (ok: boolean, okText: string, badText: ReactNode) =>
         ok ? (
             <div className={`${calloutCls.success} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
-                <Check size={14} className="flex-shrink-0 text-status-confirmed" />
+                <Check size={14} className="shrink-0 text-status-confirmed" />
                 <span>{okText}</span>
             </div>
         ) : (
             <div className={`${calloutCls.danger} flex items-center gap-2 px-3 py-2.5 text-xs font-medium animate-fadeIn`}>
-                <AlertTriangle size={15} className="flex-shrink-0 text-status-rejected" />
+                <AlertTriangle size={15} className="shrink-0 text-status-rejected" />
                 <span>{badText}</span>
             </div>
         );
@@ -495,7 +495,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                     </nav>
                     <div className="hidden lg:block mt-6 pt-4 border-t border-border-subtle space-y-3">
                         <p className="flex items-start gap-1.5 text-[11px] text-muted leading-relaxed">
-                            <Info size={12} className="flex-shrink-0 mt-0.5" />
+                            <Info size={12} className="shrink-0 mt-0.5" />
                             Email and display settings are saved to your account and this browser.
                         </p>
                         <Button variant="ghost" size="sm" onClick={handleReset} className="-ml-2.5 hover:!text-status-rejected">
@@ -544,10 +544,10 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             <div className="space-y-5 min-w-0">
                                 <div className={`${calloutCls.info} p-3 flex items-start gap-2.5 text-xs`}>
                                     {isReminderTab
-                                        ? <BellRing size={15} className="text-status-invited flex-shrink-0 mt-px" />
+                                        ? <BellRing size={15} className="text-status-invited shrink-0 mt-px" />
                                         : inviteTemplateTab === 'high_english'
-                                        ? <Languages size={15} className="text-status-invited flex-shrink-0 mt-px" />
-                                        : <Globe size={15} className="text-status-invited flex-shrink-0 mt-px" />}
+                                        ? <Languages size={15} className="text-status-invited shrink-0 mt-px" />
+                                        : <Globe size={15} className="text-status-invited shrink-0 mt-px" />}
                                     <div className="space-y-0.5">
                                         <div className="font-semibold text-primary">
                                             {isReminderTab ? 'Reminder template' : inviteTemplateTab === 'high_english' ? 'High English required template' : 'Standard course template'}
@@ -573,14 +573,14 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                         placeholder="e.g. You are Invited to join our {courseName} course"
                                     />
                                     <p className="mt-1.5 text-[11px] text-muted leading-relaxed">
-                                        Placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{courseName}'}</code> course name,{' '}
-                                        <code className="px-1.5 py-0.5 bg-surface-elevated rounded font-mono text-primary">{'{date}'}</code> invite date
+                                        Placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded-sm font-mono text-primary">{'{courseName}'}</code> course name,{' '}
+                                        <code className="px-1.5 py-0.5 bg-surface-elevated rounded-sm font-mono text-primary">{'{date}'}</code> invite date
                                     </p>
                                 </div>
 
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className={labelCls + ' !mb-0'}>
+                                        <span className={labelCls + ' mb-0!'}>
                                             {isReminderTab ? 'Email body (Reminder)' : inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
                                         </span>
                                         <span className="text-[11px] text-muted">Click a tag to insert it</span>
@@ -642,7 +642,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                 type="checkbox"
                                                 checked={previewMultiDate}
                                                 onChange={e => setPreviewMultiDate(e.target.checked)}
-                                                className="rounded border-border-strong accent-brand-500"
+                                                className="rounded-sm border-border-strong accent-brand-500"
                                             />
                                             Multi-date invitation
                                         </label>}
@@ -721,7 +721,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
 
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className={labelCls + ' !mb-0'}>Email body</span>
+                                        <span className={labelCls + ' mb-0!'}>Email body</span>
                                         <span className="text-[11px] text-muted">Click a tag to insert it</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
@@ -814,7 +814,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         {!scanning && !hasScanned && (
                             <EmptyState
                                 bare
-                                className="!py-6"
+                                className="py-6!"
                                 icon={<GitMerge size={20} />}
                                 title="No scan run yet"
                                 description='Click "Scan for duplicates" to search for redundant profiles.'
@@ -823,7 +823,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
 
                         {!scanning && hasScanned && duplicateGroups.length === 0 && potentialMatches.length === 0 && (
                             <div className={`${calloutCls.success} flex items-center gap-2 p-3 text-xs font-semibold`}>
-                                <CheckCircle2 size={15} className="text-status-confirmed flex-shrink-0" />
+                                <CheckCircle2 size={15} className="text-status-confirmed shrink-0" />
                                 No duplicates or profile updates found — everything is clean.
                             </div>
                         )}
@@ -831,7 +831,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         {!scanning && duplicateGroups.length > 0 && (
                             <div className="space-y-3">
                                 <div className={`${calloutCls.warning} flex items-center gap-2 p-3 text-xs font-medium`}>
-                                    <AlertTriangle size={14} className="flex-shrink-0 text-status-requested" />
+                                    <AlertTriangle size={14} className="shrink-0 text-status-requested" />
                                     <span>Found {duplicateGroups.length} group(s) of students sharing the same email address. Review and merge them below:</span>
                                 </div>
                                 <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl overflow-hidden">
@@ -842,14 +842,14 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                                                     {group.students.map((s) => (
                                                         <div key={s.id} className="text-xs text-primary font-medium flex items-center gap-2">
-                                                            <span className="w-1.5 h-1.5 bg-brand-500 rounded-full flex-shrink-0" />
+                                                            <span className="w-1.5 h-1.5 bg-brand-500 rounded-full shrink-0" />
                                                             <span>{s.first_name} {s.last_name}</span>
                                                             {s.phone && <span className="text-muted text-[11px]">({s.phone})</span>}
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0">
+                                            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                                                 <Button
                                                     variant="secondary"
                                                     size="sm"
@@ -882,7 +882,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         {!scanning && potentialMatches.length > 0 && (
                             <div className={`space-y-3 ${duplicateGroups.length > 0 ? 'mt-6' : ''}`}>
                                 <div className={`${calloutCls.info} flex items-center gap-2 p-3 text-xs font-medium`}>
-                                    <Info size={14} className="flex-shrink-0 text-status-invited" />
+                                    <Info size={14} className="shrink-0 text-status-invited" />
                                     <span>Found {potentialMatches.length} potential profile update(s) (similar name, but different details). Review them below:</span>
                                 </div>
                                 <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl overflow-hidden">
@@ -898,7 +898,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                     <div className="flex flex-col gap-1.5">
                                                         {([['A', match.studentA, 'Older'], ['B', match.studentB, 'Newer']] as const).map(([label, st, age]) => (
                                                             <div key={label} className="text-xs text-primary flex flex-wrap items-center gap-1.5">
-                                                                <span className="text-muted w-16 flex-shrink-0">Profile {label}:</span>
+                                                                <span className="text-muted w-16 shrink-0">Profile {label}:</span>
                                                                 <span className="font-semibold">{st.first_name} {st.last_name}</span>
                                                                 {st.phone && <span className="text-muted text-[11px]">({st.phone})</span>}
                                                                 {st.email && <span className="text-muted text-[11px]">• {st.email}</span>}
@@ -908,7 +908,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0">
+                                                <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                                                     <Button
                                                         variant="secondary"
                                                         size="sm"
@@ -965,7 +965,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         icon={SlidersHorizontal}
                         tone="success"
                         divided
-                        bodyClassName="!p-0"
+                        bodyClassName="p-0!"
                     >
                         <div className="divide-y divide-border-subtle">
                             <label className="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 cursor-pointer">
@@ -973,7 +973,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                     <span className="block text-[13px] font-semibold text-primary">Include logos in emails</span>
                                     <span className="block text-xs text-muted mt-0.5">Show the Cork City Partnership logo banner at the top of all emails.</span>
                                 </div>
-                                <span className="relative flex items-center flex-shrink-0">
+                                <span className="relative flex items-center shrink-0">
                                     <input
                                         type="checkbox"
                                         checked={config.includeLogosInEmails ?? false}
@@ -981,7 +981,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                         className="peer sr-only"
                                     />
                                     <span className="w-10 h-6 bg-border-strong rounded-full peer-checked:bg-brand-500 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40" />
-                                    <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform shadow-sm" />
+                                    <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform shadow-xs" />
                                 </span>
                             </label>
 
@@ -1002,11 +1002,11 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                 onClick={() => onDensityChange(opt.value)}
                                                 className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-colors ${
                                                     active
-                                                        ? 'bg-brand-500/[0.06] border-brand-500 ring-1 ring-brand-500'
+                                                        ? 'bg-brand-500/6 border-brand-500 ring-1 ring-brand-500'
                                                         : 'bg-surface border-border-subtle hover:border-border-strong'
                                                 }`}
                                             >
-                                                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted'}`}>
+                                                <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted'}`}>
                                                     <opt.Icon size={16} />
                                                 </span>
                                                 <span>
@@ -1043,12 +1043,12 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                 <div className="flex items-center gap-2 text-[13px] min-w-0">
                                     {saved && !hasChanges ? (
                                         <>
-                                            <CheckCircle2 size={16} className="text-status-confirmed flex-shrink-0" />
+                                            <CheckCircle2 size={16} className="text-status-confirmed shrink-0" />
                                             <span className="font-semibold text-primary">Changes saved</span>
                                         </>
                                     ) : (
                                         <>
-                                            <span className="w-2 h-2 rounded-full bg-warning flex-shrink-0" />
+                                            <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
                                             <span className="font-semibold text-primary">Unsaved changes</span>
                                             <span className="hidden sm:inline text-muted truncate">
                                                 {canSave ? '· Ctrl+S to save' : '· fix the template warnings to save'}

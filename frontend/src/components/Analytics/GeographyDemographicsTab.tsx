@@ -256,7 +256,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                                         >
                                             <td className={`${tdCls} font-semibold text-primary`}>
                                                 <span className="flex items-center gap-2">
-                                                    <MapPin size={13} className="text-muted flex-shrink-0" />
+                                                    <MapPin size={13} className="text-muted shrink-0" />
                                                     <span className="truncate max-w-[160px] sm:max-w-[240px]">{item.name}</span>
                                                 </span>
                                             </td>
@@ -303,7 +303,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                 {/* Age distribution */}
                 <Card title="Age distribution" icon={Users} subtitle={`${uniqueStudentsData.length} students · from date of birth`}>
                     <div className="flex flex-col sm:flex-row items-center gap-6">
-                        <div className="w-[200px] h-[200px] flex-shrink-0 relative">
+                        <div className="w-[200px] h-[200px] shrink-0 relative">
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
@@ -320,7 +320,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                                                 onDrillDown(`Age Group: ${data.name}`, data.payload.items);
                                             }
                                         }}
-                                        className="cursor-pointer outline-none"
+                                        className="cursor-pointer outline-hidden"
                                     >
                                         {ageData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-85 transition-opacity" />
@@ -342,7 +342,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                                         onClick={() => onDrillDown(`Age Group: ${d.name}`, d.items)}
                                         className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-surface-elevated transition-colors text-left"
                                     >
-                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
                                         <span className="flex-1 text-[13px] text-primary">{d.name}</span>
                                         <span className="text-[13px] font-semibold text-primary tabular-nums">{d.value}</span>
                                         <span className="w-10 text-right text-[11px] text-muted tabular-nums">
@@ -377,7 +377,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                         ))}
                     </div>
                     <p className="mt-auto pt-4 flex items-start gap-2 text-[11px] text-muted">
-                        <CheckCircle size={13} className="text-status-confirmed flex-shrink-0 mt-px" />
+                        <CheckCircle size={13} className="text-status-confirmed shrink-0 mt-px" />
                         Complete contact details make location mapping and outcome follow-ups reliable.
                     </p>
                 </Card>

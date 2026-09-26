@@ -235,11 +235,11 @@ export default function DateCalendarPicker({
             <div
                 onClick={() => setIsOpen(!isOpen)}
                 className={`flex items-center justify-between gap-2 px-3 py-1.5 md:py-2 bg-surface-elevated border hover:border-brand-500 dark:hover:border-brand-400 rounded-xl text-xs cursor-pointer transition-all ${
-                    isOpen ? 'border-brand-500 shadow-sm' : 'border-border-subtle'
+                    isOpen ? 'border-brand-500 shadow-xs' : 'border-border-subtle'
                 } ${value ? 'text-primary border-border-strong font-medium' : 'text-muted'}`}
             >
                 <div className="flex items-center gap-1.5 min-w-0">
-                    <Calendar size={13} className="text-muted flex-shrink-0" />
+                    <Calendar size={13} className="text-muted shrink-0" />
                     <span className="truncate">{displayValue || placeholder}</span>
                 </div>
                 {value ? (
@@ -301,7 +301,7 @@ export default function DateCalendarPicker({
                             } else if (dayObj.isDisabled) {
                                 btnClass += 'text-muted/30 cursor-not-allowed ';
                             } else if (dayObj.isSelected) {
-                                btnClass += 'bg-brand-500 text-white font-bold shadow-sm ';
+                                btnClass += 'bg-brand-500 text-white font-bold shadow-xs ';
                             } else {
                                 btnClass += 'text-primary hover:bg-border-strong cursor-pointer ';
                                 if (dayObj.isToday) {

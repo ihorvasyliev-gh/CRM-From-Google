@@ -490,7 +490,7 @@ function DateChip({ active, onClick, label, count, title, past, today }: { activ
             title={title}
             className={`shrink-0 h-7 px-2.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 border transition-all whitespace-nowrap ${
                 active
-                    ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                    ? 'bg-brand-500 text-white border-brand-500 shadow-xs'
                     : today
                     ? 'bg-emerald-500/10 text-status-confirmed border-emerald-500/30 hover:border-emerald-500/60'
                     : `bg-surface border-border-subtle hover:border-border-strong ${past ? 'text-muted' : 'text-primary'}`
@@ -542,8 +542,8 @@ function RosterRow({
                 onOpen();
             }}
             onKeyDown={onKeyDown}
-            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-none focus-visible:bg-brand-500/5 focus-visible:shadow-[inset_3px_0_0_0] focus-visible:shadow-brand-500 ${
-                selected ? 'bg-brand-500/[0.06]' : 'hover:bg-surface-elevated/60'
+            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 focus-visible:shadow-[inset_3px_0_0_0] focus-visible:shadow-brand-500 ${
+                selected ? 'bg-brand-500/6' : 'hover:bg-surface-elevated/60'
             }`}
         >
             <button

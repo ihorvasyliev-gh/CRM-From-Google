@@ -44,7 +44,7 @@ export function Segmented<T extends string>({
                         title={opt.title}
                         onClick={() => onChange(opt.value)}
                         className={`shrink-0 flex items-center gap-1.5 px-2.5 ${size === 'sm' ? 'h-6 text-[11px]' : 'h-7 text-xs'} rounded-lg font-semibold whitespace-nowrap transition-all ${
-                            active ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
+                            active ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
                         }`}
                     >
                         {opt.dot && <span className={`w-1.5 h-1.5 rounded-full ${opt.dot}`} />}

@@ -42,7 +42,7 @@ export default function ViewerHeader({
     return (
         <header className="sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-3 sm:px-6 flex items-center gap-3 min-w-0">
             <button type="button" onClick={() => onNavigate('home')} className="flex items-center gap-2.5 shrink-0" aria-label="Home">
-                <span className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
+                <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
                 <span className="hidden sm:block text-left leading-tight">
                     <span className="block text-sm font-bold text-primary tracking-tight">CCP CRM</span>
                     <span className="block text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer</span>
@@ -102,7 +102,7 @@ export default function ViewerHeader({
                     aria-label="Account menu"
                     className={`flex items-center gap-1.5 h-9 pl-1 pr-2 rounded-xl border transition-colors ${menuOpen ? 'bg-surface-elevated border-border-strong' : 'border-transparent hover:bg-surface-elevated hover:border-border-subtle'}`}
                 >
-                    <span className="w-7 h-7 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
+                    <span className="w-7 h-7 bg-linear-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
                         {(userEmail?.[0] || 'V').toUpperCase()}
                     </span>
                     <ChevronDown size={14} className={`text-muted transition-transform ${menuOpen ? 'rotate-180' : ''}`} />

@@ -46,7 +46,7 @@ export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onS
         <div className="min-h-screen w-full bg-background text-primary flex flex-col">
             <header className="sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-3 sm:px-6 lg:px-8 flex items-center gap-3 min-w-0">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/25 ring-1 ring-inset ring-white/15 shrink-0">C</span>
+                    <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-xs shadow-brand-500/25 ring-1 ring-inset ring-white/15 shrink-0">C</span>
                     <span className="leading-tight min-w-0">
                         <span className="block text-sm font-bold text-primary tracking-tight truncate">External Lists</span>
                         <span className="hidden sm:block text-[11px] text-muted truncate">Track employment status of people on external lists (e.g. Action 11)</span>
@@ -71,7 +71,7 @@ export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onS
 
             <main className="flex-1 w-full px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-24">
                 {!guideHidden && (
-                    <section aria-label="How it works" className="relative mb-4 rounded-2xl border border-brand-500/20 bg-brand-500/[0.05] p-4 pr-10">
+                    <section aria-label="How it works" className="relative mb-4 rounded-2xl border border-brand-500/20 bg-brand-500/5 p-4 pr-10">
                         <button
                             type="button"
                             onClick={() => toggleGuide(true)}

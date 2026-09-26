@@ -48,8 +48,8 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
 
     // Portal to <body> so the dialog layers above the sidebar / drawers regardless of where it's rendered
     return createPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={busy ? undefined : onCancel} />
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={busy ? undefined : onCancel} />
             <div
                 role="alertdialog"
                 aria-modal="true"
@@ -58,7 +58,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                 className="relative w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-float animate-scaleIn overflow-hidden"
             >
                 <div className="p-6 flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDanger ? 'bg-danger/10 text-status-rejected' : 'bg-warning/15 text-status-requested'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isDanger ? 'bg-danger/10 text-status-rejected' : 'bg-warning/15 text-status-requested'}`}>
                         {isDanger ? <AlertTriangle size={20} /> : <AlertCircle size={20} />}
                     </div>
                     <div className="min-w-0 pt-0.5">
@@ -79,7 +79,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                     <button
                         onClick={handleConfirm}
                         disabled={busy}
-                        className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait ${isDanger
+                        className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-xs disabled:opacity-70 disabled:cursor-wait ${isDanger
                             ? 'bg-red-600 hover:bg-red-700'
                             : 'bg-amber-500 hover:bg-amber-600'
                             }`}

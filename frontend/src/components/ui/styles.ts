@@ -9,7 +9,7 @@
 /** Text-like inputs, selects and textareas. Add a height (`h-9`) for single-line fields. */
 export const inputCls =
     'w-full px-3 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/70 ' +
-    'focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors ' +
+    'focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors ' +
     'disabled:opacity-60 disabled:cursor-not-allowed';
 
 /** Single-line input (36px). */

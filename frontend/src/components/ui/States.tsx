@@ -73,8 +73,8 @@ export function SkeletonRows({ rows = 6, bare = false }: { rows?: number; bare?:
                 <div key={i} className="flex items-center gap-3 px-4 py-3.5 animate-pulse">
                     <div className="w-9 h-9 rounded-full bg-muted/15 shrink-0" />
                     <div className="flex-1 space-y-2">
-                        <div className="h-3.5 bg-muted/15 rounded w-1/3" />
-                        <div className="h-3 bg-muted/10 rounded w-1/2" />
+                        <div className="h-3.5 bg-muted/15 rounded-sm w-1/3" />
+                        <div className="h-3 bg-muted/10 rounded-sm w-1/2" />
                     </div>
                     <div className="hidden sm:block w-24 h-5 bg-muted/15 rounded-full" />
                 </div>

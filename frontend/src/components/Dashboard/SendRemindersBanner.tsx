@@ -15,7 +15,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
     return (
         <div className="p-3 pl-4 rounded-2xl bg-sky-500/10 border border-sky-500/40 ring-1 ring-sky-500/20 space-y-2.5">
             <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-sky-500/20 text-sky-600 dark:text-sky-400 flex-shrink-0">
+                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-sky-500/20 text-sky-600 dark:text-sky-400 shrink-0">
                     <BellRing size={16} className="animate-pulse" />
                 </span>
                 <div className="min-w-0">
@@ -37,7 +37,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                                 {formatDateLongWithWeekday(item.date)} · <span className="font-semibold text-sky-600 dark:text-sky-400">{untilLabel(item.date)}</span> · {item.confirmedCount} confirmed
                             </p>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                             <button
                                 type="button"
                                 onClick={() => onSend(item)}

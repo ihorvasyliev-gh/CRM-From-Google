@@ -78,7 +78,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
     ];
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-110 flex items-center justify-center p-4 animate-fadeIn">
             {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-background/70 backdrop-blur-md transition-opacity"
@@ -123,11 +123,11 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
                                         <span className="text-xs font-medium text-primary pr-3">
                                             {sc.description}
                                         </span>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                        <div className="flex items-center gap-1 shrink-0">
                                             {sc.keys.map((k, kIdx) => (
                                                 <kbd
                                                     key={kIdx}
-                                                    className="px-2 py-0.5 text-[11px] font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-xs"
+                                                    className="px-2 py-0.5 text-[11px] font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-2xs"
                                                 >
                                                     {k}
                                                 </kbd>
@@ -144,7 +144,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
                 <div className="px-6 py-3 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-xs text-muted">
                     <span className="flex items-center gap-1.5">
                         <Sparkles size={14} className="text-brand-500" />
-                        Press <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-subtle text-[10px] font-bold">?</kbd> anywhere to open
+                        Press <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px] font-bold">?</kbd> anywhere to open
                     </span>
                     <button
                         onClick={onClose}

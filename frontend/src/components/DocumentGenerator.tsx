@@ -402,11 +402,11 @@ export default function DocumentGenerator() {
     const placeholderLabel = (key: string) =>
         PLACEHOLDER_CATEGORIES.flatMap(c => c.items).find(i => i.key === key)?.desc.replace(/\s*\(.*\)$/, '') ?? key;
 
-    const sheetLoopTip = (
+    const sheetLoopTip = (slots: number) => (
         <p className="text-[11px] text-muted flex items-start gap-1.5">
-            <Info size={13} className="flex-shrink-0 mt-px" />
+            <Info size={13} className="shrink-0 mt-px" />
             <span>
-                Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.
+                Groups over {slots} continue on extra pages. Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.
             </span>
         </p>
     );
@@ -425,7 +425,7 @@ export default function DocumentGenerator() {
     const stepHeader = (n: number, title: string, done: boolean, hint?: ReactNode) => (
         <div className="flex items-center gap-3 mb-3">
             <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
                     done ? 'bg-success text-white' : 'bg-surface-elevated text-muted border border-border-subtle'
                 }`}
             >
@@ -440,7 +440,7 @@ export default function DocumentGenerator() {
         tpl ? (
             <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-border-subtle bg-surface-elevated/40">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-info/10 text-status-invited flex items-center justify-center flex-shrink-0">
+                    <span className="w-8 h-8 rounded-lg bg-info/10 text-status-invited flex items-center justify-center shrink-0">
                         <FileText size={15} />
                     </span>
                     <div className="min-w-0">
@@ -454,7 +454,7 @@ export default function DocumentGenerator() {
             </div>
         ) : (
             <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
-                <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                <AlertCircle size={14} className="text-status-requested shrink-0" />
                 {emptyText}
             </div>
         );
@@ -532,15 +532,15 @@ export default function DocumentGenerator() {
                                         onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
                                         aria-haspopup="listbox"
                                         aria-expanded={courseDropdownOpen}
-                                        className="w-full flex items-center justify-between gap-3 h-11 px-3.5 bg-surface border border-border-subtle rounded-xl text-sm transition-colors hover:border-border-strong focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                                        className="w-full flex items-center justify-between gap-3 h-11 px-3.5 bg-surface border border-border-subtle rounded-xl text-sm transition-colors hover:border-border-strong focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                                     >
                                         <span className="flex items-center gap-2.5 min-w-0">
-                                            <BookOpen size={16} className="text-muted flex-shrink-0" />
+                                            <BookOpen size={16} className="text-muted shrink-0" />
                                             <span className={`truncate ${selectedCourse ? 'text-primary font-medium' : 'text-muted'}`}>
                                                 {selectedCourse?.name || 'Choose a course...'}
                                             </span>
                                         </span>
-                                        <ChevronDown size={16} className={`text-muted transition-transform flex-shrink-0 ${courseDropdownOpen ? 'rotate-180' : ''}`} />
+                                        <ChevronDown size={16} className={`text-muted transition-transform shrink-0 ${courseDropdownOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
                                     {courseDropdownOpen && (
@@ -571,7 +571,7 @@ export default function DocumentGenerator() {
                                                             }`}
                                                         >
                                                             <span className="truncate">{c.name}</span>
-                                                            <Badge tone={active ? 'brand' : 'neutral'} shape="pill" className="tabular-nums flex-shrink-0">
+                                                            <Badge tone={active ? 'brand' : 'neutral'} shape="pill" className="tabular-nums shrink-0">
                                                                 {count} confirmed
                                                             </Badge>
                                                         </button>
@@ -599,7 +599,7 @@ export default function DocumentGenerator() {
                                     <div className="rounded-xl border border-border-subtle overflow-hidden">
                                         <div className="overflow-x-auto max-h-80 overflow-y-auto">
                                             <table className={tableCls}>
-                                                <thead className={`${theadCls} sticky top-0 z-10 !bg-surface-elevated`}>
+                                                <thead className={`${theadCls} sticky top-0 z-10 bg-surface-elevated!`}>
                                                     <tr>
                                                         <th className={`${thCls} w-10`}>#</th>
                                                         <th className={thCls}>Name</th>
@@ -611,18 +611,18 @@ export default function DocumentGenerator() {
                                                 <tbody className={tbodyCls}>
                                                     {confirmedForCourse.map((enrollment, idx) => (
                                                         <tr key={enrollment.id} className={trCls}>
-                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs tabular-nums`}>{idx + 1}</td>
-                                                            <td className={`${tdCls} !py-2.5`}>
+                                                            <td className={`${tdCls} py-2.5! text-muted text-xs tabular-nums`}>{idx + 1}</td>
+                                                            <td className={`${tdCls} py-2.5!`}>
                                                                 <p className="font-medium text-primary text-[13px]">
                                                                     {enrollment.students?.first_name} {enrollment.students?.last_name}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted truncate max-w-[240px]">{enrollment.students?.email || '—'}</p>
                                                             </td>
-                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs tabular-nums hidden md:table-cell`}>{enrollment.students?.phone || '—'}</td>
-                                                            <td className={`${tdCls} !py-2.5`}>
+                                                            <td className={`${tdCls} py-2.5! text-muted text-xs tabular-nums hidden md:table-cell`}>{enrollment.students?.phone || '—'}</td>
+                                                            <td className={`${tdCls} py-2.5!`}>
                                                                 {enrollment.course_variant ? <Badge tone="completed">{enrollment.course_variant}</Badge> : <span className="text-muted">—</span>}
                                                             </td>
-                                                            <td className={`${tdCls} !py-2.5 text-muted text-xs hidden sm:table-cell whitespace-nowrap`}>
+                                                            <td className={`${tdCls} py-2.5! text-muted text-xs hidden sm:table-cell whitespace-nowrap`}>
                                                                 {enrollment.confirmed_date ? formatDateLong(enrollment.confirmed_date) : '—'}
                                                             </td>
                                                         </tr>
@@ -641,8 +641,8 @@ export default function DocumentGenerator() {
                                     {archiveContents.map(item => (
                                         <li key={item.label} className={`flex items-center gap-2 text-xs ${item.ok ? 'text-primary' : 'text-muted line-through decoration-border-strong'}`}>
                                             {item.ok
-                                                ? <CheckCircle2 size={14} className="text-status-confirmed flex-shrink-0" />
-                                                : <X size={14} className="text-muted flex-shrink-0" />}
+                                                ? <CheckCircle2 size={14} className="text-status-confirmed shrink-0" />
+                                                : <X size={14} className="text-muted shrink-0" />}
                                             {item.label}
                                         </li>
                                     ))}
@@ -650,7 +650,7 @@ export default function DocumentGenerator() {
                                 <Button
                                     variant={canGenerate ? 'success' : 'secondary'}
                                     size="lg"
-                                    className="w-full !h-11"
+                                    className="w-full h-11!"
                                     onClick={() => handleGenerate()}
                                     disabled={!canGenerate || generating}
                                     loading={generating && !progress?.sample}
@@ -699,7 +699,7 @@ export default function DocumentGenerator() {
                                 <ChevronDown size={14} className={`transition-transform ${showPlaceholders ? 'rotate-180' : ''}`} />
                             </Button>
                         }
-                        bodyClassName={showPlaceholders ? '' : '!p-0'}
+                        bodyClassName={showPlaceholders ? '' : 'p-0!'}
                     >
                         {showPlaceholders && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
@@ -715,11 +715,11 @@ export default function DocumentGenerator() {
                                                     className="w-full flex items-center gap-2 text-left text-[13px] px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-surface-elevated transition-colors group"
                                                     title={`Copy {${item.key}}`}
                                                 >
-                                                    <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
+                                                    <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded-sm font-mono text-xs shrink-0">
                                                         {`{${item.key}}`}
                                                     </code>
                                                     <span className="text-muted truncate flex-1">{item.desc}</span>
-                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                                 </button>
                                             ))}
                                         </div>
@@ -737,11 +737,11 @@ export default function DocumentGenerator() {
                                                     className="w-full flex items-center gap-2 text-left text-[13px] px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-surface-elevated transition-colors group"
                                                     title={`Copy {${v.var_key}}`}
                                                 >
-                                                    <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
+                                                    <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded-sm font-mono text-xs shrink-0">
                                                         {`{${v.var_key}}`}
                                                     </code>
                                                     <span className="text-muted truncate flex-1">{v.var_value || <em>empty</em>}</span>
-                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                                    <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                                 </button>
                                             ))}
                                         </div>
@@ -765,7 +765,7 @@ export default function DocumentGenerator() {
                         <div className="space-y-2">
                             {templates.length === 0 ? (
                                 <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
-                                    <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                                    <AlertCircle size={14} className="text-status-requested shrink-0" />
                                     No templates uploaded yet
                                 </div>
                             ) : (
@@ -778,9 +778,9 @@ export default function DocumentGenerator() {
                                                 aria-checked={tpl.is_active}
                                                 onClick={() => handleToggleActive(tpl)}
                                                 title={tpl.is_active ? 'Deactivate template' : 'Activate template'}
-                                                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${tpl.is_active ? 'bg-brand-500' : 'bg-border-strong'}`}
+                                                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${tpl.is_active ? 'bg-brand-500' : 'bg-border-strong'}`}
                                             >
-                                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${tpl.is_active ? 'translate-x-4' : ''}`} />
+                                                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-xs transition-transform ${tpl.is_active ? 'translate-x-4' : ''}`} />
                                             </button>
                                             <div className="min-w-0 flex-1">
                                                 <p className={`text-[13px] font-medium truncate ${tpl.is_active ? 'text-primary' : 'text-muted'}`} title={tpl.name}>{tpl.name}</p>
@@ -816,7 +816,7 @@ export default function DocumentGenerator() {
                     {/* Attendance sheet */}
                     <Card
                         title="Attendance sheet"
-                        subtitle={<>Numbered placeholders up to {ATTENDANCE_SLOTS}, e.g. {'{firstName1}'}, {'{phone1}'} — larger groups continue on extra sheets</>}
+                        subtitle={<>Numbered placeholders up to {ATTENDANCE_SLOTS}, e.g. {'{firstName1}'}, {'{phone1}'}</>}
                         icon={ClipboardList}
                         tone="info"
                     >
@@ -834,14 +834,14 @@ export default function DocumentGenerator() {
                                 title={attTemplate ? 'Replace Attendance Template' : 'Upload Attendance Template'}
                                 hint={<>Also {'{courseTitle}'}, {'{courseDate}'}, {'{page}'}/{'{pages}'} … up to {`{email${ATTENDANCE_SLOTS}}`}</>}
                             />
-                            {sheetLoopTip}
+                            {sheetLoopTip(ATTENDANCE_SLOTS)}
                         </div>
                     </Card>
 
                     {/* Address labels */}
                     <Card
                         title="Address labels"
-                        subtitle={<>Numbered placeholders up to {LABEL_SLOTS}, e.g. {'{address1}'}, {'{eircode1}'} — larger groups continue on extra pages</>}
+                        subtitle={<>Numbered placeholders up to {LABEL_SLOTS}, e.g. {'{address1}'}, {'{eircode1}'}</>}
                         icon={Tag}
                         tone="warning"
                     >
@@ -859,7 +859,7 @@ export default function DocumentGenerator() {
                                 title={labelTemplate ? 'Replace Label Template' : 'Upload Label Template'}
                                 hint="Drop a .docx here or click to browse · max 5MB"
                             />
-                            {sheetLoopTip}
+                            {sheetLoopTip(LABEL_SLOTS)}
                         </div>
                     </Card>
 
@@ -875,7 +875,7 @@ export default function DocumentGenerator() {
                                 <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
                                     {customVars.map(v => (
                                         <li key={v.id} className="flex items-center gap-2.5 px-3 py-2">
-                                            <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">
+                                            <code className="text-status-confirmed bg-success/10 px-1.5 py-0.5 rounded-sm font-mono text-xs shrink-0">
                                                 {`{${v.var_key}}`}
                                             </code>
                                             {editingVarId === v.id ? (
@@ -885,7 +885,7 @@ export default function DocumentGenerator() {
                                                         value={editingVarValue}
                                                         onChange={e => setEditingVarValue(e.target.value)}
                                                         onKeyDown={e => { if (e.key === 'Enter') handleSaveVariableValue(v); if (e.key === 'Escape') setEditingVarId(null); }}
-                                                        className={`${fieldCls} !h-8 flex-1 min-w-0`}
+                                                        className={`${fieldCls} h-8! flex-1 min-w-0`}
                                                         autoFocus
                                                     />
                                                     <IconButton size="sm" tone="brand" label="Save" onClick={() => handleSaveVariableValue(v)}>
@@ -953,7 +953,7 @@ export default function DocumentGenerator() {
                                 </Button>
                             </div>
                             <p className="text-[11px] text-muted">
-                                Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded font-mono">{'{VariableName}'}</code> (single braces) in your Word templates. Names use letters, digits and _.
+                                Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded-sm font-mono">{'{VariableName}'}</code> (single braces) in your Word templates. Names use letters, digits and _.
                             </p>
                         </div>
                     </Card>
@@ -970,10 +970,10 @@ export default function DocumentGenerator() {
                                 <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
                                     {excelColumns.map((col, idx) => (
                                         <li key={`${col.placeholder}-${idx}`} className="flex items-center gap-2.5 px-3 py-2">
-                                            <span className="text-[11px] tabular-nums text-muted w-4 text-right flex-shrink-0">{idx + 1}</span>
+                                            <span className="text-[11px] tabular-nums text-muted w-4 text-right shrink-0">{idx + 1}</span>
                                             <span className="text-[13px] font-medium text-primary truncate">{col.header}</span>
-                                            <ArrowRight size={12} className="text-muted flex-shrink-0" />
-                                            <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded font-mono text-xs truncate">
+                                            <ArrowRight size={12} className="text-muted shrink-0" />
+                                            <code className="text-brand-600 dark:text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded-sm font-mono text-xs truncate">
                                                 {`{${col.placeholder}}`}
                                             </code>
                                             <IconButton
@@ -994,7 +994,7 @@ export default function DocumentGenerator() {
                                 </ul>
                             ) : (
                                 <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
-                                    <AlertCircle size={14} className="text-status-requested flex-shrink-0" />
+                                    <AlertCircle size={14} className="text-status-requested shrink-0" />
                                     No columns configured — no Excel file will be generated
                                 </div>
                             )}

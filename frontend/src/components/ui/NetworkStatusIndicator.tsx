@@ -48,8 +48,8 @@ function IndicatorView({ showLabel = false, className = '', state }: Props & { s
                     status === 'online'
                         ? 'bg-emerald-500/10 text-status-confirmed border border-emerald-500/20'
                         : status === 'reconnecting'
-                        ? 'bg-amber-500/10 text-status-requested border border-amber-500/20 animate-pulse cursor-pointer hover:bg-amber-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500/40'
-                        : 'bg-red-500/10 text-status-rejected border border-red-500/20 animate-pulse cursor-pointer hover:bg-red-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500/40'
+                        ? 'bg-amber-500/10 text-status-requested border border-amber-500/20 animate-pulse cursor-pointer hover:bg-amber-500/20 active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-amber-500/40'
+                        : 'bg-red-500/10 text-status-rejected border border-red-500/20 animate-pulse cursor-pointer hover:bg-red-500/20 active:scale-95 focus:outline-hidden focus:ring-2 focus:ring-red-500/40'
                 } ${className}`}
                 aria-label={statusText}
             >

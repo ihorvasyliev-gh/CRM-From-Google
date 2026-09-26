@@ -453,14 +453,14 @@ function App() {
                 {/* Subtle radial glow in Dark Mode */}
                 {darkMode && (
                     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                        <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1100px] h-[1100px] max-w-[160vw] max-h-[160vw] text-brand-500/[0.05]" />
+                        <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1100px] h-[1100px] max-w-[160vw] max-h-[160vw] text-brand-500/5" />
                     </div>
                 )}
 
                 {/* Mobile overlay */}
                 {sidebarOpen && !isViewer && (
                     <div
-                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-[35] lg:hidden animate-fadeIn"
+                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-35 lg:hidden animate-fadeIn"
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
@@ -474,9 +474,9 @@ function App() {
                     ${sidebarOpen ? 'translate-x-0 shadow-float' : '-translate-x-full lg:translate-x-0'}
                 `}>
                     {/* Logo */}
-                    <div className="h-14 px-4 flex items-center justify-between flex-shrink-0 border-b border-border-subtle">
+                    <div className="h-14 px-4 flex items-center justify-between shrink-0 border-b border-border-subtle">
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-brand-500/25 ring-1 ring-inset ring-white/15 flex-shrink-0">
+                            <div className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-xs shadow-brand-500/25 ring-1 ring-inset ring-white/15 shrink-0">
                                 C
                             </div>
                             <div className="min-w-0 leading-tight">
@@ -533,7 +533,7 @@ function App() {
                                                 {isActive && (
                                                     <span aria-hidden className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-500 rounded-r-full" />
                                                 )}
-                                                <Icon size={17} className="flex-shrink-0" />
+                                                <Icon size={17} className="shrink-0" />
                                                 <span className="flex-1 text-left truncate">{item.label}</span>
                                                 <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>
                                             </button>
@@ -545,7 +545,7 @@ function App() {
                     </nav>
 
                     {/* Preferences / user */}
-                    <div className="p-3 border-t border-border-subtle flex-shrink-0 space-y-2">
+                    <div className="p-3 border-t border-border-subtle shrink-0 space-y-2">
                         <div className="flex items-center gap-1">
                             <IconButton size="sm" label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleDarkMode}>
                                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
@@ -567,7 +567,7 @@ function App() {
                             </IconButton>
                         </div>
                         <div className="flex items-center gap-2.5 px-2 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
-                            <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            <div className="w-8 h-8 bg-linear-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -593,10 +593,10 @@ function App() {
                     {showNotifBanner && (
                         <div className="bg-brand-500/[0.07] border-b border-brand-500/20 px-4 lg:px-8 py-2 flex items-center justify-between gap-3 animate-fadeIn">
                             <div className="flex items-center gap-2 text-sm">
-                                <Bell size={16} className="text-brand-500 flex-shrink-0" />
+                                <Bell size={16} className="text-brand-500 shrink-0" />
                                 <span className="text-primary">Enable notifications to be alerted when students confirm courses</span>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-2 shrink-0">
                                 <button
                                     onClick={async () => {
                                         setShowNotifBanner(false);
@@ -650,7 +650,7 @@ function App() {
                                 <Menu size={20} />
                             </IconButton>
                             <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-7 h-7 bg-gradient-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-sm shadow-brand-500/20 flex-shrink-0">
+                                <div className="w-7 h-7 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-xs shadow-brand-500/20 shrink-0">
                                     C
                                 </div>
                                 <span className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</span>
@@ -684,7 +684,7 @@ function App() {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
                                 {pendingApprovalsCount > 0 && (
                                     <button
                                         onClick={() => setApprovalsModalOpen(true)}

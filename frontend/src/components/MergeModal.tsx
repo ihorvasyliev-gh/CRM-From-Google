@@ -178,11 +178,11 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     }
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={merging || markingNonDuplicate ? undefined : onClose} />
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={merging || markingNonDuplicate ? undefined : onClose} />
             <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-surface border border-border-subtle rounded-2xl shadow-float animate-scaleIn overflow-hidden max-h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-border-subtle bg-surface flex-shrink-0">
+                <div className="px-6 py-4 border-b border-border-subtle bg-surface shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-brand-50 rounded-xl text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
@@ -199,7 +199,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                 <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {error && (
                         <div className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-slideDown">
-                            <AlertCircle size={16} className="flex-shrink-0" />
+                            <AlertCircle size={16} className="shrink-0" />
                             <span>{error}</span>
                         </div>
                     )}
@@ -215,7 +215,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                 <input
                                     type="text"
                                     placeholder="Search by name, email, or phone number..."
-                                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     autoFocus
@@ -287,7 +287,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                     onClick={() => setPrimaryId(sourceStudent.id)}
                                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                                                         primaryId === sourceStudent.id
-                                                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                                            ? 'bg-brand-500 border-brand-500 text-white shadow-xs'
                                                             : 'bg-surface border-border-subtle text-muted hover:text-primary'
                                                     }`}
                                                 >
@@ -299,7 +299,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                     onClick={() => setPrimaryId(targetStudent.id)}
                                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                                                         primaryId === targetStudent.id
-                                                            ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+                                                            ? 'bg-brand-500 border-brand-500 text-white shadow-xs'
                                                             : 'bg-surface border-border-subtle text-muted hover:text-primary'
                                                     }`}
                                                 >
@@ -335,7 +335,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                                 }));
                                                             }}
                                                             title={`Copy "${duplicateVal}" to primary profile`}
-                                                            className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-brand-500 text-white hover:bg-brand-600 rounded transition-all shadow-sm"
+                                                            className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-brand-500 text-white hover:bg-brand-600 rounded-sm transition-all shadow-xs"
                                                         >
                                                             {isAPrimary ? '← Copy' : 'Copy →'}
                                                         </button>
@@ -347,12 +347,12 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                         <td className="p-3 font-medium text-muted flex items-center justify-between">
                                                             <span>{label}</span>
                                                             {hasDiff && !isModified && (
-                                                                <span className="text-[10px] bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded font-semibold uppercase">
+                                                                <span className="text-[10px] bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded-sm font-semibold uppercase">
                                                                     Differs
                                                                 </span>
                                                             )}
                                                             {isModified && (
-                                                                <span className="text-[10px] bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded font-semibold uppercase">
+                                                                <span className="text-[10px] bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded-sm font-semibold uppercase">
                                                                     Updated
                                                                 </span>
                                                             )}
@@ -418,7 +418,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-border-subtle bg-surface-elevated flex justify-between gap-3 flex-shrink-0">
+                <div className="px-6 py-4 border-t border-border-subtle bg-surface-elevated flex justify-between gap-3 shrink-0">
                     <button
                         onClick={onClose}
                         className="px-4 py-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-sm font-semibold text-muted transition-all flex-1"
@@ -429,7 +429,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                         <button
                             onClick={handleMarkAsNonDuplicate}
                             disabled={markingNonDuplicate || merging}
-                            className="px-4 py-2.5 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 border border-success/10 hover:border-success/20 shadow-sm"
+                            className="px-4 py-2.5 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 border border-success/10 hover:border-success/20 shadow-xs"
                         >
                             {markingNonDuplicate ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                             Not Duplicates
@@ -439,7 +439,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                         <button
                             onClick={handleMerge}
                             disabled={merging || markingNonDuplicate}
-                            className="px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-sm hover:shadow"
+                            className="px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-xs hover:shadow-sm"
                         >
                             {merging ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
                             {merging ? 'Merging...' : `Confirm Merge into ${primaryStudent?.first_name}`}

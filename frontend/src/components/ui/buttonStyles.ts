@@ -3,7 +3,7 @@ export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const BASE =
     'inline-flex items-center justify-center gap-1.5 font-semibold rounded-xl transition-all active:scale-[0.97] ' +
-    'disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 ' +
+    'disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-hidden focus-visible:ring-2 ' +
     'focus-visible:ring-brand-500/40 whitespace-nowrap select-none';
 
 const SIZES: Record<ButtonSize, string> = {
@@ -14,9 +14,9 @@ const SIZES: Record<ButtonSize, string> = {
 };
 
 const VARIANTS: Record<ButtonVariant, string> = {
-    primary: 'bg-brand-500 hover:bg-brand-600 text-white shadow-sm shadow-brand-500/20',
-    success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm',
-    danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm',
+    primary: 'bg-brand-500 hover:bg-brand-600 text-white shadow-xs shadow-brand-500/20',
+    success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs',
+    danger: 'bg-red-600 hover:bg-red-700 text-white shadow-xs',
     secondary: 'bg-surface hover:bg-surface-elevated text-primary border border-border-subtle hover:border-border-strong shadow-card',
     ghost: 'text-muted hover:text-primary hover:bg-surface-elevated',
     'danger-soft': 'text-status-rejected bg-danger/10 hover:bg-danger/15 border border-danger/20',

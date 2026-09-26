@@ -91,9 +91,9 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
     }
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
             <div 
-                className="absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
+                className="absolute inset-0 bg-background/80 backdrop-blur-xs transition-opacity"
                 onClick={!saving ? onClose : undefined}
             />
             
@@ -129,7 +129,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('not_contacted')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'not_contacted'
-                                            ? 'bg-muted/15 text-primary border-border-strong shadow-sm'
+                                            ? 'bg-muted/15 text-primary border-border-strong shadow-xs'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -140,7 +140,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('pending')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'pending'
-                                            ? 'bg-info/15 text-status-invited border-info/40 shadow-sm'
+                                            ? 'bg-info/15 text-status-invited border-info/40 shadow-xs'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -151,7 +151,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                     onClick={() => setTrackingStatus('responded')}
                                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                         trackingStatus === 'responded'
-                                            ? 'bg-success/15 text-status-confirmed border-success/40 shadow-sm'
+                                            ? 'bg-success/15 text-status-confirmed border-success/40 shadow-xs'
                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
                                     }`}
                                 >
@@ -173,7 +173,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                             onClick={() => setIsWorking(true)}
                                             className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                 isWorking === true
-                                                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-sm'
+                                                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
                                                     : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                     }`}
                                         >
@@ -184,7 +184,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                             onClick={() => setIsWorking(false)}
                                             className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                 isWorking === false
-                                                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-sm'
+                                                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-xs'
                                                     : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                     }`}
                                         >
@@ -211,7 +211,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                 value={fieldOfWork}
                                                 onChange={(e) => setFieldOfWork(e.target.value)}
                                                 placeholder="e.g. IT, Hospitality, Healthcare..."
-                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
+                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
                                             />
                                         </div>
 
@@ -225,7 +225,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                     onClick={() => setEmploymentType('full_time')}
                                                     className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                         employmentType === 'full_time'
-                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-sm'
+                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
                                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                                     }`}
                                                 >
@@ -236,7 +236,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                                                     onClick={() => setEmploymentType('part_time')}
                                                     className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
                                                         employmentType === 'part_time'
-                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-sm'
+                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
                                                             : 'bg-background text-muted border-border-strong hover:border-border-subtle'
                                                     }`}
                                                 >
@@ -282,7 +282,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         type="submit"
                         form="edit-outcome-form"
                         disabled={saving || (trackingStatus === 'responded' && isWorking === null)}
-                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-sm shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-xs shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {saving ? (
                             <><Loader2 size={16} className="animate-spin" /> Saving...</>

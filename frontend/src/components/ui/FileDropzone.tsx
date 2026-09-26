@@ -55,12 +55,12 @@ export default function FileDropzone({
                 inactive ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
             } ${
                 dragOver
-                    ? 'border-brand-500 bg-brand-500/[0.06]'
-                    : 'border-border-strong/70 bg-surface-elevated/40 hover:border-brand-500/60 hover:bg-brand-500/[0.04]'
+                    ? 'border-brand-500 bg-brand-500/6'
+                    : 'border-border-strong/70 bg-surface-elevated/40 hover:border-brand-500/60 hover:bg-brand-500/4'
             } ${className}`}
         >
             <span
-                className={`flex items-center justify-center ${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl bg-surface border border-border-subtle text-muted group-hover:text-brand-500 transition-colors flex-shrink-0`}
+                className={`flex items-center justify-center ${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl bg-surface border border-border-subtle text-muted group-hover:text-brand-500 transition-colors shrink-0`}
             >
                 {uploading ? <Loader2 size={compact ? 15 : 18} className="animate-spin text-brand-500" /> : icon ?? <UploadCloud size={compact ? 15 : 18} />}
             </span>

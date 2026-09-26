@@ -122,7 +122,7 @@ export default function ViewerCourseCatalog() {
                                 onClick={() => setView(v)}
                                 aria-pressed={view === v}
                                 title={v === 'grid' ? 'Card view' : 'List view'}
-                                className={`w-8 h-7 flex items-center justify-center rounded-lg transition-all ${view === v ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
+                                className={`w-8 h-7 flex items-center justify-center rounded-lg transition-all ${view === v ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
                             >
                                 {v === 'grid' ? <LayoutGrid size={14} /> : <List size={15} />}
                             </button>
@@ -135,8 +135,8 @@ export default function ViewerCourseCatalog() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" aria-busy="true">
                     {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="bg-surface rounded-2xl border border-border-subtle p-4 space-y-3 animate-pulse">
-                            <div className="h-4 bg-muted/15 rounded w-2/3" />
-                            <div className="h-3 bg-muted/10 rounded w-1/2" />
+                            <div className="h-4 bg-muted/15 rounded-sm w-2/3" />
+                            <div className="h-3 bg-muted/10 rounded-sm w-1/2" />
                             <div className="h-1.5 bg-muted/15 rounded-full" />
                             <div className="grid grid-cols-4 gap-2">{[0, 1, 2, 3].map(j => <div key={j} className="h-8 bg-muted/10 rounded-lg" />)}</div>
                         </div>
@@ -224,7 +224,7 @@ function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemPro
             aria-label={`Open ${course.name}`}
             onClick={open}
             onKeyDown={e => { if (e.key === 'Enter') open(); }}
-            className="group bg-surface rounded-2xl border border-border-subtle shadow-card hover:shadow-card-hover hover:border-brand-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 transition-all cursor-pointer p-4 flex flex-col gap-3"
+            className="group bg-surface rounded-2xl border border-border-subtle shadow-card hover:shadow-card-hover hover:border-brand-500/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40 transition-all cursor-pointer p-4 flex flex-col gap-3"
         >
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -281,7 +281,7 @@ function CourseListRow({ course, next, pinned, onTogglePin, onOpen }: CourseItem
             aria-label={`Open ${course.name}`}
             onClick={open}
             onKeyDown={e => { if (e.key === 'Enter') open(); }}
-            className="group flex items-center gap-3 px-4 py-3 hover:bg-surface-elevated/60 focus-visible:outline-none focus-visible:bg-surface-elevated cursor-pointer transition-colors"
+            className="group flex items-center gap-3 px-4 py-3 hover:bg-surface-elevated/60 focus-visible:outline-hidden focus-visible:bg-surface-elevated cursor-pointer transition-colors"
         >
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

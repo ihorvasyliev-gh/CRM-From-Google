@@ -3,9 +3,9 @@
 // Public confirmation pages are always dark-branded (forced .dark subtree → dark theme tokens)
 export function PublicPageFallback() {
     return (
-        <div className="dark min-h-screen min-h-[100dvh] bg-background text-primary flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4">
+        <div className="dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4">
             <div className="flex items-center justify-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-500 via-brand-600 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25">
+                <div className="w-10 h-10 bg-linear-to-br from-brand-500 via-brand-600 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25">
                     C
                 </div>
                 <div>
@@ -23,7 +23,7 @@ export function PublicPageFallback() {
 // Admin/viewer app follows the user's theme (index.html applies it before first paint)
 export function AppFallback() {
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-background flex items-center justify-center">
+        <div className="min-h-screen min-h-dvh bg-background flex items-center justify-center">
             <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
         </div>
     );

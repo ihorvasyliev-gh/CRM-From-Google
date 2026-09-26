@@ -423,11 +423,11 @@ export default function ConfirmationPage() {
     // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="dark [color-scheme:dark] min-h-screen min-h-[100dvh] bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
+        <div className="dark scheme-dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
             {/* Ambient background glow optimized for mobile GPU */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/[0.09]" />
-                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/[0.065]" />
+                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/9" />
+                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/6.5" />
             </div>
 
             {/* Main Card */}
@@ -440,12 +440,12 @@ export default function ConfirmationPage() {
                             <div className="flex items-center gap-3">
                                 <div className="w-11 h-11 bg-surface-elevated/80 rounded-xl" />
                                 <div className="space-y-2 flex-1">
-                                    <div className="h-3 w-28 bg-surface-elevated/80 rounded" />
-                                    <div className="h-5 w-48 bg-border-strong/60 rounded" />
+                                    <div className="h-3 w-28 bg-surface-elevated/80 rounded-sm" />
+                                    <div className="h-5 w-48 bg-border-strong/60 rounded-sm" />
                                 </div>
                             </div>
                             <div className="space-y-3 pt-2">
-                                <div className="h-3 w-32 bg-surface-elevated/70 rounded" />
+                                <div className="h-3 w-32 bg-surface-elevated/70 rounded-sm" />
                                 <div className="h-12 w-full bg-surface-elevated/50 rounded-xl border border-border-subtle" />
                             </div>
                             <div className="h-13 w-full bg-emerald-600/20 rounded-xl flex items-center justify-center gap-2">
@@ -519,7 +519,7 @@ export default function ConfirmationPage() {
                     {state === 'form' && (
                         <form onSubmit={handleSubmit} className="flex flex-col">
                             {/* Course Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-brand-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
                                     <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
                                         <GraduationCap size={22} />
@@ -528,7 +528,7 @@ export default function ConfirmationPage() {
                                         <span className="inline-block text-[11px] font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
                                             Course Invitation
                                         </span>
-                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
+                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
                                             {courseName}
                                         </h2>
                                         {isMultiDate ? (
@@ -623,7 +623,7 @@ export default function ConfirmationPage() {
                                             onChange={(e) => handleEmailInputChange(e.target.value)}
                                             onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                             placeholder="Enter registered email address"
-                                            className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
+                                            className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
                                         />
                                     </div>
 
@@ -639,7 +639,7 @@ export default function ConfirmationPage() {
                                             <button
                                                 type="button"
                                                 onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-sm shadow-brand-600/40"
+                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-xs shadow-brand-600/40"
                                             >
                                                 Fix
                                             </button>
@@ -655,7 +655,7 @@ export default function ConfirmationPage() {
                                     <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start justify-between gap-2 animate-fadeIn">
                                         <div className="flex items-start gap-2.5 min-w-0">
                                             <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-400" />
-                                            <p className="break-words leading-relaxed">{inlineError}</p>
+                                            <p className="wrap-break-word leading-relaxed">{inlineError}</p>
                                         </div>
                                         <button
                                             type="button"
@@ -671,7 +671,7 @@ export default function ConfirmationPage() {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting || (isMultiDate && !courseDate)}
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer mt-2"
+                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer mt-2"
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -697,7 +697,7 @@ export default function ConfirmationPage() {
                                             setInlineError('');
                                             setState('decline_confirm');
                                         }}
-                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-border-strong/80 bg-surface/60 hover:bg-surface-elevated/80 hover:border-border-strong text-primary/85 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-sm active:scale-[0.99] touch-manipulation cursor-pointer"
+                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-border-strong/80 bg-surface/60 hover:bg-surface-elevated/80 hover:border-border-strong text-primary/85 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-xs active:scale-[0.99] touch-manipulation cursor-pointer"
                                     >
                                         <CalendarX size={16} className="text-amber-400 shrink-0" />
                                         <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
@@ -723,7 +723,7 @@ export default function ConfirmationPage() {
                     {/* ─── Course Fully Booked ─── */}
                     {state === 'full' && (
                         <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-gradient-to-b from-red-950/20 to-transparent">
+                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-red-950/20 to-transparent">
                                 <div className="flex items-start gap-3.5">
                                     <div className="p-2.5 bg-red-500/15 rounded-xl border border-red-500/25 text-red-400 shrink-0 mt-0.5">
                                         <Users size={22} />
@@ -732,7 +732,7 @@ export default function ConfirmationPage() {
                                         <span className="inline-block text-[11px] font-semibold text-red-400 uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded-md mb-1 border border-red-500/25">
                                             Fully Booked
                                         </span>
-                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
+                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
                                             {courseName}
                                         </h2>
                                         {isMultiDate ? (
@@ -768,7 +768,7 @@ export default function ConfirmationPage() {
 
                                 <a
                                     href={getPriorityMailtoUrl()}
-                                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-brand-600/30 transition-all touch-manipulation"
+                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-brand-600/30 transition-all touch-manipulation"
                                 >
                                     <Star size={18} className="text-white shrink-0" />
                                     <span>Get priority for the next course</span>
@@ -836,7 +836,7 @@ export default function ConfirmationPage() {
                                         onChange={(e) => handleEmailInputChange(e.target.value)}
                                         onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
                                         placeholder="Enter registered email"
-                                        className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-2.5 placeholder:text-muted/60 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                                        className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-2.5 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                                     />
                                 </div>
                                 {emailSuggestion && (
@@ -845,7 +845,7 @@ export default function ConfirmationPage() {
                                         <button
                                             type="button"
                                             onClick={applyEmailSuggestion}
-                                            className="px-2 py-0.5 bg-brand-600 text-white rounded text-xs font-semibold"
+                                            className="px-2 py-0.5 bg-brand-600 text-white rounded-sm text-xs font-semibold"
                                         >
                                             Fix
                                         </button>
@@ -981,7 +981,7 @@ export default function ConfirmationPage() {
                                             type="checkbox"
                                             checked={selectedStudentIds.has(student.student_id)}
                                             onChange={() => toggleStudent(student.student_id)}
-                                            className="w-5 h-5 rounded border-border-strong bg-surface text-brand-500 focus:ring-brand-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
+                                            className="w-5 h-5 rounded-sm border-border-strong bg-surface text-brand-500 focus:ring-brand-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
                                         />
                                         <span className="text-white font-medium text-sm">
                                             {student.first_name} {student.last_name}
@@ -1033,7 +1033,7 @@ export default function ConfirmationPage() {
                     {state === 'success' && (
                         <div className="p-6 sm:p-8 flex flex-col items-center gap-4 text-center animate-fadeIn">
                             {/* Animated Success Badge */}
-                            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/15">
+                            <div className="w-16 h-16 bg-linear-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/15">
                                 <CheckCircle size={34} className="text-emerald-400" />
                             </div>
 
@@ -1049,7 +1049,7 @@ export default function ConfirmationPage() {
                                 <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">
                                     Confirmed Enrollment
                                 </div>
-                                <div className="text-sm sm:text-base font-bold text-white break-words">
+                                <div className="text-sm sm:text-base font-bold text-white wrap-break-word">
                                     {courseName}
                                 </div>
                                 {courseDate && (
@@ -1075,7 +1075,7 @@ export default function ConfirmationPage() {
                                             href={getGoogleCalendarUrl({ courseName, courseDate })}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 text-brand-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-sm"
+                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 text-brand-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs"
                                         >
                                             <ExternalLink size={14} className="text-brand-400 shrink-0" />
                                             <span>Google Calendar</span>
@@ -1083,7 +1083,7 @@ export default function ConfirmationPage() {
                                         <button
                                             type="button"
                                             onClick={() => downloadIcsFile({ courseName, courseDate })}
-                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-sm"
+                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs"
                                         >
                                             <Download size={14} className="text-emerald-400 shrink-0" />
                                             <span>Apple / Outlook (.ics)</span>

@@ -123,10 +123,10 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 onClick={() => setRequiresEnglish(value)}
                 aria-pressed={active}
                 className={`p-3 rounded-xl border text-left transition-colors flex items-start gap-3 ${
-                    active ? 'bg-brand-500/[0.06] border-brand-500 ring-1 ring-brand-500' : 'bg-surface border-border-subtle hover:border-border-strong'
+                    active ? 'bg-brand-500/6 border-brand-500 ring-1 ring-brand-500' : 'bg-surface border-border-subtle hover:border-border-strong'
                 }`}
             >
-                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted'}`}>
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${active ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted'}`}>
                     <Icon size={16} />
                 </span>
                 <span className="min-w-0">

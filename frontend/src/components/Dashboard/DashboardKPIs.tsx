@@ -89,14 +89,14 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
                         key={card.key}
                         onClick={card.onClick}
                         disabled={loading}
-                        className="group relative overflow-hidden flex flex-col text-left p-3.5 sm:p-5 rounded-2xl bg-surface border border-border-subtle shadow-card hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border-strong transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:cursor-default disabled:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
+                        className="group relative overflow-hidden flex flex-col text-left p-3.5 sm:p-5 rounded-2xl bg-surface border border-border-subtle shadow-card hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border-strong transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:cursor-default disabled:hover:translate-y-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/60"
                     >
                         {/* Coloured accent strip */}
                         <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${card.accentClass} opacity-80`} />
 
                         <div className="flex items-center justify-between gap-2">
                             <span className="flex items-center gap-2 min-w-0">
-                                <span className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex-shrink-0 ${card.iconClass}`}>
+                                <span className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0 ${card.iconClass}`}>
                                     <Icon size={15} />
                                 </span>
                                 <span className="text-[11px] sm:text-xs font-semibold text-muted truncate">{card.label}</span>
@@ -104,7 +104,7 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
                             <ArrowUpRight
                                 size={15}
                                 aria-hidden
-                                className="hidden sm:block text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all flex-shrink-0"
+                                className="hidden sm:block text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0"
                             />
                         </div>
 

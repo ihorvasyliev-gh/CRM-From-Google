@@ -274,7 +274,7 @@ export default function OutreachLists() {
                                 onClick={() => setListId(l.id)}
                                 className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-all ${
                                     l.id === listId
-                                        ? 'bg-brand-500 text-white shadow-sm'
+                                        ? 'bg-brand-500 text-white shadow-xs'
                                         : 'text-muted hover:text-primary bg-surface-elevated border border-border-subtle'
                                 }`}
                             >
@@ -287,7 +287,7 @@ export default function OutreachLists() {
                         value={listId ?? ''}
                         onChange={e => setListId(e.target.value)}
                         aria-label="Contact list"
-                        className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                        className="text-sm font-semibold bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
                     >
                         {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                     </select>
@@ -312,7 +312,7 @@ export default function OutreachLists() {
                             onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setNewListName(null); } }}
                             placeholder="List name"
                             aria-label="New list name"
-                            className="text-sm bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 w-40"
+                            className="text-sm bg-background border border-border-strong rounded-lg px-2.5 py-1.5 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 w-40"
                         />
                         <button type="submit" disabled={!newListName.trim()} className="px-2.5 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg disabled:opacity-50">Create</button>
                         <button type="button" onClick={() => setNewListName(null)} className="p-1.5 text-muted hover:text-primary"><X size={14} /></button>
@@ -347,7 +347,7 @@ export default function OutreachLists() {
                     <button
                         onClick={() => setShowImport(true)}
                         disabled={!activeList}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-all shadow-sm disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-all shadow-xs disabled:opacity-50"
                     >
                         <Upload size={12} /> Import from IRIS (Excel/CSV)
                     </button>
@@ -389,7 +389,7 @@ export default function OutreachLists() {
                             onClick={() => setFilterStatus(value)}
                             className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all ${
                                 filterStatus === value
-                                    ? 'bg-brand-500 text-white shadow-sm'
+                                    ? 'bg-brand-500 text-white shadow-xs'
                                     : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
                             }`}
                         >
@@ -418,7 +418,7 @@ export default function OutreachLists() {
                             <div className="flex flex-wrap justify-center gap-2 mt-5">
                                 <button
                                     onClick={() => setShowImport(true)}
-                                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-xl transition-all shadow-sm"
+                                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-xl transition-all shadow-xs"
                                 >
                                     <Upload size={14} /> Import Excel / CSV
                                 </button>
@@ -442,7 +442,7 @@ export default function OutreachLists() {
                                             checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))}
                                             onChange={selectAll}
                                             aria-label="Select all"
-                                            className="rounded border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
+                                            className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Contact</th>
@@ -470,12 +470,12 @@ export default function OutreachLists() {
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => toggleSelect(contact.id)}
-                                                    className="rounded border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
+                                                    className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 bg-gradient-to-br ${getAvatarGradient(contact.id)} rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                                    <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(contact.id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
                                                         {initials}
                                                     </div>
                                                     <div className="min-w-0">
@@ -543,7 +543,7 @@ export default function OutreachLists() {
                     <button
                         onClick={handleSendStatusRequest}
                         disabled={sending}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {sending ? (
                             <><Loader2 size={12} className="animate-spin" /> Moving...</>

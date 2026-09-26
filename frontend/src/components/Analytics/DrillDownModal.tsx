@@ -84,7 +84,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
             icon={Users}
             size="3xl"
             labelId="drilldown-title"
-            bodyClassName="!p-0"
+            bodyClassName="p-0!"
             headerAction={
                 <div className="hidden sm:flex items-center gap-2 mr-1">
                     <Button variant="secondary" size="sm" onClick={handleCopyEmails} title="Copy email addresses to clipboard">
@@ -162,7 +162,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                         </td>
                                         <td className={tdCls}>
                                             <div className="flex items-center gap-1 text-xs font-medium text-primary">
-                                                <MapPin size={12} className="text-muted flex-shrink-0" />
+                                                <MapPin size={12} className="text-muted shrink-0" />
                                                 {norm.microDistrict}
                                             </div>
                                             <div className="text-[11px] text-muted ml-4">{norm.macroRegion}</div>

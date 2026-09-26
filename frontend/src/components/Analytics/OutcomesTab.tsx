@@ -213,7 +213,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                         empty('No employment type records reported yet.')
                     ) : (
                         <div className="flex flex-col sm:flex-row items-center gap-6">
-                            <div className="w-[190px] h-[190px] flex-shrink-0 relative">
+                            <div className="w-[190px] h-[190px] shrink-0 relative">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie data={graduateData.employmentTypeData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" stroke="none">
@@ -234,7 +234,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                     const pct = graduateData.workingCount > 0 ? Math.round((d.value / graduateData.workingCount) * 100) : 0;
                                     return (
                                         <li key={d.name} className="flex items-center gap-2.5 px-2.5 py-1.5">
-                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
                                             <span className="flex-1 text-[13px] text-primary">{d.name}</span>
                                             <span className="text-[13px] font-semibold text-primary tabular-nums">{d.value}</span>
                                             <span className="w-10 text-right text-[11px] text-muted tabular-nums">{pct}%</span>
@@ -339,7 +339,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className={`${calloutCls.warning} p-4 flex items-center justify-between gap-4`}>
                     <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-9 h-9 rounded-xl bg-warning/15 text-status-requested flex items-center justify-center flex-shrink-0">
+                        <span className="w-9 h-9 rounded-xl bg-warning/15 text-status-requested flex items-center justify-center shrink-0">
                             <Clock size={17} />
                         </span>
                         <div className="min-w-0">
@@ -357,7 +357,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
                 <div className={`${calloutCls.brand} p-4 flex items-center justify-between gap-4`}>
                     <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+                        <span className="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
                             <Send size={17} />
                         </span>
                         <div className="min-w-0">

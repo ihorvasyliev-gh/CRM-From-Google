@@ -52,7 +52,7 @@ export default function Card({
                 >
                     <div className="flex items-center gap-2.5 min-w-0">
                         {Icon && (
-                            <span className={`flex items-center justify-center w-8 h-8 rounded-xl flex-shrink-0 ${iconClassName ?? toneChipCls[tone]}`}>
+                            <span className={`flex items-center justify-center w-8 h-8 rounded-xl shrink-0 ${iconClassName ?? toneChipCls[tone]}`}>
                                 <Icon size={16} />
                             </span>
                         )}
@@ -61,7 +61,7 @@ export default function Card({
                             {subtitle && <p className="text-[11px] text-muted truncate">{subtitle}</p>}
                         </div>
                     </div>
-                    {action && <div className="flex items-center gap-2 flex-shrink-0">{action}</div>}
+                    {action && <div className="flex items-center gap-2 shrink-0">{action}</div>}
                 </header>
             )}
             <div className={`${bodyPad} ${divided && !flush ? 'pt-4' : ''} flex-1 min-h-0 ${bodyClassName}`}>{children}</div>
@@ -92,7 +92,7 @@ export function SectionHeader({
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${className}`}>
             <div className="flex items-center gap-3 min-w-0">
                 {Icon && (
-                    <span className={`flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0 ${toneChipCls[tone]}`}>
+                    <span className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${toneChipCls[tone]}`}>
                         <Icon size={20} />
                     </span>
                 )}

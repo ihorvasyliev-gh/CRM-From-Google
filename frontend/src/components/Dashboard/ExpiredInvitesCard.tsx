@@ -22,7 +22,7 @@ export default function ExpiredInvitesCard({
     if (items.length === 0) {
         return (
             <div className={`flex items-center gap-3 p-4 rounded-2xl bg-surface border border-border-subtle shadow-card ${className}`}>
-                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-success/15 text-success flex-shrink-0">
+                <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-success/15 text-success shrink-0">
                     <CheckCircle2 size={16} />
                 </span>
                 <div className="min-w-0">
@@ -92,7 +92,7 @@ export default function ExpiredInvitesCard({
                             onClick={() => onNavigate?.('enrollments', { courseId: item.courseId })}
                             aria-label={`Open ${item.courseName} board`}
                             title={`Open ${item.courseName} board`}
-                            className="p-1.5 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors cursor-pointer flex-shrink-0"
+                            className="p-1.5 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors cursor-pointer shrink-0"
                         >
                             <ArrowUpRight size={14} />
                         </button>

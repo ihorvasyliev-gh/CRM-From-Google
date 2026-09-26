@@ -58,7 +58,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
         >
             {cohorts.length === 0 ? (
                 <div className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-border-strong/70 text-muted">
-                    <CalendarDays size={18} className="flex-shrink-0 opacity-60" />
+                    <CalendarDays size={18} className="shrink-0 opacity-60" />
                     <span className="text-xs">No upcoming courses scheduled</span>
                 </div>
             ) : (
@@ -70,10 +70,10 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                         return (
                             <div
                                 key={date}
-                                className={`relative snap-start flex-shrink-0 w-72 sm:w-auto ${!showAll && idx >= COLLAPSED_COUNT ? 'sm:hidden' : 'sm:flex'} flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated border border-border-subtle hover:border-brand-500/40 hover:shadow-card-hover transition-all duration-200 ${single ? 'active:scale-[0.98]' : ''}`}
+                                className={`relative snap-start shrink-0 w-72 sm:w-auto ${!showAll && idx >= COLLAPSED_COUNT ? 'sm:hidden' : 'sm:flex'} flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated border border-border-subtle hover:border-brand-500/40 hover:shadow-card-hover transition-all duration-200 ${single ? 'active:scale-[0.98]' : ''}`}
                             >
                                 <span
-                                    className={`flex flex-col items-center justify-center w-12 h-14 rounded-lg flex-shrink-0 leading-none ${
+                                    className={`flex flex-col items-center justify-center w-12 h-14 rounded-lg shrink-0 leading-none ${
                                         soon ? 'bg-brand-500 text-white shadow-glow-sm' : 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
                                     }`}
                                 >
@@ -112,7 +112,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                                     </span>
                                                 </span>
                                             </span>
-                                            <ChevronRight size={16} className="text-muted group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                                            <ChevronRight size={16} className="text-muted group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                                         </button>
                                     ))}
                                 </span>

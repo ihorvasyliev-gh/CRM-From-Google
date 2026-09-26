@@ -22,7 +22,7 @@ function colorFor(seed: string): string {
 export default function StudentAvatar({ name, seed, size = 'md' }: { name: string; seed?: string; size?: 'sm' | 'md' }) {
     const dims = size === 'sm' ? 'w-7 h-7 text-[10px]' : 'w-9 h-9 text-xs';
     return (
-        <span aria-hidden className={`flex items-center justify-center rounded-full font-bold flex-shrink-0 select-none ${dims} ${colorFor(seed || name)}`}>
+        <span aria-hidden className={`flex items-center justify-center rounded-full font-bold shrink-0 select-none ${dims} ${colorFor(seed || name)}`}>
             {initialsOf(name)}
         </span>
     );

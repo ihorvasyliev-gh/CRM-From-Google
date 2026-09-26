@@ -128,21 +128,21 @@ export default function Toast({ toast, onDismiss }: Props) {
             aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            className={`fixed top-4 right-4 left-4 sm:left-auto z-[120] sm:max-w-sm sm:w-full transition-all duration-300 ${
+            className={`fixed top-4 right-4 left-4 sm:left-auto z-120 sm:max-w-sm sm:w-full transition-all duration-300 ${
                 visible ? 'animate-slideInRight opacity-100 translate-x-0' : 'opacity-0 translate-x-5'
             }`}
         >
             <div className="bg-surface border border-border-subtle rounded-xl shadow-float overflow-hidden">
                 <div className="flex items-center gap-3 pl-3 pr-2.5 py-2.5">
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${s.chip}`}>{s.icon}</div>
-                    <span className="text-sm font-medium text-primary flex-1 leading-snug break-words">
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${s.chip}`}>{s.icon}</div>
+                    <span className="text-sm font-medium text-primary flex-1 leading-snug wrap-break-word">
                         {toast.message}
                     </span>
 
                     {toast.action && (
                         <button
                             onClick={handleActionClick}
-                            className={`flex items-center gap-1 h-7 px-2.5 text-xs font-semibold rounded-lg border transition-all active:scale-95 flex-shrink-0 ${s.actionBtn}`}
+                            className={`flex items-center gap-1 h-7 px-2.5 text-xs font-semibold rounded-lg border transition-all active:scale-95 shrink-0 ${s.actionBtn}`}
                         >
                             <RotateCcw size={12} />
                             {toast.action.label}
@@ -152,7 +152,7 @@ export default function Toast({ toast, onDismiss }: Props) {
                     <button
                         onClick={() => close()}
                         aria-label="Dismiss notification"
-                        className="text-muted hover:text-primary p-1.5 rounded-lg hover:bg-surface-elevated transition-colors flex-shrink-0"
+                        className="text-muted hover:text-primary p-1.5 rounded-lg hover:bg-surface-elevated transition-colors shrink-0"
                     >
                         <X size={14} />
                     </button>

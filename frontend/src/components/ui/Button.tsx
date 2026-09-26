@@ -47,7 +47,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
             type={type}
             aria-label={label}
             title={title ?? label}
-            className={`inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${dims} ${
+            className={`inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40 ${dims} ${
                 active ? 'text-brand-600 dark:text-brand-400 bg-brand-500/10' : `text-muted ${tones}`
             } ${className}`}
             {...rest}

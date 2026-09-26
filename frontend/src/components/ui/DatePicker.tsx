@@ -27,7 +27,7 @@ function outOfRange(key: string, min?: string, max?: string) {
 const cellCls = (selected: boolean, current: boolean) =>
     `rounded-lg text-xs font-semibold border transition-all disabled:opacity-30 disabled:pointer-events-none ${
         selected
-            ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-sm'
+            ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
             : current
                 ? 'text-primary border-border-strong hover:bg-surface-elevated'
                 : 'text-muted border-transparent hover:text-primary hover:bg-surface-elevated'
@@ -261,7 +261,7 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
                     ref={popRef}
                     role="dialog"
                     style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? 0, width: 288 }}
-                    className="z-[300] animate-scaleIn"
+                    className="z-300 animate-scaleIn"
                 >
                     <CalendarPanel
                         mode="date"

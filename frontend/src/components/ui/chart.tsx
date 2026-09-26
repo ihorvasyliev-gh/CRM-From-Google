@@ -18,7 +18,7 @@ export function ChartTooltip({ active, payload, label }: { active?: boolean; pay
                 {payload.map((entry, index) => (
                     <p key={index} className="text-xs flex items-center gap-2">
                         <span
-                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: entry.color || entry.fill || entry.payload?.fill || entry.payload?.color }}
                         />
                         <span className="text-muted flex-1">{entry.name}</span>

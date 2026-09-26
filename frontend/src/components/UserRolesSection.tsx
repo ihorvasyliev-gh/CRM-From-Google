@@ -127,7 +127,7 @@ export default function UserRolesSection() {
                                 role="tab"
                                 aria-selected={filter === f}
                                 onClick={() => setFilter(f)}
-                                className={`px-2.5 h-7 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${filter === f ? 'bg-surface text-primary shadow-sm ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
+                                className={`px-2.5 h-7 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${filter === f ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
                             >
                                 {FILTER_LABELS[f]}
                                 <span className="text-[10px] text-muted tabular-nums">{counts[f]}</span>
@@ -176,7 +176,7 @@ export default function UserRolesSection() {
                                             onChange={e => setRole.mutate({ userId: u.id, role: e.target.value as AppRole })}
                                             disabled={busy}
                                             aria-label={`Role for ${u.email}`}
-                                            className="h-8 px-2 bg-surface border border-border-subtle rounded-lg text-xs font-semibold text-primary cursor-pointer focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
+                                            className="h-8 px-2 bg-surface border border-border-subtle rounded-lg text-xs font-semibold text-primary cursor-pointer focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
                                         >
                                             <option value="viewer">{ROLE_LABELS.viewer}</option>
                                             <option value="outreach">{ROLE_LABELS.outreach}</option>

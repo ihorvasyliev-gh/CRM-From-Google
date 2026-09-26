@@ -122,15 +122,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     <div className="bg-surface p-4 rounded-xl border border-border-subtle text-left">
                         <h4 className="text-xs font-bold uppercase text-primary mb-2">How to fix this:</h4>
                         <ol className="text-xs text-muted space-y-2 list-decimal list-inside pl-1">
-                            <li>Ensure you have a <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded border border-border-subtle">.env</code> or <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded border border-border-subtle">.env.local</code> file.</li>
-                            <li>Add your <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded border border-border-subtle">VITE_SUPABASE_URL</code>.</li>
-                            <li>Add your <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded border border-border-subtle">VITE_SUPABASE_ANON_KEY</code>.</li>
+                            <li>Ensure you have a <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded-sm border border-border-subtle">.env</code> or <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded-sm border border-border-subtle">.env.local</code> file.</li>
+                            <li>Add your <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded-sm border border-border-subtle">VITE_SUPABASE_URL</code>.</li>
+                            <li>Add your <code className="font-mono text-[10px] px-1 py-0.5 bg-surface-elevated rounded-sm border border-border-subtle">VITE_SUPABASE_ANON_KEY</code>.</li>
                             <li>Restart your development server.</li>
                         </ol>
                     </div>
                     <button 
                         onClick={() => window.location.reload()}
-                        className="mt-6 w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors shadow-sm"
+                        className="mt-6 w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors shadow-xs"
                     >
                         Try Again
                     </button>
