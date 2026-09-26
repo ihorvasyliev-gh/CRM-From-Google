@@ -21,6 +21,7 @@ import StatusColumn from './EnrollmentBoard/StatusColumn';
 import EnrollmentCard from './EnrollmentBoard/EnrollmentCard';
 import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
+import GenerateDocsModal from './EnrollmentBoard/GenerateDocsModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
@@ -75,6 +76,8 @@ export default function EnrollmentBoard({
 
     const [deleteTarget, setDeleteTarget] = useState<EnrollmentRow | null>(null);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+    // The selection "Generate Docs" was opened for (kept while the dialog is open)
+    const [docsFor, setDocsFor] = useState<EnrollmentRow[] | null>(null);
     const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: string } | null>(null);
     const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: string; confirmedCount: number; totalCount: number } | null>(null);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
@@ -563,10 +566,9 @@ export default function EnrollmentBoard({
             <BulkActionBar
                 selectedCount={bulkActions.selectedIds.size}
                 selectedEnrollments={selectedEnrollments}
-                generatingDocs={bulkActions.generatingDocs}
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
                 bulkUpdateStatus={handleBulkUpdateStatus}
-                handleGenerateDocuments={bulkActions.handleGenerateDocuments}
+                handleGenerateDocuments={() => setDocsFor(selectedEnrollments)}
                 sendReminder={() => inviteFlow.handleSendReminder(Array.from(bulkActions.selectedIds))}
                 setBulkDeleteOpen={setBulkDeleteOpen}
                 clearSelection={bulkActions.clearSelection}
@@ -1226,6 +1228,14 @@ export default function EnrollmentBoard({
                 onCancel={() => setDeleteTarget(null)}
             />
 
+            <GenerateDocsModal
+                open={docsFor !== null}
+                selected={docsFor ?? []}
+                onClose={done => {
+                    setDocsFor(null);
+                    if (done) bulkActions.clearSelection();
+                }}
+            />
             <ConfirmDialog
                 open={bulkDeleteOpen}
                 title="Delete Selected Enrollments"

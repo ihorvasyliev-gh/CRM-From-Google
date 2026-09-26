@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, Loader2, FileArchive, Trash2, X } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import { CustomTooltip } from '../ui/Tooltip';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -7,9 +7,9 @@ import type { EnrollmentRow } from '../../hooks/useEnrollments';
 interface BulkActionBarProps {
     selectedCount: number;
     selectedEnrollments: EnrollmentRow[];
-    generatingDocs: boolean;
     handleCopySelectedEmails: () => void;
     bulkUpdateStatus: (status: string) => void;
+    /** Opens the document generation dialog for the selection. */
     handleGenerateDocuments: () => void;
     sendReminder: () => void;
     setBulkDeleteOpen: (open: boolean) => void;
@@ -20,7 +20,6 @@ interface BulkActionBarProps {
 export default function BulkActionBar({
     selectedCount,
     selectedEnrollments,
-    generatingDocs,
     handleCopySelectedEmails,
     bulkUpdateStatus,
     handleGenerateDocuments,
@@ -153,10 +152,10 @@ export default function BulkActionBar({
                 <CustomTooltip content="Generate Docs">
                     <button
                         onClick={handleGenerateDocuments}
-                        disabled={generatingDocs}
-                        className={`p-2 rounded-lg ${generatingDocs ? 'bg-amber-500/50 cursor-wait' : 'bg-amber-500 hover:bg-amber-600'} text-white transition-all shadow-xs`}
+                        aria-label="Generate Docs"
+                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs"
                     >
-                        {generatingDocs ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />}
+                        <FileArchive size={15} />
                     </button>
                 </CustomTooltip>
 

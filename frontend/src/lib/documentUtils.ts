@@ -368,6 +368,60 @@ export async function generateDocumentsArchive(archiveName: string, options: Arc
     return result;
 }
 
+export interface SelectionOptions {
+    /** Also add one file per template with everyone in it, for printing. */
+    combined?: boolean;
+    signal?: AbortSignal;
+    onProgress?: (done: number, total: number) => void;
+}
+
+/**
+ * Documents for a hand-picked selection (the enrollment board): re-reads the people,
+ * then uses the course preset (when they are all on one course), the attendance and label
+ * templates, the shared Excel columns and the custom variables, and downloads the archive.
+ */
+export async function generateSelectionArchive(
+    selected: EnrollmentWithRelations[],
+    { combined = false, signal, onProgress }: SelectionOptions = {},
+): Promise<{ fileName: string; result: GenerationResult }> {
+    const { people, skipped } = await refreshParticipants(selected);
+    if (!people.length) throw new Error('The selected enrollments no longer exist.');
+    const courseIds = [...new Set(people.map(e => e.course_id))];
+    const [templates, attTemplate, lblTemplate, vars, excel, course] = await Promise.all([
+        fetchDocumentTemplates(),
+        fetchSingleTemplate('attendance'),
+        fetchSingleTemplate('labels'),
+        fetchTemplateVariables(),
+        fetchExcelColumns(),
+        // A course preset only applies when the whole selection is one course
+        courseIds.length === 1
+            ? supabase.from('courses').select('template_ids').eq('id', courseIds[0]).maybeSingle().then(({ data, error }) => {
+                if (error) throw error;
+                return data as { template_ids?: string[] | null } | null;
+            })
+            : null,
+    ]);
+    const wordTemplates = templatesForCourse(templates, course?.template_ids);
+    if (!wordTemplates.length && !attTemplate && !lblTemplate && !excel.columns.length) {
+        throw new Error('No active template found. Please upload and activate at least one template.');
+    }
+
+    const fileName = archiveFileName(people);
+    const result = await generateDocumentsArchive(fileName, {
+        enrollments: people,
+        templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
+        attendanceTemplatePath: attTemplate?.storage_path,
+        labelTemplatePath: lblTemplate?.storage_path,
+        ...variablesForArchive(vars),
+        excelColumns: excel.columns,
+        combined,
+        signal,
+        onProgress,
+    });
+    result.skipped = skipped;
+    return { fileName, result };
+}
+
 /** One toast summarising a generation run: what was made, and everything that went wrong. */
 export function summarizeGeneration(result: GenerationResult): { message: string; type: 'success' | 'error' | 'info' } {
     const problems: string[] = [];

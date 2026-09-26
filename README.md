@@ -42,7 +42,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 ### 📋 Enrollment board
 - Drag-and-drop Kanban from **Requested → Invited → Confirmed → Completed**, with **Withdrawn / Rejected** kept to one side
 - Live updates for every coordinator through Supabase Realtime
-- Bulk invite, move, copy emails, generate documents and delete
+- Bulk invite, move, copy emails, generate documents (with an optional combined print file and a report) and delete
 - A one-click **Undo** for destructive moves
 - Priority stars, notes, per-course queue positions and student flags
 - Duplicate enrollments blocked in the database, the UI and the sync script

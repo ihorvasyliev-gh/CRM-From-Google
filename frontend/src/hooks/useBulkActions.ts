@@ -2,10 +2,6 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import {
-    archiveFileName, fetchDocumentTemplates, fetchExcelColumns, fetchSingleTemplate, fetchTemplateVariables,
-    generateDocumentsArchive, refreshParticipants, summarizeGeneration, templatesForCourse, variablesForArchive,
-} from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
@@ -46,7 +42,6 @@ export function useBulkActions({
 }: UseBulkActionsProps) {
     const queryClient = useQueryClient();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [generatingDocs, setGeneratingDocs] = useState(false);
 
     const toggleSelect = useCallback((id: string) => {
         setSelectedIds(prev => {
@@ -335,57 +330,8 @@ export function useBulkActions({
         await handleCopyEmails(selected, `${selected.length}`);
     }, [selectedIds, handleCopyEmails]);
 
-    const handleGenerateDocuments = useCallback(async () => {
-        if (selectedIds.size === 0) return;
-        setGeneratingDocs(true);
-        try {
-            // Re-read the selection so documents use current names and addresses
-            const { people, skipped } = await refreshParticipants(enrollments.filter(e => selectedIds.has(e.id)));
-            if (!people.length) throw new Error('The selected enrollments no longer exist.');
-            const courseIds = [...new Set(people.map(e => e.course_id))];
-            const [templates, attTemplate, lblTemplate, vars, excel, courseRes] = await Promise.all([
-                fetchDocumentTemplates(),
-                fetchSingleTemplate('attendance'),
-                fetchSingleTemplate('labels'),
-                fetchTemplateVariables(),
-                fetchExcelColumns(),
-                // Course preset only applies when the whole selection is one course
-                courseIds.length === 1
-                    ? supabase.from('courses').select('template_ids').eq('id', courseIds[0]).maybeSingle()
-                    : Promise.resolve({ data: null }),
-            ]);
-            const wordTemplates = templatesForCourse(templates, courseRes.data?.template_ids);
-
-            if (!wordTemplates.length && !attTemplate && !lblTemplate && !excel.columns.length) {
-                throw new Error('No active template found. Please upload and activate at least one template.');
-            }
-
-            const result = await generateDocumentsArchive(archiveFileName(people), {
-                enrollments: people,
-                templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
-                attendanceTemplatePath: attTemplate?.storage_path,
-                labelTemplatePath: lblTemplate?.storage_path,
-                ...variablesForArchive(vars),
-                excelColumns: excel.columns,
-            });
-            result.skipped = skipped;
-
-            const { message, type } = summarizeGeneration(result);
-            showToast(message, type, type === 'success' ? undefined : { duration: 15000 });
-            // Keep the selection when something failed, so the run can be retried
-            if (type !== 'error') clearSelection();
-        } catch (err: unknown) {
-            console.error('Generation error:', err);
-            const msg = err instanceof Error ? err.message : 'Unknown error';
-            showToast(`Generation failed: ${msg}`, 'error');
-        } finally {
-            setGeneratingDocs(false);
-        }
-    }, [selectedIds, enrollments, showToast, clearSelection]);
-
     return {
         selectedIds,
-        generatingDocs,
         toggleSelect,
         deselect,
         selectAllInList,
@@ -393,7 +339,6 @@ export function useBulkActions({
         bulkUpdateStatus,
         handleBulkDelete,
         handleCopyEmails,
-        handleCopySelectedEmails,
-        handleGenerateDocuments
+        handleCopySelectedEmails
     };
 }
