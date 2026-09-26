@@ -5,6 +5,9 @@ import type { Course, Student } from './types';
 
 export const STUDENTS_PAGE_SIZE = 30;
 
+/** Enrollment columns plus the student and course fields the board and documents use. */
+export const ENROLLMENT_SELECT = '*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english, max_capacity)';
+
 // queryKey: ['students', search]
 export async function fetchStudentsPage({ pageParam = 0, queryKey }: { pageParam?: number; queryKey: readonly unknown[] }) {
     const search = queryKey[1] as string;

@@ -225,7 +225,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                         </div>
                     )}
                     <p className="text-[11px] text-muted mt-1.5">
-                        Used when generating documents for this course. Pick none to use all active templates.
+                        Used when generating documents for this course. Pick none to use all active templates; if everything picked is switched off later, the course gets no Word documents until you switch one back on.
                     </p>
                 </div>
 

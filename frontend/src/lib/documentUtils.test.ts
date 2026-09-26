@@ -9,8 +9,9 @@
 import { describe, it, expect } from 'vitest';
 import PizZip from 'pizzip';
 import {
-    buildPlaceholderData, templatesForCourse, buildSheetPages, buildDocumentsArchive, checkTemplate,
-    safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, PLACEHOLDER_KEYS,
+    buildPlaceholderData, templatesForCourse, coursePreset, buildSheetPages, buildDocumentsArchive, checkTemplate,
+    safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, groupSessions, defaultSessionKey,
+    archiveFileName, isAbortError, PLACEHOLDER_KEYS,
 } from './documentUtils';
 import type { EnrollmentWithRelations } from './documentUtils';
 
@@ -196,14 +197,46 @@ describe('templatesForCourse', () => {
         expect(ids(['a', 'c'])).toEqual(['a', 'c']);
     });
 
-    it('falls back to all active templates when nothing usable is picked', () => {
+    it('uses all active templates when the course picked none (or only deleted ones)', () => {
         expect(ids([])).toEqual(['a', 'b', 'c']);
         expect(ids(null)).toEqual(['a', 'b', 'c']);
-        expect(ids(['off'])).toEqual(['a', 'b', 'c']);
+        expect(ids(['deleted'])).toEqual(['a', 'b', 'c']);
     });
 
     it('skips picked templates that were switched off', () => {
         expect(ids(['a', 'off'])).toEqual(['a']);
+    });
+
+    it('uses nothing, rather than every template, when all picked templates are switched off', () => {
+        expect(ids(['off'])).toEqual([]);
+        expect(coursePreset(tpls, ['off']).state).toBe('preset-off');
+        expect(coursePreset(tpls, ['a']).state).toBe('preset');
+        expect(coursePreset(tpls, []).state).toBe('all');
+    });
+});
+
+describe('course dates', () => {
+    const at = (confirmed_date: string | null, invited_date: string | null = null) => ({ confirmed_date, invited_date, completed_date: null });
+
+    it('groups participants by the day they attend, earliest first, undated last', () => {
+        const sessions = groupSessions([at('2026-10-08'), at(null), at('2026-10-01'), at('2026-10-08'), at(null, '2026-10-15')]);
+        expect(sessions.map(s => [s.key, s.enrollments.length])).toEqual([['2026-10-01', 1], ['2026-10-08', 2], ['2026-10-15', 1], ['none', 1]]);
+    });
+
+    it('preselects the next upcoming date for confirmed people and the latest for completers', () => {
+        const sessions = groupSessions([at('2026-09-01'), at('2026-10-01'), at('2026-11-01')]);
+        expect(defaultSessionKey(sessions, 'confirmed', '2026-09-26')).toBe('2026-10-01');
+        expect(defaultSessionKey(sessions, 'confirmed', '2026-12-01')).toBe('2026-11-01');
+        expect(defaultSessionKey(sessions, 'completed', '2026-09-26')).toBe('2026-11-01');
+        expect(defaultSessionKey(groupSessions([at(null)]), 'confirmed')).toBe('none');
+        expect(defaultSessionKey([], 'confirmed')).toBeNull();
+    });
+
+    it('names the archive after the course, variants and dates in it', () => {
+        const a = person('1', 'A', 'B');
+        const b = { ...person('2', 'C', 'D'), course_variant: 'Python 101 (Ukrainian)', confirmed_date: '2024-06-22' };
+        expect(archiveFileName([a])).toBe('Python 101 (English) 15 06 2024.zip');
+        expect(archiveFileName([a, b], 'SAMPLE ')).toBe('SAMPLE Python 101 (English, Ukrainian) 15 06 2024 - 22 06 2024.zip');
     });
 });
 
@@ -400,5 +433,104 @@ describe('helpers', () => {
 
     it('the placeholder catalogue matches buildPlaceholderData', () => {
         expect(new Set(Object.keys(buildPlaceholderData(makeFullEnrollment())))).toEqual(PLACEHOLDER_KEYS);
+    });
+});
+
+describe('placeholders', () => {
+    it('offers {phone} as well as {mobileNumber} in documents', () => {
+        const data = buildPlaceholderData(makeFullEnrollment());
+        expect(data.phone).toBe('+353861234567');
+        expect(data.mobileNumber).toBe('+353861234567');
+    });
+
+    it('fills every per-person field in numbered slots and rows, and drops the always-empty {venue}', () => {
+        const [page] = buildSheetPages([{ ...person('1', 'Olena', 'Kovalenko'), course_variant: 'Python 101 (Ukrainian)' }], 2);
+        expect(page.mobileNumber1).toBe('+353861234567');
+        expect(page.dateOfBirth1).toMatch(/22\s+Apr\s+1990/);
+        expect(page.courseVariant1).toBe('Ukrainian');
+        expect(page.courseVariant2).toBe('');
+        expect(page).not.toHaveProperty('venue');
+        expect((page.students as Record<string, string>[])[0].mobileNumber).toBe('+353861234567');
+    });
+
+    it('lists every variant and date of a mixed group on the sheet', () => {
+        const [page] = buildSheetPages([
+            person('1', 'A', 'A'),
+            { ...person('2', 'B', 'B'), course_variant: 'Python 101 (Ukrainian)', confirmed_date: '2024-06-22' },
+        ], null);
+        expect(page.courseVariant).toBe('English, Ukrainian');
+        expect(page.courseDate).toMatch(/15\s+Jun\s+2024, 22\s+Jun\s+2024/);
+    });
+});
+
+describe('checkTemplate inside loops', () => {
+    it('reports misspelled tags inside a {#students} row of an attendance sheet', async () => {
+        const res = await checkTemplate(new Blob([makeDocx('{#students}{n}. {fulName}', '{/students}')]), 'attendance');
+        expect(res).toEqual({ unknownTags: ['fulName'] });
+    });
+});
+
+/** A .docx whose single paragraph holds a picture (drawing id 1) and a line of text. */
+function makeDocxWithPicture(text: string): ArrayBuffer {
+    const zip = new PizZip(makeDocx('x'));
+    const drawing = '<w:r><w:drawing><wp:inline><wp:docPr id="1" name="Logo"/></wp:inline></w:drawing></w:r>';
+    zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+        + `<w:body><w:p>${drawing}<w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:body></w:document>`);
+    return zip.generate({ type: 'arraybuffer' });
+}
+
+describe('combined file', () => {
+    it('puts everyone into one file, page after page, with unique picture ids and no trailing page break', async () => {
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Zoe', 'Byrne'), person('2', 'Mary', 'Ahern')],
+            templates: [{ name: 'Certificate.docx', storagePath: 'cert' }],
+            customVariables: { Tutor: 'Jane' },
+            combined: true,
+            fetchTemplate: files({ cert: makeDocxWithPicture('{fullName} — {Tutor}') }),
+        });
+        const zip = new PizZip(await blob.arrayBuffer());
+        expect(Object.keys(zip.files).sort()).toEqual(['Certificate_All.docx', 'Mary_Ahern.docx', 'Zoe_Byrne.docx']);
+        const xml = new PizZip(zip.file('Certificate_All.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).filter(Boolean);
+        expect(texts).toEqual(['Mary Ahern — Jane', 'Zoe Byrne — Jane']);
+        expect(xml.match(/w:type="page"/g)).toHaveLength(1);
+        expect([...xml.matchAll(/<wp:docPr id="(\d+)"/g)].map(m => m[1])).toEqual(['1', '2']);
+        // Page setup stays after the repeated content, once
+        expect(xml.match(/<w:sectPr>/g)).toHaveLength(1);
+        expect(xml.indexOf('<w:sectPr>')).toBeGreaterThan(xml.lastIndexOf('Zoe Byrne'));
+        expect(result.extras).toEqual([{ label: 'Certificate.docx — all in one file', ok: true, files: 1 }]);
+    });
+});
+
+describe('cancelling', () => {
+    it('stops the run with an AbortError', async () => {
+        const controller = new AbortController();
+        const run = buildDocumentsArchive({
+            enrollments: [person('1', 'A', 'B'), person('2', 'C', 'D'), person('3', 'E', 'F')],
+            templates: [{ name: 'a.docx', storagePath: 'a' }],
+            fetchTemplate: files({ a: makeDocx('{fullName}') }),
+            signal: controller.signal,
+            onProgress: done => { if (done === 1) controller.abort(); },
+        });
+        const err = await run.catch(e => e);
+        expect(isAbortError(err)).toBe(true);
+    });
+});
+
+describe('Participants.xlsx', () => {
+    it('never lets a value start a formula', async () => {
+        const evil = { ...person('1', '=HYPERLINK("http://x")', 'Smith') };
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: [evil],
+            templates: [],
+            excelColumns: [{ header: 'First Name', placeholder: 'firstName' }],
+            fetchTemplate: files({}),
+        });
+        expect(result.extras).toEqual([{ label: 'Participants.xlsx', ok: true, files: 1 }]);
+        const xlsx = new PizZip(new PizZip(await blob.arrayBuffer()).file('Participants.xlsx')!.asArrayBuffer());
+        const strings = (xlsx.file('xl/sharedStrings.xml')?.asText() ?? xlsx.file('xl/worksheets/sheet1.xml')!.asText()).replace(/&apos;/g, "'");
+        expect(strings).toContain(`'=HYPERLINK`);
+        expect(xlsx.file('xl/worksheets/sheet1.xml')!.asText()).not.toContain('<f>');
     });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { ENROLLMENT_SELECT } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import { todayISO } from '../lib/dateUtils';
 
@@ -48,7 +49,7 @@ export async function fetchAllEnrollments() {
     while (true) {
         const { data, error } = await supabase
             .from('enrollments')
-            .select('*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english, max_capacity)')
+            .select(ENROLLMENT_SELECT)
             .order('created_at', { ascending: false })
             .range(from, from + limit - 1);
             

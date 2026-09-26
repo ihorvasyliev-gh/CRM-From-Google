@@ -114,6 +114,13 @@ CREATE TABLE IF NOT EXISTS template_variables (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Document Settings (one shared row: columns of Participants.xlsx; migration 73)
+CREATE TABLE IF NOT EXISTS document_settings (
+    id            BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+    excel_columns JSONB,                 -- [{ header, placeholder }]; NULL = not set yet
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Employment Status (graduate outcomes tracking)
 CREATE TABLE IF NOT EXISTS employment_status (
     id                UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -176,6 +183,7 @@ ALTER TABLE template_variables  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employment_status   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_flags       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_settings       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_settings   ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can manage all core data
 CREATE POLICY "Authenticated access" ON students
@@ -212,6 +220,10 @@ CREATE POLICY "Authenticated access" ON student_flags
 CREATE POLICY "Users can manage their own settings" ON user_settings
     FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+-- Document settings: admins only (migration 73)
+CREATE POLICY "Admins manage document settings" ON document_settings
+    FOR ALL USING (public.is_app_admin()) WITH CHECK (public.is_app_admin());
+
 -- Confirmation tokens: authenticated admins can create, anon can read (to resolve /c/:token links)
 CREATE POLICY "Authenticated can manage tokens" ON confirmation_tokens
     FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
@@ -236,6 +248,22 @@ DROP TRIGGER IF EXISTS update_enrollments_updated_at ON enrollments;
 CREATE TRIGGER update_enrollments_updated_at
     BEFORE UPDATE ON enrollments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Deleting a document template drops it from course presets (migration 73)
+CREATE OR REPLACE FUNCTION remove_template_from_course_presets()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.courses
+       SET template_ids = array_remove(template_ids, OLD.id)
+     WHERE OLD.id = ANY (template_ids);
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS trg_remove_template_from_course_presets ON document_templates;
+CREATE TRIGGER trg_remove_template_from_course_presets
+    AFTER DELETE ON document_templates
+    FOR EACH ROW EXECUTE FUNCTION remove_template_from_course_presets();
 
 -- ============================================================
 -- FUNCTIONS (RPCs)

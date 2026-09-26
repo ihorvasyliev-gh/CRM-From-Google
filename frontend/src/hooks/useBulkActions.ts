@@ -2,9 +2,12 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { generateDocumentsArchive, summarizeGeneration, templatesForCourse } from '../lib/documentUtils';
-import { cleanVariant, type DocumentTemplate } from '../lib/types';
-import { todayISO, formatDateSpaces } from '../lib/dateUtils';
+import {
+    archiveFileName, fetchDocumentTemplates, fetchExcelColumns, fetchSingleTemplate, fetchTemplateVariables,
+    generateDocumentsArchive, refreshParticipants, summarizeGeneration, templatesForCourse, variablesToMap,
+} from '../lib/documentUtils';
+import { cleanVariant } from '../lib/types';
+import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
 
@@ -336,54 +339,36 @@ export function useBulkActions({
         if (selectedIds.size === 0) return;
         setGeneratingDocs(true);
         try {
-            const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
-            const firstSelected = selectedEnrollments[0];
-            const [docRes, attRes, varsRes, lblRes, courseRes] = await Promise.all([
-                supabase.from('document_templates').select('*').eq('is_active', true).order('created_at', { ascending: true }),
-                supabase.from('attendance_templates').select('*').order('updated_at', { ascending: false }).limit(1),
-                supabase.from('template_variables').select('var_key, var_value'),
-                supabase.from('label_templates').select('*').order('updated_at', { ascending: false }).limit(1),
-                supabase.from('courses').select('template_ids').eq('id', firstSelected?.course_id ?? '').maybeSingle(),
+            // Re-read the selection so documents use current names and addresses
+            const { people, skipped } = await refreshParticipants(enrollments.filter(e => selectedIds.has(e.id)));
+            if (!people.length) throw new Error('The selected enrollments no longer exist.');
+            const courseIds = [...new Set(people.map(e => e.course_id))];
+            const [templates, attTemplate, lblTemplate, vars, excel, courseRes] = await Promise.all([
+                fetchDocumentTemplates(),
+                fetchSingleTemplate('attendance'),
+                fetchSingleTemplate('labels'),
+                fetchTemplateVariables(),
+                fetchExcelColumns(),
+                // Course preset only applies when the whole selection is one course
+                courseIds.length === 1
+                    ? supabase.from('courses').select('template_ids').eq('id', courseIds[0]).maybeSingle()
+                    : Promise.resolve({ data: null }),
             ]);
+            const wordTemplates = templatesForCourse(templates, courseRes.data?.template_ids);
 
-            const customVars: Record<string, string> = {};
-            if (varsRes.data) {
-                varsRes.data.forEach((v: { var_key: string; var_value: string }) => {
-                    customVars[v.var_key] = v.var_value;
-                });
-            }
-
-            const error = docRes.error;
-            // Course preset (same course the archive is named after)
-            const data = templatesForCourse((docRes.data || []) as DocumentTemplate[], courseRes.data?.template_ids);
-
-            if (error || data.length === 0) {
+            if (!wordTemplates.length && !attTemplate && !lblTemplate && !excel.columns.length) {
                 throw new Error('No active template found. Please upload and activate at least one template.');
             }
 
-            const templateDescriptors = data.map(t => ({
-                name: t.name,
-                storagePath: t.storage_path,
-            }));
-            const attTemplate = attRes.data && attRes.data.length > 0 ? attRes.data[0] : null;
-            const lblTemplate = lblRes.data && lblRes.data.length > 0 ? lblRes.data[0] : null;
-
-            const courseStr = firstSelected ? getCoursePill(firstSelected) : 'Selected_Enrollments';
-            const rawDate = firstSelected?.confirmed_date || firstSelected?.invited_date || firstSelected?.completed_date;
-            const dateStr = formatDateSpaces(rawDate) || formatDateSpaces(todayISO());
-            const archiveName = `${courseStr} ${dateStr}.zip`.replace(/[/\\?%*:|"<>]/g, '-');
-
-            const { getConfig } = await import('../lib/appConfig');
-            const excelColumns = getConfig().excelColumns;
-
-            const result = await generateDocumentsArchive(archiveName, {
-                enrollments: selectedEnrollments,
-                templates: templateDescriptors,
+            const result = await generateDocumentsArchive(archiveFileName(people), {
+                enrollments: people,
+                templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
                 attendanceTemplatePath: attTemplate?.storage_path,
                 labelTemplatePath: lblTemplate?.storage_path,
-                customVariables: customVars,
-                excelColumns,
+                customVariables: variablesToMap(vars),
+                excelColumns: excel.columns,
             });
+            result.skipped = skipped;
 
             const { message, type } = summarizeGeneration(result);
             showToast(message, type, type === 'success' ? undefined : { duration: 15000 });

@@ -14,7 +14,7 @@ import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
-import { fetchDocumentTemplates } from '../lib/documentUtils';
+import { coursePreset, fetchDocumentTemplates } from '../lib/documentUtils';
 import { fetchCourses } from '../lib/queries';
 
 interface EnrollmentCount {
@@ -366,16 +366,23 @@ export default function CourseList() {
                                         <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
                                     </button>
                                     {(() => {
-                                        const picked = activeTemplates.filter(t => course.template_ids?.includes(t.id));
+                                        const preset = coursePreset(allTemplates, course.template_ids);
+                                        const off = preset.state === 'preset-off';
+                                        const title = preset.state === 'preset'
+                                            ? `Documents: ${preset.templates.map(t => t.name).join(', ')} (click to edit)`
+                                            : off ? 'Every template picked for this course is switched off, so no documents are made (click to edit)'
+                                                : 'Documents use all active templates (click to pick)';
                                         return (
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
-                                                title={picked.length ? `Documents: ${picked.map(t => t.name).join(', ')} (click to edit)` : 'Documents use all active templates (click to pick)'}
-                                                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition-colors active:scale-95"
+                                                title={title}
+                                                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition-colors active:scale-95 ${
+                                                    off ? 'bg-warning/10 border-warning/30 text-status-requested' : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
+                                                }`}
                                             >
                                                 <FileText size={12} />
-                                                <span>{picked.length ? `${picked.length} template${picked.length !== 1 ? 's' : ''}` : 'All templates'}</span>
+                                                <span>{preset.state === 'preset' ? `${preset.templates.length} template${preset.templates.length !== 1 ? 's' : ''}` : off ? 'Templates off' : 'All templates'}</span>
                                             </button>
                                         );
                                     })()}

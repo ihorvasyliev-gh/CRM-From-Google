@@ -74,11 +74,13 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 <td valign="top">
 
 ### 📄 Documents, in the browser
-- `.docx` certificates, attendance sheets and address labels via `docxtemplater`
+- `.docx` letters and certificates for the confirmed or completed people of one course date, plus attendance sheets and address labels, via `docxtemplater`
 - Templates are checked on upload: broken tags are rejected, unknown placeholders are listed
 - Attendance sheets and labels continue on extra pages for large groups, or use a `{#students}` table row
-- A one-participant trial run, a progress bar and one clear summary of what was generated
-- Per-course template presets and custom variables
+- Optional combined file per template (everyone, page after page) for printing
+- Renders in a Web Worker: the page stays responsive, runs can be cancelled, background tabs keep full speed
+- A one-participant trial run, a progress bar and a report of everything that was made or went wrong
+- Per-course template presets, custom variables and shared Excel columns; templates can be downloaded and replaced in place
 - Styled `.xlsx` exports via `exceljs`
 - Student data never leaves the browser to render documents
 
@@ -241,7 +243,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-public-key
 
 1. In the Supabase **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
 2. Apply every numbered migration in [`supabase/`](supabase/) in order (`01_…` up to the latest).
-3. In **Storage**, create a bucket named `templates` for `.docx` templates.
+3. In **Storage**, create a bucket named `templates` for `.docx` templates (migration 32 creates it; migration 73 makes it private).
 4. *(Optional, for web push)* deploy [`supabase/functions/send-push-notification`](supabase/functions/send-push-notification).
 
 </details>
