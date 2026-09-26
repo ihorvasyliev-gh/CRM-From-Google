@@ -14,21 +14,41 @@
 -- ------------------------------------------------------------
 -- 1. Private templates bucket, readable by admins only
 -- ------------------------------------------------------------
--- storage.objects is owned by supabase_storage_admin (see migration 32)
-SET ROLE supabase_storage_admin;
+-- The SQL Editor's postgres role may not own storage.objects, nor be allowed to
+-- SET ROLE supabase_storage_admin (newer projects refuse it). Each step is tried
+-- here and, if refused, skipped with a NOTICE saying what to do in the dashboard
+-- instead; the rest of the migration still runs. The app works either way: it
+-- downloads templates through the signed-in session.
+DO $$
+BEGIN
+    -- Drop + create together: if the create is refused, the drop is undone too
+    DROP POLICY IF EXISTS "Allow authenticated users to view templates" ON storage.objects;
+    CREATE POLICY "Allow authenticated users to view templates" ON storage.objects
+        FOR SELECT
+        TO authenticated
+        USING (
+            bucket_id = 'templates'
+            AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') <> ALL (ARRAY['viewer'::text, 'outreach'::text])
+        );
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipped: not allowed to change policies on storage.objects. In Storage -> Policies, edit "Allow authenticated users to view templates" (templates bucket, SELECT) so viewers and outreach users cannot read templates.';
+END $$;
 
-UPDATE storage.buckets SET public = false WHERE id = 'templates';
-
-DROP POLICY IF EXISTS "Allow authenticated users to view templates" ON storage.objects;
-CREATE POLICY "Allow authenticated users to view templates" ON storage.objects
-    FOR SELECT
-    TO authenticated
-    USING (
-        bucket_id = 'templates'
-        AND coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') <> ALL (ARRAY['viewer'::text, 'outreach'::text])
-    );
-
-RESET ROLE;
+DO $$
+BEGIN
+    -- Only go private while signed-in reads are allowed, or template downloads would fail
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'storage' AND tablename = 'objects'
+          AND policyname = 'Allow authenticated users to view templates'
+    ) THEN
+        RAISE NOTICE 'Skipped: the templates bucket stays public, because storage.objects has no "Allow authenticated users to view templates" SELECT policy. Add one for the templates bucket in Storage -> Policies, then make the bucket private in Storage -> templates -> Edit bucket.';
+        RETURN;
+    END IF;
+    UPDATE storage.buckets SET public = false WHERE id = 'templates';
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Skipped: not allowed to update storage.buckets. Make the bucket private in Storage -> templates -> Edit bucket (turn off "Public bucket").';
+END $$;
 
 -- ------------------------------------------------------------
 -- 2. Shared document settings (a single row, id = true)
