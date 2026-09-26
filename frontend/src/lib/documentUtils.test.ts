@@ -11,9 +11,9 @@ import PizZip from 'pizzip';
 import {
     buildPlaceholderData, templatesForCourse, coursePreset, buildSheetPages, buildDocumentsArchive, checkTemplate,
     safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, groupSessions, defaultSessionKey,
-    archiveFileName, isAbortError, PLACEHOLDER_KEYS,
+    archiveFileName, isAbortError, addToDate, dateRuleIso, describeDateRule, parseDateRule, variablesForArchive, PLACEHOLDER_KEYS,
 } from './documentUtils';
-import type { EnrollmentWithRelations } from './documentUtils';
+import type { DateRule, EnrollmentWithRelations } from './documentUtils';
 
 // ─── Test fixtures ───────────────────────────────────────────────────────────
 
@@ -532,5 +532,73 @@ describe('Participants.xlsx', () => {
         const strings = (xlsx.file('xl/sharedStrings.xml')?.asText() ?? xlsx.file('xl/worksheets/sheet1.xml')!.asText()).replace(/&apos;/g, "'");
         expect(strings).toContain(`'=HYPERLINK`);
         expect(xlsx.file('xl/worksheets/sheet1.xml')!.asText()).not.toContain('<f>');
+    });
+});
+
+describe('date variables', () => {
+    const rule = (over: Partial<DateRule> = {}): DateRule => ({ base: 'courseDate', amount: 2, unit: 'years', format: 'long', ...over });
+
+    it('adds years, months and days, keeping the day or using the month end', () => {
+        expect(addToDate('2026-10-01', 2, 'years')).toBe('2028-10-01');
+        expect(addToDate('2028-02-29', 1, 'years')).toBe('2029-02-28');
+        expect(addToDate('2026-01-31', 1, 'months')).toBe('2026-02-28');
+        expect(addToDate('2026-11-15', 3, 'months')).toBe('2027-02-15');
+        expect(addToDate('2026-12-30', 5, 'days')).toBe('2027-01-04');
+        expect(addToDate('2026-03-15', -1, 'months')).toBe('2026-02-15');
+    });
+
+    it('counts from the course date, the completion date or the generation date', () => {
+        const e = { ...makeFullEnrollment(), confirmed_date: '2026-10-01', status: 'completed', completed_date: '2026-10-20' };
+        expect(dateRuleIso(rule(), e, '2026-09-26')).toBe('2028-10-01');
+        expect(dateRuleIso(rule({ base: 'completedAt', amount: 4 }), e, '2026-09-26')).toBe('2030-10-20');
+        expect(dateRuleIso(rule({ base: 'today', amount: 1, unit: 'months' }), null, '2026-09-26')).toBe('2026-10-26');
+        // Not completed yet: nothing to count from
+        expect(dateRuleIso(rule({ base: 'completedAt' }), { ...e, status: 'confirmed', completed_date: null }, '2026-09-26')).toBeNull();
+    });
+
+    it('describes and validates stored rules', () => {
+        expect(describeDateRule(rule())).toBe('Course date + 2 years');
+        expect(describeDateRule(rule({ amount: 1, unit: 'months', base: 'completedAt' }))).toBe('Completion date + 1 month');
+        expect(parseDateRule({ base: 'courseDate', amount: 4, unit: 'years' })).toEqual(rule({ amount: 4 }));
+        expect(parseDateRule({ base: 'courseDate', amount: '4', unit: 'years' })).toBeNull();
+        expect(parseDateRule(null)).toBeNull();
+    });
+
+    it('splits stored variables into text and per-participant dates', () => {
+        const vars = [
+            { id: '1', var_key: 'Tutor', var_value: 'Jane', created_at: '' },
+            { id: '2', var_key: 'expire', var_value: '', kind: 'date' as const, date_rule: rule({ format: 'dmy' }), created_at: '' },
+            { id: '3', var_key: 'broken', var_value: '', kind: 'date' as const, date_rule: { base: '?' }, created_at: '' },
+        ];
+        expect(variablesForArchive(vars)).toEqual({
+            customVariables: { Tutor: 'Jane', broken: '' },
+            dateVariables: [{ key: 'expire', rule: rule({ format: 'dmy' }) }],
+        });
+    });
+
+    it('prints each participant their own date in documents, sheets, the combined file and Excel', async () => {
+        const a = { ...person('1', 'Ann', 'Ahern'), confirmed_date: '2026-10-01' };
+        const b = { ...person('2', 'Bob', 'Byrne'), confirmed_date: '2026-11-05' };
+        const { blob } = await buildDocumentsArchive({
+            enrollments: [a, b],
+            templates: [{ name: 'Cert.docx', storagePath: 'cert' }],
+            attendanceTemplatePath: 'att',
+            combined: true,
+            dateVariables: [{ key: 'expire', rule: rule() }, { key: 'valid', rule: rule({ amount: 4, format: 'dmy' }) }],
+            excelColumns: [{ header: 'Name', placeholder: 'fullName' }, { header: 'Expires', placeholder: 'expire' }],
+            fetchTemplate: files({
+                cert: makeDocx('{fullName} until {expire} ({valid})'),
+                att: makeDocx('Valid until {expire}', '{#students}{fullName}: {expire}', '{/students}'),
+            }),
+        });
+        const docs = await readArchive(blob);
+        expect(docs['Ann_Ahern.docx']).toBe('Ann Ahern until 01 Oct 2028 (01/10/2030)');
+        expect(docs['Bob_Byrne.docx']).toBe('Bob Byrne until 05 Nov 2028 (05/11/2030)');
+        expect(docs['Cert_All.docx']).toContain('Bob Byrne until 05 Nov 2028');
+        // The sheet header uses the earliest date; each row its own
+        expect(docs['Attendance_Sheet.docx']).toBe('Valid until 01 Oct 2028\nAnn Ahern: 01 Oct 2028\nBob Byrne: 05 Nov 2028');
+
+        const xlsx = new PizZip(new PizZip(await blob.arrayBuffer()).file('Participants.xlsx')!.asArrayBuffer());
+        expect(xlsx.file('xl/sharedStrings.xml')!.asText()).toContain('05 Nov 2028');
     });
 });

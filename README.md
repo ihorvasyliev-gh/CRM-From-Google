@@ -80,7 +80,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 - Optional combined file per template (everyone, page after page) for printing
 - Renders in a Web Worker: the page stays responsive, runs can be cancelled, background tabs keep full speed
 - A one-participant trial run, a progress bar and a report of everything that was made or went wrong
-- Per-course template presets, custom variables and shared Excel columns; templates can be downloaded and replaced in place
+- Per-course template presets, custom variables (fixed text, or dates such as `{expire}` = course date + 2 years) and shared Excel columns; templates can be downloaded and replaced in place
 - Styled `.xlsx` exports via `exceljs`
 - Student data never leaves the browser to render documents
 

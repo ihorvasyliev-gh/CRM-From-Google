@@ -284,6 +284,42 @@ describe('DocumentGenerator', () => {
         expect(screen.getByText(/shared by every admin/)).toBeInTheDocument();
     });
 
+    it('creates a date variable worked out from the course date', async () => {
+        renderPage();
+        await screen.findByText('Certificate.docx');
+        fireEvent.click(screen.getByRole('tab', { name: /Date from course/ }));
+        fireEvent.change(screen.getByLabelText('Variable Name'), { target: { value: 'expire' } });
+        fireEvent.change(screen.getByLabelText('Amount to add'), { target: { value: '4' } });
+        fireEvent.change(screen.getByLabelText('Date format'), { target: { value: 'dmy' } });
+        fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0]);
+
+        expect(await screen.findByText('Variable {expire} added')).toBeInTheDocument();
+        const insert = calls.find(c => c.table === 'template_variables' && c.op === 'insert');
+        expect(insert?.payload).toEqual({ var_key: 'expire', var_value: '', kind: 'date', date_rule: { base: 'courseDate', amount: 4, unit: 'years', format: 'dmy' } });
+        expect(screen.getAllByText('Course date + 4 years').length).toBeGreaterThan(0);
+    });
+
+    it('edits the rule of a date variable and uses it when generating', async () => {
+        tables.template_variables.push({ id: 'v2', var_key: 'expire', var_value: '', kind: 'date', date_rule: { base: 'courseDate', amount: 2, unit: 'years', format: 'long' }, created_at: '2026-01-02' });
+        storage.download.mockImplementation(async () => ({ data: new Blob([docx('{fullName} until {expire}')]), error: null }));
+        renderPage();
+        const row = (await screen.findAllByText('Course date + 2 years')).map(el => el.closest('li')).find(Boolean)!;
+        fireEvent.click(within(row).getByRole('button', { name: 'Edit value' }));
+        fireEvent.change(screen.getByLabelText('Amount to add'), { target: { value: '3' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(await screen.findByText('Variable {expire} updated')).toBeInTheDocument();
+        const update = calls.find(c => c.table === 'template_variables' && c.op === 'update');
+        expect(update?.payload).toEqual({ date_rule: { base: 'courseDate', amount: 3, unit: 'years', format: 'long' } });
+
+        await chooseCourse();
+        fireEvent.click(generateButton());
+        await waitFor(() => expect(downloadBlob).toHaveBeenCalled());
+        const zip = new PizZip(await (vi.mocked(downloadBlob).mock.calls[0][0] as Blob).arrayBuffer());
+        const doc = new PizZip(zip.file('Olena_Kovalenko.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        expect(doc).toContain('Olena Kovalenko until 01 Oct 2102');
+    });
+
     it('rejects custom variable names that cannot be used as a tag', async () => {
         renderPage();
         await screen.findByText('Certificate.docx');

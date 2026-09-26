@@ -9,8 +9,8 @@ import { downloadBlob } from './download';
 import { sanitizeExcelValue, styleWorksheet } from './excelExport';
 import { runRenderJob } from './documentJob';
 import {
-    abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf,
-    type EnrollmentWithRelations, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
+    abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, parseDateRule,
+    type DateVariable, type EnrollmentWithRelations, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
 } from './documentRender';
 
 export * from './documentRender';
@@ -54,8 +54,22 @@ export async function fetchTemplateVariables(): Promise<TemplateVariable[]> {
     return (data || []) as TemplateVariable[];
 }
 
+/** Every variable by name, with its text (date variables map to ''): for checking templates. */
 export function variablesToMap(vars: Pick<TemplateVariable, 'var_key' | 'var_value'>[]): Record<string, string> {
     return Object.fromEntries(vars.map(v => [v.var_key, v.var_value]));
+}
+
+/** Split custom variables into fixed text and dates worked out per participant. */
+export function variablesForArchive(vars: TemplateVariable[]): { customVariables: Record<string, string>; dateVariables: DateVariable[] } {
+    const customVariables: Record<string, string> = {};
+    const dateVariables: DateVariable[] = [];
+    for (const v of vars) {
+        const rule = v.kind === 'date' ? parseDateRule(v.date_rule) : null;
+        if (rule) dateVariables.push({ key: v.var_key, rule });
+        else if (v.kind === 'date') customVariables[v.var_key] = ''; // unreadable rule: print blank
+        else customVariables[v.var_key] = v.var_value;
+    }
+    return { customVariables, dateVariables };
 }
 
 /** Dry-run a template file against sample data (see checkTemplateBuffer). */
@@ -274,6 +288,7 @@ async function buildParticipantsWorkbook(
     enrollments: EnrollmentWithRelations[],
     columns: ExcelColumn[],
     customVariables: Record<string, string>,
+    dateVariables: DateVariable[],
     today: string,
 ): Promise<ArrayBuffer> {
     const ExcelJSModule = await import('exceljs');
@@ -283,7 +298,7 @@ async function buildParticipantsWorkbook(
 
     worksheet.columns = columns.map((col, i) => ({ header: col.header, key: `c${i}` }));
     worksheet.addRows(enrollments.map(enrollment => {
-        const data = { ...buildPlaceholderData(enrollment, today), ...customVariables };
+        const data = { ...buildPlaceholderData(enrollment, today), ...customVariables, ...dateVariableValues(dateVariables, enrollment, today) };
         // Names and addresses come from a public form: never let one start a formula
         return Object.fromEntries(columns.map((col, i) => [`c${i}`, sanitizeExcelValue(data[col.placeholder])]));
     }));
@@ -300,6 +315,8 @@ export interface ArchiveOptions {
     attendanceTemplatePath?: string | null;
     labelTemplatePath?: string | null;
     customVariables?: Record<string, string>;
+    /** Custom variables worked out per participant (see variablesForArchive). */
+    dateVariables?: DateVariable[];
     excelColumns?: ExcelColumn[];
     /** Also add one file per template with everyone in it, for printing. */
     combined?: boolean;
@@ -315,7 +332,7 @@ export interface ArchiveOptions {
 export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ blob: Blob; result: GenerationResult }> {
     const {
         templates, attendanceTemplatePath, labelTemplatePath, excelColumns = [], combined = false,
-        customVariables = {}, onProgress, signal, fetchTemplate = fetchTemplateFile, today = todayISO(),
+        customVariables = {}, dateVariables = [], onProgress, signal, fetchTemplate = fetchTemplateFile, today = todayISO(),
     } = options;
     const people = options.enrollments.filter(e => e.students);
     const hasPeople = people.length > 0;
@@ -325,7 +342,7 @@ export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ 
         buffer => ({ name, buffer }),
         (err: unknown) => ({ name, buffer: null, error: `Download failed: ${errorMessage(err)}` }),
     );
-    const excelFile = (): Promise<ExtraFile> => buildParticipantsWorkbook(people, excelColumns, customVariables, today).then(
+    const excelFile = (): Promise<ExtraFile> => buildParticipantsWorkbook(people, excelColumns, customVariables, dateVariables, today).then(
         buffer => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer }),
         (err: unknown) => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer: null, error: errorMessage(err) }),
     );
@@ -338,7 +355,7 @@ export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ 
     if (signal?.aborted) throw abortError();
 
     const { zip, result } = await runRenderJob(
-        { enrollments: people, templates: docFiles, attendance, labels, extraFiles: excel ? [excel] : [], customVariables, combined, today },
+        { enrollments: people, templates: docFiles, attendance, labels, extraFiles: excel ? [excel] : [], customVariables, dateVariables, combined, today },
         { onProgress, signal },
     );
     return { blob: new Blob([zip], { type: 'application/zip' }), result };

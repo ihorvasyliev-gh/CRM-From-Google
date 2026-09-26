@@ -34,7 +34,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
     showToast: ShowToast;
 }) {
     const queryClient = useQueryClient();
-    const { templates, attTemplate, labelTemplate, customVarMap, excelColumns } = setup;
+    const { templates, attTemplate, labelTemplate, archiveVariables, excelColumns } = setup;
 
     const [status, setStatus] = usePersistentState<GenerationStatus>('doc_gen_status', 'confirmed', {
         validate: (v): v is GenerationStatus => v === 'confirmed' || v === 'completed',
@@ -123,7 +123,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                 templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
                 attendanceTemplatePath: attTemplate?.storage_path,
                 labelTemplatePath: labelTemplate?.storage_path,
-                customVariables: customVarMap,
+                ...archiveVariables,
                 excelColumns,
                 combined: combined && !sample,
                 signal: controller.signal,

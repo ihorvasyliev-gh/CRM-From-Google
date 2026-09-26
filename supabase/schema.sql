@@ -111,7 +111,21 @@ CREATE TABLE IF NOT EXISTS template_variables (
     id        UUID  PRIMARY KEY DEFAULT uuid_generate_v4(),
     var_key   TEXT  NOT NULL UNIQUE,
     var_value TEXT  NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ DEFAULT now()
+    kind      TEXT  NOT NULL DEFAULT 'text',  -- 'text' | 'date' (migration 74)
+    date_rule JSONB,                          -- date variables: { base, amount, unit, format }
+    created_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT template_variables_kind_check CHECK (
+        kind = 'text'
+        -- COALESCE: a missing rule makes the checks NULL, which CHECK would let through
+        OR COALESCE(
+            kind = 'date'
+            AND jsonb_typeof(date_rule) = 'object'
+            AND date_rule ->> 'base' IN ('courseDate', 'completedAt', 'today')
+            AND date_rule ->> 'unit' IN ('days', 'months', 'years')
+            AND jsonb_typeof(date_rule -> 'amount') = 'number',
+            false
+        )
+    )
 );
 
 -- Document Settings (one shared row: columns of Participants.xlsx; migration 73)

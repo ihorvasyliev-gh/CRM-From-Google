@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Segmented } from '../ui/Tabs';
 import { eyebrowCls } from '../ui/styles';
 import { PlaceholderButton } from './shared';
+import { variableSummary } from './helpers';
 import {
     ATTENDANCE_SLOTS, LABEL_SLOTS, PLACEHOLDER_CATEGORIES, SHEET_LOOP, SHEET_PLACEHOLDER_CATEGORIES,
 } from '../../lib/documentUtils';
@@ -67,7 +68,7 @@ export default function PlaceholderReference({ customVars }: { customVars: Templ
                                 <p className={`${eyebrowCls} mb-2`}>Custom Variables</p>
                                 <div className="space-y-1">
                                     {customVars.map(v => (
-                                        <PlaceholderButton key={v.id} tag={v.var_key} tone="custom" desc={v.var_value || <em>empty</em>} />
+                                        <PlaceholderButton key={v.id} tag={v.var_key} tone="custom" desc={variableSummary(v) || <em>empty</em>} />
                                     ))}
                                 </div>
                             </div>

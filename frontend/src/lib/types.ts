@@ -168,7 +168,12 @@ export interface DocumentTemplate {
 export interface TemplateVariable {
     id: string;
     var_key: string;
+    /** The text of a 'text' variable; unused for 'date' variables. */
     var_value: string;
+    /** 'date': worked out per participant from `date_rule` (migration 74). Missing = 'text'. */
+    kind?: 'text' | 'date';
+    /** { base, amount, unit, format } — see DateRule in documentRender.ts */
+    date_rule?: unknown;
     created_at: string;
 }
 

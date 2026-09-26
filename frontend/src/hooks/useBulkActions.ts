@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import {
     archiveFileName, fetchDocumentTemplates, fetchExcelColumns, fetchSingleTemplate, fetchTemplateVariables,
-    generateDocumentsArchive, refreshParticipants, summarizeGeneration, templatesForCourse, variablesToMap,
+    generateDocumentsArchive, refreshParticipants, summarizeGeneration, templatesForCourse, variablesForArchive,
 } from '../lib/documentUtils';
 import { cleanVariant } from '../lib/types';
 import { todayISO } from '../lib/dateUtils';
@@ -365,7 +365,7 @@ export function useBulkActions({
                 templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
                 attendanceTemplatePath: attTemplate?.storage_path,
                 labelTemplatePath: lblTemplate?.storage_path,
-                customVariables: variablesToMap(vars),
+                ...variablesForArchive(vars),
                 excelColumns: excel.columns,
             });
             result.skipped = skipped;

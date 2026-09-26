@@ -116,6 +116,107 @@ export function validateVariableKey(key: string): string | null {
     return null;
 }
 
+// ─── Date variables ─────────────────────────────────────────
+// A custom variable can be a date worked out per participant, e.g. {expire} = course date + 2 years.
+
+export type DateBase = 'courseDate' | 'completedAt' | 'today';
+export type DateUnit = 'days' | 'months' | 'years';
+export type DateFormat = 'long' | 'dmy';
+
+export interface DateRule {
+    base: DateBase;
+    /** Whole number; negative counts back. */
+    amount: number;
+    unit: DateUnit;
+    format: DateFormat;
+}
+
+export interface DateVariable {
+    key: string;
+    rule: DateRule;
+}
+
+export const DATE_BASES: { value: DateBase; label: string }[] = [
+    { value: 'courseDate', label: 'Course date' },
+    { value: 'completedAt', label: 'Completion date' },
+    { value: 'today', label: 'Generation date' },
+];
+export const DATE_UNITS: { value: DateUnit; label: string }[] = [
+    { value: 'years', label: 'years' },
+    { value: 'months', label: 'months' },
+    { value: 'days', label: 'days' },
+];
+export const DATE_FORMATS: { value: DateFormat; label: string }[] = [
+    { value: 'long', label: '01 Oct 2028' },
+    { value: 'dmy', label: '01/10/2028' },
+];
+
+/** A stored rule, or null when it is missing or malformed (the variable then prints blank). */
+export function parseDateRule(value: unknown): DateRule | null {
+    const r = value as Partial<DateRule> | null;
+    if (!r || typeof r !== 'object') return null;
+    if (!DATE_BASES.some(b => b.value === r.base) || !DATE_UNITS.some(u => u.value === r.unit)) return null;
+    if (typeof r.amount !== 'number' || !Number.isInteger(r.amount)) return null;
+    return { base: r.base!, amount: r.amount, unit: r.unit!, format: r.format === 'dmy' ? 'dmy' : 'long' };
+}
+
+/**
+ * Add days, months or years to a YYYY-MM-DD date. Months and years keep the day of the month,
+ * or use the month's last day when it has fewer days (29 Feb 2028 + 1 year = 28 Feb 2029).
+ */
+export function addToDate(iso: string, amount: number, unit: DateUnit): string {
+    const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+    let date: Date;
+    if (unit === 'days') {
+        date = new Date(Date.UTC(y, m - 1, d + amount));
+    } else {
+        const months = (m - 1) + amount * (unit === 'years' ? 12 : 1);
+        const year = y + Math.floor(months / 12);
+        const month = ((months % 12) + 12) % 12;
+        const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        date = new Date(Date.UTC(year, month, Math.min(d, lastDay)));
+    }
+    return date.toISOString().slice(0, 10);
+}
+
+/** The rule's date (YYYY-MM-DD) for one participant, or null when its base date is not set. */
+export function dateRuleIso(rule: DateRule, enrollment: EnrollmentWithRelations | null, today: string): string | null {
+    const base = rule.base === 'today'
+        ? today
+        : !enrollment ? null
+            : rule.base === 'courseDate' ? courseDateOf(enrollment)
+                : enrollment.completed_date || (enrollment.status === 'completed' ? enrollment.confirmed_date : null);
+    if (!base || !/^\d{4}-\d{2}-\d{2}/.test(base)) return null;
+    return addToDate(base, rule.amount, rule.unit);
+}
+
+export function formatRuleDate(rule: DateRule, iso: string | null): string {
+    if (!iso) return '';
+    return rule.format === 'dmy' ? formatDateDMY(iso) : formatDateLong(iso);
+}
+
+/** "Course date + 2 years" */
+export function describeDateRule(rule: DateRule): string {
+    const base = DATE_BASES.find(b => b.value === rule.base)?.label ?? rule.base;
+    if (rule.amount === 0) return base;
+    const n = Math.abs(rule.amount);
+    const unit = n === 1 ? rule.unit.replace(/s$/, '') : rule.unit;
+    return `${base} ${rule.amount > 0 ? '+' : '−'} ${n} ${unit}`;
+}
+
+/** Values of the date variables for one participant. */
+export function dateVariableValues(vars: DateVariable[], enrollment: EnrollmentWithRelations | null, today: string): Record<string, string> {
+    return Object.fromEntries(vars.map(v => [v.key, formatRuleDate(v.rule, dateRuleIso(v.rule, enrollment, today))]));
+}
+
+/** Values for a whole sheet (attendance, labels): each rule from the earliest date among the people. */
+function sheetDateValues(vars: DateVariable[], people: EnrollmentWithRelations[], today: string): Record<string, string> {
+    return Object.fromEntries(vars.map(v => {
+        const dates = people.map(e => dateRuleIso(v.rule, e, today)).filter((d): d is string => !!d).sort();
+        return [v.key, formatRuleDate(v.rule, dates[0] ?? (v.rule.base === 'today' ? dateRuleIso(v.rule, null, today) : null))];
+    }));
+}
+
 // ─── Data ───────────────────────────────────────────────────
 
 /** The day a participant attends — the same order the {courseDate} placeholder uses. */
@@ -184,7 +285,13 @@ function courseFields(people: EnrollmentWithRelations[], today: string) {
  * templates that repeat a table row with {#students}…{/students}.
  * With `slots` set, participants are split into pages of that size; otherwise one page holds everyone.
  */
-export function buildSheetPages(enrollments: EnrollmentWithRelations[], slots: number | null, today: string = todayISO()): Record<string, unknown>[] {
+export function buildSheetPages(
+    enrollments: EnrollmentWithRelations[],
+    slots: number | null,
+    today: string = todayISO(),
+    /** Extra per-participant fields for rows inside {#students} (date variables). */
+    rowExtra?: (enrollment: EnrollmentWithRelations) => Record<string, string>,
+): Record<string, unknown>[] {
     const people = sortBySurname(enrollments.filter(e => e.students));
     const pageSize = slots ?? Math.max(people.length, 1);
     const pageCount = Math.max(1, Math.ceil(people.length / pageSize));
@@ -198,6 +305,7 @@ export function buildSheetPages(enrollments: EnrollmentWithRelations[], slots: n
         const rows = people.slice(p * pageSize, (p + 1) * pageSize).map((e, i) => {
             const s = e.students!;
             const row: Record<SheetRowField, string> & { n: string } = {
+                ...rowExtra?.(e),
                 n: String(p * pageSize + i + 1),
                 firstName: s.first_name || '',
                 lastName: s.last_name || '',
@@ -390,6 +498,8 @@ export interface RenderInput {
     labels?: TemplateFile | null;
     extraFiles?: ExtraFile[];
     customVariables?: Record<string, string>;
+    /** Custom variables worked out per participant, e.g. {expire} = course date + 2 years. */
+    dateVariables?: DateVariable[];
     /** Also add one file per template with every participant, page after page, for printing. */
     combined?: boolean;
     today?: string;
@@ -448,7 +558,9 @@ function yieldToEventLoop(): Promise<void> {
 const YIELD_EVERY_MS = 40;
 
 export async function renderArchive(input: RenderInput, hooks: RenderHooks = {}): Promise<{ zip: ArrayBuffer; result: GenerationResult }> {
-    const { templates, attendance, labels, extraFiles = [], customVariables = {}, combined = false, today = todayISO() } = input;
+    const { templates, attendance, labels, extraFiles = [], customVariables = {}, dateVariables = [], combined = false, today = todayISO() } = input;
+    const personData = (e: EnrollmentWithRelations) => ({ ...buildPlaceholderData(e, today), ...customVariables, ...dateVariableValues(dateVariables, e, today) });
+    const personDates = (e: EnrollmentWithRelations) => dateVariableValues(dateVariables, e, today);
     const { onProgress, signal } = hooks;
     const people = sortBySurname(input.enrollments.filter(e => e.students));
     const libs = await loadDocxLibs();
@@ -514,7 +626,7 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         for (const enrollment of people) {
             const s = enrollment.students!;
             try {
-                const data = { ...buildPlaceholderData(enrollment, today), ...customVariables };
+                const data = personData(enrollment);
                 const file = renderDoc(createDoc(libs, tpl.buffer, missing), data);
                 const name = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
                 zip.file(uniquePath(usedPaths, folder + name), file);
@@ -533,7 +645,8 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
                 const data = {
                     ...course,
                     ...customVariables,
-                    __people: people.map((e, i) => ({ ...buildPlaceholderData(e, today), ...customVariables, __last: i === people.length - 1 })),
+                    ...sheetDateValues(dateVariables, people, today),
+                    __people: people.map((e, i) => ({ ...personData(e), __last: i === people.length - 1 })),
                 };
                 // Loops copy pictures, so give every copy its own drawing id (Word rejects duplicates)
                 const file = renderDoc(createDoc(libs, toCombinedTemplate(libs, tpl.buffer), undefined, [libs.fixDocPrCorruption]), data);
@@ -557,10 +670,11 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         } else {
             try {
                 const usesLoop = createDoc(libs, buffer).getFullText().includes(`{#${SHEET_LOOP}}`);
-                const pages = buildSheetPages(people, usesLoop ? null : sheet.slots, today);
+                const pages = buildSheetPages(people, usesLoop ? null : sheet.slots, today, personDates);
+                const sheetDates = sheetDateValues(dateVariables, people, today);
                 const missing = new Set<string>();
                 pages.forEach((page, i) => {
-                    const file = renderDoc(createDoc(libs, buffer, missing), { ...page, ...customVariables });
+                    const file = renderDoc(createDoc(libs, buffer, missing), { ...page, ...customVariables, ...sheetDates });
                     const suffix = pages.length > 1 ? `_${i + 1}_of_${pages.length}` : '';
                     zip.file(uniquePath(usedPaths, `${sheet.file}${suffix}.docx`), file);
                 });

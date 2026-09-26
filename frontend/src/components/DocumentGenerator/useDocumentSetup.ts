@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import {
     SINGLE_TEMPLATES, checkTemplate, createTemplate, deleteTemplate, fetchDocumentTemplates, fetchExcelColumns,
-    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, saveExcelColumns, variablesToMap,
-    MAX_TEMPLATE_BYTES, type SingleKind, type TemplateKind,
+    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, saveExcelColumns, variablesForArchive, variablesToMap,
+    MAX_TEMPLATE_BYTES, type DateRule, type SingleKind, type TemplateKind,
 } from '../../lib/documentUtils';
 import type { ExcelColumn } from '../../lib/appConfig';
 import type { DocumentTemplate, TemplateVariable } from '../../lib/types';
@@ -47,6 +47,7 @@ export function useDocumentSetup() {
     const templates = templatesQuery.data ?? [];
     const customVars = useMemo(() => variablesQuery.data ?? [], [variablesQuery.data]);
     const customVarMap = useMemo(() => variablesToMap(customVars), [customVars]);
+    const archiveVariables = useMemo(() => variablesForArchive(customVars), [customVars]);
 
     const setTemplates = (update: (prev: DocumentTemplate[]) => DocumentTemplate[]) =>
         queryClient.setQueryData<DocumentTemplate[]>(DOC_KEYS.templates, (old = []) => update(old));
@@ -101,18 +102,20 @@ export function useDocumentSetup() {
 
     // ── Custom variables ──
     const addVariable = useMutation({
-        mutationFn: async ({ key, value }: { key: string; value: string }) => {
-            const { data, error } = await supabase.from('template_variables').insert({ var_key: key, var_value: value }).select().single();
+        mutationFn: async ({ key, value, rule }: { key: string; value: string; rule?: DateRule }) => {
+            const row: Record<string, unknown> = rule ? { var_key: key, var_value: '', kind: 'date', date_rule: rule } : { var_key: key, var_value: value };
+            const { data, error } = await supabase.from('template_variables').insert(row).select().single();
             if (error) throw error;
             return data as TemplateVariable;
         },
         onSuccess: row => setVariables(prev => [...prev, row]),
     });
     const updateVariable = useMutation({
-        mutationFn: async ({ variable, value }: { variable: TemplateVariable; value: string }) => {
-            const { error } = await supabase.from('template_variables').update({ var_value: value }).eq('id', variable.id);
+        mutationFn: async ({ variable, value, rule }: { variable: TemplateVariable; value?: string; rule?: DateRule }) => {
+            const patch = rule ? { date_rule: rule } : { var_value: value ?? '' };
+            const { error } = await supabase.from('template_variables').update(patch).eq('id', variable.id);
             if (error) throw error;
-            return { ...variable, var_value: value };
+            return { ...variable, ...patch };
         },
         onSuccess: row => setVariables(prev => prev.map(v => v.id === row.id ? row : v)),
     });
@@ -146,6 +149,7 @@ export function useDocumentSetup() {
         labelTemplate: labelsQuery.data ?? null,
         customVars,
         customVarMap,
+        archiveVariables,
         excelColumns: excelQuery.data?.columns ?? [],
         excelShared,
         uploadTemplate, replaceTemplate, toggleActive, removeTemplate,
