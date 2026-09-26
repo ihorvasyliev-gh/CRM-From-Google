@@ -68,8 +68,8 @@ export default function Toast({ toast, onDismiss }: Props) {
 
     const remainingRef = useRef(duration);
     const startedAtRef = useRef(0);
-    const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
-    const dismissTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const dismissTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
     const clearTimers = useCallback(() => {
         clearTimeout(hideTimerRef.current);

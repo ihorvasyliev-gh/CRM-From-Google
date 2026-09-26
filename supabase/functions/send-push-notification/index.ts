@@ -1,5 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import webpush from 'npm:web-push';
+import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
+import webpush from 'npm:web-push@3.6.7';
 
 // A confirmation older than this is not announced again
 const RECENT_CONFIRMATION_MS = 10 * 60 * 1000;

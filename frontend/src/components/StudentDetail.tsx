@@ -40,7 +40,7 @@ interface Props {
     onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
 }
 
-const STATUS_BADGE: Record<string, { icon: JSX.Element; className: string }> = {
+const STATUS_BADGE: Record<string, { icon: React.JSX.Element; className: string }> = {
     requested: { icon: <Clock size={12} />, className: 'bg-warning/10 text-status-requested border-warning/30' },
     invited: { icon: <Send size={12} />, className: 'bg-info/10 text-status-invited border-info/25' },
     confirmed: { icon: <CheckCircle size={12} />, className: 'bg-success/10 text-status-confirmed border-success/25' },
@@ -68,7 +68,7 @@ function InlineEditField({
     field: string;
     studentId: string;
     type?: string;
-    icon: JSX.Element;
+    icon: React.JSX.Element;
     label: string;
     onSaved: (field: string, value: string) => void;
     onCopy: (value: string, label: string) => void;

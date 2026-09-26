@@ -38,7 +38,7 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
         // Include if already expired (hoursRemaining <= 0) or <= 48h remaining
         if (hoursRemaining <= 48) {
             const isExpired = hoursRemaining <= 0;
-            let timeLabel = '';
+            let timeLabel: string;
             if (isExpired) {
                 const daysOverdue = Math.floor(Math.abs(hoursRemaining) / 24);
                 timeLabel = daysOverdue === 0 ? 'Expired today' : `Expired ${daysOverdue}d ago`;

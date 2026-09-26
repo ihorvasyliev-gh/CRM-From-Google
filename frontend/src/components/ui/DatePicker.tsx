@@ -72,7 +72,7 @@ export function CalendarPanel({ mode, value, onChange, min, max, label, classNam
     const title =
         view === 'day' ? `${MONTHS_LONG[month]} ${year}` : view === 'month' ? String(year) : `${yearPage} – ${yearPage + 11}`;
 
-    let grid: JSX.Element;
+    let grid: React.JSX.Element;
     if (view === 'year') {
         grid = (
             <div className="grid grid-cols-4 gap-1.5">
