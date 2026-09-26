@@ -173,14 +173,15 @@
       transform: translateY(0);
     }
   }
+  /* `translate`, not `transform`: Tailwind 4's -translate-x-1/2 sets `translate`, and the two would add up */
   @keyframes slideUpCenter {
     from {
       opacity: 0;
-      transform: translate(-50%, 20px);
+      translate: -50% 20px;
     }
     to {
       opacity: 1;
-      transform: translate(-50%, 0);
+      translate: -50% 0;
     }
   }
   @keyframes slideDown {
@@ -644,12 +645,12 @@
   @keyframes slideUpCenter {
     from {
       opacity: 0;
-      transform: translate(-50%, 20px);
+      translate: -50% 20px;
     }
 
     to {
       opacity: 1;
-      transform: translate(-50%, 0);
+      translate: -50% 0;
     }
   }
 
