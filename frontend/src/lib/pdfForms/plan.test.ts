@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { autoMapTemplate, saysSelectOne } from './autoMap';
 import { tableToSheet } from './excel';
-import { applyOverrides, planRows, safeFileName, templateColumns } from './plan';
+import { applyOverrides, defaultNamePattern, planRows, safeFileName, templateColumns } from './plan';
 import { matchColumns } from './source';
 import { makeLayout } from './testLayout';
 import { buildLayout } from './layout';
@@ -151,5 +151,31 @@ describe('autoMapTemplate: office fields, dates, Eircode, free text', () => {
         ];
         const cols = matchColumns(templateColumns(f, DEFAULT_SETTINGS), people.headers);
         expect(planRows(f, DEFAULT_SETTINGS, people, cols, 'Individual')[0].fileName).toBe('Anna Smith.pdf');
+    });
+});
+
+describe('what forms are named after', () => {
+    const tf = (name: string, source: string): TextField => ({ id: name, kind: 'text', name, source, rect: { page: 0, x: 0, y: 0, w: 10, h: 10 }, fontSize: 10, multiline: false, align: 'left' });
+
+    it('never uses a date or part of one, even when it comes first on the form', () => {
+        const fields = [tf('Date of Registration (day)', '{Timestamp|dd}'), tf('Date of Registration (month)', '{Timestamp|mm}'), tf('First Name', '{First Name}'), tf('Last Name', '{Last Name}')];
+        expect(defaultNamePattern(fields)).toBe('{First Name} {Last Name}');
+        const people = tableToSheet([['Timestamp', 'First Name', 'Last Name'], ['08/01/2025', 'Sayed', 'Ghazanfar']], 'p.csv');
+        const plan = planRows(fields, DEFAULT_SETTINGS, people, matchColumns(templateColumns(fields, DEFAULT_SETTINGS), people.headers), 'Individual')[0];
+        expect(plan.title).toBe('Sayed Ghazanfar');
+        expect(plan.fileName).toBe('Sayed Ghazanfar.pdf');
+    });
+
+    it('prefers a group’s name to its contact person', () => {
+        expect(defaultNamePattern([tf('First Name', '{Contact Name|first}'), tf('Last Name', '{Contact Name|last}'), tf('CO Name', '{Name of Group}')])).toBe('{Name of Group}');
+    });
+
+    it('uses the name chosen for the form, for the file and the list alike', () => {
+        const fields = [tf('First Name', '{First Name}'), tf('Email', '{Email}')];
+        const people = tableToSheet([['First Name', 'Email'], ['Anna', 'anna@x.ie']], 'p.csv');
+        const settings = { ...DEFAULT_SETTINGS, fileName: '{Email}' };
+        const plan = planRows(fields, settings, people, matchColumns(templateColumns(fields, settings), people.headers), 'F')[0];
+        expect(plan.title).toBe('anna@x.ie');
+        expect(plan.fileName).toBe('anna@x.ie.pdf');
     });
 });

@@ -54,6 +54,27 @@ export function computeValue(field: FormField, ctx: EvalContext): { value: Field
     return { value: { kind: 'choice', ticked: result.ticked }, notes };
 }
 
+const DATE_PART = / \((day|month|year)\)$/;
+const DATE_FILTER = /\|(dd|mm|yy|yyyy|date)\b/;
+const ORG_NAME = /\b(co|org|organisation|organization|group|company|club)\b.*\bname\b|\bname of\b/i;
+
+/**
+ * What forms are named after when the form doesn't say ("Each form is named after"):
+ * a group's name, else "First Last", else another name field, else the first text field.
+ * Dates and parts of dates never name a form.
+ */
+export function defaultNamePattern(fields: FormField[]): string {
+    const candidates = fields.filter(
+        f => f.kind === 'text' && sourceColumns(f.source).length > 0 && !DATE_PART.test(f.name) && !DATE_FILTER.test(f.source),
+    );
+    const org = candidates.find(f => ORG_NAME.test(f.name));
+    if (org) return org.source;
+    const first = candidates.find(f => /\bfirst name\b|\bforename\b/i.test(f.name));
+    const last = candidates.find(f => /\b(last name|surname)\b/i.test(f.name));
+    if (first && last) return `${first.source} ${last.source}`;
+    return (candidates.find(f => /\bname\b/i.test(f.name)) ?? first ?? candidates[0])?.source ?? '';
+}
+
 export function planRows(
     fields: FormField[],
     settings: TemplateSettings,
@@ -63,12 +84,7 @@ export function planRows(
     opts: { today?: Date; user?: string } = {},
 ): RowPlan[] {
     const usedNames = new Map<string, number>();
-    const withColumn = fields.filter(f => f.kind === 'text' && sourceColumns(f.source).length > 0);
-    // Named after the first text field; a person's form after "First Last"
-    const firstText = withColumn[0];
-    const lastName = withColumn.find(f => /\b(last name|surname)\b/i.test(f.name));
-    const defaultName = firstText && lastName && /\bfirst name\b/i.test(firstText.name) ? `${firstText.source} ${lastName.source}` : firstText?.source ?? '';
-    const namePattern = settings.fileName.trim() || defaultName;
+    const namePattern = settings.fileName.trim() || defaultNamePattern(fields);
 
     return sheet.rows.map((row, index) => {
         const rowNumber = sheet.rowNumbers?.[index] ?? index + 2;
@@ -84,7 +100,7 @@ export function planRows(
             });
         }
 
-        const title = (defaultName ? evaluateSource(defaultName, ctx) : '') || `Row ${rowNumber}`;
+        const title = (namePattern ? evaluateSource(namePattern, ctx) : '') || `Row ${rowNumber}`;
         let base = safeFileName(namePattern ? evaluateSource(namePattern, ctx) : '') || safeFileName(`${templateName} ${rowNumber}`) || `form ${rowNumber}`;
         const seen = usedNames.get(base.toLowerCase()) ?? 0;
         usedNames.set(base.toLowerCase(), seen + 1);

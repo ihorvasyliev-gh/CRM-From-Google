@@ -15,13 +15,14 @@ import { withSiblings } from '../../lib/pdfForms/choice';
 import { readSheetFile, SHEET_ACCEPT } from '../../lib/pdfForms/excel';
 import { FormFiller } from '../../lib/pdfForms/fill';
 import { cellAt, guessTitle, insetCell } from '../../lib/pdfForms/layout';
-import { computeValue, templateColumns } from '../../lib/pdfForms/plan';
+import { computeValue, defaultNamePattern, safeFileName, templateColumns } from '../../lib/pdfForms/plan';
 import { reanchorFields, type ReanchorResult } from '../../lib/pdfForms/reanchor';
-import { matchColumns, sourceColumns, summarizeSource } from '../../lib/pdfForms/source';
+import { evaluateSource, matchColumns, sourceColumns, summarizeSource } from '../../lib/pdfForms/source';
 import {
     DEFAULT_FONT_SIZE, DEFAULT_SETTINGS, type Checkbox, type ChoiceField, type FormField, type PdfFormTemplate, type PdfLayout, type Rect, type SheetData, type TemplateSettings, type TextField,
 } from '../../lib/pdfForms/types';
 import FieldInspector from './FieldInspector';
+import NameSetting from './NameSetting';
 import PreviewModal from './PreviewModal';
 import RevisionModal from './RevisionModal';
 import { loadPdf, rectStyle, useElementWidth, usePdfDocument } from './pdfHooks';
@@ -701,25 +702,24 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                     <label className={labelCls} htmlFor="tpl-desc">Description (optional)</label>
                                     <input id="tpl-desc" value={description} onChange={e => { setDescription(e.target.value); setDirty(true); }} className={fieldCls} placeholder="Which spreadsheet it is for" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className={labelCls} htmlFor="tpl-mark">Tick style</label>
-                                        <select id="tpl-mark" value={settings.mark} onChange={e => { setSettings({ ...settings, mark: e.target.value as TemplateSettings['mark'] }); setDirty(true); }} className={fieldCls}>
-                                            <option value="tick">✓ Tick</option>
-                                            <option value="cross">✗ Cross</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className={labelCls} htmlFor="tpl-file">File names</label>
-                                        <input
-                                            id="tpl-file"
-                                            value={settings.fileName}
-                                            onChange={e => { setSettings({ ...settings, fileName: e.target.value }); setDirty(true); }}
-                                            className={`${fieldCls} font-mono text-xs`}
-                                            placeholder="First text field"
-                                            title="e.g. {Name of Group} – registration"
-                                        />
-                                    </div>
+                                <NameSetting
+                                    value={settings.fileName}
+                                    onChange={fileName => { setSettings({ ...settings, fileName }); setDirty(true); }}
+                                    columns={columns}
+                                    automatic={defaultNamePattern(fields)}
+                                    example={pattern => {
+                                        if (!sample || !pattern) return null;
+                                        const row = sample.rows[sampleRow] ?? [];
+                                        const matches = matchColumns(templateColumns(fields, { ...settings, fileName: pattern }), sample.headers, aliases);
+                                        return safeFileName(evaluateSource(pattern, { row, columns: matches, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, user: userName })) || null;
+                                    }}
+                                />
+                                <div>
+                                    <label className={labelCls} htmlFor="tpl-mark">How boxes are ticked</label>
+                                    <select id="tpl-mark" value={settings.mark} onChange={e => { setSettings({ ...settings, mark: e.target.value as TemplateSettings['mark'] }); setDirty(true); }} className={fieldCls}>
+                                        <option value="tick">✓ Tick</option>
+                                        <option value="cross">✗ Cross</option>
+                                    </select>
                                 </div>
                                 {pendingPdf && template && (
                                     <div className={`${calloutCls.info} text-xs p-2.5`}>New PDF: {pendingPdf.name}. It replaces revision {template.revision} when you save.</div>
