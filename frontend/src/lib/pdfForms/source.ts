@@ -1,6 +1,6 @@
 // ─── Field values: `{Column}` placeholders, filters and column matching ─────
 // A field's source is text with placeholders: "{Email Address}", "{Contact Name|first}",
-// "{Date of Birth|dd}", "{today}". Headers are matched loosely, so a spreadsheet with
+// "{Date of Birth|dd}", "{today}", "{user}". Headers are matched loosely, so a spreadsheet with
 // slightly different column names (or a new form export) still fills the same fields.
 
 import { splitFullName } from '../contactImport';
@@ -8,7 +8,7 @@ import { HEADER_THRESHOLD, normalizeText, similarity } from './text';
 
 const PLACEHOLDER_RE = /\{([^{}|]+)((?:\|[^{}|]*)*)\}/g;
 
-export const SPECIAL_COLUMNS = ['today', 'row'] as const;
+export const SPECIAL_COLUMNS = ['today', 'row', 'user'] as const;
 
 export const FILTERS: { key: string; label: string }[] = [
     { key: 'first', label: 'First name (from a full name)' },
@@ -22,7 +22,10 @@ export const FILTERS: { key: string; label: string }[] = [
     { key: 'upper', label: 'UPPER CASE' },
     { key: 'lower', label: 'lower case' },
     { key: 'oneline', label: 'Join lines with commas' },
+    { key: 'new', label: 'Only if not already in the text before it' },
 ];
+
+const DATE_FILTERS = new Set(['date', 'dd', 'mm', 'yyyy', 'yy']);
 
 export interface Placeholder {
     column: string;
@@ -127,10 +130,19 @@ function pad2(n: number): string {
     return String(n).padStart(2, '0');
 }
 
-function fullYear(y: number): number {
-    if (y >= 100) return y;
+/** "99" → 1999, "07" → 2007; four-digit years stay as they are ("0079" is year 79, not 1979) */
+function fullYear(text: string): number {
+    const y = Number(text);
+    if (text.length !== 2) return y;
     const now = new Date().getFullYear() % 100;
     return y > now ? 1900 + y : 2000 + y;
+}
+
+function valid(d: { d: number; m: number; y: number }, today: Date): { d: number; m: number; y: number } | null {
+    if (d.m < 1 || d.m > 12 || d.d < 1 || d.d > new Date(d.y, d.m, 0).getDate()) return null;
+    // Typos such as 0001 or 1887 aren't real dates of birth or foundation
+    if (d.y < 1850 || d.y > today.getFullYear() + 1) return null;
+    return d;
 }
 
 /**
@@ -141,15 +153,15 @@ export function parseLooseDate(value: string, today = new Date()): { d: number; 
     const v = value.trim().toLowerCase();
     if (!v) return null;
     let m = v.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (m) return { y: +m[1], m: +m[2], d: +m[3] };
-    m = v.match(/\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})\b/);
-    if (m) return { d: +m[1], m: +m[2], y: fullYear(+m[3]) };
+    if (m) return valid({ y: +m[1], m: +m[2], d: +m[3] }, today);
+    m = v.match(/\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\b/);
+    if (m) return valid({ d: +m[1], m: +m[2], y: fullYear(m[3]) }, today);
     m = v.match(/\b(\d{1,2})?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(\d{4})\b/);
-    if (m) return { d: m[1] ? +m[1] : 1, m: MONTHS.indexOf(m[2]) + 1, y: +m[3] };
+    if (m) return valid({ d: m[1] ? +m[1] : 1, m: MONTHS.indexOf(m[2]) + 1, y: +m[3] }, today);
     m = v.match(/\b(1[89]\d{2}|20\d{2})\b/);
-    if (m) return { d: 1, m: 1, y: +m[1] };
+    if (m) return valid({ d: 1, m: 1, y: +m[1] }, today);
     m = v.match(/\b(\d{1,3})\s*(?:years?|yrs?)\b/);
-    if (m) return { d: 1, m: 1, y: today.getFullYear() - +m[1] };
+    if (m) return valid({ d: 1, m: 1, y: today.getFullYear() - +m[1] }, today);
     return null;
 }
 
@@ -198,23 +210,56 @@ export interface EvalContext {
     columns: Map<string, ColumnMatch>;
     rowNumber: number;
     today?: Date;
+    /** Name of the person filling the forms, for {user} */
+    user?: string;
 }
+
+function rawValue(column: string, ctx: EvalContext, today: Date): string {
+    const key = column.toLowerCase();
+    if (key === 'today') return formatDate(today);
+    if (key === 'row') return String(ctx.rowNumber);
+    if (key === 'user') return ctx.user ?? '';
+    const index = ctx.columns.get(column)?.index;
+    return index === null || index === undefined ? '' : (ctx.row[index] ?? '');
+}
+
+/** "a"-ish comparison for the `new` filter: letters and digits only */
+const squash = (s: string) => normalizeText(s).replace(/ /g, '');
 
 /** Fill a source's placeholders from one spreadsheet row. */
 export function evaluateSource(source: string, ctx: EvalContext): string {
     const today = ctx.today ?? new Date();
-    return source.replace(PLACEHOLDER_RE, (_all, rawColumn: string, rawFilters: string) => {
-        const column = rawColumn.trim();
-        const filters = rawFilters.split('|').map(f => f.trim().toLowerCase()).filter(Boolean);
-        let value: string;
-        if (column.toLowerCase() === 'today') value = formatDate(today);
-        else if (column.toLowerCase() === 'row') value = String(ctx.rowNumber);
-        else {
-            const index = ctx.columns.get(column)?.index;
-            value = index === null || index === undefined ? '' : (ctx.row[index] ?? '');
+    let out = '';
+    let last = 0;
+    for (const m of source.matchAll(PLACEHOLDER_RE)) {
+        out += source.slice(last, m.index);
+        last = m.index + m[0].length;
+        const filters = m[2].split('|').map(f => f.trim().toLowerCase()).filter(Boolean);
+        let value = rawValue(m[1].trim(), ctx, today).trim();
+        for (const f of filters) {
+            if (f === 'new') {
+                // "{Address}, {Eircode|new}": skip the Eircode when the address already has it
+                if (value && squash(out).includes(squash(value))) value = '';
+            } else value = applyFilter(value, f, today);
         }
-        value = value.trim();
-        for (const f of filters) value = applyFilter(value, f, today);
-        return value;
-    }).trim();
+        out += value;
+    }
+    out += source.slice(last);
+    // Separators left dangling by empty values: "Cork, " / ", , " / " - "
+    return out
+        .replace(/(?:\s*,\s*){2,}/g, ', ')
+        .replace(/^[\s,;]+|[\s,;]+$/g, '')
+        .trim();
+}
+
+/** Values a date filter couldn't read ("11/19/0001"), to warn about */
+export function unreadableDates(source: string, ctx: EvalContext): string[] {
+    const today = ctx.today ?? new Date();
+    const bad = new Set<string>();
+    for (const p of parsePlaceholders(source)) {
+        if (!p.filters.some(f => DATE_FILTERS.has(f))) continue;
+        const value = rawValue(p.column, ctx, today).trim();
+        if (value && !parseLooseDate(value, today)) bad.add(value);
+    }
+    return [...bad];
 }

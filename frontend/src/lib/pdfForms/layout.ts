@@ -64,7 +64,9 @@ function buildPhrases(items: RawTextItem[]): Phrase[] {
         let cur: Phrase | null = null;
         for (const it of line) {
             const gap = cur ? it.x - right(cur) : Infinity;
-            if (cur && gap <= Math.max(4, Math.min(cur.h, it.h) * 0.8)) {
+            // A fill-in blank ("____/____") and the note after it are separate phrases
+            const blankToText = cur && /[_—–]\s*$/.test(cur.text) && /^\s*[(\p{L}]/u.test(it.str);
+            if (cur && !blankToText && gap <= Math.max(4, Math.min(cur.h, it.h) * 0.8)) {
                 const joiner = gap > Math.min(cur.h, it.h) * 0.12 && !cur.text.endsWith(' ') && !it.str.startsWith(' ') ? ' ' : '';
                 cur.text += joiner + it.str;
                 cur.w = Math.max(right(cur), right(it)) - cur.x;
@@ -235,7 +237,11 @@ export function answerRectForLabel(layout: PdfLayout, label: Phrase): Rect {
     const own = cellAt(layout, label.page, label.x + 1, midY);
     if (own) {
         const next = cellAt(layout, label.page, own.x + own.w + 2, midY);
-        if (next && next.x >= own.x + own.w - 1) return insetCell(next);
+        if (next && next.x >= own.x + own.w - 1) {
+            // A tall label next to a ruled area ("Describe…" beside 8 lines): answer across all of it
+            if (own.h > next.h * 1.5) return insetCell({ ...next, y: own.y, h: own.h });
+            return insetCell(next);
+        }
     }
     const page = layout.pages[label.page];
     const x = right(label) + 6;
@@ -244,6 +250,90 @@ export function answerRectForLabel(layout: PdfLayout, label: Phrase): Rect {
         ...layout.phrases.filter(p => p.page === label.page && Math.abs(p.y - label.y) < label.h * 0.5 && p.x > x).map(p => p.x - 6),
     );
     return { page: label.page, x, y: label.y - label.h * 0.3, w: Math.max(40, rowRight - x), h: label.h * 1.5 };
+}
+
+// ─── Printed date blanks: "____/_____/20__", "——/——/——" ───────
+
+export interface DateBlank {
+    page: number;
+    /** The printed question on its left ("Date of Registration", "Date your LCG was established?") */
+    label: string;
+    day: Rect;
+    month: Rect;
+    year: Rect;
+    /** "/20__" prints the century, so only two digits go in the year blank */
+    yearDigits: 2 | 4;
+}
+
+const BLANK = '[_\\u2014\\u2013\\-\\s]';
+const DATE_BLANK_RE = new RegExp(`^(${BLANK}{2,})/(${BLANK}{2,})/((?:19|20)?)(${BLANK}*)`);
+
+/** Rough Arial advance widths (em) for the characters blanks are made of */
+function charWidth(ch: string): number {
+    if (ch === '—') return 1;
+    if (ch === '_' || ch === '–' || /\d/.test(ch)) return 0.556;
+    if (ch === '/' || ch === ' ') return 0.278;
+    if (ch === '-') return 0.333;
+    return 0.5;
+}
+
+export function findDateBlanks(layout: PdfLayout): DateBlank[] {
+    const out: DateBlank[] = [];
+    for (const p of layout.phrases) {
+        const m = p.text.match(DATE_BLANK_RE);
+        if (!m) continue;
+        // Character offsets → x positions, scaled so the whole phrase fits its measured width
+        const widths = [...p.text].map(charWidth);
+        const scale = p.w / Math.max(1, widths.reduce((a, b) => a + b, 0));
+        const xAt = (i: number) => p.x + widths.slice(0, i).reduce((a, b) => a + b, 0) * scale;
+        const dashes = /[—–]/.test(m[0]);
+        // Write just above the line: underscores sit under the baseline, dashes at mid-height
+        const y = p.y + (dashes ? p.h * 0.35 : 0);
+        const h = p.h * 1.1;
+        const seg = (start: number, end: number): Rect => ({ page: p.page, x: xAt(start), y, w: Math.max(8, xAt(end) - xAt(start)), h });
+
+        const dayEnd = m[1].length;
+        const monthStart = dayEnd + 1;
+        const monthEnd = monthStart + m[2].length;
+        const centuryStart = monthEnd + 1;
+        const yearStart = centuryStart + m[3].length;
+        const yearEnd = yearStart + m[4].length;
+        const yearDigits = m[3] ? 2 : 4;
+        // "/20" with no blank after it: room for two digits right after the century
+        const year = yearEnd > yearStart + 1 ? seg(yearStart, yearEnd) : { page: p.page, x: xAt(yearStart) + 1, y, w: p.h * 1.3, h };
+
+        const label = layout.phrases
+            .filter(q => q.page === p.page && q !== p && q.x + q.w <= p.x + 2 && Math.abs(q.y - p.y) <= 14)
+            .sort((a, b) => b.y - a.y || a.x - b.x)
+            .map(q => q.text)
+            .join(' ');
+        out.push({ page: p.page, label, day: seg(0, dayEnd), month: seg(monthStart, monthEnd), year, yearDigits });
+    }
+    return out;
+}
+
+/**
+ * Rules drawn across a box (e.g. the 7 rules making 8 writing lines beside "Describe …"),
+ * as fractions of the box height from its bottom. Fewer than two rules: none.
+ */
+export function ruledLines(layout: PdfLayout, r: Rect): number[] {
+    // Word draws a rule as one piece per table column: join the pieces on each line
+    const pieces = new Map<number, [number, number][]>();
+    for (const e of layout.edges) {
+        if (e.page !== r.page || e.dir !== 'h' || e.at <= r.y + 3 || e.at >= r.y + r.h - 3) continue;
+        const key = Math.round(e.at);
+        pieces.set(key, [...(pieces.get(key) ?? []), [e.a, e.b]]);
+    }
+    const rules = new Set<number>();
+    pieces.forEach((segs, y) => {
+        segs.sort((a, b) => a[0] - b[0]);
+        let reach = r.x + 6;
+        for (const [a, b] of segs) if (a <= reach + 2) reach = Math.max(reach, b);
+        if (reach >= r.x + r.w - 6) rules.add(y);
+    });
+    // Shaded cells add two edges per border: count each rule once
+    const ys = [...rules].sort((a, b) => a - b).filter((y, i, all) => i === 0 || y - all[i - 1] > 3);
+    return ys.length >= 2 ? ys.map(y => (y - r.y) / r.h) : [];
 }
 
 export function rectCenter(r: Rect): { x: number; y: number } {

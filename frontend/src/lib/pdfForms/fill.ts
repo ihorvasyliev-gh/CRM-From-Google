@@ -96,6 +96,46 @@ export function fitText(text: string, rect: { w: number; h: number }, maxSize: n
     return { lines, size, truncated: true };
 }
 
+export interface RuledText extends FittedText {
+    /** Text lines written in each ruled line */
+    perRow: number;
+}
+
+/** Heights of a ruled box's writing lines, top to bottom */
+export function ruledRows(h: number, lines: number, rules?: number[]): number[] {
+    const cuts = rules && rules.length === lines - 1 ? [0, ...rules, 1] : Array.from({ length: lines + 1 }, (_, i) => i / lines);
+    const heights: number[] = [];
+    for (let i = cuts.length - 1; i > 0; i--) heights.push((cuts[i] - cuts[i - 1]) * h);
+    return heights;
+}
+
+/**
+ * Fit text between ruled lines: one text line per ruled line if the font stays
+ * readable, otherwise two (or three…) smaller lines in each.
+ */
+export function fitRuled(text: string, width: number, rows: number[], maxSize: number, measure: Measure): RuledText {
+    const value = text.trim();
+    if (!value) return { lines: [], size: maxSize, truncated: false, perRow: 1 };
+    const rowH = Math.min(...rows);
+    let last: RuledText | null = null;
+    for (let perRow = 1; perRow <= 4; perRow++) {
+        const top = Math.min(maxSize, (rowH / perRow) * 0.8);
+        const bottom = Math.max(MIN_FONT_SIZE, perRow < 4 ? (rowH / (perRow + 1)) * 0.8 : MIN_FONT_SIZE);
+        for (let size = top; size >= bottom - 0.001; size -= 0.5) {
+            if (size < MIN_FONT_SIZE) break;
+            const lines = wrapText(value, width, size, measure);
+            last = { lines, size, truncated: false, perRow };
+            if (lines.length <= rows.length * perRow) return last;
+        }
+    }
+    // Still too long at the smallest size: shorten
+    const perRow = last?.perRow ?? 1;
+    const size = last?.size ?? MIN_FONT_SIZE;
+    const lines = wrapText(value, width, size, measure).slice(0, rows.length * perRow);
+    lines[lines.length - 1] = ellipsize(lines[lines.length - 1], width, size, measure);
+    return { lines, size, truncated: true, perRow };
+}
+
 // ─── pdf-lib ────────────────────────────────────────────────────
 
 type PdfLib = typeof import('pdf-lib');
@@ -143,8 +183,25 @@ function sanitize(text: string, supported: Set<number>): { text: string; replace
 function drawTextField(page: PDFPage, font: PDFFont, field: TextField, text: string, lib: PdfLib): boolean {
     const { rect } = field;
     const measure: Measure = (t, size) => font.widthOfTextAtSize(t, size);
-    const fitted = fitText(text, rect, field.fontSize || DEFAULT_FONT_SIZE, field.multiline, measure);
     const color = lib.rgb(0.05, 0.05, 0.1);
+    if (field.multiline && field.lines && field.lines >= 2) {
+        // Each text line centred in its share of a ruled line, so rules never cross the words
+        const rows = ruledRows(rect.h, field.lines, field.rules);
+        const ruled = fitRuled(text, rect.w, rows, field.fontSize || DEFAULT_FONT_SIZE, measure);
+        let rowTop = rect.y + rect.h;
+        rows.forEach((rowH, r) => {
+            const slot = rowH / ruled.perRow;
+            for (let k = 0; k < ruled.perRow; k++) {
+                const line = ruled.lines[r * ruled.perRow + k];
+                if (!line) continue;
+                const slotBottom = rowTop - (k + 1) * slot;
+                page.drawText(line, { x: rect.x + 1, y: slotBottom + (slot - ruled.size * CAP_HEIGHT) / 2, size: ruled.size, font, color });
+            }
+            rowTop -= rowH;
+        });
+        return ruled.truncated;
+    }
+    const fitted = fitText(text, rect, field.fontSize || DEFAULT_FONT_SIZE, field.multiline, measure);
     fitted.lines.forEach((line, i) => {
         if (!line) return;
         const width = measure(line, fitted.size);

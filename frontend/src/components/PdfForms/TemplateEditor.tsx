@@ -9,7 +9,7 @@ import FileDropzone from '../ui/FileDropzone';
 import ConfirmDialog from '../ConfirmDialog';
 import { calloutCls, fieldCls, labelCls } from '../ui/styles';
 import { toast } from '../../lib/toast';
-import { checkPdfFile, downloadTemplatePdf, useSavePdfFormTemplate } from '../../hooks/usePdfForms';
+import { checkPdfFile, downloadTemplatePdf, useFormUserName, useSavePdfFormTemplate } from '../../hooks/usePdfForms';
 import { autoMapTemplate, newId, optionFromCheckbox, saysSelectOne } from '../../lib/pdfForms/autoMap';
 import { withSiblings } from '../../lib/pdfForms/choice';
 import { readSheetFile } from '../../lib/pdfForms/excel';
@@ -72,6 +72,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [preview, setPreview] = useState<{ bytes: Uint8Array | null; warnings: string[]; error: string | null } | null>(null);
     const save = useSavePdfFormTemplate();
+    const userName = useFormUserName();
 
     // Existing template: fetch its PDF
     useEffect(() => {
@@ -343,7 +344,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                         // No sample: show each text field's name so boxes can be checked
                         return [f.id, f.kind === 'text' ? { kind: 'text' as const, text: f.name } : { kind: 'choice' as const, ticked: f.options.slice(0, 1).map(o => o.id) }];
                     }
-                    return [f.id, computeValue(f, row, sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, columnMatches).value];
+                    return [f.id, computeValue(f, { row, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, columns: columnMatches, user: userName }).value];
                 }),
             );
             const filler = await FormFiller.create(pdfBytes);
@@ -623,6 +624,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                     sample={sample}
                                     sampleRow={sampleRow}
                                     columnMatches={columnMatches}
+                                    userName={userName}
                                 />
                             </Card>
                         ) : (

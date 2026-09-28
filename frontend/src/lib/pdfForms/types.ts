@@ -29,6 +29,10 @@ export interface TextField {
     fontSize: number;
     multiline: boolean;
     align: 'left' | 'center';
+    /** The box is ruled into this many writing lines: text goes between the rules */
+    lines?: number;
+    /** Where the rules are, as fractions of the box height from the bottom (else evenly spaced) */
+    rules?: number[];
 }
 
 export interface ChoiceOption {

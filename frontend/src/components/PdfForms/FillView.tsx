@@ -9,7 +9,7 @@ import FileDropzone from '../ui/FileDropzone';
 import { calloutCls, fieldCls, tableCls, tableWrapCls, tbodyCls, tdCls, thCls, theadCls, trCls } from '../ui/styles';
 import { toast } from '../../lib/toast';
 import { downloadBlob } from '../../lib/download';
-import { downloadTemplatePdf, useSaveColumnAliases } from '../../hooks/usePdfForms';
+import { downloadTemplatePdf, useFormUserName, useSaveColumnAliases } from '../../hooks/usePdfForms';
 import { readSheetFile } from '../../lib/pdfForms/excel';
 import { FormFiller, type RowValues } from '../../lib/pdfForms/fill';
 import { generateForms, type GenerateResult } from '../../lib/pdfForms/generate';
@@ -25,6 +25,11 @@ interface FillViewProps {
     onBack: () => void;
     onEdit: () => void;
 }
+
+/** Big files: draw this many rows at most (search narrows them down) */
+const MAX_SHOWN = 300;
+/** Above this many rows nothing is selected at first: pick the people you need */
+const SELECT_ALL_UP_TO = 50;
 
 const HOW_LABEL: Record<ColumnMatch['how'], { text: string; tone: 'success' | 'info' | 'warning' | 'danger' | 'neutral' }> = {
     exact: { text: 'Same name', tone: 'success' },
@@ -46,6 +51,7 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [overrides, setOverrides] = useState<Record<number, RowValues>>({});
     const [onlyIssues, setOnlyIssues] = useState(false);
+    const [search, setSearch] = useState('');
     const [showColumns, setShowColumns] = useState(false);
     const [reviewIndex, setReviewIndex] = useState<number | null>(null);
     const [separate, setSeparate] = useState(true);
@@ -55,6 +61,7 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
     const [preview, setPreview] = useState<{ plan: RowPlan; bytes: Uint8Array | null; warnings: string[]; error: string | null } | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const saveAliases = useSaveColumnAliases();
+    const userName = useFormUserName();
 
     useEffect(() => {
         let cancelled = false;
@@ -73,16 +80,25 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
         [sheet, wanted, template.column_aliases, chosen],
     );
     const basePlans = useMemo(
-        () => (sheet ? planRows(template.fields, template.settings, sheet, matches, template.name) : []),
-        [sheet, template, matches],
+        () => (sheet ? planRows(template.fields, template.settings, sheet, matches, template.name, { user: userName }) : []),
+        [sheet, template, matches, userName],
     );
     const plans = useMemo(() => basePlans.map(p => applyOverrides(p, overrides[p.index])), [basePlans, overrides]);
     const matchList = [...matches.values()];
     const missing = matchList.filter(m => m.index === null);
     const learnable = matchList.filter(m => m.index !== null && (m.how === 'similar' || m.how === 'chosen'));
-    const visible = onlyIssues ? plans.filter(p => p.notes.length > 0) : plans;
+    const query = search.trim().toLowerCase();
+    const visible = plans.filter(p => {
+        if (onlyIssues && p.notes.length === 0) return false;
+        if (!query) return true;
+        // Search the whole spreadsheet row, not just the name shown
+        return p.title.toLowerCase().includes(query) || String(p.rowNumber) === query || (sheet?.rows[p.index] ?? []).some(c => c.toLowerCase().includes(query));
+    });
+    const shown = visible.slice(0, MAX_SHOWN);
     const chosenPlans = plans.filter(p => selected.has(p.index));
     const withIssues = plans.filter(p => p.notes.length > 0).length;
+    // Each separate PDF carries the form and the font (≈ 190 KB compressed)
+    const zipMb = pdfBytes ? Math.round((chosenPlans.length * (pdfBytes.length + 190_000)) / 1_000_000) : 0;
 
     const pickSheet = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -94,7 +110,8 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
             setChosen({});
             setOverrides({});
             setResult(null);
-            setSelected(new Set(data.rows.map((_, i) => i)));
+            setSearch('');
+            setSelected(new Set(data.rows.length <= SELECT_ALL_UP_TO ? data.rows.map((_, i) => i) : []));
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Could not read the spreadsheet');
         }
@@ -300,6 +317,25 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
                         )
                     }
                 >
+                    <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-2.5 border-b border-border-subtle">
+                        <input
+                            type="search"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Search name, email, row number…"
+                            aria-label="Search rows"
+                            className={`${fieldCls} h-8 text-xs max-w-xs`}
+                        />
+                        <Button size="xs" variant="ghost" onClick={() => setSelected(prev => new Set([...prev, ...visible.map(p => p.index)]))} disabled={visible.length === 0}>
+                            Select {query || onlyIssues ? `these ${visible.length}` : `all ${visible.length}`}
+                        </Button>
+                        <Button size="xs" variant="ghost" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+                            Clear selection
+                        </Button>
+                        {plans.length > SELECT_ALL_UP_TO && selected.size === 0 && !query && (
+                            <span className="text-[11px] text-muted">Big file: search for the people you need and tick them.</span>
+                        )}
+                    </div>
                     <div className={`${tableWrapCls} max-h-[55vh] overflow-y-auto`}>
                         <table className={tableCls}>
                             <thead className={`${theadCls} sticky top-0 z-10`}>
@@ -314,7 +350,7 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
                                 </tr>
                             </thead>
                             <tbody className={tbodyCls}>
-                                {visible.map(p => (
+                                {shown.map(p => (
                                     <tr key={p.index} className={trCls}>
                                         <td className={tdCls}>
                                             <input type="checkbox" checked={selected.has(p.index)} onChange={() => toggle(p.index)} aria-label={`Select ${p.title}`} className="accent-brand-500" />
@@ -355,6 +391,12 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
                                 ))}
                             </tbody>
                         </table>
+                        {visible.length > shown.length && (
+                            <p className="px-4 py-3 text-xs text-muted border-t border-border-subtle">
+                                Showing the first {shown.length} of {visible.length} rows. Search to find others; “Select” above still selects all {visible.length}.
+                            </p>
+                        )}
+                        {visible.length === 0 && <p className="px-4 py-6 text-sm text-muted text-center">No rows match.</p>}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 border-t border-border-subtle">
                         <label className="flex items-center gap-1.5 text-xs text-primary cursor-pointer">
@@ -365,6 +407,11 @@ export default function FillView({ template, canManage, onBack, onEdit }: FillVi
                             <input type="checkbox" checked={combined} onChange={e => setCombined(e.target.checked)} className="accent-brand-500" />
                             One combined PDF for printing
                         </label>
+                        {separate && pdfBytes && chosenPlans.length > 1 && (
+                            <span className={`text-[11px] ${zipMb > 150 ? 'text-status-requested font-semibold' : 'text-muted'}`}>
+                                ZIP ≈ {zipMb} MB{zipMb > 150 ? ' — consider the combined PDF only' : ''}
+                            </span>
+                        )}
                         <div className="ml-auto flex items-center gap-2">
                             {progress && (
                                 <>

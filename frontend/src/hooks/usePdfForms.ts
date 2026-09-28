@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { DEFAULT_SETTINGS, type PdfFormTemplate, type PdfFormTemplateDraft } from '../lib/pdfForms/types';
 
 // Templates live in public.pdf_form_templates, their PDFs in the private "pdf-forms" bucket (migration 75).
@@ -14,6 +15,13 @@ function normalize(row: PdfFormTemplate): PdfFormTemplate {
         column_aliases: row.column_aliases && typeof row.column_aliases === 'object' ? row.column_aliases : {},
         settings: { ...DEFAULT_SETTINGS, ...(row.settings ?? {}) },
     };
+}
+
+/** The signed-in person as printed by {user} (e.g. "LDC Staff Member"): their name, else their email */
+export function useFormUserName(): string {
+    const { user } = useAuth();
+    const meta = (user?.user_metadata ?? {}) as { full_name?: string; name?: string };
+    return (meta.full_name || meta.name || user?.email || '').trim();
 }
 
 export async function fetchPdfFormTemplates(): Promise<PdfFormTemplate[]> {

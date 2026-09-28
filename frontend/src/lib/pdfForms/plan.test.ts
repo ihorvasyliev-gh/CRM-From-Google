@@ -4,6 +4,7 @@ import { tableToSheet } from './excel';
 import { applyOverrides, planRows, safeFileName, templateColumns } from './plan';
 import { matchColumns } from './source';
 import { makeLayout } from './testLayout';
+import { buildLayout } from './layout';
 import { DEFAULT_SETTINGS, type ChoiceField, type TextField } from './types';
 
 const sheet = tableToSheet(
@@ -81,5 +82,74 @@ describe('planRows', () => {
 
     it('makes file names safe', () => {
         expect(safeFileName('a/b:c*?"<>|d\u0001e')).toBe('a b c d e');
+    });
+});
+
+describe('autoMapTemplate: office fields, dates, Eircode, free text', () => {
+    const t = (x: number, y: number, str: string, w = str.length * 5.2) => ({ page: 0, x, y, str, w, h: 10.5 });
+    const line = (x: number, y: number, w: number, h: number) => ({ page: 0, x, y, w, h });
+    const layout = buildLayout(
+        [{ w: 595, h: 842 }],
+        [
+            t(22, 800, 'LDC Staff Member'),
+            t(22, 770, 'Date of Registration'),
+            t(155, 770, '______/_______/20', 98),
+            t(22, 700, 'CO Name'),
+            t(22, 670, 'CO Address'),
+            t(22, 600, 'Date your LCG was'),
+            t(22, 588, 'established?'),
+            t(171, 588, '_____/_________/________', 120),
+            t(22, 480, 'Describe the social'),
+            t(22, 466, 'inclusion remit of'),
+        ],
+        [
+            // Staff row, CO name / address rows
+            line(18, 790, 559, 0.5), line(18, 815, 559, 0.5), line(18, 790, 0.5, 25), line(140, 790, 0.5, 25), line(577, 790, 0.5, 25),
+            line(18, 690, 559, 0.5), line(18, 715, 559, 0.5), line(18, 655, 559, 0.5),
+            line(18, 655, 0.5, 60), line(108, 655, 0.5, 60), line(577, 655, 0.5, 60),
+            // "Describe" block: tall label cell beside 4 ruled lines
+            line(18, 400, 559, 0.5), line(18, 500, 559, 0.5), line(18, 400, 0.5, 100), line(140, 400, 0.5, 100), line(577, 400, 0.5, 100),
+            ...[425, 450, 475].map(y => line(140, y, 437, 0.5)),
+        ],
+    );
+    const sheet2 = tableToSheet(
+        [
+            ['Name of Group', 'Postal Address for Local Community Group', 'Eircode', 'How long has the group been in existence?', 'Please give a brief description of your activities'],
+            ['Shed', '90 Great William O’Brien St', 'T23 TR7A', '2019', 'Group meetings, making garden furniture for the community and helping at the Christmas market.'],
+        ],
+        'orgs.csv',
+    );
+    const fields = autoMapTemplate(layout, sheet2);
+    const by = (name: string) => fields.find(f => f.name === name) as TextField | undefined;
+
+    it('fills the registration date with today and the staff member with the user', () => {
+        expect(by('Date of Registration (day)')?.source).toBe('{today|dd}');
+        expect(by('Date of Registration (year)')?.source).toBe('{today|yy}');
+        expect(by('LDC Staff Member')?.source).toBe('{user}');
+    });
+
+    it('matches a date blank to a column about the same thing', () => {
+        expect(by('Date your LCG was established? (year)')?.source).toBe('{How long has the group been in existence?|yyyy}');
+    });
+
+    it('adds the Eircode to the address when the form has no Eircode box', () => {
+        expect(by('CO Address')?.source).toBe('{Postal Address for Local Community Group}, {Eircode|new}');
+    });
+
+    it('writes a long description between the rules of the "Describe" box', () => {
+        const describe = fields.find((f): f is TextField => f.kind === 'text' && f.name.startsWith('Describe'))!;
+        expect(describe.source).toBe('{Please give a brief description of your activities}');
+        expect(describe.lines).toBe(4);
+        expect(describe.rules).toHaveLength(3);
+    });
+
+    it('names a person\'s form "First Last"', () => {
+        const people = tableToSheet([['First Name', 'Last Name'], ['Anna', 'Smith']], 'p.csv');
+        const f: TextField[] = [
+            { id: 'a', kind: 'text', name: 'First Name', source: '{First Name}', rect: { page: 0, x: 0, y: 0, w: 10, h: 10 }, fontSize: 10, multiline: false, align: 'left' },
+            { id: 'b', kind: 'text', name: 'Last Name', source: '{Last Name}', rect: { page: 0, x: 0, y: 0, w: 10, h: 10 }, fontSize: 10, multiline: false, align: 'left' },
+        ];
+        const cols = matchColumns(templateColumns(f, DEFAULT_SETTINGS), people.headers);
+        expect(planRows(f, DEFAULT_SETTINGS, people, cols, 'Individual')[0].fileName).toBe('Anna Smith.pdf');
     });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerRectForLabel, buildLayout, cellAt, insetCell } from './layout';
+import { answerRectForLabel, buildLayout, cellAt, findDateBlanks, insetCell, ruledLines } from './layout';
 import { makeLayout } from './testLayout';
 
 describe('buildLayout', () => {
@@ -62,5 +62,45 @@ describe('buildLayout', () => {
     it('pads cells so text does not touch the borders', () => {
         const inset = insetCell({ page: 0, x: 10, y: 10, w: 100, h: 20 });
         expect(inset).toEqual({ page: 0, x: 13, y: 13, w: 94, h: 14 });
+    });
+});
+
+describe('date blanks and ruled boxes', () => {
+    const items = [
+        { page: 0, x: 22, y: 402, str: 'Date of Registration', w: 95, h: 10.5 },
+        { page: 0, x: 155, y: 402, str: '______/_______/20', w: 98, h: 10.5 },
+        { page: 0, x: 22, y: 300, str: 'Date of Birth', w: 66, h: 10.5 },
+        { page: 0, x: 152, y: 296, str: '——————/———————/———————', w: 259, h: 10.5 },
+        { page: 0, x: 260, y: 296, str: '(dd/mm/yyyy)', w: 60, h: 8 },
+        { page: 0, x: 171, y: 200, str: '_____/_________/________', w: 120, h: 10.5 },
+        { page: 0, x: 292, y: 200, str: '(Use 01/01 if not known)', w: 150, h: 8 },
+    ];
+    const layout = buildLayout([{ w: 595, h: 842 }], items, []);
+    const blanks = findDateBlanks(layout);
+
+    it('finds day / month / year blanks with their label', () => {
+        expect(blanks).toHaveLength(3);
+        const reg = blanks.find(b => b.label === 'Date of Registration')!;
+        expect(reg.yearDigits).toBe(2);
+        expect(reg.day.x).toBeCloseTo(155, 0);
+        expect(reg.month.x).toBeGreaterThan(reg.day.x + reg.day.w - 1);
+        // "/20" has no blank after it: the year goes right after the printed century
+        expect(reg.year.x).toBeGreaterThan(reg.month.x + reg.month.w);
+        expect(blanks.find(b => b.label === 'Date of Birth')!.yearDigits).toBe(4);
+    });
+
+    it('keeps a note after a blank out of the blank', () => {
+        expect(layout.phrases.map(p => p.text)).toContain('_____/_________/________');
+    });
+
+    it('finds rules drawn in pieces across a box', () => {
+        const rules = [120, 140, 160].flatMap(y => [
+            { page: 0, x: 140, y, w: 160, h: 0.5 },
+            { page: 0, x: 300, y, w: 137, h: 0.5 },
+        ]);
+        const l = buildLayout([{ w: 595, h: 842 }], [], rules);
+        const found = ruledLines(l, { page: 0, x: 142, y: 100, w: 292, h: 80 });
+        expect(found.map(f => Math.round(f * 80 + 100))).toEqual([120, 140, 160]);
+        expect(ruledLines(l, { page: 0, x: 142, y: 150, w: 292, h: 30 })).toEqual([]);
     });
 });

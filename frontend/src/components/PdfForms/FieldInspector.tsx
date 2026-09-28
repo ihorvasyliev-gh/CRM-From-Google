@@ -40,6 +40,7 @@ export function SourceInput({ value, onChange, columns, id }: SourceInputProps) 
                     <option value="">Column…</option>
                     {columns.map(c => <option key={c} value={c}>{c.length > 70 ? `${c.slice(0, 67)}…` : c}</option>)}
                     <option value="today">Today's date</option>
+                    <option value="user">Your name (signed-in user)</option>
                     <option value="row">Row number</option>
                 </select>
                 <div className="w-[38%] shrink-0">
@@ -66,12 +67,14 @@ interface InspectorProps {
     sample: SheetData | null;
     sampleRow: number;
     columnMatches: Map<string, ColumnMatch>;
+    /** Printed for {user} */
+    userName?: string;
 }
 
 export default function FieldInspector(props: InspectorProps) {
-    const { field, onChange, onDelete, columns, sample, sampleRow, columnMatches } = props;
+    const { field, onChange, onDelete, columns, sample, sampleRow, columnMatches, userName } = props;
     const sampleValue = sample
-        ? evaluateSource(field.source, { row: sample.rows[sampleRow] ?? [], columns: columnMatches, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2 })
+        ? evaluateSource(field.source, { row: sample.rows[sampleRow] ?? [], columns: columnMatches, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, user: userName })
         : null;
 
     return (
@@ -135,6 +138,25 @@ function TextOptions({ field, onChange, onSnapToCell }: { field: TextField; onCh
                 <input type="checkbox" checked={field.multiline} onChange={e => onChange({ ...field, multiline: e.target.checked })} className="accent-brand-500" />
                 Several lines (wrap long text)
             </label>
+            {field.multiline && (
+                <div>
+                    <label className={labelCls} htmlFor={`ln-${field.id}`}>Ruled writing lines in the box (0 = none)</label>
+                    <input
+                        id={`ln-${field.id}`}
+                        type="number"
+                        min={0}
+                        max={40}
+                        value={field.lines ?? 0}
+                        onChange={e => {
+                            const lines = Math.min(40, Math.max(0, Math.round(Number(e.target.value) || 0)));
+                            // A new count means evenly spaced lines; found rule positions only fit their own count
+                            onChange({ ...field, lines: lines >= 2 ? lines : undefined, rules: lines === field.lines ? field.rules : undefined });
+                        }}
+                        className={fieldCls}
+                    />
+                    <p className="mt-1 text-[11px] text-muted">Text is written between the rules instead of across them.</p>
+                </div>
+            )}
             <p className="text-[11px] text-muted">Long values shrink to fit, down to 6 pt. Drag the box on the page to move it; drag its corner to resize.</p>
             {onSnapToCell && (
                 <Button size="sm" onClick={onSnapToCell}>
@@ -198,6 +220,18 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
                             <li key={o.id} className="rounded-lg border border-border-subtle px-2.5 py-2">
                                 <div className="flex items-start gap-2">
                                     <span className="text-xs font-medium text-primary flex-1 min-w-0 break-words">{o.label || <em className="text-muted">No label</em>}</span>
+                                    {o.label && (field.source === o.label ? (
+                                        <Badge tone="success">always ticked</Badge>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            title="Tick this box on every form, whatever the spreadsheet says"
+                                            onClick={() => onChange({ ...field, source: o.label, single: true })}
+                                            className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline whitespace-nowrap mt-0.5"
+                                        >
+                                            Always tick
+                                        </button>
+                                    ))}
                                     <IconButton
                                         label={`Remove ${o.label}`}
                                         size="sm"

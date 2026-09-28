@@ -4,10 +4,10 @@
 // to it. Everything is a suggestion: the editor shows it for review.
 
 import { bestOption, withSiblings } from './choice';
-import { answerRectForLabel } from './layout';
-import { placeholderFor } from './source';
+import { answerRectForLabel, findDateBlanks, ruledLines, type DateBlank } from './layout';
+import { parseLooseDate, placeholderFor } from './source';
 import { bigramSimilarity, containment, normalizeText, similarity, splitAnswers, tokens } from './text';
-import { DEFAULT_FONT_SIZE, type Checkbox, type ChoiceField, type ChoiceOption, type FormField, type Phrase, type PdfLayout, type SheetData, type TextField } from './types';
+import { DEFAULT_FONT_SIZE, type Checkbox, type ChoiceField, type ChoiceOption, type FormField, type Phrase, type PdfLayout, type Rect, type SheetData, type TextField } from './types';
 
 /** Columns a form export adds that belong on no form (response id, timestamps) */
 const SKIP_HEADERS = /^(id|start time|completion time|last modified time|timestamp|submitted|response id)$/i;
@@ -18,6 +18,13 @@ const PERSON_NAME = /^(name|full name|your name)$|\b(contact|person|participant|
 /** Printed notes that make a question take a single answer */
 const SINGLE_NOTE = /select one|tick one box|one option only|tick one only|choose one/i;
 const MULTI_NOTE = /one or more|all that apply/i;
+
+/** Office fields filled in for every form */
+const REGISTRATION_DATE = /\bregistration\b/i;
+const STAFF_LABEL = /\bstaff (member|name)\b|\bsupport worker\b/i;
+const EIRCODE_HEADER = /\beir ?code\b|\bpost ?code\b/i;
+/** Words too common to say two date questions are about the same thing */
+const DATE_NOISE = new Set(['date', 'org', 'name', 'when', 'what', 'how', 'long', 'was', 'been', 'has', 'have']);
 
 /** Labels too common to say which question a column answers */
 const GENERIC_LABELS = new Set(['yes', 'no', 'other', 'not applicable', 'prefer not to say', 'none', 'dont know']);
@@ -84,7 +91,7 @@ export function shortName(header: string, max = 48): string {
     return name.length > max ? `${name.slice(0, max - 1).trim()}…` : name;
 }
 
-function textField(name: string, source: string, rect: TextField['rect']): TextField {
+function textField(name: string, source: string, rect: TextField['rect'], align: TextField['align'] = 'left'): TextField {
     return {
         id: newId('f'),
         kind: 'text',
@@ -93,8 +100,35 @@ function textField(name: string, source: string, rect: TextField['rect']): TextF
         rect,
         fontSize: DEFAULT_FONT_SIZE,
         multiline: rect.h >= DEFAULT_FONT_SIZE * 2.4,
-        align: 'left',
+        align,
     };
+}
+
+/** Day / month / year fields for a printed "__/__/__" blank */
+function dateFields(blank: DateBlank, column: string | null): TextField[] {
+    const name = shortName(blank.label || 'Date', 36);
+    const src = (f: string) => (column ? placeholderFor(column, [f]) : `{today|${f}}`);
+    const year = blank.yearDigits === 2 ? 'yy' : 'yyyy';
+    return [
+        textField(`${name} (day)`, src('dd'), blank.day, 'center'),
+        textField(`${name} (month)`, src('mm'), blank.month, 'center'),
+        textField(`${name} (year)`, src(year), blank.year, 'center'),
+    ];
+}
+
+function looksLikeDates(values: string[]): boolean {
+    const sample = values.slice(0, 200);
+    return sample.length > 0 && sample.filter(v => parseLooseDate(v)).length >= sample.length * 0.6;
+}
+
+function sharesTopic(label: string, header: string): boolean {
+    const a = new Set(tokens(label).filter(t => !DATE_NOISE.has(t) && t.length > 2));
+    return tokens(header).some(t => a.has(t));
+}
+
+/** Label phrases printed inside a rect (a question spread over several lines) */
+function phrasesIn(layout: PdfLayout, r: Rect): Phrase[] {
+    return layout.phrases.filter(p => p.page === r.page && p.x >= r.x - 2 && p.x + p.w <= r.x + r.w + 2 && p.y >= r.y - 2 && p.y <= r.y + r.h + 2);
 }
 
 function isLabelCandidate(p: Phrase, layout: PdfLayout): boolean {
@@ -118,9 +152,38 @@ export function autoMapTemplate(layout: PdfLayout, sheet: SheetData): FormField[
             .filter(s => s.score >= 0.85 || (s.score >= 0.5 && s.inside >= 0.75))
             .sort((a, b) => b.score - a.score || b.close - a.close)[0]?.p;
 
+    const usedColumns = new Set<number>();
+    const blankPhrases = new Set(layout.phrases.filter(p => /^[_\u2014\u2013\-\s/0-9]+/.test(p.text) && /[_\u2014\u2013]{3}/.test(p.text)));
+
+    // 1. Printed date blanks: today for the registration date, else the matching date column
+    for (const blank of findDateBlanks(layout)) {
+        const labelPhrases = layout.phrases.filter(p => p.page === blank.page && blank.label.includes(p.text) && !blankPhrases.has(p));
+        let column: string | null = null;
+        if (!REGISTRATION_DATE.test(blank.label)) {
+            const candidates = sheet.headers
+                .map((header, col) => ({ header, col, values: columnValues(sheet, col) }))
+                .filter(c => !usedColumns.has(c.col) && !SKIP_HEADERS.test(c.header.trim()) && looksLikeDates(c.values))
+                .map(c => ({ ...c, score: similarity(blank.label, c.header) }))
+                .filter(c => c.score >= 0.6 || sharesTopic(blank.label, c.header))
+                .sort((a, b) => b.score - a.score);
+            if (!candidates[0]) continue;
+            column = candidates[0].header;
+            usedColumns.add(candidates[0].col);
+        }
+        labelPhrases.forEach(p => takenLabels.add(p));
+        fields.push(...dateFields(blank, column));
+    }
+
+    // 2. Who is filling the forms in
+    const staff = labels.find(p => STAFF_LABEL.test(p.text));
+    if (staff) {
+        takenLabels.add(staff);
+        fields.push(textField(staff.text, '{user}', answerRectForLabel(layout, staff)));
+    }
+
     sheet.headers.forEach((header, col) => {
         const values = columnValues(sheet, col);
-        if (values.length === 0 || SKIP_HEADERS.test(header.trim())) return;
+        if (values.length === 0 || usedColumns.has(col) || SKIP_HEADERS.test(header.trim())) return;
 
         const choice = choiceFor(header, values, layout, takenBoxes);
         if (choice) {
@@ -141,6 +204,7 @@ export function autoMapTemplate(layout: PdfLayout, sheet: SheetData): FormField[
                 takenLabels.add(last);
                 fields.push(textField(first.text, placeholderFor(header, ['first']), answerRectForLabel(layout, first)));
                 fields.push(textField(last.text, placeholderFor(header, ['last']), answerRectForLabel(layout, last)));
+                usedColumns.add(col);
                 return;
             }
         }
@@ -149,11 +213,45 @@ export function autoMapTemplate(layout: PdfLayout, sheet: SheetData): FormField[
         const label = findLabel(header);
         if (label) {
             takenLabels.add(label);
+            usedColumns.add(col);
             fields.push(textField(label.text, placeholderFor(header, isPhone ? ['phone'] : []), answerRectForLabel(layout, label)));
         }
     });
+
+    // 3. No Eircode box on the form: add it to the address (unless the address already has it)
+    const address = fields.find((f): f is TextField => f.kind === 'text' && /\baddress\b/i.test(f.name));
+    sheet.headers.forEach((header, col) => {
+        if (!address || usedColumns.has(col) || !EIRCODE_HEADER.test(header) || columnValues(sheet, col).length === 0) return;
+        address.source = `${address.source}, ${placeholderFor(header, ['new'])}`;
+        usedColumns.add(col);
+    });
+
+    // 4. A long free-text answer goes in the form's "Describe …" box ("description" columns first)
+    const describe = labels.find(p => !takenLabels.has(p) && /^describe\b/i.test(phrasesInCellOf(layout, p).map(q => q.text).join(' ')) && /^describe\b/i.test(p.text));
+    const freeText = sheet.headers
+        .map((header, col) => ({ header, col, values: columnValues(sheet, col) }))
+        .filter(c => !usedColumns.has(c.col) && /\bdescri/i.test(c.header) && c.values.length > 0)
+        .filter(c => c.values.reduce((n, v) => n + v.length, 0) / c.values.length >= 60)
+        .sort((a, b) => Number(/\bdescription\b/i.test(b.header)) - Number(/\bdescription\b/i.test(a.header)));
+    if (describe && freeText[0]) {
+        takenLabels.add(describe);
+        usedColumns.add(freeText[0].col);
+        const name = phrasesInCellOf(layout, describe).map(p => p.text).join(' ');
+        const rect = answerRectForLabel(layout, describe);
+        const rules = ruledLines(layout, rect);
+        fields.push({ ...textField(shortName(name, 60), placeholderFor(freeText[0].header), rect), multiline: true, ...(rules.length ? { lines: rules.length + 1, rules } : {}) });
+    }
+
     // Top of the first page first, as people read the form
     return fields.sort((a, b) => topOf(a).page - topOf(b).page || topOf(b).y - topOf(a).y);
+}
+
+/** The phrases sharing a label's table cell, top to bottom */
+function phrasesInCellOf(layout: PdfLayout, label: Phrase): Phrase[] {
+    const r = answerRectForLabel(layout, label);
+    const cell = { page: label.page, x: label.x - 4, y: r.y - 4, w: Math.max(label.w, r.x - label.x), h: r.h + 8 };
+    const inside = phrasesIn(layout, cell).sort((a, b) => b.y - a.y || a.x - b.x);
+    return inside.length ? inside : [label];
 }
 
 function topOf(f: FormField): { page: number; y: number } {

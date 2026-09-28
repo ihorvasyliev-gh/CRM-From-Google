@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import arimo from '../../assets/fonts/Arimo-Regular.ttf?inline';
-import { fitText, FormFiller, oneLine, wrapText, type Measure } from './fill';
+import { fitRuled, fitText, FormFiller, oneLine, ruledRows, wrapText, type Measure } from './fill';
 import { generateForms } from './generate';
 import type { RowPlan } from './plan';
 import { DEFAULT_SETTINGS, type FormField } from './types';
@@ -119,5 +119,21 @@ describe('FormFiller', () => {
     it('gives a single form as a plain PDF', async () => {
         const { files } = await generateForms(await blankTemplate(), fields, DEFAULT_SETTINGS, [plan('Anna', 'Anna.pdf')], { separate: true, combined: true, baseName: 'CO form' });
         expect(files.map(f => f.name)).toEqual(['Anna.pdf']);
+    });
+});
+
+describe('ruled boxes', () => {
+    it('splits a box into its ruled rows, top first', () => {
+        expect(ruledRows(80, 4)).toEqual([20, 20, 20, 20]);
+        expect(ruledRows(100, 3, [0.2, 0.5])).toEqual([50, 30, 20].map(n => expect.closeTo(n, 5)));
+    });
+
+    it('writes one line per rule when it fits, two smaller ones when it does not', () => {
+        const short = fitRuled('one two three', 200, [20, 20, 20], 10, measure);
+        expect(short.perRow).toBe(1);
+        const long = fitRuled('word '.repeat(60), 200, [20, 20, 20], 10, measure);
+        expect(long.perRow).toBeGreaterThan(1);
+        expect(long.lines.length).toBeLessThanOrEqual(3 * long.perRow);
+        expect(long.truncated).toBe(false);
     });
 });

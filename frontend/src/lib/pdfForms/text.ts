@@ -26,6 +26,9 @@ const CANONICAL: Record<string, string> = {
     tel: 'phone',
     telephone: 'phone',
     dob: 'birth',
+    existence: 'establish',
+    established: 'establish',
+    founded: 'establish',
 };
 
 /** Crude singular form, so "disabilities" meets "disability" */

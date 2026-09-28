@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateSource, matchColumns, parseLooseDate, parsePlaceholders, placeholderFor, sourceColumns } from './source';
+import { evaluateSource, matchColumns, parseLooseDate, parsePlaceholders, placeholderFor, sourceColumns, unreadableDates } from './source';
 
 const headers = ['Id', 'Name of Group', 'Contact Name', 'Mobile Number\n', 'Email Address', 'Established'];
 
@@ -88,5 +88,37 @@ describe('parseLooseDate', () => {
 
     it('returns null when there is no date', () => {
         expect(parseLooseDate('not sure', today)).toBeNull();
+    });
+});
+
+describe('new behaviour for forms filled from registration spreadsheets', () => {
+    const headers2 = ['Postal Address', 'Eircode', 'Date of Birth'];
+    const cols = matchColumns(['Postal Address', 'Eircode', 'Date of Birth'], headers2);
+    const ev = (source: string, row: string[]) => evaluateSource(source, { row, columns: cols, rowNumber: 2, today: new Date(2026, 8, 28), user: 'Anna Staff' });
+
+    it('prints the signed-in person for {user}', () => {
+        expect(ev('{user}', [])).toBe('Anna Staff');
+    });
+
+    it('adds a value only when the text before it does not have it yet', () => {
+        expect(ev('{Postal Address}, {Eircode|new}', ['1a Glenfields Park, Cork', 'T23 PW68'])).toBe('1a Glenfields Park, Cork, T23 PW68');
+        expect(ev('{Postal Address}, {Eircode|new}', ['Unit 7, T12EP46, Cork', 'T12 EP46'])).toBe('Unit 7, T12EP46, Cork');
+    });
+
+    it('drops separators left by empty values', () => {
+        expect(ev('{Postal Address}, {Eircode}', ['', 'T23 PW68'])).toBe('T23 PW68');
+        expect(ev('{Postal Address}, {Eircode}', ['Cork', ''])).toBe('Cork');
+    });
+
+    it('refuses impossible dates instead of guessing', () => {
+        expect(parseLooseDate('11/19/0001')).toBeNull();
+        expect(parseLooseDate('31/02/2001')).toBeNull();
+        expect(parseLooseDate('8/16/0079')).toBeNull();
+        expect(ev('{Date of Birth|dd}', ['', '', '11/19/0001'])).toBe('');
+    });
+
+    it('lists values a date filter could not read', () => {
+        expect(unreadableDates('{Date of Birth|dd}/{Date of Birth|mm}', { row: ['', '', '11/19/0001'], columns: cols, rowNumber: 2 })).toEqual(['11/19/0001']);
+        expect(unreadableDates('{Date of Birth|dd}', { row: ['', '', '03/03/2003'], columns: cols, rowNumber: 2 })).toEqual([]);
     });
 });

@@ -15,7 +15,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
   <br/>
   <a href="https://supabase.com/"><img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase"/></a>
   <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Google_Apps_Script-Sync-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Apps Script"/></a>
-  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-545_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="545 tests passing"/></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-560_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="560 tests passing"/></a>
   <a href="https://pages.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Pages-F38020?style=for-the-badge&logo=cloudflarepages&logoColor=white" alt="Cloudflare Pages"/></a>
 </p>
 
@@ -113,7 +113,10 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 - Checkboxes and table cells are read from the PDF itself: click a cell to place a field, click boxes to build a question
 - **Automatic set-up** from a sample spreadsheet: answers are matched to checkbox labels, headers to printed labels
 - Column names may differ between files (similar names match, and matches can be remembered); answers match loosely (“Youth (Aged <18 Years)” ticks “Youth”)
-- “Select one option” questions tick the first answer and warn about the rest; any form can be checked and edited before it is made
+- “Select one option” questions tick the first answer and warn about the rest; a box can also be ticked on every form (e.g. CO type “Local community group”); any form can be checked and edited before it is made
+- Date blanks (`__/__/20__`, `——/——/——`) get day, month and year from a date column (Date of Birth, “in existence since 2019”); the registration date is today and “LDC Staff Member” is whoever is signed in
+- Eircode is added to the address when the form has no Eircode box (and the address doesn't already have it); long answers are written between the ruled lines of boxes like “Describe …”
+- Large spreadsheets (hundreds of registrations): search, pick the people you need, and a warning when the ZIP gets big
 - **New revision of the PDF?** Fields follow the text around them onto the new layout; anything uncertain is flagged
 - A PDF per row (ZIP) and/or one combined file for printing; the spreadsheet never leaves the browser
 
@@ -202,7 +205,7 @@ Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. T
 | Editor & charts | `react-quill-new`, `recharts` |
 | Backend | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, Edge Function for web push |
 | Automation | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
-| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (545 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
+| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (560 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
 | Hosting | Cloudflare Pages with strict security headers and a CSP (`frontend/public/_headers`) |
 
 ---
@@ -282,7 +285,7 @@ Large backfills run in batches and resume automatically, so they stay under Apps
 <summary><b>🧪 Checks</b></summary>
 
 ```bash
-npm run test:run   # 545 unit & component tests
+npm run test:run   # 560 unit & component tests
 npm run lint       # ESLint, zero warnings allowed
 npm run build      # tsc + production build
 ```

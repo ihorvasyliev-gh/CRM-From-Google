@@ -2,7 +2,7 @@
 
 import { matchChoice } from './choice';
 import type { FieldValue, RowValues } from './fill';
-import { evaluateSource, sourceColumns, type ColumnMatch } from './source';
+import { evaluateSource, sourceColumns, unreadableDates, type ColumnMatch, type EvalContext } from './source';
 import type { FormField, SheetData, TemplateSettings } from './types';
 
 export interface RowNote {
@@ -35,9 +35,12 @@ export function safeFileName(value: string, max = 80): string {
     return printable.replace(UNSAFE_FILE_CHARS, ' ').replace(/\s+/g, ' ').trim().slice(0, max).trim();
 }
 
-export function computeValue(field: FormField, row: string[], rowNumber: number, columns: Map<string, ColumnMatch>, today?: Date): { value: FieldValue; notes: string[] } {
-    const text = evaluateSource(field.source, { row, columns, rowNumber, today });
-    if (field.kind === 'text') return { value: { kind: 'text', text }, notes: [] };
+export function computeValue(field: FormField, ctx: EvalContext): { value: FieldValue; notes: string[] } {
+    const text = evaluateSource(field.source, ctx);
+    if (field.kind === 'text') {
+        const bad = unreadableDates(field.source, ctx);
+        return { value: { kind: 'text', text }, notes: bad.length ? [`Can't read the date ${bad.map(b => `"${b}"`).join(', ')}; left empty`] : [] };
+    }
 
     const result = matchChoice(field, text);
     const notes: string[] = [];
@@ -57,24 +60,32 @@ export function planRows(
     sheet: SheetData,
     columns: Map<string, ColumnMatch>,
     templateName: string,
-    today?: Date,
+    opts: { today?: Date; user?: string } = {},
 ): RowPlan[] {
     const usedNames = new Map<string, number>();
-    const firstText = fields.find(f => f.kind === 'text' && sourceColumns(f.source).length > 0);
-    const namePattern = settings.fileName.trim() || firstText?.source || '';
+    const withColumn = fields.filter(f => f.kind === 'text' && sourceColumns(f.source).length > 0);
+    // Named after the first text field; a person's form after "First Last"
+    const firstText = withColumn[0];
+    const lastName = withColumn.find(f => /\b(last name|surname)\b/i.test(f.name));
+    const defaultName = firstText && lastName && /\bfirst name\b/i.test(firstText.name) ? `${firstText.source} ${lastName.source}` : firstText?.source ?? '';
+    const namePattern = settings.fileName.trim() || defaultName;
 
     return sheet.rows.map((row, index) => {
         const rowNumber = sheet.rowNumbers?.[index] ?? index + 2;
+        const ctx: EvalContext = { row, columns, rowNumber, today: opts.today, user: opts.user };
         const values: RowValues = {};
         const notes: RowNote[] = [];
         for (const field of fields) {
-            const { value, notes: fieldNotes } = computeValue(field, row, rowNumber, columns, today);
+            const { value, notes: fieldNotes } = computeValue(field, ctx);
             values[field.id] = value;
-            fieldNotes.forEach(message => notes.push({ fieldId: field.id, field: field.name, message }));
+            // Day / month / year boxes of one date share their warning
+            fieldNotes.forEach(message => {
+                if (!notes.some(n => n.message === message)) notes.push({ fieldId: field.id, field: field.name.replace(/ \((day|month|year)\)$/, ''), message });
+            });
         }
 
-        const title = (firstText ? evaluateSource(firstText.source, { row, columns, rowNumber, today }) : '') || `Row ${rowNumber}`;
-        let base = safeFileName(namePattern ? evaluateSource(namePattern, { row, columns, rowNumber, today }) : '') || safeFileName(`${templateName} ${rowNumber}`) || `form ${rowNumber}`;
+        const title = (defaultName ? evaluateSource(defaultName, ctx) : '') || `Row ${rowNumber}`;
+        let base = safeFileName(namePattern ? evaluateSource(namePattern, ctx) : '') || safeFileName(`${templateName} ${rowNumber}`) || `form ${rowNumber}`;
         const seen = usedNames.get(base.toLowerCase()) ?? 0;
         usedNames.set(base.toLowerCase(), seen + 1);
         if (seen > 0) base = `${base} (${seen + 1})`;
