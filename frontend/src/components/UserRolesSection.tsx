@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShieldCheck, Eye, ListChecks, Search, Loader2, ArrowUpCircle, RotateCcw, Info } from 'lucide-react';
+import { ShieldCheck, Eye, ListChecks, FileInput, Search, Loader2, ArrowUpCircle, RotateCcw, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,21 +19,22 @@ export interface AppUser {
     last_sign_in_at: string | null;
 }
 
-const ROLE_ICONS = { admin: ShieldCheck, viewer: Eye, outreach: ListChecks } as const;
+const ROLE_ICONS = { admin: ShieldCheck, viewer: Eye, outreach: ListChecks, forms: FileInput } as const;
 
 const ROLE_BADGE_CLS: Record<AppRole, string> = {
     admin: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20',
     viewer: 'bg-surface-elevated text-muted border-border-subtle',
     outreach: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    forms: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
 };
 
-const FILTERS = ['all', 'viewer', 'outreach', 'admin'] as const;
-const FILTER_LABELS: Record<(typeof FILTERS)[number], string> = { all: 'All', viewer: 'Viewers', outreach: 'External Lists', admin: 'Admins' };
+const FILTERS = ['all', 'viewer', 'outreach', 'forms', 'admin'] as const;
+const FILTER_LABELS: Record<(typeof FILTERS)[number], string> = { all: 'All', viewer: 'Viewers', outreach: 'External Lists', forms: 'PDF Forms', admin: 'Admins' };
 
 /**
  * Admin-only list of app users. New sign-ups are viewers by default; an admin can switch a
- * viewer to "External Lists" (outreach - manages Outcomes > External lists only) and back,
- * or promote either to admin. Demoting an admin is intentionally not possible.
+ * viewer to "External Lists" (outreach - manages Outcomes > External lists only) or
+ * "PDF Forms" (forms - fills and sets up PDF forms only) and back, or promote any of them to admin. Demoting an admin is intentionally not possible.
  */
 export default function UserRolesSection() {
     const { user } = useAuth();
@@ -84,6 +85,7 @@ export default function UserRolesSection() {
         admin: users.filter(u => normalizeRole(u.role) === 'admin').length,
         viewer: users.filter(u => normalizeRole(u.role) === 'viewer').length,
         outreach: users.filter(u => normalizeRole(u.role) === 'outreach').length,
+        forms: users.filter(u => normalizeRole(u.role) === 'forms').length,
     }), [users]);
 
     const visible = useMemo(() => {
@@ -97,7 +99,7 @@ export default function UserRolesSection() {
     return (
         <Card
             title="Users & Roles"
-            subtitle="New users join as viewers. Give “External Lists” access to let someone manage only the external lists, or make them an admin."
+            subtitle="New users join as viewers. Give “External Lists” or “PDF Forms” access to let someone use only that part, or make them an admin."
             icon={ShieldCheck}
             divided
             action={
@@ -180,6 +182,7 @@ export default function UserRolesSection() {
                                         >
                                             <option value="viewer">{ROLE_LABELS.viewer}</option>
                                             <option value="outreach">{ROLE_LABELS.outreach}</option>
+                                            <option value="forms">{ROLE_LABELS.forms}</option>
                                         </select>
                                     )}
                                     {role !== 'admin' && (

@@ -4,12 +4,13 @@ import OutreachShell from './OutreachShell';
 import { TooltipProvider } from './ui/Tooltip';
 
 vi.mock('./OutreachLists', () => ({ default: () => <div>External lists page</div> }));
+vi.mock('./PdfForms', () => ({ default: ({ canManage }: { canManage: boolean }) => <div>PDF forms page{canManage ? ' (manage)' : ''}</div> }));
 vi.mock('./ui/NetworkStatusIndicator', () => ({ default: () => null }));
 
-function renderShell(onSignOut = vi.fn()) {
+function renderShell(onSignOut = vi.fn(), role: 'outreach' | 'forms' = 'outreach') {
     render(
         <TooltipProvider>
-            <OutreachShell darkMode={false} toggleDarkMode={vi.fn()} userEmail="lists@example.com" onSignOut={onSignOut} />
+            <OutreachShell role={role} darkMode={false} toggleDarkMode={vi.fn()} userEmail="lists@example.com" onSignOut={onSignOut} />
         </TooltipProvider>
     );
     return { onSignOut };
@@ -18,12 +19,27 @@ function renderShell(onSignOut = vi.fn()) {
 describe('OutreachShell', () => {
     beforeEach(() => localStorage.clear());
 
-    it('shows only the External Lists page, with sign out', async () => {
+    it('shows the External Lists page first, with sign out', async () => {
         const { onSignOut } = renderShell();
         expect(await screen.findByText('External lists page')).toBeInTheDocument();
-        expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
         expect(onSignOut).toHaveBeenCalled();
+    });
+
+    it('lets outreach users switch to PDF Forms (filling only) and remembers the tab', async () => {
+        renderShell();
+        await screen.findByText('External lists page');
+        fireEvent.click(screen.getByRole('button', { name: 'PDF Forms' }));
+        expect(await screen.findByText('PDF forms page')).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'How it works' })).not.toBeInTheDocument();
+        expect(localStorage.getItem('outreach_tab')).toBe('forms');
+    });
+
+    it('gives PDF Forms users only PDF Forms, with template management', async () => {
+        renderShell(vi.fn(), 'forms');
+        expect(await screen.findByText('PDF forms page (manage)')).toBeInTheDocument();
+        expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument();
+        expect(screen.queryByText('External lists page')).not.toBeInTheDocument();
     });
 
     it('lets the user hide and bring back the how-it-works tips', async () => {

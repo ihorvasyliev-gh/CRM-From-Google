@@ -3,7 +3,7 @@ import { lazyWithRetry } from './lib/lazyWithRetry';
 import { flushSync } from 'react-dom';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -23,7 +23,7 @@ import EnrollmentModal from './components/EnrollmentModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import MobileFloatingActions from './components/MobileFloatingActions';
 import OutreachShell from './components/OutreachShell';
-import { getUserRole } from './lib/roles';
+import { canManagePdfForms, getUserRole } from './lib/roles';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import { AppFallback } from './components/ui/PageFallbacks';
@@ -48,6 +48,7 @@ const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerS
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
 const ViewerHome = lazyWithRetry(() => import('./components/ViewerHome'));
 const OutreachLists = lazyWithRetry(() => import('./components/OutreachLists'));
+const PdfForms = lazyWithRetry(() => import('./components/PdfForms'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
 import ViewerHeader from './components/Viewer/ViewerHeader';
@@ -65,6 +66,8 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
     { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Insights' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
+    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Insights
+    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Insights' },
 ];
 const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
@@ -78,6 +81,7 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     documents: { queries: [enrollmentsQuery, { queryKey: ['doc_courses'], queryFn: fetchCourses }], chunk: () => import('./components/DocumentGenerator') },
     analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('./components/Analytics') },
     settings: { chunk: () => import('./components/Settings') },
+    'pdf-forms': { chunk: () => import('./components/PdfForms') },
 };
 
 const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
@@ -134,8 +138,8 @@ function App() {
     const [, startTransition] = useTransition();
     const role = getUserRole(user);
     const isViewer = role === 'viewer';
-    // External Lists only (migration 65): gets its own minimal shell below
-    const isOutreach = role === 'outreach';
+    // External Lists (migration 65) and PDF Forms (migration 75) users get their own minimal shell below
+    const isOutreach = role === 'outreach' || role === 'forms';
     const viewerTab: ViewerTab = VIEWER_TABS.find(t => location.pathname.startsWith(`/${t.key}`))?.key ?? 'home';
     const activeTab = isViewer ? viewerTab : (location.pathname.split('/')[1] || 'dashboard');
     const activeNav = NAV_ITEMS.find(n => n.key === activeTab);
@@ -150,13 +154,13 @@ function App() {
             return;
         }
         const page = isOutreach
-            ? 'External Lists'
+            ? (role === 'forms' ? 'PDF Forms' : 'External Lists')
             : isViewer
                 ? (VIEWER_TABS.find(t => t.key === activeTab)?.label || 'Home')
                 : (pageTitle || 'Dashboard');
         const prefix = !isViewer && pendingApprovalsCount > 0 ? `(${pendingApprovalsCount}) ` : '';
         document.title = `${prefix}${page} · CCP CRM`;
-    }, [user, isViewer, isOutreach, activeTab, pageTitle, pendingApprovalsCount]);
+    }, [user, role, isViewer, isOutreach, activeTab, pageTitle, pendingApprovalsCount]);
 
     // Escape closes the mobile sidebar drawer
     useModalBehavior(sidebarOpen, () => setSidebarOpen(false));
@@ -383,8 +387,8 @@ function App() {
                     return;
                 }
 
-                // 1-8 -> Tab Navigation (admin only)
-                if (!isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '8') {
+                // 1-9 -> Tab Navigation (admin only)
+                if (!isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '9') {
                     const idx = parseInt(e.key, 10) - 1;
                     if (NAV_ITEMS[idx]) {
                         e.preventDefault();
@@ -440,7 +444,7 @@ function App() {
         return (
             <NetworkStatusProvider>
                 <TooltipProvider delayDuration={100}>
-                    <OutreachShell darkMode={darkMode} toggleDarkMode={toggleDarkMode} userEmail={user.email} onSignOut={signOut} />
+                    <OutreachShell role={role === 'forms' ? 'forms' : 'outreach'} darkMode={darkMode} toggleDarkMode={toggleDarkMode} userEmail={user.email} onSignOut={signOut} />
                 </TooltipProvider>
             </NetworkStatusProvider>
         );
@@ -749,6 +753,7 @@ function App() {
                                         <Route path="/courses" element={<ViewerCourses />} />
                                         <Route path="/courses/:courseId" element={<ViewerCourses />} />
                                         <Route path="/external-lists" element={<OutreachLists />} />
+                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} />} />
                                         <Route path="/lookup" element={<Navigate to="/students" replace />} />
                                         <Route path="*" element={<Navigate to="/home" replace />} />
                                     </>
@@ -774,6 +779,7 @@ function App() {
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />
+                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} />} />
                                         <Route path="/settings" element={<Settings density={density} onDensityChange={setDensity} />} />
                                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                                     </>

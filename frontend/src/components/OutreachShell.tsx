@@ -1,13 +1,25 @@
 import { Suspense, useState } from 'react';
-import { LogOut, Moon, Sun, Upload, Mail, CheckCircle, X, HelpCircle } from 'lucide-react';
+import { LogOut, Moon, Sun, Upload, Mail, CheckCircle, X, HelpCircle, ListChecks, FileInput } from 'lucide-react';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { IconButton } from './ui/Button';
 import NetworkStatusIndicator from './ui/NetworkStatusIndicator';
 import { GlobalToaster } from './Toast';
 
 const OutreachLists = lazyWithRetry(() => import('./OutreachLists'));
+const PdfForms = lazyWithRetry(() => import('./PdfForms'));
 
 const GUIDE_HIDDEN_KEY = 'outreach_guide_hidden';
+const TAB_KEY = 'outreach_tab';
+
+type ShellTab = 'lists' | 'forms';
+
+function readTab(): ShellTab {
+    try {
+        return localStorage.getItem(TAB_KEY) === 'forms' ? 'forms' : 'lists';
+    } catch {
+        return 'lists';
+    }
+}
 
 const GUIDE_STEPS = [
     { icon: Upload, title: 'Add people', text: 'Import the Excel/CSV export from IRIS, or add someone by hand.' },
@@ -24,15 +36,30 @@ function readGuideHidden(): boolean {
 }
 
 interface OutreachShellProps {
+    /** outreach: External Lists + PDF Forms (filling only). forms: PDF Forms only, including templates. */
+    role: 'outreach' | 'forms';
     darkMode: boolean;
     toggleDarkMode: () => void;
     userEmail?: string;
     onSignOut: () => void;
 }
 
-/** The whole app for the "outreach" role: External Lists only (migration 65). */
-export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onSignOut }: OutreachShellProps) {
+/**
+ * The whole app for the restricted roles: "outreach" (External Lists, migration 65, plus
+ * filling PDF forms) and "forms" (PDF Forms only, migration 75).
+ */
+export default function OutreachShell({ role, darkMode, toggleDarkMode, userEmail, onSignOut }: OutreachShellProps) {
     const [guideHidden, setGuideHidden] = useState(readGuideHidden);
+    const [storedTab, setStoredTab] = useState<ShellTab>(readTab);
+    const tab: ShellTab = role === 'forms' ? 'forms' : storedTab;
+    const pickTab = (next: ShellTab) => {
+        setStoredTab(next);
+        try {
+            localStorage.setItem(TAB_KEY, next);
+        } catch {
+            // storage unavailable — the tab just isn't remembered
+        }
+    };
     const toggleGuide = (hidden: boolean) => {
         setGuideHidden(hidden);
         try {
@@ -48,13 +75,34 @@ export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onS
                 <div className="flex items-center gap-2.5 min-w-0">
                     <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-xs shadow-brand-500/25 ring-1 ring-inset ring-white/15 shrink-0">C</span>
                     <span className="leading-tight min-w-0">
-                        <span className="block text-sm font-bold text-primary tracking-tight truncate">External Lists</span>
-                        <span className="hidden sm:block text-[11px] text-muted truncate">Track employment status of people on external lists (e.g. Action 11)</span>
+                        <span className="block text-sm font-bold text-primary tracking-tight truncate">{tab === 'forms' ? 'PDF Forms' : 'External Lists'}</span>
+                        <span className="hidden sm:block text-[11px] text-muted truncate">
+                            {tab === 'forms' ? 'Fill PDF forms from a spreadsheet' : 'Track employment status of people on external lists (e.g. Action 11)'}
+                        </span>
                     </span>
                 </div>
+                {role === 'outreach' && (
+                    <nav className="flex items-center gap-0.5 p-1 bg-surface-elevated border border-border-subtle rounded-xl ml-2" aria-label="Sections">
+                        {([
+                            { key: 'lists', label: 'External Lists', icon: ListChecks },
+                            { key: 'forms', label: 'PDF Forms', icon: FileInput },
+                        ] as const).map(({ key, label, icon: Icon }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => pickTab(key)}
+                                aria-current={tab === key ? 'page' : undefined}
+                                className={`px-2.5 h-7 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${tab === key ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
+                            >
+                                <Icon size={13} />
+                                <span className="hidden sm:inline">{label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                )}
                 <div className="ml-auto flex items-center gap-1 shrink-0">
                     <NetworkStatusIndicator />
-                    {guideHidden && (
+                    {tab === 'lists' && guideHidden && (
                         <IconButton label="How it works" onClick={() => toggleGuide(false)}>
                             <HelpCircle size={17} />
                         </IconButton>
@@ -70,7 +118,7 @@ export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onS
             </header>
 
             <main className="flex-1 w-full px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-24">
-                {!guideHidden && (
+                {tab === 'lists' && !guideHidden && (
                     <section aria-label="How it works" className="relative mb-4 rounded-2xl border border-brand-500/20 bg-brand-500/5 p-4 pr-10">
                         <button
                             type="button"
@@ -101,7 +149,7 @@ export default function OutreachShell({ darkMode, toggleDarkMode, userEmail, onS
                         <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
                     </div>
                 }>
-                    <OutreachLists />
+                    {tab === 'forms' ? <PdfForms canManage={role === 'forms'} /> : <OutreachLists />}
                 </Suspense>
             </main>
 

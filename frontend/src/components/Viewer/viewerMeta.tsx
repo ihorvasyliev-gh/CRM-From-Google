@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Clock, CheckCircle, GraduationCap, Send, XCircle, LogOut, Home, Users, BookOpen, ListChecks } from 'lucide-react';
+import { Clock, CheckCircle, GraduationCap, Send, XCircle, LogOut, Home, Users, BookOpen, ListChecks, FileInput } from 'lucide-react';
 
 export const STATUS_META: Record<string, { label: string; icon: React.ReactElement; pill: string; bar: string; dot: string }> = {
     requested: { label: 'In queue', icon: <Clock size={12} />, pill: 'status-pill-requested', bar: 'bg-amber-400', dot: 'bg-amber-500' },
@@ -15,6 +15,7 @@ export const VIEWER_TABS = [
     { key: 'students', label: 'Students', icon: Users, shortcut: '2' },
     { key: 'courses', label: 'Courses', icon: BookOpen, shortcut: '3' },
     { key: 'external-lists', label: 'External Lists', icon: ListChecks, shortcut: '4' },
+    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, shortcut: '5' },
 ] as const;
 
 export type ViewerTab = typeof VIEWER_TABS[number]['key'];

@@ -24,7 +24,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             title: 'Global & Navigation',
             shortcuts: [
                 { keys: ['Ctrl', 'K'], description: 'Search students & courses' },
-                { keys: ['1', '–', '4'], description: 'Go to Home, Students, Courses, External Lists' },
+                { keys: ['1', '–', '5'], description: 'Go to Home, Students, Courses, External Lists, PDF Forms' },
                 { keys: ['/'], description: 'Focus the search bar on this page' },
                 { keys: ['?'], description: 'Open this cheat sheet' },
                 { keys: ['Esc'], description: 'Close a panel, clear a search or selection' },
@@ -53,7 +53,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             title: 'Global & Navigation',
             shortcuts: [
                 { keys: ['Ctrl', 'K'], description: 'Open Command Palette & Omnisearch' },
-                { keys: ['1', '–', '8'], description: 'Jump to CRM sections (Dashboard, Students...)' },
+                { keys: ['1', '–', '9'], description: 'Jump to CRM sections (Dashboard, Students… 9 = PDF Forms)' },
                 { keys: ['/'], description: 'Focus search bar in current view' },
                 { keys: ['?'], description: 'Open Keyboard Shortcuts cheat sheet' },
                 { keys: ['Esc'], description: 'Close the active modal, clear a search or selection' },

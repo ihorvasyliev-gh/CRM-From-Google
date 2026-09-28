@@ -7,6 +7,7 @@ import {
     BookOpen, 
     MoreHorizontal, 
     FileText, 
+    FileInput, 
     Briefcase, 
     PieChart, 
     Settings as SettingsIcon, 
@@ -135,6 +136,15 @@ export default function MobileBottomNav({
                             >
                                 <ListChecks size={16} className="text-emerald-500" />
                                 <span>External Lists</span>
+                            </button>
+
+                            <button
+                                onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
+                                aria-current={activeTab === 'pdf-forms' ? 'page' : undefined}
+                                className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
+                            >
+                                <FileInput size={16} className="text-violet-500" />
+                                <span>PDF Forms</span>
                             </button>
 
                             <div className="grid grid-cols-2 gap-2 mb-4">
@@ -339,6 +349,20 @@ export default function MobileBottomNav({
                                     <FileText size={15} />
                                 </div>
                                 <span>Documents</span>
+                            </button>
+
+                            <button
+                                onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
+                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                                    activeTab === 'pdf-forms'
+                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                                }`}
+                            >
+                                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                                    <FileInput size={15} />
+                                </div>
+                                <span>PDF Forms</span>
                             </button>
 
                             <button

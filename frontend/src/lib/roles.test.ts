@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getUserRole, normalizeRole } from './roles';
+import { canManagePdfForms, getUserRole, normalizeRole } from './roles';
 
 describe('roles', () => {
     it('treats a missing or unknown role as admin (same rule as the database)', () => {
@@ -9,9 +9,17 @@ describe('roles', () => {
         expect(normalizeRole('something-else')).toBe('admin');
     });
 
-    it('recognises viewer and outreach', () => {
+    it('recognises viewer, outreach and forms', () => {
         expect(normalizeRole('viewer')).toBe('viewer');
         expect(normalizeRole('outreach')).toBe('outreach');
+        expect(normalizeRole('forms')).toBe('forms');
+    });
+
+    it('lets admins and forms users manage PDF form templates', () => {
+        expect(canManagePdfForms('admin')).toBe(true);
+        expect(canManagePdfForms('forms')).toBe(true);
+        expect(canManagePdfForms('viewer')).toBe(false);
+        expect(canManagePdfForms('outreach')).toBe(false);
     });
 
     it('reads the role from app_metadata', () => {

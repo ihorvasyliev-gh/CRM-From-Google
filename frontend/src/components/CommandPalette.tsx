@@ -6,7 +6,7 @@ import { matchesSearch, buildStudentSearchFilters } from '../lib/searchUtils';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
-    Briefcase, FileText, PieChart, Settings as SettingsIcon,
+    Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
     Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
     X, CornerDownLeft, Sparkles, Loader2
 } from 'lucide-react';
@@ -239,6 +239,7 @@ export default function CommandPalette({
                 { id: 'nav-docs', title: 'Documents', subtitle: 'Generate registration forms', tab: 'documents', icon: <FileText size={17} />, shortcut: '6' },
                 { id: 'nav-anal', title: 'Analytics', subtitle: 'Stats, funnels & insights', tab: 'analytics', icon: <PieChart size={17} />, shortcut: '7' },
                 { id: 'nav-sett', title: 'Settings', subtitle: 'App & email configuration', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
+                { id: 'nav-pdff', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '9' },
             ];
 
             navs.forEach(nav => {
@@ -262,6 +263,7 @@ export default function CommandPalette({
                 { id: 'nav-home', title: 'Home', subtitle: 'Upcoming sessions & what needs attention', tab: 'home', icon: <LayoutDashboard size={17} />, shortcut: '1' },
                 { id: 'nav-students', title: 'Students', subtitle: 'Search and browse student history & contacts', tab: 'students', icon: <Users size={17} />, shortcut: '2' },
                 { id: 'nav-courses', title: 'Courses', subtitle: 'Course rosters, dates & completion requests', tab: 'courses', icon: <BookOpen size={17} />, shortcut: '3' },
+                { id: 'nav-pdf-forms', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '5' },
             ];
             viewerNavs.forEach(nav => {
                 if (!q || nav.title.toLowerCase().includes(q) || nav.subtitle.toLowerCase().includes(q)) {

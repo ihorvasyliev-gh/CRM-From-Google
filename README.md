@@ -15,7 +15,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
   <br/>
   <a href="https://supabase.com/"><img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase"/></a>
   <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Google_Apps_Script-Sync-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Apps Script"/></a>
-  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-437_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="437 tests passing"/></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-545_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="545 tests passing"/></a>
   <a href="https://pages.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Pages-F38020?style=for-the-badge&logo=cloudflarepages&logoColor=white" alt="Cloudflare Pages"/></a>
 </p>
 
@@ -105,6 +105,20 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 🧾 PDF Forms
+- Fill flat PDF forms (e.g. the SICAP CO and individual registration forms) from an Excel / CSV file, one form per row
+- Checkboxes and table cells are read from the PDF itself: click a cell to place a field, click boxes to build a question
+- **Automatic set-up** from a sample spreadsheet: answers are matched to checkbox labels, headers to printed labels
+- Column names may differ between files (similar names match, and matches can be remembered); answers match loosely (“Youth (Aged <18 Years)” ticks “Youth”)
+- “Select one option” questions tick the first answer and warn about the rest; any form can be checked and edited before it is made
+- **New revision of the PDF?** Fields follow the text around them onto the new layout; anything uncertain is flagged
+- A PDF per row (ZIP) and/or one combined file for printing; the spreadsheet never leaves the browser
+
+</td>
+</tr>
 </table>
 
 > **Also:** `Ctrl + K` command palette · full keyboard shortcuts (`?`) · light and dark themes · compact density · mobile bottom nav · offline / sync indicator · web push for new confirmations.
@@ -169,8 +183,9 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | Role | Sees | Can |
 | :-- | :-- | :-- |
 | 🧑‍💼 **Admin** | Everything | Manage students, courses, enrollments, templates, analytics, settings and user roles |
-| 👀 **Viewer** | Home · Students · Courses · External Lists | Read-only rosters, and request course completion for admin approval |
-| 📋 **External Lists** | External Lists only | Import, survey and export outreach contacts |
+| 👀 **Viewer** | Home · Students · Courses · External Lists · PDF Forms | Read-only rosters, request course completion for admin approval, fill PDF forms |
+| 📋 **External Lists** | External Lists · PDF Forms | Import, survey and export outreach contacts; fill PDF forms |
+| 🧾 **PDF Forms** | PDF Forms only | Set up PDF form templates (upload forms and new revisions, map columns) and fill them |
 
 Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They go through hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else.
 
@@ -183,11 +198,11 @@ Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. T
 | UI | React 19, TypeScript 6, Tailwind CSS 4, Lucide icons, Radix Tooltip |
 | Routing & data | React Router 7, TanStack Query 5 (cache + prefetch on hover) |
 | Board | `@dnd-kit/core` |
-| Documents | `docxtemplater`, `pizzip`, `exceljs` |
+| Documents | `docxtemplater`, `pizzip`, `exceljs`; PDF forms with `pdf-lib` (+ `@pdf-lib/fontkit`, Arimo font) and `pdfjs-dist` |
 | Editor & charts | `react-quill-new`, `recharts` |
 | Backend | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, Edge Function for web push |
 | Automation | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
-| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (437 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
+| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (545 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
 | Hosting | Cloudflare Pages with strict security headers and a CSP (`frontend/public/_headers`) |
 
 ---
@@ -243,7 +258,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-public-key
 
 1. In the Supabase **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
 2. Apply every numbered migration in [`supabase/`](supabase/) in order (`01_…` up to the latest).
-3. In **Storage**, create a bucket named `templates` for `.docx` templates (migration 32 creates it; migration 73 makes it private).
+3. In **Storage**, create a bucket named `templates` for `.docx` templates (migration 32 creates it; migration 73 makes it private). Migration 75 creates the private `pdf-forms` bucket for PDF form templates; if the SQL Editor may not change storage, it prints what to set up by hand.
 4. *(Optional, for web push)* deploy [`supabase/functions/send-push-notification`](supabase/functions/send-push-notification).
 
 </details>
@@ -267,7 +282,7 @@ Large backfills run in batches and resume automatically, so they stay under Apps
 <summary><b>🧪 Checks</b></summary>
 
 ```bash
-npm run test:run   # 437 unit & component tests
+npm run test:run   # 545 unit & component tests
 npm run lint       # ESLint, zero warnings allowed
 npm run build      # tsc + production build
 ```
