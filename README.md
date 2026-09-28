@@ -15,7 +15,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
   <br/>
   <a href="https://supabase.com/"><img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase"/></a>
   <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Google_Apps_Script-Sync-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Apps Script"/></a>
-  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-560_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="560 tests passing"/></a>
+  <a href="https://vitest.dev/"><img src="https://img.shields.io/badge/Tests-589_passing-729B1B?style=for-the-badge&logo=vitest&logoColor=white" alt="589 tests passing"/></a>
   <a href="https://pages.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Pages-F38020?style=for-the-badge&logo=cloudflarepages&logoColor=white" alt="Cloudflare Pages"/></a>
 </p>
 
@@ -109,6 +109,9 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 <td colspan="2" valign="top">
 
 ### 🧾 PDF Forms
+- Made for everyone, not just computer people: drop a spreadsheet on the page and the right form opens; three plain steps (your spreadsheet → who needs a form → download); one file ready to print by default; notes in plain words
+- Adding a form is a guided 1-2-3: the blank PDF, an example spreadsheet (fields are set up from it), then check and save; values are chosen from lists, never typed as codes; Undo / Redo
+- Messy spreadsheets are fine: several sheets (the one with the form's columns is used, or pick another), column names below a title or blank lines, repeated column names, totals, Excel errors, rows hidden by a filter, CSV files in the Windows encoding
 - Fill flat PDF forms (e.g. the SICAP CO and individual registration forms) from an Excel / CSV file, one form per row
 - Checkboxes and table cells are read from the PDF itself: click a cell to place a field, click boxes to build a question
 - **Automatic set-up** from a sample spreadsheet: answers are matched to checkbox labels, headers to printed labels
@@ -205,7 +208,7 @@ Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. T
 | Editor & charts | `react-quill-new`, `recharts` |
 | Backend | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, Edge Function for web push |
 | Automation | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
-| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (560 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
+| Build & quality | Vite 8 (Rolldown), Vitest 5 + Testing Library (589 tests), ESLint 10 with zero warnings allowed, `tsc` strict |
 | Hosting | Cloudflare Pages with strict security headers and a CSP (`frontend/public/_headers`) |
 
 ---
@@ -285,7 +288,7 @@ Large backfills run in batches and resume automatically, so they stay under Apps
 <summary><b>🧪 Checks</b></summary>
 
 ```bash
-npm run test:run   # 560 unit & component tests
+npm run test:run   # 589 unit & component tests
 npm run lint       # ESLint, zero warnings allowed
 npm run build      # tsc + production build
 ```

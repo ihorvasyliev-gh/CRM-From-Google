@@ -67,8 +67,8 @@ describe('planRows', () => {
     });
 
     it('warns about extra answers for one-option questions and unknown answers', () => {
-        expect(plans[0].notes.map(n => n.message)).toEqual(['One option only: ticked "Travellers", left out "Refugees"']);
-        expect(plans[1].notes[0].message).toMatch(/No box matches "Company Limited by Guarantee"/);
+        expect(plans[0].notes.map(n => n.message)).toEqual(['The form allows one answer: “Travellers” is ticked, not “Refugees”']);
+        expect(plans[1].notes[0].message).toMatch(/No box on the form for “Company Limited by Guarantee”/);
     });
 
     it('lets manual edits replace values and clear their warnings', () => {

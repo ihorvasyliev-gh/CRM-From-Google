@@ -2,21 +2,134 @@ import { useMemo, useState } from 'react';
 import { CheckSquare, Grid2x2, ListPlus, Plus, Trash2, Type, X } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
 import Badge from '../ui/Badge';
+import { Segmented } from '../ui/Tabs';
 import { fieldCls, labelCls, calloutCls } from '../ui/styles';
 import { bestOption } from '../../lib/pdfForms/choice';
-import { evaluateSource, FILTERS, placeholderFor, type ColumnMatch } from '../../lib/pdfForms/source';
+import { describeSource, evaluateSource, FILTERS, placeholderFor, simpleSource, type ColumnMatch } from '../../lib/pdfForms/source';
 import { splitAnswers } from '../../lib/pdfForms/text';
 import type { ChoiceField, FormField, SheetData, TextField } from '../../lib/pdfForms/types';
 
-interface SourceInputProps {
+const SPECIAL_OPTIONS = [
+    { value: 'today', label: "Today's date" },
+    { value: 'user', label: 'Your name (whoever is filling in)' },
+    { value: 'row', label: 'Row number in the spreadsheet' },
+];
+const DATE_FILTER_KEYS = new Set(['date', 'dd', 'mm', 'yyyy', 'yy']);
+
+type SourceMode = 'column' | 'fixed' | 'advanced';
+
+interface SourceEditorProps {
     value: string;
     onChange: (value: string) => void;
     columns: string[];
     id: string;
 }
 
-/** Where a value comes from: free text with {Column|filter} placeholders, plus pickers to insert them */
-export function SourceInput({ value, onChange, columns, id }: SourceInputProps) {
+/** Chips for a value: columns in blue, today / your name in violet, fixed text in grey */
+export function SourceChips({ source }: { source: string }) {
+    const parts = describeSource(source);
+    if (parts.length === 0) return <span className="text-[11px] text-muted italic">No value yet</span>;
+    return (
+        <span className="flex flex-wrap gap-1">
+            {parts.map((p, i) => (
+                <span
+                    key={i}
+                    className={`inline-flex items-center gap-1 px-1.5 h-5 rounded-md text-[10px] font-semibold max-w-full ${
+                        p.kind === 'column'
+                            ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                            : p.kind === 'special'
+                                ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                                : 'bg-surface-elevated text-muted border border-border-subtle'
+                    }`}
+                >
+                    <span className="truncate">{p.kind === 'text' ? `“${p.label}”` : p.label}</span>
+                    {p.detail && <span className="font-normal opacity-80 shrink-0">· {p.detail}</span>}
+                </span>
+            ))}
+        </span>
+    );
+}
+
+/**
+ * Where a value comes from, point and click: a spreadsheet column (optionally "first name",
+ * "day"…), the same text for everyone, or (advanced) free text with {Column} placeholders.
+ */
+export function SourceEditor({ value, onChange, columns, id }: SourceEditorProps) {
+    const simple = simpleSource(value);
+    const [mode, setMode] = useState<SourceMode>(simple.kind === 'fixed' ? 'fixed' : simple.kind === 'combined' ? 'advanced' : 'column');
+    const column = simple.kind === 'column' ? simple.column : '';
+    const filter = simple.kind === 'column' ? simple.filter : '';
+    const isDateSource = column.toLowerCase() === 'today';
+    const filters = FILTERS.filter(f => f.key !== 'new' && (!isDateSource || DATE_FILTER_KEYS.has(f.key)));
+    const known = [...columns, ...SPECIAL_OPTIONS.map(o => o.value)];
+
+    const setColumn = (c: string, f = filter) => {
+        const keep = c.toLowerCase() === 'today' ? (DATE_FILTER_KEYS.has(f) ? f : 'date') : c.toLowerCase() === 'user' || c.toLowerCase() === 'row' ? '' : f;
+        onChange(c ? placeholderFor(c, keep ? [keep] : []) : '');
+    };
+
+    return (
+        <div className="space-y-2">
+            <Segmented<SourceMode>
+                size="sm"
+                ariaLabel="Where the value comes from"
+                value={mode}
+                onChange={next => {
+                    setMode(next);
+                    // Switching to a simple mode starts it clean when the current value doesn't fit it
+                    if (next === 'fixed' && simple.kind !== 'fixed') onChange('');
+                    if (next === 'column' && simple.kind !== 'column') onChange('');
+                }}
+                options={[
+                    { value: 'column', label: 'From a column' },
+                    { value: 'fixed', label: 'Same for everyone' },
+                    { value: 'advanced', label: 'Advanced' },
+                ]}
+            />
+            {mode === 'column' && (
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+                    <select id={id} value={column} onChange={e => setColumn(e.target.value)} aria-label="Column" className={`${fieldCls} text-xs`}>
+                        <option value="">Choose a column…</option>
+                        {column && !known.includes(column) && <option value={column}>{column} (not in the example)</option>}
+                        <optgroup label="Spreadsheet columns">
+                            {columns.map(c => <option key={c} value={c}>{c.length > 70 ? `${c.slice(0, 67)}…` : c}</option>)}
+                        </optgroup>
+                        <optgroup label="Other">
+                            {SPECIAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </optgroup>
+                    </select>
+                    <select
+                        value={filter}
+                        onChange={e => setColumn(column, e.target.value)}
+                        disabled={!column || column === 'user' || column === 'row'}
+                        aria-label="What to print"
+                        className={`${fieldCls} text-xs w-auto! max-w-[150px]`}
+                    >
+                        {!isDateSource && <option value="">As it is</option>}
+                        {filters.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </select>
+                    {columns.length === 0 && (
+                        <p className="col-span-2 text-[11px] text-muted">Load an example spreadsheet (left panel) to pick from its columns.</p>
+                    )}
+                </div>
+            )}
+            {mode === 'fixed' && (
+                <input
+                    id={id}
+                    value={simple.kind === 'fixed' ? simple.text : ''}
+                    onChange={e => onChange(e.target.value.replace(/[{}]/g, ''))}
+                    placeholder="e.g. Cork City Partnership"
+                    className={`${fieldCls} text-xs`}
+                />
+            )}
+            {mode === 'advanced' && <AdvancedSource value={value} onChange={onChange} columns={columns} id={id} />}
+            {mode !== 'advanced' && value && <SourceChips source={value} />}
+        </div>
+    );
+}
+
+/** Free text with {Column|filter} placeholders, plus pickers to insert them */
+function AdvancedSource({ value, onChange, columns, id }: SourceEditorProps) {
     const [column, setColumn] = useState('');
     const [filter, setFilter] = useState('');
     const insert = () => {
@@ -35,17 +148,16 @@ export function SourceInput({ value, onChange, columns, id }: SourceInputProps) 
                 placeholder="{Column name} or fixed text"
                 className={`${fieldCls} h-auto py-2 font-mono text-xs leading-relaxed`}
             />
+            <SourceChips source={value} />
             <div className="flex flex-wrap gap-1.5">
                 <select value={column} onChange={e => setColumn(e.target.value)} aria-label="Column to insert" className={`${fieldCls} h-8 text-xs min-w-0 flex-1 w-auto!`}>
                     <option value="">Column…</option>
                     {columns.map(c => <option key={c} value={c}>{c.length > 70 ? `${c.slice(0, 67)}…` : c}</option>)}
-                    <option value="today">Today's date</option>
-                    <option value="user">Your name (signed-in user)</option>
-                    <option value="row">Row number</option>
+                    {SPECIAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <div className="w-[38%] shrink-0">
                     <select value={filter} onChange={e => setFilter(e.target.value)} aria-label="Change the value" className={`${fieldCls} h-8 text-xs`}>
-                        <option value="">As is</option>
+                        <option value="">As it is</option>
                         {FILTERS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </select>
                 </div>
@@ -53,6 +165,9 @@ export function SourceInput({ value, onChange, columns, id }: SourceInputProps) 
                     <Plus size={13} /> Insert
                 </Button>
             </div>
+            <p className="text-[11px] text-muted">
+                Combine columns and text, e.g. <code className="font-mono">{'{Address}, {Eircode|new}'}</code>. “If not already there” skips a value the text before it already has.
+            </p>
         </div>
     );
 }
@@ -95,11 +210,11 @@ export default function FieldInspector(props: InspectorProps) {
             </div>
 
             <div>
-                <label className={labelCls} htmlFor={`src-${field.id}`}>Value from the spreadsheet</label>
-                <SourceInput id={`src-${field.id}`} value={field.source} onChange={source => onChange({ ...field, source })} columns={columns} />
+                <label className={labelCls} htmlFor={`src-${field.id}`}>{field.kind === 'text' ? 'What to print' : 'Which answer ticks the boxes'}</label>
+                <SourceEditor key={field.id} id={`src-${field.id}`} value={field.source} onChange={source => onChange({ ...field, source })} columns={columns} />
                 {sampleValue !== null && (
-                    <p className="mt-1.5 text-[11px] text-muted">
-                        Row {sample?.rowNumbers?.[sampleRow] ?? sampleRow + 2}: <span className="text-primary font-medium break-words">{sampleValue || '(empty)'}</span>
+                    <p className="mt-2 text-[11px] text-muted rounded-lg bg-surface-elevated/60 px-2 py-1.5">
+                        Example (row {sample?.rowNumbers?.[sampleRow] ?? sampleRow + 2}): <span className="text-primary font-medium break-words">{sampleValue || '(empty)'}</span>
                     </p>
                 )}
             </div>

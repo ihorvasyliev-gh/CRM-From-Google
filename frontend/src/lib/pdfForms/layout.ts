@@ -336,6 +336,22 @@ export function ruledLines(layout: PdfLayout, r: Rect): number[] {
     return ys.length >= 2 ? ys.map(y => (y - r.y) / r.h) : [];
 }
 
+/** The form's title: the biggest text near the top of the first page ("Community Organisation Registration Form") */
+export function guessTitle(layout: PdfLayout): string {
+    const first = layout.phrases.filter(p => p.page === 0 && /\p{L}{3}/u.test(p.text));
+    if (first.length === 0) return '';
+    const biggest = Math.max(...first.map(p => p.h));
+    if (biggest < 13) return '';
+    return first
+        .filter(p => p.h >= biggest * 0.8)
+        .sort((a, b) => b.y - a.y || a.x - b.x)
+        .slice(0, 3)
+        .map(p => p.text)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 export function rectCenter(r: Rect): { x: number; y: number } {
     return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }

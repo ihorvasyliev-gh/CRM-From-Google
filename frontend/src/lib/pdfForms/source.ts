@@ -53,6 +53,81 @@ export function placeholderFor(column: string, filters: string[] = []): string {
     return `{${[column.replace(/[{}|]/g, ' ').replace(/\s+/g, ' ').trim(), ...filters].join('|')}}`;
 }
 
+// ─── Plain-language descriptions (so people never have to read "{…|…}") ───
+
+/** Short names for filters, as shown next to a column: "Contact Name · first name" */
+export const FILTER_SHORT: Record<string, string> = {
+    first: 'first name',
+    last: 'last name',
+    phone: 'phone',
+    date: 'date',
+    dd: 'day',
+    mm: 'month',
+    yyyy: 'year',
+    yy: 'year, 2 digits',
+    upper: 'capitals',
+    lower: 'lower case',
+    oneline: 'one line',
+    new: 'if not already there',
+};
+
+const SPECIAL_LABEL: Record<string, string> = { today: "Today's date", user: 'Your name', row: 'Row number' };
+
+export interface SourcePart {
+    kind: 'column' | 'special' | 'text';
+    label: string;
+    /** For columns / specials: what is done to the value ("first name", "day") */
+    detail?: string;
+}
+
+/** A source as chips: columns, today / your name, and the fixed text between them */
+export function describeSource(source: string): SourcePart[] {
+    const parts: SourcePart[] = [];
+    let last = 0;
+    for (const m of source.matchAll(PLACEHOLDER_RE)) {
+        const text = source.slice(last, m.index);
+        if (text.trim() && text.trim() !== ',') parts.push({ kind: 'text', label: text.trim() });
+        last = m.index + m[0].length;
+        const column = m[1].trim();
+        const filters = m[2].split('|').map(f => f.trim().toLowerCase()).filter(Boolean);
+        const special = SPECIAL_LABEL[column.toLowerCase()];
+        const detail = filters.map(f => FILTER_SHORT[f] ?? f).join(', ') || undefined;
+        parts.push(special ? { kind: 'special', label: special, detail } : { kind: 'column', label: column, detail });
+    }
+    const tail = source.slice(last);
+    if (tail.trim()) parts.push({ kind: 'text', label: tail.trim() });
+    return parts;
+}
+
+/** One line for lists: "Contact Name (first name)", "Today's date (day)", "“Local community group”" */
+export function summarizeSource(source: string): string {
+    const parts = describeSource(source);
+    if (parts.length === 0) return 'No value yet';
+    if (parts.length === 1 && parts[0].kind === 'text') return `Always “${parts[0].label}”`;
+    return parts
+        .filter(p => p.kind !== 'text')
+        .map(p => (p.detail ? `${p.label} (${p.detail})` : p.label))
+        .join(' + ');
+}
+
+export type SimpleSource =
+    | { kind: 'empty' }
+    | { kind: 'column'; column: string; filter: string }
+    | { kind: 'fixed'; text: string }
+    | { kind: 'combined' };
+
+/** Whether a source is simple enough for the point-and-click editor */
+export function simpleSource(source: string): SimpleSource {
+    const s = source.trim();
+    if (!s) return { kind: 'empty' };
+    const found = parsePlaceholders(s);
+    if (found.length === 0) return { kind: 'fixed', text: s };
+    if (found.length === 1 && found[0].filters.length <= 1 && /^\{[^{}]+\}$/.test(s)) {
+        return { kind: 'column', column: found[0].column, filter: found[0].filters[0] ?? '' };
+    }
+    return { kind: 'combined' };
+}
+
 // ─── Column matching ────────────────────────────────────────────
 
 export interface ColumnMatch {

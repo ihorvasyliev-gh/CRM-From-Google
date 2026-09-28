@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateSource, matchColumns, parseLooseDate, parsePlaceholders, placeholderFor, sourceColumns, unreadableDates } from './source';
+import { describeSource, evaluateSource, matchColumns, parseLooseDate, parsePlaceholders, placeholderFor, simpleSource, sourceColumns, summarizeSource, unreadableDates } from './source';
 
 const headers = ['Id', 'Name of Group', 'Contact Name', 'Mobile Number\n', 'Email Address', 'Established'];
 
@@ -120,5 +120,33 @@ describe('new behaviour for forms filled from registration spreadsheets', () => 
     it('lists values a date filter could not read', () => {
         expect(unreadableDates('{Date of Birth|dd}/{Date of Birth|mm}', { row: ['', '', '11/19/0001'], columns: cols, rowNumber: 2 })).toEqual(['11/19/0001']);
         expect(unreadableDates('{Date of Birth|dd}', { row: ['', '', '03/03/2003'], columns: cols, rowNumber: 2 })).toEqual([]);
+    });
+});
+
+describe('plain-language descriptions of a value', () => {
+    it('describes columns, today / your name and fixed text', () => {
+        expect(summarizeSource('{Contact Name|first}')).toBe('Contact Name (first name)');
+        expect(summarizeSource('{today|dd}')).toBe("Today's date (day)");
+        expect(summarizeSource('{user}')).toBe('Your name');
+        expect(summarizeSource('{Postal Address}, {Eircode|new}')).toBe('Postal Address + Eircode (if not already there)');
+        expect(summarizeSource('Local community group')).toBe('Always “Local community group”');
+        expect(summarizeSource('')).toBe('No value yet');
+    });
+
+    it('splits a value into chips', () => {
+        expect(describeSource('Dear {First Name|upper}!')).toEqual([
+            { kind: 'text', label: 'Dear' },
+            { kind: 'column', label: 'First Name', detail: 'capitals' },
+            { kind: 'text', label: '!' },
+        ]);
+    });
+
+    it('tells simple values (for the point-and-click editor) from combined ones', () => {
+        expect(simpleSource('')).toEqual({ kind: 'empty' });
+        expect(simpleSource('{Email}')).toEqual({ kind: 'column', column: 'Email', filter: '' });
+        expect(simpleSource('{Date of Birth|dd}')).toEqual({ kind: 'column', column: 'Date of Birth', filter: 'dd' });
+        expect(simpleSource('Cork')).toEqual({ kind: 'fixed', text: 'Cork' });
+        expect(simpleSource('{A}, {B}')).toEqual({ kind: 'combined' });
+        expect(simpleSource('{A|first|upper}')).toEqual({ kind: 'combined' });
     });
 });

@@ -131,4 +131,10 @@ export interface SheetData {
     /** Spreadsheet row number of each row (for people to find it) */
     rowNumbers?: number[];
     fileName: string;
+    /** The sheet (tab) of the workbook these rows come from */
+    sheetName?: string;
+    /** Indexes into `rows` of rows hidden in Excel (e.g. by a filter) */
+    hiddenRows?: number[];
+    /** Rows left out: the column names repeated, a lone note or total */
+    skippedRows?: number;
 }

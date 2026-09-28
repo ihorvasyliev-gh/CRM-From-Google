@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerRectForLabel, buildLayout, cellAt, findDateBlanks, insetCell, ruledLines } from './layout';
+import { answerRectForLabel, buildLayout, cellAt, findDateBlanks, guessTitle, insetCell, ruledLines } from './layout';
 import { makeLayout } from './testLayout';
 
 describe('buildLayout', () => {
@@ -102,5 +102,25 @@ describe('date blanks and ruled boxes', () => {
         const found = ruledLines(l, { page: 0, x: 142, y: 100, w: 292, h: 80 });
         expect(found.map(f => Math.round(f * 80 + 100))).toEqual([120, 140, 160]);
         expect(ruledLines(l, { page: 0, x: 142, y: 150, w: 292, h: 30 })).toEqual([]);
+    });
+});
+
+describe('guessTitle', () => {
+    it('names a form after the big heading on its first page', () => {
+        const l = buildLayout(
+            [{ w: 595, h: 842 }],
+            [
+                { page: 0, x: 180, y: 792, str: 'Community Organisation', w: 250, h: 24 },
+                { page: 0, x: 220, y: 758, str: 'Registration Form', w: 220, h: 24 },
+                { page: 0, x: 480, y: 758, str: '(Updated 14 Jan 2026)', w: 90, h: 9 },
+                { page: 0, x: 20, y: 700, str: 'Thank you for taking the time', w: 200, h: 10.5 },
+            ],
+            [],
+        );
+        expect(guessTitle(l)).toBe('Community Organisation Registration Form');
+    });
+
+    it('gives up when nothing stands out', () => {
+        expect(guessTitle(buildLayout([{ w: 595, h: 842 }], [{ page: 0, x: 20, y: 700, str: 'Name', w: 30, h: 10 }], []))).toBe('');
     });
 });

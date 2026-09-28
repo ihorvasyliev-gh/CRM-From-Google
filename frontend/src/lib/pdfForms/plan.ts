@@ -39,17 +39,17 @@ export function computeValue(field: FormField, ctx: EvalContext): { value: Field
     const text = evaluateSource(field.source, ctx);
     if (field.kind === 'text') {
         const bad = unreadableDates(field.source, ctx);
-        return { value: { kind: 'text', text }, notes: bad.length ? [`Can't read the date ${bad.map(b => `"${b}"`).join(', ')}; left empty`] : [] };
+        return { value: { kind: 'text', text }, notes: bad.length ? [`The date ${bad.map(b => `“${b}”`).join(', ')} doesn’t look right, so it's left blank to fill in by hand`] : [] };
     }
 
     const result = matchChoice(field, text);
     const notes: string[] = [];
     if (result.unmatched.length > 0) {
-        notes.push(`No box matches ${result.unmatched.map(a => `"${a.length > 60 ? `${a.slice(0, 57)}…` : a}"`).join(', ')}`);
+        notes.push(`No box on the form for ${result.unmatched.map(a => `“${a.length > 60 ? `${a.slice(0, 57)}…` : a}”`).join(', ')}, so none is ticked`);
     }
     if (result.dropped.length > 0) {
         const first = field.options.find(o => o.id === result.ticked[0])?.label ?? '';
-        notes.push(`One option only: ticked "${first}", left out ${result.dropped.map(a => `"${a}"`).join(', ')}`);
+        notes.push(`The form allows one answer: “${first}” is ticked, not ${result.dropped.map(a => `“${a}”`).join(', ')}`);
     }
     return { value: { kind: 'choice', ticked: result.ticked }, notes };
 }
