@@ -9,6 +9,7 @@ import { formatDate } from './source';
 
 export interface LiteSheet {
     name: string;
+    /** Hidden in Excel (a "very hidden" sheet is not even offered by Excel, so it is left out altogether) */
     hidden: boolean;
     table: string[][];
     hiddenRows: number[];
@@ -134,7 +135,7 @@ function resolveTarget(target: string): string {
 }
 
 /** Sheets in tab order with the file each one lives in */
-function sheetFiles(zip: PizZip): { name: string; hidden: boolean; path: string }[] {
+function sheetFiles(zip: PizZip): { name: string; hidden: boolean; veryHidden: boolean; path: string }[] {
     const workbookXml = readText(zip, 'xl/workbook.xml');
     const relsXml = readText(zip, 'xl/_rels/workbook.xml.rels');
     if (workbookXml && relsXml) {
@@ -148,6 +149,7 @@ function sheetFiles(zip: PizZip): { name: string; hidden: boolean; path: string 
                 .map((s, i) => ({
                     name: attr(s, 'name') ?? `Sheet${i + 1}`,
                     hidden: (attr(s, 'state') ?? 'visible') !== 'visible',
+                    veryHidden: attr(s, 'state') === 'veryHidden',
                     path: targets.get(attr(s, 'id') ?? '') ?? '',
                 }))
                 .filter(s => s.path && zip.file(s.path));
@@ -160,7 +162,7 @@ function sheetFiles(zip: PizZip): { name: string; hidden: boolean; path: string 
         .file(/^xl\/worksheets\/[^/]+\.xml$/)
         .map(f => f.name)
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-        .map((path, i) => ({ name: `Sheet${i + 1}`, hidden: false, path }));
+        .map((path, i) => ({ name: `Sheet${i + 1}`, hidden: false, veryHidden: false, path }));
 }
 
 function readSheet(xml: string, strings: string[], dates: boolean[]): { table: string[][]; hiddenRows: number[] } {
@@ -220,10 +222,57 @@ export function readXlsxLite(data: ArrayBuffer | Uint8Array): LiteSheet[] {
     const dates = dateStyles(zip);
     const sheets: LiteSheet[] = [];
     for (const f of files) {
+        if (f.veryHidden) continue;
         const xml = readText(zip, f.path);
         if (!xml) continue;
         const { table, hiddenRows } = readSheet(xml, strings, dates);
         sheets.push({ name: f.name, hidden: f.hidden, table, hiddenRows });
     }
     return sheets;
+}
+
+// ─── Keeping exceljs away from what makes it hang ──────────────
+
+/** A merged range above this many cells is formatting, not a title */
+const MAX_MERGE_CELLS = 50_000;
+
+function rangeCells(ref: string): number {
+    const [a, b = a] = ref.split(':');
+    const cell = (r: string) => {
+        const m = /^\$?([A-Za-z]+)\$?(\d+)$/.exec(r.trim());
+        return m ? { col: columnIndex(m[1]), row: Number(m[2]) } : null;
+    };
+    const from = cell(a);
+    const to = cell(b);
+    if (!from || !to) return 0;
+    return (Math.abs(to.col - from.col) + 1) * (Math.abs(to.row - from.row) + 1);
+}
+
+/**
+ * exceljs writes every cell of every data-validation range into memory. Excel files often have
+ * validations for a whole column ("C3:C1048576": a million cells per range), and then exceljs
+ * hangs the page or runs out of memory, without any error. Validations and huge merged ranges
+ * say nothing about the values, so they are cut out before exceljs sees the file.
+ * Returns the same bytes when there is nothing to cut.
+ */
+export function withoutHeavyParts(data: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
+    let zip: PizZip;
+    try {
+        zip = new PizZip(data);
+    } catch {
+        return data; // not a zip: let the reader say so
+    }
+    let changed = false;
+    for (const file of zip.file(/^xl\/worksheets\/[^/]+\.xml$/)) {
+        const xml = file.asText();
+        const cleaned = xml
+            .replace(/<(?:\w+:)?dataValidations\b[\s\S]*?<\/(?:\w+:)?dataValidations>/g, '')
+            .replace(/<(?:\w+:)?dataValidations\b[^>]*\/>/g, '')
+            .replace(/<mergeCell\s[^>]*?ref="([^"]+)"[^>]*\/>/g, (whole, ref: string) => (rangeCells(ref) > MAX_MERGE_CELLS ? '' : whole));
+        if (cleaned !== xml) {
+            zip.file(file.name, cleaned);
+            changed = true;
+        }
+    }
+    return changed ? zip.generate({ type: 'uint8array', compression: 'STORE' }) : data;
 }

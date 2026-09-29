@@ -11,7 +11,7 @@ import { parseDelimitedText } from '../contactImport';
 import { formatDate } from './source';
 import { normalizeText, similarity } from './text';
 import type { NamesFrom, SheetData } from './types';
-import { readXlsxLite } from './xlsxLite';
+import { readXlsxLite, withoutHeavyParts } from './xlsxLite';
 
 /** How many rows from the top to look at for the column names */
 const HEADER_SCAN_ROWS = 30;
@@ -286,9 +286,10 @@ async function readWithExcelJs(data: ArrayBuffer): Promise<RawSheet[]> {
     const ExcelJSModule = await import('exceljs');
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(data);
+    const light = withoutHeavyParts(data);
+    await workbook.xlsx.load((light instanceof Uint8Array ? light.buffer.slice(light.byteOffset, light.byteOffset + light.byteLength) : light) as ArrayBuffer);
 
-    return workbook.worksheets.map(sheet => {
+    return workbook.worksheets.filter(sheet => sheet.state !== 'veryHidden').map(sheet => {
         const grid = new Map<number, string[]>();
         const hiddenRows: number[] = [];
         let width = 0;

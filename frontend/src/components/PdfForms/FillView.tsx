@@ -15,6 +15,7 @@ import { FormFiller, type RowValues } from '../../lib/pdfForms/fill';
 import { generateForms, type GenerateResult } from '../../lib/pdfForms/generate';
 import { applyOverrides, planRows, safeFileName, templateColumns, type RowPlan } from '../../lib/pdfForms/plan';
 import { matchColumns, parseLooseDate, type ColumnMatch } from '../../lib/pdfForms/source';
+import { similarity } from '../../lib/pdfForms/text';
 import type { PdfFormTemplate, SheetData } from '../../lib/pdfForms/types';
 import PreviewModal from './PreviewModal';
 import SheetPicker from './SheetPicker';
@@ -439,7 +440,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                             <td className={`${tdCls} min-w-[200px]`}>
                                                 <span className="block text-sm font-medium text-primary truncate max-w-[340px]">{p.title}</span>
                                                 <span className="block text-[11px] text-muted">
-                                                    Row {p.rowNumber}
+                                                    {p.title === `Row ${p.rowNumber}` ? 'No name found for this row' : `Row ${p.rowNumber}`}
                                                     {rowDays[p.index] ? ` · sent in ${rowDays[p.index]!.split('-').reverse().join('/')}` : ''}
                                                 </span>
                                             </td>
@@ -623,6 +624,17 @@ export default function FillView({ template, initialWorkbook = null, initialShee
     );
 }
 
+/** For a column the form needs but the spreadsheet doesn't name that way: the closest-looking columns */
+function guesses(m: ColumnMatch, headers: string[]): number[] {
+    if (m.index !== null) return [];
+    return headers
+        .map((h, i) => ({ i, score: similarity(m.wanted, h) }))
+        .filter(g => g.score >= 0.4)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(g => g.i);
+}
+
 /** "The form needs … → this column": one row per piece of information */
 function ColumnPicker({ list, headers, onPick }: { list: ColumnMatch[]; headers: string[]; onPick: (wanted: string, index: number) => void }) {
     return (
@@ -640,7 +652,14 @@ function ColumnPicker({ list, headers, onPick }: { list: ColumnMatch[]; headers:
                         className={`${fieldCls} text-xs ${m.index === null ? 'border-warning/60' : ''}`}
                     >
                         <option value={-1}>Leave blank</option>
-                        {headers.map((h, i) => <option key={i} value={i}>{shorten(h, 90)}</option>)}
+                        {guesses(m, headers).length > 0 && (
+                            <optgroup label="Best guesses">
+                                {guesses(m, headers).map(i => <option key={`g${i}`} value={i}>{shorten(headers[i], 90)}</option>)}
+                            </optgroup>
+                        )}
+                        <optgroup label="All columns">
+                            {headers.map((h, i) => <option key={i} value={i}>{shorten(h, 90)}</option>)}
+                        </optgroup>
                     </select>
                 </li>
             ))}

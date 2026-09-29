@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import ExcelJS from 'exceljs';
-import { readXlsxLite } from './xlsxLite';
+import { readXlsxLite, withoutHeavyParts } from './xlsxLite';
 import { bestSheet, decodeText, findHeaderRow, readSheetFile, readWorkbook, sheetFrom, tableToSheet } from './excel';
 
 /** A messy real-world workbook, built with exceljs */
@@ -243,5 +243,45 @@ describe('files exceljs cannot open but Excel can', () => {
         const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         await expect(readWorkbook(new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])], 'x.xlsx'))).rejects.toThrow(/could not be opened/);
         errors.mockRestore();
+    });
+});
+
+describe('a workbook like the IRIS export: validations down to the last row', () => {
+    /** Adds what Excel writes for "validate the whole column": ranges down to row 1,048,576 */
+    async function withWholeColumnValidations(): Promise<Uint8Array> {
+        const PizZip = (await import('pizzip')).default;
+        const zip = new PizZip(await irisWorkbook(wb => wb.addWorksheet('hiddenSheet', { state: 'veryHidden' }).addRow(['Open', 'Closed'])));
+        const path = 'xl/worksheets/sheet3.xml';
+        const xml = zip.file(path)!.asText();
+        const validations = '<dataValidations count="2">'
+            + '<dataValidation type="textLength" operator="lessThanOrEqual" allowBlank="1" showInputMessage="1" promptTitle="Text (required)" prompt="Maximum Length: 100 characters." sqref="C3:C1048576"><formula1>100</formula1></dataValidation>'
+            + '<dataValidation type="list" allowBlank="1" sqref="D3:E1048576 AF3:AH1048576 Z3:Z1048576"><formula1>"Open,Closed"</formula1></dataValidation>'
+            + '</dataValidations>';
+        zip.file(path, xml.replace('</sheetData>', `</sheetData>${validations}`));
+        return zip.generate({ type: 'uint8array' });
+    }
+
+    it('cuts the validations out, and only those', async () => {
+        const PizZip = (await import('pizzip')).default;
+        const bytes = await withWholeColumnValidations();
+        const cleaned = withoutHeavyParts(bytes) as Uint8Array;
+        const sheet = (b: Uint8Array) => new PizZip(b).file('xl/worksheets/sheet3.xml')!.asText();
+        expect(sheet(bytes)).toContain('dataValidations');
+        expect(sheet(cleaned)).not.toContain('dataValidation');
+        expect(sheet(cleaned)).toContain('<sheetData>');
+        // Nothing to cut: the very same bytes come back
+        const plain = await irisWorkbook();
+        expect(withoutHeavyParts(plain)).toBe(plain);
+    });
+
+    it('opens the file at once, with every sheet, and leaves out the very hidden one', async () => {
+        const started = Date.now();
+        const book = await readWorkbook(asFile(await withWholeColumnValidations()));
+        expect(Date.now() - started).toBeLessThan(5000);
+        expect(book.sheets.map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
+        expect(sheetFrom(book, 2).rows).toHaveLength(5);
+        expect(sheetFrom(book, 0).headers[4]).toBe('LCG Name');
+        // The small reader agrees
+        expect(readXlsxLite(await withWholeColumnValidations()).map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
     });
 });
