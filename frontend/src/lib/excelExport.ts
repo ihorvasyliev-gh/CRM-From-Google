@@ -3,6 +3,7 @@ import type { ViewerCourseRosterItem } from './types';
 import { cleanVariant } from './types';
 import { formatDateDMY } from './dateUtils';
 import { downloadBlob } from './download';
+import { loadChunk } from './deployRecovery';
 
 interface ExportViewerRosterOptions {
     items: ViewerCourseRosterItem[];
@@ -77,7 +78,7 @@ export async function exportViewerRosterToExcel({
     if (!items || items.length === 0) return;
 
     // Dynamic import to keep initial bundle size minimal
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
     const workbook = new ExcelJS.Workbook();

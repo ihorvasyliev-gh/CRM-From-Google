@@ -3,6 +3,7 @@ import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { downloadBlob } from '../../lib/download';
 import { levenshteinDistance } from '../../lib/similarity';
+import { loadChunk } from '../../lib/deployRecovery';
 
 // ─── Location & Geographic Intelligence Types ─────────────────
 
@@ -751,7 +752,7 @@ export async function exportExecutiveExcelReport(
     employmentStatuses: any[],
     filterLabel = 'All Time'
 ) {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
     const workbook = new ExcelJS.Workbook();

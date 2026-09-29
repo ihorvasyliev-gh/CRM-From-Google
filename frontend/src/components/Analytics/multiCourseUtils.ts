@@ -3,6 +3,7 @@ import { cleanVariant, Student } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { normalizeCorkAddress } from './analyticsUtils';
 import { downloadBlob } from '../../lib/download';
+import { loadChunk } from '../../lib/deployRecovery';
 
 export interface AvailableCourseSummary {
     id: string;
@@ -232,7 +233,7 @@ export async function exportMultiCourseExcelReport(
     selectedCourses: { id: string; name: string }[],
     matchMode: 'all' | 'any'
 ) {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
     const workbook = new ExcelJS.Workbook();

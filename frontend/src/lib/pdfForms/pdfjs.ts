@@ -6,13 +6,14 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { buildLayout, type RawRect, type RawTextItem } from './layout';
 import type { PdfLayout } from './types';
+import { loadChunk } from '../deployRecovery';
 
 type PdfJs = typeof import('pdfjs-dist');
 
 let pdfjsPromise: Promise<PdfJs> | null = null;
 
 export function loadPdfJs(): Promise<PdfJs> {
-    pdfjsPromise ??= Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<PdfJs>, import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')])
+    pdfjsPromise ??= loadChunk(() => Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<PdfJs>, import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]))
         .then(([lib, worker]) => {
             lib.GlobalWorkerOptions.workerSrc = worker.default;
             return lib;

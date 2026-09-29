@@ -12,6 +12,7 @@ import {
     abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, parseDateRule,
     type DateVariable, type EnrollmentWithRelations, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
 } from './documentRender';
+import { loadChunk } from './deployRecovery';
 
 export * from './documentRender';
 
@@ -291,7 +292,7 @@ async function buildParticipantsWorkbook(
     dateVariables: DateVariable[],
     today: string,
 ): Promise<ArrayBuffer> {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Participants');

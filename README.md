@@ -325,6 +325,7 @@ Security headers, the CSP and cache rules ship from [`frontend/public/_headers`]
 | Apps Script timeout | Very large backfill | Use **Export ALL answers**; it batches and resumes on its own |
 | Template placeholders left empty | Misspelled tag | The upload and generation messages list unknown placeholders; use a name from **Documents → Available variables** (e.g. `{firstName}`, `{courseTitle}`, `{courseDate}`) or add a custom variable |
 | Student missing from a bulk email | They unsubscribed | See **Settings → Unsubscribed emails** |
+| Stuck on **Loading Portal…**, or *"A new version is available"* | A deploy replaced the app's code files while the page was open or loading | The app re-downloads its code and reloads on its own (`public/boot-recovery.js`); open tabs show a **Reload** bar. Missing `/assets/` files answer a real 404 (`public/assets/404.html`) so browsers never cache a wrong file. If it still hangs, press **Try again** on the loading screen |
 
 ---
 

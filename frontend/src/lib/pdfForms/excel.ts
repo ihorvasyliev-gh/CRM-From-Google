@@ -12,6 +12,7 @@ import { formatDate } from './source';
 import { normalizeText, similarity } from './text';
 import type { NamesFrom, SheetData } from './types';
 import { readXlsxLite, withoutHeavyParts } from './xlsxLite';
+import { loadChunk } from '../deployRecovery';
 
 /** How many rows from the top to look at for the column names */
 const HEADER_SCAN_ROWS = 30;
@@ -283,7 +284,7 @@ function cellText(cell: XlCell): string {
 
 /** Only the rows and cells that exist: a sheet "formatted down to row 1,048,576" stays small */
 async function readWithExcelJs(data: ArrayBuffer): Promise<RawSheet[]> {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
     const light = withoutHeavyParts(data);

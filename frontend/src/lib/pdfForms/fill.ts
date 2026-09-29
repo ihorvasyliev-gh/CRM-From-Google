@@ -5,6 +5,7 @@
 import type { PDFDocument as PDFDocumentType, PDFFont, PDFPage } from 'pdf-lib';
 import arimoUrl from '../../assets/fonts/Arimo-Regular.ttf?url';
 import { DEFAULT_FONT_SIZE, MIN_FONT_SIZE, type FormField, type Rect, type TemplateSettings, type TextField } from './types';
+import { loadChunk } from '../deployRecovery';
 
 export type FieldValue = { kind: 'text'; text: string } | { kind: 'choice'; ticked: string[] };
 export type RowValues = Record<string, FieldValue>;
@@ -144,8 +145,8 @@ let libsPromise: Promise<{ lib: PdfLib; fontkit: unknown; font: Uint8Array }> | 
 
 function loadLibs() {
     libsPromise ??= Promise.all([
-        import('pdf-lib'),
-        import('@pdf-lib/fontkit'),
+        loadChunk(() => import('pdf-lib')),
+        loadChunk(() => import('@pdf-lib/fontkit')),
         fetch(arimoUrl).then(r => {
             if (!r.ok) throw new Error(`Could not load the form font (${r.status})`);
             return r.arrayBuffer();

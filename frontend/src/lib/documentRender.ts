@@ -4,6 +4,7 @@
 import type { Student, Course, Enrollment } from './types';
 import { cleanVariant } from './types';
 import { formatDateLong, formatDateDMY, todayISO } from './dateUtils';
+import { loadChunk } from './deployRecovery';
 
 /** Enrollment with joined student and course data (from Supabase select with joins). */
 export interface EnrollmentWithRelations extends Enrollment {
@@ -339,11 +340,11 @@ interface DocxLibs { PizZip: PizZipCtor; Docxtemplater: DocxtemplaterCtor; fixDo
 let libsPromise: Promise<DocxLibs> | null = null;
 
 export function loadDocxLibs(): Promise<DocxLibs> {
-    libsPromise ??= Promise.all([
+    libsPromise ??= loadChunk(() => Promise.all([
         import('pizzip'),
         import('docxtemplater'),
         import('docxtemplater/js/modules/fix-doc-pr-corruption.js'),
-    ]).then(([pz, dt, fix]) => ({
+    ])).then(([pz, dt, fix]) => ({
         PizZip: (pz.default || pz) as PizZipCtor,
         Docxtemplater: (dt.default || dt) as DocxtemplaterCtor,
         fixDocPrCorruption: (fix.default || fix) as object,

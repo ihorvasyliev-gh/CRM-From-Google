@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './contexts/AuthContext'
 import { lazyWithRetry } from './lib/lazyWithRetry'
 import ErrorBoundary from './components/ErrorBoundary'
+import UpdateNotice from './components/UpdateNotice'
 import { PublicPageFallback, AppFallback } from './components/ui/PageFallbacks'
 // Self-hosted variable fonts (bundled under /assets, no third-party request or preload)
 import '@fontsource-variable/inter'
@@ -54,6 +55,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
             </QueryClientProvider>
         </ErrorBoundary>
+        <UpdateNotice />
     </React.StrictMode>,
 )
 

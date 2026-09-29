@@ -1,8 +1,10 @@
 import { lazy, ComponentType } from 'react';
+import { failedChunkUrl, isChunkLoadError, recoverStaleAssets } from './deployRecovery';
 
 /**
- * React.lazy that reloads the page once (per 30s) when a chunk fails to load.
- * Handles production deployments where dynamic JS chunks are updated on the server.
+ * React.lazy that survives deploys: when a page's code can't be loaded (a new version replaced
+ * it, or it hasn't reached this data centre yet), download the code again past the browser cache
+ * and reload, retrying a few times with a back-off. After that the error reaches ErrorBoundary.
  */
 export function lazyWithRetry(
     componentImport: () => Promise<{ default: ComponentType<any> }>
@@ -10,24 +12,11 @@ export function lazyWithRetry(
     return lazy(async () => {
         try {
             return await componentImport();
-        } catch (error: any) {
-            const errorMessage = error?.message || error?.toString() || '';
-            const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') ||
-                                     errorMessage.includes('Importing a module script failed') ||
-                                     errorMessage.includes('error loading dynamically imported module');
-
-            const now = Date.now();
-            const lastReload = parseInt(sessionStorage.getItem('chunk_reload_time') || '0', 10);
-            const canReload = isChunkLoadError && (!lastReload || (now - lastReload > 30000));
-
-            if (canReload) {
-                sessionStorage.setItem('chunk_reload_time', now.toString());
-                window.location.reload();
-                return new Promise(() => {}); // pause execution while browser reloads
+        } catch (error: unknown) {
+            if (isChunkLoadError(error) && await recoverStaleAssets(failedChunkUrl(error))) {
+                return new Promise(() => {}); // pause while the browser reloads
             }
             throw error;
         }
     });
 }
-
-

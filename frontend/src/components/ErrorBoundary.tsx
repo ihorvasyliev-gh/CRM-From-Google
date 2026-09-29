@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { failedChunkUrl, isChunkLoadError, recoverStaleAssets, resetAssetRecovery } from '../lib/deployRecovery';
 
 interface Props {
     children?: ReactNode;
@@ -21,54 +22,21 @@ export default class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        // Code that failed to load after a deploy was already retried by lazyWithRetry
         console.error('Uncaught error in ErrorBoundary:', error, errorInfo);
-
-        // Handle Vite chunk loading errors automatically
-        // This usually happens when a new version is deployed and the browser tries to load old, deleted chunks
-        const errorMessage = error.message || error.toString();
-        const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') || 
-                                 errorMessage.includes('Importing a module script failed') ||
-                                 errorMessage.includes('error loading dynamically imported module');
-                                 
-        if (isChunkLoadError) {
-            const now = Date.now();
-            const lastReload = parseInt(sessionStorage.getItem('chunk_reload_time') || '0', 10);
-            if (!lastReload || (now - lastReload > 30000)) {
-                console.warn('Chunk load error detected. Reloading page for updated version...');
-                sessionStorage.setItem('chunk_reload_time', now.toString());
-                // The browser may hold a broken cached copy of the chunk: download it again first
-                const failedUrl = errorMessage.match(/https?:\/\/\S+?\.js/)?.[0];
-                const recover = (window as Window & { __crmRecoverAssets?: (url?: string) => Promise<boolean> }).__crmRecoverAssets;
-                if (recover) {
-                    recover(failedUrl).then(reloaded => { if (!reloaded) this.reloadWithCacheBuster(); });
-                } else {
-                    this.reloadWithCacheBuster();
-                }
-            }
-        }
     }
 
-    private reloadWithCacheBuster = () => {
-        try {
-            const url = new URL(window.location.href);
-            url.searchParams.set('t', Date.now().toString());
-            window.location.href = url.toString();
-        } catch (_e) {
-            window.location.reload();
-        }
-    };
-
+    /** Fetch the latest code past the browser cache, then reload. */
     private handleReload = () => {
-        sessionStorage.removeItem('chunk_reload_time');
-        this.reloadWithCacheBuster();
+        resetAssetRecovery();
+        recoverStaleAssets(failedChunkUrl(this.state.error)).then(reloading => {
+            if (!reloading) window.location.reload();
+        });
     };
 
     public render() {
         if (this.state.hasError) {
-            const errorMessage = this.state.error?.message || this.state.error?.toString() || '';
-            const isChunkLoadError = errorMessage.includes('Failed to fetch dynamically imported module') || 
-                                   errorMessage.includes('Importing a module script failed') ||
-                                   errorMessage.includes('error loading dynamically imported module');
+            const chunkError = isChunkLoadError(this.state.error);
 
             return (
                 <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 space-y-4">
@@ -76,10 +44,10 @@ export default class ErrorBoundary extends Component<Props, State> {
                         <AlertTriangle size={32} />
                     </div>
                     <h1 className="text-2xl font-bold text-primary">
-                        {isChunkLoadError ? 'App Update Required' : 'Something went wrong'}
+                        {chunkError ? 'App Update Required' : 'Something went wrong'}
                     </h1>
                     <p className="text-muted text-center max-w-md">
-                        {isChunkLoadError 
+                        {chunkError
                             ? 'A new version of the app is available. Please reload the page to continue using the most up-to-date features.'
                             : 'We apologize, but an unexpected error occurred. You can try reloading the page. If the problem persists, please contact support.'}
                     </p>

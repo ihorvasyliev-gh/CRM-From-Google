@@ -3,6 +3,7 @@
 import { FormFiller } from './fill';
 import type { RowPlan } from './plan';
 import type { FormField, TemplateSettings } from './types';
+import { loadChunk } from '../deployRecovery';
 
 export interface GenerateOptions {
     separate: boolean;
@@ -57,7 +58,7 @@ export async function generateForms(template: Uint8Array, fields: FormField[], s
         if (parts.length === 1) {
             files.push({ name: parts[0].name, blob: pdfBlob(parts[0].bytes) });
         } else {
-            const PizZipModule = await import('pizzip');
+            const PizZipModule = await loadChunk(() => import('pizzip'));
             const PizZip = PizZipModule.default || PizZipModule;
             const zip = new PizZip();
             // PDFs are already compressed: store them as they are

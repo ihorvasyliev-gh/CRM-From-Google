@@ -2,6 +2,8 @@
 // Turns a spreadsheet into contacts for an outreach list. Columns are found
 // by their header text, so the column order of the export does not matter.
 
+import { loadChunk } from './deployRecovery';
+
 export interface ImportedContact {
     first_name: string;
     last_name: string;
@@ -171,7 +173,7 @@ export function parseDelimitedText(text: string): string[][] {
 
 /** Read the first non-empty worksheet of an .xlsx file as text cells. */
 export async function readXlsxTable(data: ArrayBuffer): Promise<string[][]> {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(data);

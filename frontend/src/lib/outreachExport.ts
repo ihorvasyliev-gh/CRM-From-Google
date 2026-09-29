@@ -2,6 +2,7 @@ import type { OutreachContact } from '../hooks/useOutreach';
 import { formatDateDMY } from './dateUtils';
 import { sanitizeExcelValue } from './excelExport';
 import { downloadBlob } from './download';
+import { loadChunk } from './deployRecovery';
 
 const STATUS_LABELS: Record<OutreachContact['status'], string> = {
     not_contacted: 'Not contacted',
@@ -34,7 +35,7 @@ export function outreachExportRows(contacts: OutreachContact[]) {
 }
 
 export async function exportOutreachListToExcel(listName: string, contacts: OutreachContact[]): Promise<void> {
-    const ExcelJSModule = await import('exceljs');
+    const ExcelJSModule = await loadChunk(() => import('exceljs'));
     const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 
     const workbook = new ExcelJS.Workbook();

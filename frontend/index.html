@@ -30,7 +30,7 @@
   <title>CCP CRM</title>
   <!-- Applies the saved theme before first paint. An external file, because the CSP forbids inline scripts. -->
   <script src="/theme-init.js"></script>
-  <!-- Reloads the app if the browser cached a broken copy of a code file (see the file) -->
+  <!-- Keeps the app loading while a new version is being deployed (see the file) -->
   <script src="/boot-recovery.js"></script>
 </head>
 
@@ -41,7 +41,7 @@
         <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #ffffff; font-size: 16px; box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4);">C</div>
         <div>
           <div style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em;">CCP CRM</div>
-          <div style="font-size: 10px; color: #71717a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Loading Portal...</div>
+          <div data-boot-status style="font-size: 10px; color: #71717a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Loading Portal...</div>
         </div>
       </div>
       <div class="boot-spinner" style="width: 28px; height: 28px; border: 2px solid rgba(99, 102, 241, 0.2); border-top-color: #6366f1; border-radius: 50%; animation: crm-spin 0.8s linear infinite;"></div>
