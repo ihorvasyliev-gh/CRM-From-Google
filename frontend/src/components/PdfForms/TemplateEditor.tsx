@@ -6,13 +6,14 @@ import Card from '../ui/Card';
 import { Button } from '../ui/Button';
 import Badge from '../ui/Badge';
 import FileDropzone from '../ui/FileDropzone';
+import SheetPicker from './SheetPicker';
 import ConfirmDialog from '../ConfirmDialog';
 import { calloutCls, fieldCls, labelCls } from '../ui/styles';
 import { toast } from '../../lib/toast';
 import { checkPdfFile, downloadTemplatePdf, useFormUserName, useSavePdfFormTemplate } from '../../hooks/usePdfForms';
 import { autoMapTemplate, newId, optionFromCheckbox, saysSelectOne } from '../../lib/pdfForms/autoMap';
 import { withSiblings } from '../../lib/pdfForms/choice';
-import { readSheetFile, SHEET_ACCEPT } from '../../lib/pdfForms/excel';
+import { AUTO_NAMES, bestSheet, readWorkbook, sheetFrom, SHEET_ACCEPT, type NameSource, type Workbook } from '../../lib/pdfForms/excel';
 import { FormFiller } from '../../lib/pdfForms/fill';
 import { cellAt, guessTitle, insetCell } from '../../lib/pdfForms/layout';
 import { computeValue, defaultNamePattern, safeFileName, templateColumns } from '../../lib/pdfForms/plan';
@@ -59,7 +60,14 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
     const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
     const [pendingPdf, setPendingPdf] = useState<File | null>(null);
     const [pdfError, setPdfError] = useState<string | null>(null);
-    const [sample, setSample] = useState<SheetData | null>(null);
+    // The example spreadsheet: a workbook, the sheet chosen in it and where its column names are
+    const [sampleBook, setSampleBook] = useState<Workbook | null>(null);
+    const [sampleSheet, setSampleSheet] = useState(0);
+    const [sampleNames, setSampleNames] = useState<NameSource>(AUTO_NAMES);
+    const sample = useMemo<SheetData | null>(
+        () => (sampleBook ? sheetFrom(sampleBook, sampleSheet, [], sampleNames) : null),
+        [sampleBook, sampleSheet, sampleNames],
+    );
     const [sampleRow, setSampleRow] = useState(0);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [mode, setMode] = useState<'select' | 'draw'>('select');
@@ -215,17 +223,31 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
         e.target.value = '';
         if (!file) return;
         try {
-            const sheet = await readSheetFile(file);
-            setSample(sheet);
+            const book = await readWorkbook(file);
+            const index = bestSheet(book);
+            const sheet = sheetFrom(book, index);
+            if (sheet.headers.length === 0) throw new Error('This spreadsheet looks empty.');
+            if (sheet.rows.length === 0 && book.sheets.length === 1) throw new Error('This spreadsheet has column names but no rows of answers under them.');
+            setSampleBook(book);
+            setSampleSheet(index);
+            setSampleNames(AUTO_NAMES);
             setSampleRow(0);
             if (step === 'sample') {
-                // Wizard: set the fields up straight away
-                autoSetup(sheet);
-                setStep('edit');
+                // Wizard: one plain sheet is set up straight away; with several the person confirms which one
+                if (book.sheets.length === 1) {
+                    autoSetup(sheet);
+                    setStep('edit');
+                }
             } else toast.success(`${sheet.rows.length} rows, ${sheet.headers.length} columns`);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Could not read the spreadsheet');
         }
+    };
+
+    const chooseSampleSheet = (index: number, names: NameSource = AUTO_NAMES) => {
+        setSampleSheet(index);
+        setSampleNames(names);
+        setSampleRow(0);
     };
 
     const autoSetup = (sheet: SheetData | null = sample) => {
@@ -584,6 +606,25 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                 title={layout ? 'Drop the spreadsheet here or click to browse' : 'Reading the PDF…'}
                                 hint="It stays in your browser: nothing is uploaded"
                             />
+                            {sampleBook && sample && (
+                                <div className="space-y-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3">
+                                    <p className="text-sm font-semibold text-primary">{sampleBook.fileName}: check that this is the sheet with the answers</p>
+                                    <SheetPicker
+                                        key={`${sampleBook.fileName}-${sampleSheet}`}
+                                        workbook={sampleBook}
+                                        sheetIndex={sampleSheet}
+                                        names={sampleNames}
+                                        sheet={sample}
+                                        onSheet={i => chooseSampleSheet(i)}
+                                        onNames={n => chooseSampleSheet(sampleSheet, n)}
+                                        preview
+                                    />
+                                    <Button variant="primary" onClick={() => { autoSetup(sample); setStep('edit'); }} disabled={!layout || sample.rows.length === 0}>
+                                        <Sparkles size={14} /> Set up the fields from this sheet
+                                    </Button>
+                                    {sample.rows.length === 0 && <p className="text-xs text-muted">This sheet has no rows of answers. Choose another sheet above.</p>}
+                                </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button variant="ghost" onClick={() => setStep('edit')} disabled={!layout}>
                                     Skip: I'll place the fields myself
@@ -730,8 +771,17 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                         <Card title="Sample spreadsheet" icon={FileSpreadsheet} subtitle="Optional: to set up fields and check values">
                             <div className="space-y-3">
                                 <FileDropzone compact accept={SHEET_ACCEPT} onChange={pickSample} title={sample ? sample.fileName : 'Drop an Excel or CSV file'} hint={sample ? `${sample.rows.length} rows · ${sample.headers.length} columns` : 'Stays in your browser'} />
-                                {sample && (
+                                {sample && sampleBook && (
                                     <>
+                                        <SheetPicker
+                                            key={`${sampleBook.fileName}-${sampleSheet}`}
+                                            workbook={sampleBook}
+                                            sheetIndex={sampleSheet}
+                                            names={sampleNames}
+                                            sheet={sample}
+                                            onSheet={i => chooseSampleSheet(i)}
+                                            onNames={n => chooseSampleSheet(sampleSheet, n)}
+                                        />
                                         <Button variant="brand-soft" className="w-full" onClick={() => autoSetup()} disabled={!layout}>
                                             <Sparkles size={14} /> {fields.length ? 'Add fields for unused columns' : 'Set up fields automatically'}
                                         </Button>

@@ -125,6 +125,12 @@ export interface PdfLayout {
 
 // ─── Spreadsheet ────────────────────────────────────────────────
 
+/** How a sheet's column names were found (shown to the person so they can correct it) */
+export type NamesFrom =
+    | { kind: 'row'; row: number; auto: boolean }
+    | { kind: 'sheet'; sheet: string; auto: boolean }
+    | { kind: 'none' };
+
 export interface SheetData {
     headers: string[];
     rows: string[][];
@@ -137,4 +143,6 @@ export interface SheetData {
     hiddenRows?: number[];
     /** Rows left out: the column names repeated, a lone note or total */
     skippedRows?: number;
+    /** Where the column names came from */
+    namesFrom?: NamesFrom;
 }

@@ -10,13 +10,14 @@ import { calloutCls, fieldCls, tableCls, tableWrapCls, tbodyCls, tdCls, thCls, t
 import { toast } from '../../lib/toast';
 import { downloadBlob } from '../../lib/download';
 import { downloadTemplatePdf, useFormUserName, useSaveColumnAliases } from '../../hooks/usePdfForms';
-import { bestSheet, readWorkbook, sheetFrom, SHEET_ACCEPT, type Workbook } from '../../lib/pdfForms/excel';
+import { AUTO_NAMES, bestSheet, readWorkbook, sheetFrom, SHEET_ACCEPT, type NameSource, type Workbook } from '../../lib/pdfForms/excel';
 import { FormFiller, type RowValues } from '../../lib/pdfForms/fill';
 import { generateForms, type GenerateResult } from '../../lib/pdfForms/generate';
 import { applyOverrides, planRows, safeFileName, templateColumns, type RowPlan } from '../../lib/pdfForms/plan';
 import { matchColumns, parseLooseDate, type ColumnMatch } from '../../lib/pdfForms/source';
 import type { PdfFormTemplate, SheetData } from '../../lib/pdfForms/types';
 import PreviewModal from './PreviewModal';
+import SheetPicker from './SheetPicker';
 import RowReviewModal from './RowReviewModal';
 
 interface FillViewProps {
@@ -62,7 +63,8 @@ export default function FillView({ template, initialWorkbook = null, initialShee
     const wanted = useMemo(() => templateColumns(template.fields, template.settings), [template]);
     const [workbook, setWorkbook] = useState<Workbook | null>(initialWorkbook);
     const [sheetIndex, setSheetIndex] = useState(() => initialSheetIndex ?? (initialWorkbook ? bestSheet(initialWorkbook, wanted) : 0));
-    const sheet = useMemo(() => (workbook ? sheetFrom(workbook, sheetIndex, wanted) : null), [workbook, sheetIndex, wanted]);
+    const [names, setNames] = useState<NameSource>(AUTO_NAMES);
+    const sheet = useMemo(() => (workbook ? sheetFrom(workbook, sheetIndex, wanted, names) : null), [workbook, sheetIndex, wanted, names]);
     const [chosen, setChosen] = useState<Record<string, number>>({});
     const [selected, setSelected] = useState<Set<number>>(() => allOf(sheet));
     const [includeHidden, setIncludeHidden] = useState(false);
@@ -149,9 +151,10 @@ export default function FillView({ template, initialWorkbook = null, initialShee
         }
     };
 
-    /** Use another sheet of the workbook: a fresh start for columns, edits and ticks */
-    const startSheet = (book: Workbook, index: number) => {
+    /** Use another sheet (or other column names): a fresh start for columns, edits and ticks */
+    const startSheet = (book: Workbook, index: number, nextNames: NameSource = AUTO_NAMES) => {
         setSheetIndex(index);
+        setNames(nextNames);
         setChosen({});
         setOverrides({});
         setResult(null);
@@ -159,7 +162,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
         setFrom('');
         setTo('');
         setIncludeHidden(false);
-        setSelected(allOf(sheetFrom(book, index, wanted)));
+        setSelected(allOf(sheetFrom(book, index, wanted, nextNames)));
     };
 
     const rememberMatches = () => {
@@ -274,22 +277,16 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                         title={workbook && sheet ? `${workbook.fileName} · ${sheet.rows.length} rows` : 'Click here to choose your spreadsheet, or drag it onto this box'}
                         hint={sheet ? 'To use a different file, click here or drop it on this box' : 'It stays on this computer: nothing is sent anywhere'}
                     />
-                    {workbook && workbook.sheets.length > 1 && (
-                        <label className="flex flex-wrap items-center gap-2 text-sm text-primary">
-                            <span>This file has {workbook.sheets.length} sheets. Using the sheet:</span>
-                            <select
-                                value={sheetIndex}
-                                onChange={e => startSheet(workbook, Number(e.target.value))}
-                                aria-label="Sheet"
-                                className={`${fieldCls} h-9 text-sm w-auto! min-w-[200px]`}
-                            >
-                                {workbook.sheets.map((sh, i) => (
-                                    <option key={i} value={i}>
-                                        {sh.name}{sh.hidden ? ' (hidden in Excel)' : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                    {workbook && sheet && (
+                        <SheetPicker
+                            key={`${workbook.fileName}-${sheetIndex}`}
+                            workbook={workbook}
+                            sheetIndex={sheetIndex}
+                            names={names}
+                            sheet={sheet}
+                            onSheet={i => startSheet(workbook, i)}
+                            onNames={n => startSheet(workbook, sheetIndex, n)}
+                        />
                     )}
                     {sheet && sheet.rows.length === 0 && (
                         <p className={`${calloutCls.warning} text-sm p-3`}>

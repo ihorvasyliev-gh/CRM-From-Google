@@ -125,4 +125,35 @@ describe('FillView', () => {
         fireEvent.click(screen.getByLabelText(/Include the 1 row hidden in Excel/));
         expect(screen.getByText('Brian Kelly')).toBeInTheDocument();
     });
+
+    describe('a sheet without column names', () => {
+        // A staff member's extract (no names, answers start in row 3) and the export it came from
+        const export_ = [
+            ['Id', ...HEADER],
+            ['1', '01/09/2026', 'Anna', 'Smith', '03/03/2003'],
+            ['2', '15/09/2026', 'Brian', 'Kelly', '11/09/1970'],
+            ['3', '20/09/2026', 'Ciara', 'Walsh', '07/07/1990'],
+            ['4', '21/09/2026', 'Dara', 'Byrne', '01/02/1999'],
+        ];
+        const extract = [[], [], ['2', '15/09/2026', 'Brian', 'Kelly', '11/09/1970'], ['3', '20/09/2026', 'Ciara', 'Walsh', '07/07/1990']];
+        const staffBook = () => book({ name: 'Ciara’s people', table: extract }, { name: 'Export', table: export_ });
+
+        it('takes the names from the sheet it came from, and says so', () => {
+            renderFill(staffBook());
+            fireEvent.change(screen.getByLabelText('Sheet'), { target: { value: '0' } });
+            expect(screen.getByTestId('names-note')).toHaveTextContent('taken from the sheet “Export”');
+            expect(screen.getByText('Brian Kelly')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Download 2 forms/ })).toBeInTheDocument();
+        });
+
+        it('lets the person say where the names are instead', () => {
+            renderFill(staffBook());
+            fireEvent.change(screen.getByLabelText('Sheet'), { target: { value: '0' } });
+            fireEvent.click(screen.getByRole('button', { name: /Not right\? Change/ }));
+            fireEvent.click(screen.getByLabelText(/There are no column names/));
+            expect(screen.getByTestId('names-note')).toHaveTextContent('Excel letters');
+            fireEvent.click(screen.getByLabelText(/Find them for me/));
+            expect(screen.getByTestId('names-note')).toHaveTextContent('taken from the sheet “Export”');
+        });
+    });
 });

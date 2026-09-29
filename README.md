@@ -112,6 +112,7 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 - Made for everyone, not just computer people: drop a spreadsheet on the page and the right form opens; three plain steps (your spreadsheet → who needs a form → download); one file ready to print by default; notes in plain words
 - Adding a form is a guided 1-2-3: the blank PDF, an example spreadsheet (fields are set up from it), then check and save; values are chosen from lists, never typed as codes; Undo / Redo
 - Messy spreadsheets are fine: several sheets (the one with the form's columns is used, or pick another), column names below a title or blank lines, repeated column names, totals, Excel errors, rows hidden by a filter, CSV files in the Windows encoding
+- Sheets with **no column names** (e.g. a staff member's extract of an export) borrow them from the sheet they came from; or say where the names are (a row, another sheet, or Excel letters). Files that Excel opens but the main reader rejects are read by a second, more forgiving reader
 - Fill flat PDF forms (e.g. the SICAP CO and individual registration forms) from an Excel / CSV file, one form per row
 - Checkboxes and table cells are read from the PDF itself: click a cell to place a field, click boxes to build a question
 - **Automatic set-up** from a sample spreadsheet: answers are matched to checkbox labels, headers to printed labels

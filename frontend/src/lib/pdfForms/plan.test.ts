@@ -26,7 +26,7 @@ describe('tableToSheet', () => {
 
     it('skips a title above the header and names blank / repeated headers', () => {
         const s = tableToSheet([['Report'], ['A', 'A', ''], ['1', '2', '3']], 'x.csv');
-        expect(s.headers).toEqual(['A', 'A (2)', 'Column 3']);
+        expect(s.headers).toEqual(['A', 'A (2)', 'Column C']);
         expect(s.rows).toEqual([['1', '2', '3']]);
     });
 });

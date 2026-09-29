@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ExcelJS from 'exceljs';
+import { readXlsxLite } from './xlsxLite';
 import { bestSheet, decodeText, findHeaderRow, readSheetFile, readWorkbook, sheetFrom, tableToSheet } from './excel';
 
 /** A messy real-world workbook, built with exceljs */
@@ -102,5 +103,145 @@ describe('decodeText', () => {
     it('explains a password-protected file', async () => {
         const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
         await expect(readWorkbook(new File([ole], 'locked.xlsx'))).rejects.toThrow(/password/);
+    });
+});
+
+// ─── Files like "Active LDC LCGs": extracts without column names + the export they came from ───
+
+const IRIS_HEADERS = ['Row Id', 'Token', 'Created', 'LCG ID', 'LCG Name', 'File Status', 'Lot', 'Date of Registration Meeting', 'LCG Type', 'LDC Staff member'];
+const IRIS_ROWS = [
+    ['a1', 't1', 'x', '66892', 'Cork Stroke Support Group', 'Open', 'Cork City (17-1)', new Date(Date.UTC(2018, 2, 28)), 'Health & wellbeing', 'Linda. McCarthy'],
+    ['a2', 't2', 'x', '66894', 'Douglas Matters', 'Open', 'Cork City (17-1)', new Date(Date.UTC(2018, 1, 6)), 'Community/area focus', 'Linda. McCarthy'],
+    ['a3', 't3', 'x', '66895', 'Mahon Family Resource Centre', 'Open', 'Cork City (17-1)', new Date(Date.UTC(2018, 0, 30)), 'Community/area focus', 'Linda. McCarthy'],
+    ['a4', 't4', 'x', '71046', 'Shandon Men’s Shed', 'Open', 'Cork City (17-1)', new Date(Date.UTC(2023, 6, 8)), 'Community/area focus', 'Brenda. Barry'],
+    ['a5', 't5', 'x', '71525', 'Dillons Cross Project', 'Open', 'Cork City (17-1)', new Date(Date.UTC(2023, 10, 6)), 'Target group focus', 'Brenda. Barry'],
+];
+
+async function irisWorkbook(mutate?: (wb: ExcelJS.Workbook) => void): Promise<Uint8Array> {
+    const wb = new ExcelJS.Workbook();
+    // A staff member's extract: no column names, three empty rows above, the same columns as the export
+    const staff = wb.addWorksheet('Michelle Keane');
+    staff.addRow([]);
+    staff.addRow([]);
+    staff.addRow([]);
+    staff.addRow(IRIS_ROWS[0]);
+    staff.addRow(IRIS_ROWS[1]);
+    staff.addRow(IRIS_ROWS[2]);
+    const other = wb.addWorksheet('Veronica Byrne');
+    other.addRow(IRIS_ROWS[3]);
+    other.addRow(IRIS_ROWS[4]);
+    // The export itself, with column names
+    const iris = wb.addWorksheet('Active LDC LCGs');
+    iris.addRow(IRIS_HEADERS);
+    iris.addRow([]);
+    IRIS_ROWS.forEach(r => iris.addRow(r));
+    mutate?.(wb);
+    return new Uint8Array((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+}
+
+const asFile = (bytes: Uint8Array, name = 'Active LDC LCGs.xlsx') => new File([bytes as BlobPart], name);
+
+describe('sheets without column names', () => {
+    it('borrows the names of the sheet the answers came from', async () => {
+        const book = await readWorkbook(asFile(await irisWorkbook()));
+        const sheet = sheetFrom(book, 0);
+        expect(sheet.headers.slice(3, 6)).toEqual(['LCG ID', 'LCG Name', 'File Status']);
+        expect(sheet.rows).toHaveLength(3);
+        expect(sheet.rows[0][4]).toBe('Cork Stroke Support Group');
+        // Excel's row numbers, so people can find the row
+        expect(sheet.rowNumbers).toEqual([4, 5, 6]);
+        expect(sheet.namesFrom).toEqual({ kind: 'sheet', sheet: 'Active LDC LCGs', auto: true });
+        expect(sheetFrom(book, 1).rows).toHaveLength(2);
+    });
+
+    it('leaves a sheet that has its own column names alone', async () => {
+        const book = await readWorkbook(asFile(await irisWorkbook()));
+        const sheet = sheetFrom(book, 2);
+        expect(sheet.headers).toEqual(IRIS_HEADERS);
+        expect(sheet.rows).toHaveLength(5);
+        expect(sheet.namesFrom).toEqual({ kind: 'row', row: 1, auto: true });
+    });
+
+    it('also works when a sheet repeats the export’s names above its answers', async () => {
+        const bytes = await irisWorkbook(wb => wb.getWorksheet('Michelle Keane')!.spliceRows(4, 0, IRIS_HEADERS));
+        const book = await readWorkbook(asFile(bytes));
+        const sheet = sheetFrom(book, 0);
+        expect(sheet.headers).toEqual(IRIS_HEADERS);
+        expect(sheet.rows).toHaveLength(3);
+    });
+
+    it('can be told where the names are', async () => {
+        const book = await readWorkbook(asFile(await irisWorkbook()));
+        expect(sheetFrom(book, 0, [], { kind: 'sheet', sheet: 2 }).headers[4]).toBe('LCG Name');
+        const letters = sheetFrom(book, 0, [], { kind: 'none' });
+        expect(letters.headers.slice(3, 6)).toEqual(['Column D', 'Column E', 'Column F']);
+        expect(letters.rows).toHaveLength(3);
+        expect(letters.namesFrom).toEqual({ kind: 'none' });
+        const fromRow = sheetFrom(book, 2, [], { kind: 'row', row: 3 });
+        expect(fromRow.headers[4]).toBe('Cork Stroke Support Group');
+        expect(fromRow.rows).toHaveLength(4);
+    });
+
+    it('uses the borrowed names to pick the sheet that fits a form', async () => {
+        const book = await readWorkbook(asFile(await irisWorkbook()));
+        expect(bestSheet(book, ['LCG Name', 'LDC Staff member'])).toBe(2);
+    });
+
+    it('does not invent names for a lone headerless sheet: columns get their letters', () => {
+        const sheet = tableToSheet([['5468738a', 'Cork Stroke', 'Open'], ['7f36fab6', 'Douglas', 'Open']], 'x.csv', { names: [] });
+        expect(sheet.headers).toEqual(['Column A', 'Column B', 'Column C']);
+        expect(sheet.rows).toHaveLength(2);
+        expect(sheet.rowNumbers).toEqual([1, 2]);
+    });
+});
+
+describe('files exceljs cannot open but Excel can', () => {
+    async function brokenStyles(): Promise<Uint8Array> {
+        const PizZip = (await import('pizzip')).default;
+        const zip = new PizZip(await irisWorkbook());
+        // Damaged styles: Excel repairs this silently, exceljs throws
+        zip.file('xl/styles.xml', '<styleSheet><cellXfs><xf numFmtId="14"></cellXfs>');
+        return zip.generate({ type: 'uint8array' });
+    }
+
+    it('falls back to the small reader and gets every sheet', async () => {
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        const book = await readWorkbook(asFile(await brokenStyles()));
+        errors.mockRestore();
+        expect(book.sheets.map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
+        expect(sheetFrom(book, 2).headers).toEqual(IRIS_HEADERS);
+        expect(sheetFrom(book, 2).rows[1][4]).toBe('Douglas Matters');
+        expect(sheetFrom(book, 0).rows).toHaveLength(3);
+    });
+
+    it('reads tables, data-validation messages and dates like the main reader', async () => {
+        const bytes = await irisWorkbook(wb => {
+            const ws = wb.getWorksheet('Active LDC LCGs')!;
+            for (let r = 3; r <= 7; r++) {
+                ws.getCell(`E${r}`).dataValidation = { type: 'textLength', operator: 'lessThanOrEqual', formulae: [100], showInputMessage: true, promptTitle: 'Text (required)', prompt: 'Maximum Length: 100 characters.' };
+            }
+        });
+        const lite = readXlsxLite(bytes);
+        const iris = lite.find(s => s.name === 'Active LDC LCGs')!;
+        expect(iris.table[0]).toEqual(IRIS_HEADERS);
+        expect(iris.table[2][7]).toBe('28/03/2018');
+        expect(iris.table[2][3]).toBe('66892');
+        const main = await readWorkbook(asFile(bytes));
+        expect(main.sheets[2].table.slice(0, 3)).toEqual(iris.table.slice(0, 3));
+    });
+
+    it('reads a sheet that is formatted to the very last row without hanging', async () => {
+        const bytes = await irisWorkbook(wb => {
+            const ws = wb.getWorksheet('Active LDC LCGs')!;
+            ws.getCell('XFD1048576').style = { font: { bold: true } };
+        });
+        const book = await readWorkbook(asFile(bytes));
+        expect(sheetFrom(book, 2).rows).toHaveLength(5);
+    });
+
+    it('says so when the file is not a workbook at all', async () => {
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        await expect(readWorkbook(new File([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])], 'x.xlsx'))).rejects.toThrow(/could not be opened/);
+        errors.mockRestore();
     });
 });

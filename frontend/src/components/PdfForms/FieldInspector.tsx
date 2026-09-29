@@ -109,7 +109,7 @@ export function SourceEditor({ value, onChange, columns, id }: SourceEditorProps
                         {filters.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </select>
                     {columns.length === 0 && (
-                        <p className="col-span-2 text-[11px] text-muted">Load an example spreadsheet (left panel) to pick from its columns.</p>
+                        <p className="col-span-2 text-[11px] text-muted">No spreadsheet loaded yet. Add one in the “Sample spreadsheet” box above and its columns appear in this list.</p>
                     )}
                 </div>
             )}
@@ -210,7 +210,7 @@ export default function FieldInspector(props: InspectorProps) {
             </div>
 
             <div>
-                <label className={labelCls} htmlFor={`src-${field.id}`}>{field.kind === 'text' ? 'What to print' : 'Which answer ticks the boxes'}</label>
+                <label className={labelCls} htmlFor={`src-${field.id}`}>{field.kind === 'text' ? 'Which column goes in this box?' : 'Which column ticks these boxes?'}</label>
                 <SourceEditor key={field.id} id={`src-${field.id}`} value={field.source} onChange={source => onChange({ ...field, source })} columns={columns} />
                 {sampleValue !== null && (
                     <p className="mt-2 text-[11px] text-muted rounded-lg bg-surface-elevated/60 px-2 py-1.5">
