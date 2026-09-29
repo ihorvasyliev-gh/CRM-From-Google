@@ -36,7 +36,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             if (!lastReload || (now - lastReload > 30000)) {
                 console.warn('Chunk load error detected. Reloading page for updated version...');
                 sessionStorage.setItem('chunk_reload_time', now.toString());
-                this.reloadWithCacheBuster();
+                // The browser may hold a broken cached copy of the chunk: download it again first
+                const failedUrl = errorMessage.match(/https?:\/\/\S+?\.js/)?.[0];
+                const recover = (window as Window & { __crmRecoverAssets?: (url?: string) => Promise<boolean> }).__crmRecoverAssets;
+                if (recover) {
+                    recover(failedUrl).then(reloaded => { if (!reloaded) this.reloadWithCacheBuster(); });
+                } else {
+                    this.reloadWithCacheBuster();
+                }
             }
         }
     }
