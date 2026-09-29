@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { fieldCls } from '../ui/styles';
+import { calloutCls, fieldCls } from '../ui/styles';
 import { AUTO_NAMES, describeNames, type NameSource, type Workbook } from '../../lib/pdfForms/excel';
 import type { SheetData } from '../../lib/pdfForms/types';
 
@@ -16,7 +16,8 @@ interface SheetPickerProps {
     preview?: boolean;
 }
 
-const radioCls = 'flex items-start gap-2 text-sm text-primary cursor-pointer';
+const radioCls = 'flex items-center gap-2.5 text-sm text-primary cursor-pointer';
+const inputRadioCls = 'w-4 h-4 shrink-0 accent-brand-500';
 
 /**
  * Which sheet of the workbook to use, and where its column names are. Real files have several
@@ -26,6 +27,8 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
     const [open, setOpen] = useState(false);
     const others = workbook.sheets.map((s, i) => ({ s, i })).filter(({ i }) => i !== sheetIndex);
     const foundRow = sheet.namesFrom?.kind === 'row' ? sheet.namesFrom.row : 1;
+    // The usual case (names in the first row, found by themselves) gets a quiet line; anything else is worth noticing
+    const usual = sheet.namesFrom?.kind === 'row' && sheet.namesFrom.row === 1 && sheet.namesFrom.auto;
     const [rowText, setRowText] = useState(String(names.kind === 'row' ? names.row : foundRow));
 
     return (
@@ -52,19 +55,19 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
             )}
 
             {sheet.namesFrom && (
-                <div className="text-xs text-muted">
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <Info size={13} className="shrink-0" />
-                        <span data-testid="names-note">{describeNames(sheet.namesFrom)}</span>
-                        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="inline-flex items-center gap-0.5 underline hover:text-primary">
-                            {open ? 'Close' : 'Not right? Change'} {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                <div className="space-y-2">
+                    <div className={usual ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted' : `${calloutCls.info} flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm`}>
+                        <Info size={usual ? 13 : 16} className="shrink-0" />
+                        <span data-testid="names-note" className="flex-1 min-w-[220px]">{describeNames(sheet.namesFrom)}</span>
+                        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="inline-flex items-center gap-1 text-xs font-semibold underline hover:no-underline">
+                            {open ? 'Close' : 'Not right? Change'} {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
-                    </p>
+                    </div>
                     {open && (
-                        <fieldset className="mt-2 space-y-2 rounded-xl border border-border-subtle bg-surface-elevated/40 p-3">
-                            <legend className="px-1 text-xs font-semibold text-primary">Where are the column names?</legend>
+                        <div role="radiogroup" aria-label="Where are the column names?" className="space-y-3 rounded-xl border border-border-subtle bg-surface-elevated/40 p-4">
+                            <p className="text-sm font-semibold text-primary">Where are the column names?</p>
                             <label className={radioCls}>
-                                <input type="radio" name="names" checked={names.kind === 'auto'} onChange={() => onNames(AUTO_NAMES)} className="mt-0.5 accent-brand-500" />
+                                <input type="radio" name="names" checked={names.kind === 'auto'} onChange={() => onNames(AUTO_NAMES)} className={inputRadioCls} />
                                 <span>Find them for me <span className="text-muted">(recommended)</span></span>
                             </label>
                             <div className={radioCls}>
@@ -74,7 +77,7 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
                                     name="names"
                                     checked={names.kind === 'row'}
                                     onChange={() => onNames({ kind: 'row', row: Number(rowText) || 1 })}
-                                    className="mt-0.5 accent-brand-500"
+                                    className={inputRadioCls}
                                 />
                                 <label htmlFor="names-row" className="flex flex-wrap items-center gap-2 cursor-pointer">
                                     They are in row
@@ -101,7 +104,7 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
                                         name="names"
                                         checked={names.kind === 'sheet'}
                                         onChange={() => onNames({ kind: 'sheet', sheet: others[0].i })}
-                                        className="mt-0.5 accent-brand-500"
+                                        className={inputRadioCls}
                                     />
                                     <label htmlFor="names-sheet" className="flex flex-wrap items-center gap-2 cursor-pointer">
                                         This sheet has none: take them from the sheet
@@ -119,10 +122,10 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
                                 </div>
                             )}
                             <label className={radioCls}>
-                                <input type="radio" name="names" checked={names.kind === 'none'} onChange={() => onNames({ kind: 'none' })} className="mt-0.5 accent-brand-500" />
+                                <input type="radio" name="names" checked={names.kind === 'none'} onChange={() => onNames({ kind: 'none' })} className={inputRadioCls} />
                                 <span>There are no column names <span className="text-muted">(call the columns A, B, C… like Excel does)</span></span>
                             </label>
-                        </fieldset>
+                        </div>
                     )}
                 </div>
             )}
