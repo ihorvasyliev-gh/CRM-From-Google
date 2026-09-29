@@ -229,7 +229,7 @@ describe('appConfig', () => {
 
         it('replaces spans and preserves nested tags', () => {
             const html = '<span style="font-weight: bold; color: #ff9900;"><strong>bold text</strong></span>';
-            const expected = '<font color="#ff9900"><strong>bold text</strong></font>';
+            const expected = '<font color="#ff9900" style="font-weight: bold;"><strong>bold text</strong></font>';
             expect(replaceColorSpansWithFontTags(html)).toBe(expected);
         });
 
@@ -240,7 +240,7 @@ describe('appConfig', () => {
 
         it('handles both color and background-color', () => {
             const html = '<span style="color: #ff0000; background-color: #ffff00;">text</span>';
-            const expected = '<font color="#ff0000" style="background-color:#ffff00;">text</font>';
+            const expected = '<font color="#ff0000" style="background-color: #ffff00;">text</font>';
             expect(replaceColorSpansWithFontTags(html)).toBe(expected);
         });
 
@@ -249,6 +249,28 @@ describe('appConfig', () => {
                 const html = `<span style="color: ${value};">text</span>`;
                 expect(replaceColorSpansWithFontTags(html)).toBe(html);
             }
+        });
+    });
+
+    describe('email text style', () => {
+        it('keeps the original look by default (Arial 15px / 23px)', () => {
+            const html = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://x.ie');
+            expect(html).toContain("font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;");
+            expect(html).toContain("font-family:Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;");
+        });
+
+        it('applies a chosen font, size and colour to the email, cards and buttons', () => {
+            const emailStyle = { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 17, textColor: '#111111', lineHeight: 2 };
+            setConfig({ emailStyle });
+            const html = buildEmailBodyHtml('Python 101', 'Oct 20', 'https://x.ie');
+            expect(html).toContain("font-family: Georgia, 'Times New Roman', serif; font-size: 17px; line-height: 34px; color: #111111;");
+            expect(html).not.toContain('-apple-system');
+            expect(buildStatusEmailBodyHtml('https://x.ie/s')).not.toContain('-apple-system');
+        });
+
+        it('ignores a broken saved style', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({ emailStyle: { fontSize: 'big' } }));
+            expect(getConfig().emailStyle).toEqual(DEFAULT_CONFIG.emailStyle);
         });
     });
 

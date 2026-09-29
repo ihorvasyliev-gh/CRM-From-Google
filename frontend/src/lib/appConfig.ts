@@ -2,6 +2,7 @@
 // Centralized config for email templates, display preferences, etc.
 import { supabase } from './supabase';
 import type { CourseEmailInfo } from './types';
+import { DEFAULT_EMAIL_STYLE, inlineEmailStyles, isLegacyDefaultFont, lineHeightPx, normalizeEmailStyle, type EmailTextStyle } from './emailFormat';
 
 export interface ExcelColumn {
     /** Column header text shown in the Excel file */
@@ -33,6 +34,8 @@ export interface AppConfig {
     outreachEmailSubjectFormat: string;
     /** Whether to include the Cork City Partnership logo banner in emails */
     includeLogosInEmails: boolean;
+    /** Base font, size and colour of every email's text */
+    emailStyle: EmailTextStyle;
 }
 
 const STORAGE_KEY = 'crm_app_config';
@@ -102,6 +105,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 <p style="margin:0 0 16px 0;font-size:13px;line-height:19px;color:#64748b;font-family:${FONT};">Your answers are confidential and only used, anonymously, to report on the results of our programmes.</p>`,
     outreachEmailSubjectFormat: 'How are things going? (1-minute update from Cork City Partnership)',
     includeLogosInEmails: false,
+    emailStyle: DEFAULT_EMAIL_STYLE,
 };
 
 /** Invitation-type templates are useless without the confirm button or link. */
@@ -177,7 +181,7 @@ export function getConfig(): AppConfig {
             saved.reminderEmailSubjectFormat = DEFAULT_CONFIG.reminderEmailSubjectFormat;
         }
 
-        return { ...DEFAULT_CONFIG, ...saved };
+        return { ...DEFAULT_CONFIG, ...saved, emailStyle: normalizeEmailStyle(saved.emailStyle) };
     } catch {
         return { ...DEFAULT_CONFIG };
     }
@@ -380,17 +384,12 @@ export function replaceColorSpansWithFontTags(html: string): string {
         // hex values and real colour names are converted; pasted inherit/var(...) stay as CSS.
         if (!/^#[0-9a-f]{3,8}$|^[a-z]+$/i.test(color) || /^(inherit|initial|unset|revert|currentcolor|transparent)$/i.test(color)) return match;
         
-        // Check for background-color too
-        const bgMatch = attrs.match(/background-color\s*:\s*([^;"']+)/i);
-        
-        if (bgMatch) {
-            const bgColor = bgMatch[1].trim();
-            // Use font tag for color + inline style for background
-            return `<font color="${color}" style="background-color:${bgColor};">${content}</font>`;
-        }
-        
-        // Replace span entirely with font tag
-        return `<font color="${color}">${content}</font>`;
+        // Keep the span's other styles (size, font, background) on the font tag
+        const styleAttr = attrs.match(/style\s*=\s*(["'])([\s\S]*?)\1/i);
+        const rest = (styleAttr?.[2] || '').split(';').map((d: string) => d.trim()).filter((d: string) => d && !/^color\s*:/i.test(d));
+        return rest.length
+            ? `<font color="${color}" style="${rest.join('; ')};">${content}</font>`
+            : `<font color="${color}">${content}</font>`;
     });
 }
 
@@ -404,8 +403,10 @@ export function hasUnsubscribeText(html: string): boolean {
     return UNSUBSCRIBE_TEXT_RE.test(html.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|&#39;|&apos;/g, "'"));
 }
 
-function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean, safeCourseTitle = '') {
+function getEmailWrapper(content: string, type: InviteEmailKind | 'status', includeLogos: boolean, style: EmailTextStyle, safeCourseTitle = '') {
     const origin = window.location.origin;
+    const font = style.fontFamily;
+    const textCss = `font-family: ${font}; font-size: ${style.fontSize}px; line-height: ${lineHeightPx(style)}px; color: ${style.textColor};`;
     
     const [heroTitle, heroSubtitle] = {
         invite: ["You're Invited!", 'Cork City Partnership course invitation'],
@@ -417,7 +418,7 @@ function getEmailWrapper(content: string, type: InviteEmailKind | 'status', incl
     const unsubscribeHtml = hasUnsubscribeText(content) ? '' : `
           <!-- Unsubscribe -->
           <tr>
-            <td align="left" style="padding: 14px 0 6px 0; border-top: 1px solid #e2e8f0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: #64748b;">
+            <td align="left" style="padding: 14px 0 6px 0; border-top: 1px solid #e2e8f0; font-family: ${font}; font-size: 12px; line-height: 18px; color: #64748b;">
               ${UNSUBSCRIBE_FOOTER_TEXT}
             </td>
           </tr>`;
@@ -446,22 +447,22 @@ function getEmailWrapper(content: string, type: InviteEmailKind | 'status', incl
     a { color: #0284c7; text-decoration: underline; }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #ffffff; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
+<body style="margin: 0; padding: 0; background-color: #ffffff; ${textCss}">
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
     <tr>
-      <td align="left" style="padding: 10px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
+      <td align="left" style="padding: 10px 0; ${textCss}">
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
           ${logoHtml}
           <!-- Hero -->
           <tr>
-            <td align="left" style="padding: 8px 0 16px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;">
+            <td align="left" style="padding: 8px 0 16px 0; font-family: ${font};">
               <div style="font-size: 22px; font-weight: bold; color: #0f172a; line-height: 28px; margin: 0 0 4px 0;">${heroTitle}</div>
               <div style="font-size: 14px; color: #64748b; line-height: 20px; margin: 0;">${heroSubtitle}</div>
             </td>
           </tr>
           <!-- Content -->
           <tr>
-            <td align="left" style="padding: 6px 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #1e293b;">
+            <td align="left" style="padding: 6px 0; ${textCss}">
               ${content}
             </td>
           </tr>
@@ -488,13 +489,24 @@ export function escapeHtml(str: string): string {
         .replace(/'/g, '&#039;');
 }
 
-/** Course's own rich text (Quill HTML) inside the course card, with email-safe spacing. */
-function cardText(html?: string | null): string {
+/** Font stack for the cards and buttons: the chosen email font (the original stack by default). */
+function emailFont(style: EmailTextStyle): string {
+    return isLegacyDefaultFont(style.fontFamily) ? FONT : style.fontFamily;
+}
+
+/** Course's own rich text (editor HTML) inside the course card, with email-safe spacing. */
+function cardText(html: string | null | undefined, style: EmailTextStyle): string {
     if (!html || !html.replace(/<[^>]+>|&nbsp;/g, '').trim()) return '';
-    const styled = html
+    const font = emailFont(style);
+    const styled = inlineEmailStyles(html, style)
         .replace(/<p>/g, '<p style="margin:0 0 4px 0;">')
         .replace(/<(ul|ol)>/g, '<$1 style="margin:4px 0;padding-left:20px;">');
-    return `<div style="font-size:14px;line-height:21px;color:#334155;margin-top:6px;font-family:${FONT};">${styled}</div>`;
+    return `<div style="font-size:14px;line-height:21px;color:#334155;margin-top:6px;font-family:${font};">${styled}</div>`;
+}
+
+/** `<p …>{tag}</p>` → `{tag}`, so card/button tables aren't nested inside a paragraph. */
+function unwrapBlockPlaceholders(html: string, tags: string[]): string {
+    return tags.reduce((out, tag) => out.replace(new RegExp(`<p(?:\\s[^>]*)?>\\s*\\{${tag}\\}\\s*</p>`, 'g'), `{${tag}}`), html);
 }
 
 /** Build the email body HTML by replacing placeholders. */
@@ -511,6 +523,8 @@ export function buildEmailBodyHtml(
     courseInfo?: CourseEmailInfo | null
 ): string {
     const config = customConfig || getConfig();
+    const emailStyle = normalizeEmailStyle(config.emailStyle);
+    const font = emailFont(emailStyle);
     const linkStr = confirmationLink || '#';
     const dateList = Array.isArray(date) ? date.filter(Boolean) : [date];
     const isMultiDate = dateList.length > 1;
@@ -528,19 +542,19 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const courseDetailsHtml = `<!-- Course Details Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td style="padding:16px 20px;font-family:${FONT};">
+    <td style="padding:16px 20px;font-family:${font};">
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
         <tr>
-          <td style="padding-bottom:10px;font-family:${FONT};">
+          <td style="padding-bottom:10px;font-family:${font};">
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Course Title</div>
             <div style="font-size:17px;color:#0f172a;font-weight:bold;line-height:24px;margin-top:2px;">${safeCourseTitle}</div>
-            ${cardText(courseInfo?.description)}
+            ${cardText(courseInfo?.description, emailStyle)}
           </td>
         </tr>
         <tr>
-          <td style="font-family:${FONT};">
+          <td style="font-family:${font};">
             ${dateRowHtml}
-            ${cardText(courseInfo?.details)}
+            ${cardText(courseInfo?.details, emailStyle)}
           </td>
         </tr>
       </table>
@@ -551,9 +565,9 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const englishWarningHtml = `<!-- English Warning Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fffbeb;border:1px solid #fef08a;border-left:5px solid #f59e0b;border-radius:8px;">
   <tr>
-    <td style="padding:15px 20px;font-family:${FONT};">
+    <td style="padding:15px 20px;font-family:${font};">
       <div style="font-size:13px;font-weight:bold;color:#b45309;line-height:20px;margin-bottom:8px;">⚠️ Important note before you confirm:</div>
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:${FONT};font-size:13px;line-height:19px;color:#92400e;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-family:${font};font-size:13px;line-height:19px;color:#92400e;">
         <tr>
           <td style="padding:2px 8px 2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#b45309;width:12px;font-weight:bold;">&bull;</td>
           <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:19px;color:#92400e;">Please only accept this place if you feel confident with your English.</td>
@@ -575,7 +589,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const capacityNoticeHtml = `<!-- Limited Places Notice -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
   <tr>
-    <td style="padding:15px 20px;font-family:${FONT};">
+    <td style="padding:15px 20px;font-family:${font};">
       <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Limited places — please read before you confirm</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;">Places on this course are allocated on a first-come, first-served basis. Once all places are taken, confirmation for ${isMultiDate ? "that date" : "this date"} will close — even if your ${days}-day response window has not yet expired.</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>Please only confirm if you are sure you can attend.</strong> If you confirm but don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>. If you can no longer attend, simply reply to this email as early as possible so we can offer your place to someone else.</div>
@@ -586,7 +600,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
     const attendanceNoticeHtml = `<!-- Attendance Notice -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#fef2f2;border:1px solid #fecaca;border-left:5px solid #dc2626;border-radius:8px;">
   <tr>
-    <td style="padding:15px 20px;font-family:${FONT};">
+    <td style="padding:15px 20px;font-family:${font};">
       <div style="font-size:13px;font-weight:bold;color:#b91c1c;line-height:20px;margin-bottom:6px;">⏳ Your place is reserved — please let us know if you can't come</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;">You have confirmed your place on this course and it is being kept for you. Places are limited and other people are waiting for one.</div>
       <div style="font-size:13px;line-height:19px;color:#7f1d1d;margin-top:8px;"><strong>If you can no longer attend, please reply to this email as early as possible</strong> so we can offer your place to someone else. If you don't attend without letting us know in advance, <strong>you may not be offered a place on this course again</strong>.</div>
@@ -603,7 +617,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
           <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
-            <a href="${linkStr}" target="_blank" style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText} &rarr;</a>
+            <a href="${linkStr}" target="_blank" style="font-family:${font};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">${buttonText} &rarr;</a>
           </td>
         </tr>
       </table>
@@ -618,12 +632,9 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         ? (config.htmlEmailTemplate || DEFAULT_CONFIG.htmlEmailTemplate)
         : (config.htmlEmailTemplateStandard || DEFAULT_CONFIG.htmlEmailTemplateStandard);
 
-    // Strip wrapping <p> tags ReactQuill might have added around placeholders
-    body = body.replace(/<p>\s*\{courseDetails\}\s*<\/p>/g, '{courseDetails}');
-    body = body.replace(/<p>\s*\{englishWarning\}\s*<\/p>/g, '{englishWarning}');
-    body = body.replace(/<p>\s*\{confirmationButton\}\s*<\/p>/g, '{confirmationButton}');
-    body = body.replace(/<p>\s*\{capacityNotice\}\s*<\/p>/g, '{capacityNotice}');
-    body = body.replace(/<p>\s*\{attendanceNotice\}\s*<\/p>/g, '{attendanceNotice}');
+    body = inlineEmailStyles(body, emailStyle);
+    // Block placeholders stand on a line of their own, which the editor wraps in a <p>
+    body = unwrapBlockPlaceholders(body, ['courseDetails', 'englishWarning', 'confirmationButton', 'capacityNotice', 'attendanceNotice']);
 
     // Every invitation must mention limited places: inject the notice into
     // custom templates that don't include the placeholder yet.
@@ -649,7 +660,7 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         .replace(/\{confirmationButton\}/g, buttonHtml)
         .replace(/\{responseDays\}/g, String(days));
 
-    return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false, safeCourseTitle);
+    return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false, emailStyle, safeCourseTitle);
 }
 
 /** Build the email subject by replacing placeholders. */
@@ -666,30 +677,32 @@ export type StatusEmailAudience = 'graduates' | 'outreach';
 /** Build the status clarification email body HTML. */
 export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppConfig, audience: StatusEmailAudience = 'graduates'): string {
     const config = customConfig || getConfig();
+    const emailStyle = normalizeEmailStyle(config.emailStyle);
+    const font = emailFont(emailStyle);
 
     // Same card / button markup as the course invitation so both emails look alike
     // and survive copy-paste into Outlook and Gmail.
     const detailsHtml = `<!-- Status Questions Card -->
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:600px;border-collapse:collapse;margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-left:5px solid #0284c7;border-radius:8px;">
   <tr>
-    <td style="padding:16px 20px;font-family:${FONT};">
+    <td style="padding:16px 20px;font-family:${font};">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;margin-bottom:6px;">What we will ask</div>
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Are you working at the moment?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${font};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${font};">Are you working at the moment?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">If yes — when did you start?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${font};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${font};">If yes — when did you start?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Where do you work (company or sector)?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${font};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${font};">Where do you work (company or sector)?</td>
         </tr>
         <tr>
-          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${FONT};">&bull;</td>
-          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${FONT};">Is it full-time or part-time?</td>
+          <td style="padding:3px 10px 3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0284c7;width:14px;font-weight:bold;font-family:${font};">&bull;</td>
+          <td style="padding:3px 0;vertical-align:top;font-size:14px;line-height:21px;color:#0f172a;font-family:${font};">Is it full-time or part-time?</td>
         </tr>
       </table>
       <div style="font-size:13px;color:#0369a1;font-weight:bold;line-height:20px;margin-top:10px;">&#9201; Takes less than a minute &mdash; online or by replying to this email</div>
@@ -705,7 +718,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
       <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
         <tr>
           <td align="center" bgcolor="#0284c7" style="border-radius:8px;background-color:#0284c7;padding:13px 26px;">
-            <a href="${statusLink}" target="_blank" style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Share My Update &rarr;</a>
+            <a href="${statusLink}" target="_blank" style="font-family:${font};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;line-height:20px;">Share My Update &rarr;</a>
           </td>
         </tr>
       </table>
@@ -716,9 +729,9 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
     let body = audience === 'outreach'
         ? config.outreachEmailTemplate || DEFAULT_CONFIG.outreachEmailTemplate
         : config.statusEmailTemplate || DEFAULT_CONFIG.statusEmailTemplate;
-    // Strip wrapping <p> tags ReactQuill might have added around placeholders
-    body = body.replace(/<p>\s*\{statusButton\}\s*<\/p>/g, '{statusButton}');
-    body = body.replace(/<p>\s*\{statusDetails\}\s*<\/p>/g, '{statusDetails}');
+    body = inlineEmailStyles(body, emailStyle);
+    // Block placeholders stand on a line of their own, which the editor wraps in a <p>
+    body = unwrapBlockPlaceholders(body, ['statusButton', 'statusDetails']);
 
     // The email goes out as one BCC message, so it can't be personalised
     body = body.replace(/\s*\{studentName\}/g, '');
@@ -728,7 +741,7 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
         .replace(/\{statusButton\}/g, buttonHtml)
         .replace(/\{statusLink\}/g, statusLink);
 
-    return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? false);
+    return getEmailWrapper(body, 'status', config.includeLogosInEmails ?? false, emailStyle);
 }
 
 /** Build the status clarification email subject. */

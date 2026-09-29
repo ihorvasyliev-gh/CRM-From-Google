@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Users, Globe, Languages, Mail, BellRing } from 'lucide-react';
-import ReactQuill from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css';
 import { Course, CourseEmailInfo, DocumentTemplate } from '../lib/types';
-import { buildEmailBodyHtml, type InviteEmailKind } from '../lib/appConfig';
+import { buildEmailBodyHtml, getConfig, type InviteEmailKind } from '../lib/appConfig';
+import { cardTextStyle } from '../lib/emailFormat';
+import EmailEditor from './EmailEditor/EmailEditor';
 import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Segmented } from './ui/Tabs';
-import { fieldCls, labelCls, quillWrapCls } from './ui/styles';
+import { fieldCls, labelCls } from './ui/styles';
 
 interface Props {
     open: boolean;
@@ -18,16 +18,7 @@ interface Props {
     onClose: () => void;
 }
 
-const quillModules = {
-    toolbar: [
-        ['bold', 'italic', 'underline'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['link'],
-        ['clean'],
-    ]
-};
-
-/** Drop fields left empty (Quill leaves "<p><br></p>" behind). */
+/** Drop fields left empty (the editor leaves "<p></p>" behind). */
 function compactInfo(t: CourseEmailInfo): CourseEmailInfo {
     return Object.fromEntries(Object.entries(t).filter(([, v]) => v && v.replace(/<[^>]+>|&nbsp;/g, '').trim())) as CourseEmailInfo;
 }
@@ -97,21 +88,23 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
 
     // Preview of the course card in the invitation / reminder email
     const [previewKind, setPreviewKind] = useState<InviteEmailKind | null>(null);
+    // Same look as the course card in the email (Settings → Email text style sets the font)
+    const [cardStyle] = useState(() => cardTextStyle(getConfig().emailStyle));
     const infoEditor = (key: keyof CourseEmailInfo, label: string, hint: string) => (
         <div>
             <span className={labelCls}>{label}</span>
-            <div className={`${quillWrapCls} [&_.ql-editor]:min-h-[90px] [&_.ql-editor]:max-h-[240px]`}>
-                <ReactQuill
-                    theme="snow"
-                    value={courseInfo[key] || ''}
-                    onChange={(content, _delta, source) => {
-                        // Quill normalises the HTML on mount; only keep real edits
-                        if (source === 'user') setCourseInfo(prev => ({ ...prev, [key]: content }));
-                    }}
-                    modules={quillModules}
-                    placeholder={hint}
-                />
-            </div>
+            <EmailEditor
+                // A different course (or reopening the modal) starts from its own text
+                key={`${course?.id ?? 'new'}-${open}`}
+                variant="card"
+                value={courseInfo[key] || ''}
+                onChange={html => setCourseInfo(prev => ({ ...prev, [key]: html }))}
+                textStyle={cardStyle}
+                placeholder={hint}
+                minHeight={90}
+                maxHeight={280}
+                ariaLabel={label}
+            />
         </div>
     );
 

@@ -1208,3 +1208,70 @@ a:focus-visible,
 .dark select {
     color-scheme: dark;
 }
+
+/* ===== Email template editor (TipTap) =====
+ * Mirrors how mail clients render the sent email (browser-default paragraph and list spacing,
+ * inlined styles for headings/tables/quotes from lib/emailFormat.ts). Stays light in dark mode,
+ * like the email itself. Base font/size/colour come from --ee-* variables set by EmailEditor. */
+.email-editor-scroll {
+    overflow-y: auto;
+    min-height: var(--ee-min-h, 160px);
+    max-height: var(--ee-max-h, 480px);
+    background: #ffffff;
+}
+.email-editor-content {
+    min-height: var(--ee-min-h, 160px);
+    padding: 4px 16px;
+    outline: none;
+    background: #ffffff;
+    font-family: var(--ee-font);
+    font-size: var(--ee-size);
+    line-height: var(--ee-lh);
+    color: var(--ee-color);
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+.email-editor-content p { margin: 1em 0; }
+.email-editor-content ul,
+.email-editor-content ol { margin: 1em 0; padding-left: 40px; }
+.email-editor-content ul { list-style: disc; }
+.email-editor-content ol { list-style: decimal; }
+.email-editor-content ul ul { list-style: circle; }
+.email-editor-content li ul,
+.email-editor-content li ol { margin: 0; }
+.email-editor-content li > p { margin: 0; }
+.email-editor-content h1,
+.email-editor-content h2,
+.email-editor-content h3 { margin: 16px 0 8px 0; font-weight: bold; line-height: 1.3; }
+.email-editor-content h1 { font-size: calc(var(--ee-size) * 1.75); }
+.email-editor-content h2 { font-size: calc(var(--ee-size) * 1.4); }
+.email-editor-content h3 { font-size: calc(var(--ee-size) * 1.2); }
+.email-editor-content strong { font-weight: bold; }
+.email-editor-content a { color: #0284c7; text-decoration: underline; }
+.email-editor-content blockquote { margin: 0; padding-left: 14px; border-left: 3px solid #cbd5e1; color: #475569; }
+.email-editor-content hr { border: 0; border-top: 1px solid #e2e8f0; height: 0; margin: 16px 0; }
+.email-editor-content hr.ProseMirror-selectednode { border-top-color: oklch(var(--accent-primary)); }
+.email-editor-content .tableWrapper { overflow-x: auto; margin: 0 0 16px 0; }
+.email-editor-content table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0; }
+.email-editor-content td,
+.email-editor-content th { position: relative; border: 1px solid #cbd5e1; padding: 6px 10px; vertical-align: top; text-align: left; }
+.email-editor-content th { background: #f1f5f9; font-weight: bold; }
+.email-editor-content td > p,
+.email-editor-content th > p { margin: 0; }
+.email-editor-content .selectedCell::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: oklch(var(--accent-primary) / 0.14);
+}
+/* The old default templates inline Arial on every paragraph; it follows the chosen email font */
+.email-editor-content [style*="-apple-system"] { font-family: var(--ee-font) !important; }
+/* Course card text: tight paragraphs and lists, like cardText() in appConfig.ts */
+.email-editor-card p { margin: 0 0 4px 0; }
+.email-editor-card ul,
+.email-editor-card ol { margin: 4px 0; padding-left: 20px; }
+.email-editor-content .email-tag {
+    background: #e0e7ff; color: #3730a3; border-radius: 4px; padding: 0 2px;
+    box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+.email-editor-content p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: #94a3b8;
+}

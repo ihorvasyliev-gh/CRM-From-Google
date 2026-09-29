@@ -7,10 +7,12 @@ const chunkGroups: Record<string, string[]> = {
     vendor: ['react', 'react-dom', 'scheduler', 'lucide-react', 'react-router', 'react-router-dom', '@tanstack/react-query'],
     charts: ['recharts'],
     dnd: ['@dnd-kit/core'],
-    editor: ['react-quill-new', 'quill'],
     'excel-export': ['exceljs'],
     'docx-gen': ['docxtemplater', 'pizzip'],
 }
+
+/** Email template editor: TipTap and the ProseMirror packages under it. */
+const editorChunk = /[\\/]node_modules[\\/](@tiptap[\\/][^\\/]+|prosemirror-[^\\/]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname)[\\/]/
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -26,10 +28,13 @@ export default defineConfig({
                     compress: { dropConsole: true, dropDebugger: true },
                 },
                 codeSplitting: {
-                    groups: Object.entries(chunkGroups).map(([name, pkgs]) => ({
-                        name,
-                        test: new RegExp(`[\\\\/]node_modules[\\\\/](${pkgs.map(escapeRegExp).join('|')})[\\\\/]`),
-                    })),
+                    groups: [
+                        ...Object.entries(chunkGroups).map(([name, pkgs]) => ({
+                            name,
+                            test: new RegExp(`[\\\\/]node_modules[\\\\/](${pkgs.map(escapeRegExp).join('|')})[\\\\/]`),
+                        })),
+                        { name: 'editor', test: editorChunk },
+                    ],
                 },
             },
         },

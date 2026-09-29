@@ -1,7 +1,5 @@
-import { useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, SlidersHorizontal, ShieldCheck, MailX } from 'lucide-react';
-import ReactQuill, { Quill } from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css';
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, SlidersHorizontal, ShieldCheck, MailX, Type } from 'lucide-react';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, hasConfirmationTag, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
@@ -13,30 +11,14 @@ import Badge from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
 import { Segmented } from './ui/Tabs';
 import { EmptyState } from './ui/States';
-import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls, quillWrapCls } from './ui/styles';
+import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls } from './ui/styles';
+import EmailEditor, { type EmailEditorHandle } from './EmailEditor/EmailEditor';
+import EmailStyleSection from './EmailEditor/EmailStyleSection';
 import { toast } from '../lib/toast';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
-// Register inline styles for Quill color, background, font, and size to ensure email client compatibility
-const ColorStyle = Quill.import('attributors/style/color') as any;
-const BackgroundStyle = Quill.import('attributors/style/background') as any;
-const FontStyle = Quill.import('attributors/style/font') as any;
-const SizeStyle = Quill.import('attributors/style/size') as any;
-Quill.register(ColorStyle, true);
-Quill.register(BackgroundStyle, true);
-Quill.register(FontStyle, true);
-Quill.register(SizeStyle, true);
-
-const quillModules = {
-    toolbar: [
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        ['link'],
-        ['clean'],
-        [{ 'font': [] }],
-        [{ 'color': [] }, { 'background': [] }],
-    ]
-};
+/** Placeholders replaced by a whole card or button — inserted on a line of their own. */
+const BLOCK_TAGS = new Set(['{courseDetails}', '{englishWarning}', '{capacityNotice}', '{confirmationButton}', '{attendanceNotice}', '{statusDetails}', '{statusButton}']);
 
 type InviteTab = 'high_english' | 'standard' | 'reminder';
 /** Sample of the per-course text (Courses → edit course) so the preview shows the full card */
@@ -82,8 +64,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     // Snapshot of the last saved config — comparing against it avoids re-reading and
     // re-migrating localStorage on every keystroke in the template editors.
     const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(getConfig()));
-    // Quill normalises the stored HTML when it mounts, which alone would make the config look
-    // edited. Only count the page as dirty once the user actually changed something.
+    // Only count the page as dirty once the user actually changed something.
     const [touched, setTouched] = useState(false);
     const editConfig = useCallback((updater: (prev: AppConfig) => AppConfig) => {
         setTouched(true);
@@ -147,12 +128,12 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     const statusPreviewBody = buildStatusEmailBodyHtml(statusLinkStr, config, statusAudience);
 
     const [showStatusPreview, setShowStatusPreview] = useState(true);
-    const [activeSection, setActiveSection] = useState('settings-invitation');
+    const [activeSection, setActiveSection] = useState('settings-email-style');
 
     // Highlight the section currently in view in the side navigation
     useEffect(() => {
         if (typeof IntersectionObserver === 'undefined') return;
-        const ids = ['settings-invitation', 'settings-survey', 'settings-unsubscribes', 'settings-duplicates', 'settings-preferences', 'settings-users'];
+        const ids = ['settings-email-style', 'settings-invitation', 'settings-survey', 'settings-unsubscribes', 'settings-duplicates', 'settings-preferences', 'settings-users'];
         const observer = new IntersectionObserver(
             entries => {
                 const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -414,25 +395,12 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         }
     }, [runDuplicateScan]);
 
-    const insertVariable = useCallback((variable: string, target: InviteTab | 'status' | 'outreach') => {
-        if (target in INVITE_BODY_KEY) {
-            const key = INVITE_BODY_KEY[target as InviteTab];
-            editConfig(prev => ({
-                ...prev,
-                [key]: prev[key] ? `${prev[key]} ${variable}` : variable
-            }));
-        } else if (target === 'outreach') {
-            editConfig(prev => ({
-                ...prev,
-                outreachEmailTemplate: prev.outreachEmailTemplate ? `${prev.outreachEmailTemplate} ${variable}` : variable
-            }));
-        } else {
-            editConfig(prev => ({
-                ...prev,
-                statusEmailTemplate: prev.statusEmailTemplate ? `${prev.statusEmailTemplate} ${variable}` : variable
-            }));
-        }
-    }, [editConfig]);
+    const inviteEditorRef = useRef<EmailEditorHandle>(null);
+    const statusEditorRef = useRef<EmailEditorHandle>(null);
+    /** Insert a tag at the cursor of the template editor. */
+    const insertVariable = useCallback((variable: string, target: 'invite' | 'status') => {
+        (target === 'invite' ? inviteEditorRef : statusEditorRef).current?.insertTag(variable, { block: BLOCK_TAGS.has(variable) });
+    }, []);
 
     const chipCls = (present: boolean) =>
         `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-mono border transition-colors active:scale-95 ${
@@ -454,6 +422,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         );
 
     const sections = [
+        { id: 'settings-email-style', label: 'Email text style', icon: Type },
         { id: 'settings-invitation', label: 'Invitation & reminder', icon: Mail },
         { id: 'settings-survey', label: 'Outcomes survey', icon: Briefcase },
         { id: 'settings-unsubscribes', label: 'Unsubscribed', icon: MailX },
@@ -506,6 +475,13 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                 </aside>
 
                 <div className="space-y-6 min-w-0">
+                    {/* ═══ Email text style ═══ */}
+                    <EmailStyleSection
+                        id="settings-email-style"
+                        value={config.emailStyle}
+                        onChange={emailStyle => editConfig(prev => ({ ...prev, emailStyle }))}
+                    />
+
                     {/* ═══ Course Invitation Email ═══ */}
                     <Card
                         id="settings-invitation"
@@ -605,7 +581,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                 <button
                                                     key={item.tag}
                                                     type="button"
-                                                    onClick={() => insertVariable(item.tag, inviteTemplateTab)}
+                                                    onClick={() => insertVariable(item.tag, 'invite')}
                                                     className={chipCls(isPresent)}
                                                     title={`${item.label} — click to insert ${item.tag}`}
                                                 >
@@ -615,19 +591,16 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                             );
                                         })}
                                     </div>
-                                    <div className={`${quillWrapCls} [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:max-h-[500px]`}>
-                                        <ReactQuill
-                                            key={inviteTemplateTab}
-                                            theme="snow"
-                                            value={config[inviteBodyKey] || ''}
-                                            onChange={(content, _delta, source) => {
-                                                if (content !== config[inviteBodyKey]) {
-                                                    (source === 'user' ? editConfig : setLocalConfig)(prev => ({ ...prev, [inviteBodyKey]: content }));
-                                                }
-                                            }}
-                                            modules={quillModules}
-                                        />
-                                    </div>
+                                    <EmailEditor
+                                        key={inviteTemplateTab}
+                                        ref={inviteEditorRef}
+                                        value={config[inviteBodyKey] || ''}
+                                        onChange={html => editConfig(prev => ({ ...prev, [inviteBodyKey]: html }))}
+                                        textStyle={config.emailStyle}
+                                        minHeight={250}
+                                        maxHeight={560}
+                                        ariaLabel="Invitation email body"
+                                    />
                                 </div>
 
                                 {validNote(isValidCurrentInviteTemplate, 'Confirmation button/link tag is valid and configured.', <><strong>Warning:</strong> This template must include confirmation tag (<code>{'{confirmationButton}'}</code> or <code>{'{confirmationLink}'}</code>).</>)}
@@ -735,7 +708,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                 <button
                                                     key={item.tag}
                                                     type="button"
-                                                    onClick={() => insertVariable(item.tag, statusAudience === 'outreach' ? 'outreach' : 'status')}
+                                                    onClick={() => insertVariable(item.tag, 'status')}
                                                     className={chipCls(isPresent)}
                                                     title={`${item.label} — click to insert ${item.tag}`}
                                                 >
@@ -745,19 +718,16 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                             );
                                         })}
                                     </div>
-                                    <div className={`${quillWrapCls} [&_.ql-editor]:min-h-[200px] [&_.ql-editor]:max-h-[400px]`}>
-                                        <ReactQuill
-                                            key={statusAudience}
-                                            theme="snow"
-                                            value={config[statusTemplateKey]}
-                                            onChange={(content, _delta, source) => {
-                                                if (content !== config[statusTemplateKey]) {
-                                                    (source === 'user' ? editConfig : setLocalConfig)(prev => ({ ...prev, [statusTemplateKey]: content }));
-                                                }
-                                            }}
-                                            modules={quillModules}
-                                        />
-                                    </div>
+                                    <EmailEditor
+                                        key={statusAudience}
+                                        ref={statusEditorRef}
+                                        value={config[statusTemplateKey]}
+                                        onChange={html => editConfig(prev => ({ ...prev, [statusTemplateKey]: html }))}
+                                        textStyle={config.emailStyle}
+                                        minHeight={200}
+                                        maxHeight={480}
+                                        ariaLabel="Survey email body"
+                                    />
                                 </div>
 
                                 {validNote(isValidCurrentStatusTemplate, 'Survey button/link tag is valid and configured.', <><strong>Warning:</strong> Template must include at least one status tag (<code>{'{statusButton}'}</code> or <code>{'{statusLink}'}</code>).</>)}
