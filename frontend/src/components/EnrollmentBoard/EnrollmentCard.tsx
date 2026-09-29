@@ -10,6 +10,7 @@ import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUti
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
+import { getInviteDeadline, formatTimeLeft, DEFAULT_RESPONSE_DAYS } from '../../lib/inviteDeadline';
 import { CustomTooltip } from '../ui/Tooltip';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
 
@@ -218,19 +219,11 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         setShowQuickMove(prev => !prev);
     };
 
-    // Timer level — grey / orange / red
-    const timerLevel = useMemo(() => {
-        if (status !== 'invited') return null;
-        const invitedAt = enrollment.invited_at;
-        if (!invitedAt) return null;
-        const days = enrollment.response_days ?? 7;
-        const deadline = new Date(invitedAt).getTime() + days * 24 * 60 * 60 * 1000;
-        const remaining = deadline - now;
-        if (remaining <= 0) return 'expired';
-        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-        if (daysLeft <= 2) return 'urgent';
-        return 'ok';
-    }, [status, enrollment.invited_at, enrollment.response_days, now]);
+    // Invitation deadline — same calculation as the dashboard's Expired Invites card
+    const inviteDeadline = useMemo(
+        () => (status === 'invited' ? getInviteDeadline(enrollment.invited_at, enrollment.response_days, now) : null),
+        [status, enrollment.invited_at, enrollment.response_days, now]
+    );
 
     const fullName = `${enrollment.students?.first_name || ''} ${enrollment.students?.last_name || ''}`.trim();
     const initials = `${enrollment.students?.first_name?.[0] || ''}${enrollment.students?.last_name?.[0] || ''}`.toUpperCase() || '?';
@@ -314,12 +307,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     </p>
 
                     {/* Invitation Timer */}
-                    {status === 'invited' && enrollment.invited_at && (() => {
-                        const days = enrollment.response_days ?? 7;
-                        const deadline = new Date(enrollment.invited_at).getTime() + days * 24 * 60 * 60 * 1000;
-                        const remaining = deadline - now;
+                    {inviteDeadline && enrollment.invited_at && (() => {
+                        const days = enrollment.response_days ?? DEFAULT_RESPONSE_DAYS;
 
-                        if (remaining <= 0) {
+                        if (inviteDeadline.isExpired) {
                             const invitedDate = new Date(enrollment.invited_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
                                 <span className={`${metaChip} bg-red-500/10 text-status-rejected font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
@@ -329,12 +320,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             );
                         }
 
-                        const daysLeft = Math.floor(remaining / (24 * 60 * 60 * 1000));
-                        const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-                        const timerText = daysLeft > 0 ? `${daysLeft}d ${hours}h` : `${hours}h`;
+                        const timerText = formatTimeLeft(inviteDeadline.remainingMs);
                         return (
                             <span
-                                className={`${metaChip} ${timerLevel === 'urgent'
+                                className={`${metaChip} ${inviteDeadline.isDueSoon
                                     ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 animate-pulse-timer'
                                     : 'bg-info/10 text-status-invited'
                                 }`}

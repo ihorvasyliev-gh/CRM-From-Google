@@ -13,6 +13,7 @@ describe('FilterBar Component - Date Filter', () => {
     const mockSetCourseDateFrom = vi.fn();
     const mockSetCourseDateTo = vi.fn();
     const mockSetSortOrder = vi.fn();
+    const mockSetInviteFilter = vi.fn();
 
     const defaultProps = {
         enrollments: [],
@@ -44,6 +45,9 @@ describe('FilterBar Component - Date Filter', () => {
         setCourseDateTo: mockSetCourseDateTo,
         sortOrder: 'date-asc' as const,
         setSortOrder: mockSetSortOrder,
+        inviteFilter: 'all' as const,
+        setInviteFilter: mockSetInviteFilter,
+        inviteCounts: { expired: 0, soon: 0 },
     };
 
     beforeEach(() => vi.clearAllMocks());
@@ -169,5 +173,23 @@ describe('FilterBar Component - Date Filter', () => {
 
         rerender(<FilterBar {...defaultProps} uniqueVariants={['English', 'Ukrainian']} />);
         expect(screen.getByText('Ukrainian')).toBeInTheDocument();
+    });
+
+    it('hides the invite chips when nothing is expired or due', () => {
+        render(<FilterBar {...defaultProps} />);
+        expect(screen.queryByRole('button', { name: /^Expired/ })).not.toBeInTheDocument();
+    });
+
+    it('lets the user filter by expired invites', () => {
+        render(<FilterBar {...defaultProps} inviteCounts={{ expired: 3, soon: 2 }} />);
+        const chip = screen.getByRole('button', { name: /^Expired\s*3/ });
+        fireEvent.click(chip);
+        expect(mockSetInviteFilter).toHaveBeenCalledWith('expired');
+    });
+
+    it('toggles an active invite filter off', () => {
+        render(<FilterBar {...defaultProps} inviteFilter="expired" inviteCounts={{ expired: 3, soon: 2 }} />);
+        fireEvent.click(screen.getByRole('button', { name: /^Expired\s*3/ }));
+        expect(mockSetInviteFilter).toHaveBeenCalledWith('all');
     });
 });

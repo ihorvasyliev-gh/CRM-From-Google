@@ -103,7 +103,7 @@ export default function ExpiredInvitesCard({
             {items.length > MAX_VISIBLE && (
                 <button
                     type="button"
-                    onClick={() => onNavigate?.('enrollments', { status: 'invited' })}
+                    onClick={() => onNavigate?.('enrollments', { inviteFilter: overdue > 0 ? (dueSoon > 0 ? 'attention' : 'expired') : 'soon' })}
                     className="mt-2 w-full text-center text-xs font-semibold text-brand-500 hover:bg-brand-500/5 rounded-lg py-2 cursor-pointer transition-colors"
                 >
                     View all {items.length} in Kanban →

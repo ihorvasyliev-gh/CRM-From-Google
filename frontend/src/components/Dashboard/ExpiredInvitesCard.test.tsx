@@ -122,7 +122,7 @@ describe('ExpiredInvitesCard', () => {
         expect(viewAllBtn).toBeInTheDocument();
 
         fireEvent.click(viewAllBtn);
-        expect(mockNavigate).toHaveBeenCalledWith('enrollments', { status: 'invited' });
+        expect(mockNavigate).toHaveBeenCalledWith('enrollments', { inviteFilter: 'expired' });
     });
 
     it('does not render View all button when items.length <= 5', () => {

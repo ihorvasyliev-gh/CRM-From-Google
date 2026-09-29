@@ -99,7 +99,7 @@ describe('dashboardUtils - calculateExpiredInvites', () => {
         expect(urgent[0].studentName).toBe('David');
         expect(urgent[0].courseName).toBe('Unknown Course');
 
-        expect(urgent[1].timeLabel).toBe('2d left');
+        expect(urgent[1].timeLabel).toBe('1d 12h left');
         expect(urgent[1].studentName).toBe('Unknown Student');
         expect(urgent[1].courseName).toBe('First Aid');
     });

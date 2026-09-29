@@ -26,6 +26,8 @@ import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
 import { matchesSearch } from '../lib/searchUtils';
 import { DateInput } from './ui/DatePicker';
+import { useNowMinute } from '../hooks/useNow';
+import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -42,9 +44,11 @@ const DROP_ANIMATION = { sideEffects: defaultDropAnimationSideEffects({ styles: 
 export default function EnrollmentBoard({
     initialCourseFilter,
     initialCourseDate,
+    initialInviteFilter,
 }: {
     initialCourseFilter?: string;
     initialCourseDate?: string;
+    initialInviteFilter?: InviteFilter;
 }) {
     const [toast, setToast] = useState<ToastData | null>(null);
     const showToast = useCallback(
@@ -103,6 +107,7 @@ export default function EnrollmentBoard({
     const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
     const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
+    const [inviteFilter, setInviteFilter] = useState<InviteFilter>(initialInviteFilter || 'all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [courseDateFrom, setCourseDateFrom] = useState('');
@@ -128,6 +133,11 @@ export default function EnrollmentBoard({
             setSelectedCourseDate(initialCourseDate);
         }
     }, [initialCourseFilter, initialCourseDate, setSelectedCourse, setSelectedVariant, setSelectedCourseDate]);
+
+    // Dashboard "Expired invites" link pre-selects the invite filter
+    useEffect(() => {
+        if (initialInviteFilter) setInviteFilter(initialInviteFilter);
+    }, [initialInviteFilter]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -211,8 +221,8 @@ export default function EnrollmentBoard({
         }
     }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
 
-    // Filters derivation
-    const filteredEnrollments = useMemo(() => {
+    // Filters derivation (everything except the invite-deadline filter, so its chip counts follow the other filters)
+    const baseFilteredEnrollments = useMemo(() => {
         let result = enrollments;
         if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
         if (selectedVariant !== 'all') {
@@ -250,6 +260,25 @@ export default function EnrollmentBoard({
         }
         return result;
     }, [enrollments, selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
+
+    const now = useNowMinute();
+    const inviteCounts = useMemo(() => {
+        const counts = { expired: 0, soon: 0 };
+        baseFilteredEnrollments.forEach(e => {
+            if (e.status !== 'invited') return;
+            const d = getInviteDeadline(e.invited_at, e.response_days, now);
+            if (d?.isExpired) counts.expired++;
+            else if (d?.isDueSoon) counts.soon++;
+        });
+        return counts;
+    }, [baseFilteredEnrollments, now]);
+
+    const filteredEnrollments = useMemo(() => {
+        if (inviteFilter === 'all') return baseFilteredEnrollments;
+        return baseFilteredEnrollments.filter(e =>
+            e.status === 'invited' && matchesInviteFilter(getInviteDeadline(e.invited_at, e.response_days, now), inviteFilter)
+        );
+    }, [baseFilteredEnrollments, inviteFilter, now]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {
@@ -403,13 +432,14 @@ export default function EnrollmentBoard({
     }
 
     const hasActiveFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' ||
-        !!searchQuery.trim() || !!dateFrom || !!dateTo || !!courseDateFrom || !!courseDateTo;
+        inviteFilter !== 'all' || !!searchQuery.trim() || !!dateFrom || !!dateTo || !!courseDateFrom || !!courseDateTo;
 
     const resetFilters = useCallback(() => {
         setSelectedCourse('all');
         setSelectedVariant('all');
         setSelectedCourseDate('all');
         setSearchQuery('');
+        setInviteFilter('all');
         setDateFrom('');
         setDateTo('');
         setCourseDateFrom('');
@@ -659,6 +689,9 @@ export default function EnrollmentBoard({
                 setCourseDateTo={setCourseDateTo}
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
+                inviteFilter={inviteFilter}
+                setInviteFilter={setInviteFilter}
+                inviteCounts={inviteCounts}
             />
 
             {/* Mobile Column Quick Switcher Bar */}

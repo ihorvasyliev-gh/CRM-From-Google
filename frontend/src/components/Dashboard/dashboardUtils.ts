@@ -1,5 +1,6 @@
 import { cleanVariant } from '../../lib/types';
 import { todayISO } from '../../lib/dateUtils';
+import { getInviteDeadline, formatTimeLeft } from '../../lib/inviteDeadline';
 
 export interface ExpiredInviteItem {
     id: string;
@@ -27,24 +28,19 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
     for (const en of enrollments) {
         if (en.status !== 'invited' || !en.invited_at) continue;
 
-        const invitedTime = new Date(en.invited_at).getTime();
-        if (isNaN(invitedTime)) continue;
+        const deadline = getInviteDeadline(en.invited_at, en.response_days, nowMs);
+        if (!deadline) continue;
 
-        const days = en.response_days ?? 7;
-        const deadlineMs = invitedTime + days * 24 * 60 * 60 * 1000;
-        const diffMs = deadlineMs - nowMs;
-        const hoursRemaining = diffMs / (1000 * 60 * 60);
-
-        // Include if already expired (hoursRemaining <= 0) or <= 48h remaining
-        if (hoursRemaining <= 48) {
-            const isExpired = hoursRemaining <= 0;
+        // Include if already expired or due within 48h
+        if (deadline.isExpired || deadline.isDueSoon) {
+            const { deadlineMs, remainingMs, isExpired } = deadline;
+            const hoursRemaining = remainingMs / (1000 * 60 * 60);
             let timeLabel: string;
             if (isExpired) {
-                const daysOverdue = Math.floor(Math.abs(hoursRemaining) / 24);
+                const daysOverdue = Math.floor(Math.abs(remainingMs) / DAY_MS);
                 timeLabel = daysOverdue === 0 ? 'Expired today' : `Expired ${daysOverdue}d ago`;
             } else {
-                const hrs = Math.ceil(hoursRemaining);
-                timeLabel = hrs <= 24 ? `${hrs}h left` : `${Math.ceil(hrs / 24)}d left`;
+                timeLabel = `${formatTimeLeft(remainingMs)} left`;
             }
 
             const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown Student';

@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, CalendarRange, GraduationCap } from 'lucide-react';
+import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, CalendarRange, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { CustomTooltip } from '../ui/Tooltip';
 import Modal from '../ui/Modal';
 import { buttonCls } from '../ui/buttonStyles';
+import type { InviteFilter } from '../../lib/inviteDeadline';
 
 type SortOrder = 'date-asc' | 'date-desc' | 'name';
 
@@ -35,6 +36,9 @@ interface FilterBarProps {
     setCourseDateTo: (d: string) => void;
     sortOrder: SortOrder;
     setSortOrder: React.Dispatch<React.SetStateAction<SortOrder>>;
+    inviteFilter: InviteFilter;
+    setInviteFilter: (f: InviteFilter) => void;
+    inviteCounts: { expired: number; soon: number };
 }
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
@@ -43,18 +47,22 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
     { value: 'name', label: 'By name' },
 ];
 
-type ChipTone = 'brand' | 'violet' | 'emerald';
+type ChipTone = 'brand' | 'violet' | 'emerald' | 'red' | 'amber';
 
 const CHIP_ACTIVE: Record<ChipTone, string> = {
     brand: 'bg-brand-500 text-white border-brand-500 shadow-xs',
     violet: 'bg-violet-500 text-white border-violet-500 shadow-xs',
     emerald: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
+    red: 'bg-red-600 text-white border-red-600 shadow-xs',
+    amber: 'bg-amber-500 text-white border-amber-500 shadow-xs',
 };
 
 const CHIP_IDLE: Record<ChipTone, string> = {
     brand: 'hover:border-brand-500 hover:text-brand-500',
     violet: 'hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400',
     emerald: 'hover:border-emerald-500/60 hover:text-primary',
+    red: 'text-red-600 dark:text-red-400 hover:border-red-500',
+    amber: 'text-amber-600 dark:text-amber-400 hover:border-amber-500',
 };
 
 function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }: {
@@ -126,6 +134,9 @@ export default function FilterBar({
     setCourseDateTo,
     sortOrder,
     setSortOrder,
+    inviteFilter,
+    setInviteFilter,
+    inviteCounts,
 }: FilterBarProps) {
     const [showRanges, setShowRanges] = useState(false);
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -152,6 +163,7 @@ export default function FilterBar({
         setSelectedCourseDate('all');
         clearCreatedRange();
         clearCourseRange();
+        setInviteFilter('all');
     };
 
     const activeFilters: { id: string; label: string; value: string; onRemove: () => void }[] = [];
@@ -174,6 +186,14 @@ export default function FilterBar({
     }
     if (hasCourseRange) {
         activeFilters.push({ id: 'courseDateRange', label: 'Course dates', value: formatRange(courseDateFrom, courseDateTo), onRemove: clearCourseRange });
+    }
+    if (inviteFilter !== 'all') {
+        activeFilters.push({
+            id: 'invites',
+            label: 'Invites',
+            value: { expired: 'Expired', soon: 'Due soon', attention: 'Expired + due soon' }[inviteFilter],
+            onRemove: () => setInviteFilter('all'),
+        });
     }
     const rangeFilters = activeFilters.filter(f => f.id === 'createdDate' || f.id === 'courseDateRange');
 
@@ -234,6 +254,21 @@ export default function FilterBar({
                     {v}
                 </Chip>
             ))}
+        </>
+    );
+
+    // Only offered when there is something to show (or a filter is already on)
+    const showInviteChips = inviteCounts.expired > 0 || inviteCounts.soon > 0 || inviteFilter !== 'all';
+    const renderInviteChips = (size: 'sm' | 'lg') => (
+        <>
+            <Chip tone="red" size={size} active={inviteFilter === 'expired'} count={inviteCounts.expired}
+                onClick={() => setInviteFilter(inviteFilter === 'expired' ? 'all' : 'expired')}>
+                Expired
+            </Chip>
+            <Chip tone="amber" size={size} active={inviteFilter === 'soon'} count={inviteCounts.soon}
+                onClick={() => setInviteFilter(inviteFilter === 'soon' ? 'all' : 'soon')}>
+                Due in 48h
+            </Chip>
         </>
     );
 
@@ -410,6 +445,14 @@ export default function FilterBar({
                 ))}
             </div>
 
+            {/* Desktop: invite deadline filter */}
+            {showInviteChips && (
+                <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                    <GroupLabel icon={<Timer size={12} />} className="mr-0.5 text-status-rejected">Invites</GroupLabel>
+                    {renderInviteChips('sm')}
+                </div>
+            )}
+
             {/* Desktop row 3: language + upcoming course dates, one line */}
             {(showLanguages || availableCourseDates.length > 0) && (
                 <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
@@ -468,6 +511,13 @@ export default function FilterBar({
                         ))}
                     </div>
                 </section>
+
+                {showInviteChips && (
+                    <section className="space-y-2">
+                        <GroupLabel icon={<Timer size={12} />} className="text-status-rejected">Invites</GroupLabel>
+                        <div className="flex flex-wrap gap-1.5">{renderInviteChips('lg')}</div>
+                    </section>
+                )}
 
                 {showLanguages && (
                     <section className="space-y-2">
