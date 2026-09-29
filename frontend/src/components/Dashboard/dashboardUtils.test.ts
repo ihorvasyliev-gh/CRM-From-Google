@@ -113,6 +113,32 @@ describe('dashboardUtils - calculateExpiredInvites', () => {
     });
 });
 
+describe('dashboardUtils - pending invites on upcoming dates', () => {
+    const now = new Date('2026-10-01T12:00:00Z').getTime();
+    const base = { course_id: 'c1', courses: { name: 'SafePass' } };
+    const enrollments = [
+        { ...base, id: '1', status: 'confirmed', confirmed_date: '2026-10-07' },
+        { ...base, id: '2', status: 'invited', invited_at: '2026-09-30T00:00:00Z', response_days: 7, invited_date: '2026-10-07' },
+        // multi-date invite: pending on both offered dates
+        { ...base, id: '3', status: 'invited', invited_at: '2026-09-30T00:00:00Z', response_days: 7, invited_date: '2026-10-07', invited_dates: ['2026-10-07', '2026-10-09'] },
+        // expired invite is not pending
+        { ...base, id: '4', status: 'invited', invited_at: '2026-09-01T00:00:00Z', response_days: 7, invited_date: '2026-10-07' },
+        // past date is ignored
+        { ...base, id: '5', status: 'invited', invited_at: '2026-09-30T00:00:00Z', response_days: 7, invited_date: '2026-09-20' },
+    ];
+
+    it('counts open invitations per date, including pending-only dates', () => {
+        expect(groupUpcomingCohorts(enrollments, '2026-10-01', now)).toEqual([
+            { date: '2026-10-07', courseId: 'c1', courseName: 'SafePass', confirmedCount: 1, pendingCount: 2 },
+            { date: '2026-10-09', courseId: 'c1', courseName: 'SafePass', confirmedCount: 0, pendingCount: 1 },
+        ]);
+    });
+
+    it('keeps pending-only dates out of reminders', () => {
+        expect(dueReminders(enrollments, new Set(), 30, '2026-10-01').map(c => c.date)).toEqual(['2026-10-07']);
+    });
+});
+
 describe('dashboardUtils - groupUpcomingCohorts', () => {
     it('groups confirmed enrollments by upcoming confirmed_date and course', () => {
         const enrollments = [
@@ -159,13 +185,13 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
             date: '2026-09-10',
             courseId: 'c1',
             courseName: 'SafePass',
-            confirmedCount: 2,
+            confirmedCount: 2, pendingCount: 0,
         });
         expect(cohorts[1]).toEqual({
             date: '2026-09-15',
             courseId: 'c2',
             courseName: 'Manual Handling',
-            confirmedCount: 1,
+            confirmedCount: 1, pendingCount: 0,
         });
     });
 
@@ -301,6 +327,6 @@ describe('dashboardUtils - dueReminders', () => {
             en('c5', '2026-10-02', 'invited'),     // not confirmed
         ];
         const due = dueReminders(enrollments, new Set(['c2|2026-10-05']), 7, '2026-10-01');
-        expect(due).toEqual([{ date: '2026-10-01', courseId: 'c1', courseName: 'c1', confirmedCount: 2 }]);
+        expect(due).toEqual([{ date: '2026-10-01', courseId: 'c1', courseName: 'c1', confirmedCount: 2, pendingCount: 0 }]);
     });
 });

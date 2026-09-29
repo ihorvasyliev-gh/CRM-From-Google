@@ -11,7 +11,7 @@ describe('UpcomingCohortsCard', () => {
                 date: '2026-09-12',
                 courseId: 'c-1',
                 courseName: 'Patient Moving and Handling',
-                confirmedCount: 9,
+                confirmedCount: 9, pendingCount: 0,
             },
         ];
 
@@ -52,13 +52,13 @@ describe('UpcomingCohortsCard', () => {
                 date: '2026-09-12',
                 courseId: 'c-1',
                 courseName: 'Patient Moving and Handling',
-                confirmedCount: 9,
+                confirmedCount: 9, pendingCount: 0,
             },
             {
                 date: '2026-09-15',
                 courseId: 'c-2',
                 courseName: 'SafePass Training',
-                confirmedCount: 14,
+                confirmedCount: 14, pendingCount: 0,
             },
         ];
 
@@ -78,9 +78,9 @@ describe('UpcomingCohortsCard', () => {
     it('stacks courses on the same day into one card, each clickable on its own', () => {
         const mockNavigate = vi.fn();
         const cohorts: UpcomingCohortItem[] = [
-            { date: '2026-10-21', courseId: 'c-1', courseName: 'SafePass', confirmedCount: 1 },
-            { date: '2026-10-21', courseId: 'c-2', courseName: 'Manual Handling', confirmedCount: 4 },
-            { date: '2026-10-22', courseId: 'c-3', courseName: 'First Aid', confirmedCount: 2 },
+            { date: '2026-10-21', courseId: 'c-1', courseName: 'SafePass', confirmedCount: 1, pendingCount: 0 },
+            { date: '2026-10-21', courseId: 'c-2', courseName: 'Manual Handling', confirmedCount: 4, pendingCount: 0 },
+            { date: '2026-10-22', courseId: 'c-3', courseName: 'First Aid', confirmedCount: 2, pendingCount: 0 },
         ];
 
         const { container } = render(<UpcomingCohortsCard cohorts={cohorts} onNavigate={mockNavigate} />);
@@ -102,12 +102,24 @@ describe('UpcomingCohortsCard', () => {
                 date: '2026-09-12',
                 courseId: 'c-1',
                 courseName: 'Patient Moving and Handling',
-                confirmedCount: 9,
+                confirmedCount: 9, pendingCount: 0,
             },
         ];
 
         render(<UpcomingCohortsCard cohorts={cohorts} />);
         const cardBtn = screen.getByRole('button', { name: /Patient Moving and Handling/i });
         expect(() => fireEvent.click(cardBtn)).not.toThrow();
+    });
+
+    it('shows the pending invite count next to confirmed', () => {
+        const cohorts: UpcomingCohortItem[] = [
+            { date: '2026-10-21', courseId: 'c-1', courseName: 'SafePass', confirmedCount: 6, pendingCount: 3 },
+            { date: '2026-10-22', courseId: 'c-2', courseName: 'First Aid', confirmedCount: 0, pendingCount: 2 },
+        ];
+        render(<UpcomingCohortsCard cohorts={cohorts} />);
+        expect(screen.getByText('6 confirmed')).toBeInTheDocument();
+        expect(screen.getByText('3 pending')).toBeInTheDocument();
+        expect(screen.getByText('2 pending')).toBeInTheDocument();
+        expect(screen.queryByText('0 confirmed')).not.toBeInTheDocument();
     });
 });

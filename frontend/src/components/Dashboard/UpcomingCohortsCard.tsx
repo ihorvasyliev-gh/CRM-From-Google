@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Users, ChevronRight, ChevronDown } from 'lucide-react';
+import { CalendarDays, Users, Clock, ChevronRight, ChevronDown } from 'lucide-react';
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
 
@@ -51,7 +51,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
     return (
         <DashboardCard
             title="Upcoming Courses"
-            subtitle={groups.length > 0 ? `Next ${groups.length} dates` : 'Confirmed course dates'}
+            subtitle={groups.length > 0 ? `Next ${groups.length} dates` : 'Confirmed and pending course dates'}
             icon={CalendarDays}
             action={openBoard}
             className={className}
@@ -87,7 +87,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                             type="button"
                                             key={c.courseId}
                                             onClick={() => onNavigate?.('enrollments', { courseId: c.courseId, courseDate: c.date })}
-                                            aria-label={`Course: ${c.courseName} on ${c.date}, ${c.confirmedCount} confirmed`}
+                                            aria-label={`Course: ${c.courseName} on ${c.date}, ${c.confirmedCount} confirmed${c.pendingCount ? `, ${c.pendingCount} pending` : ''}`}
                                             className={`group flex-1 flex items-center gap-3 text-left cursor-pointer ${
                                                 single
                                                     ? "after:absolute after:inset-0 after:rounded-xl after:content-['']"
@@ -106,10 +106,18 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                                         {untilLabel(c.date, todayKey)}
                                                     </span>
                                                     <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
-                                                    <span className="inline-flex items-center gap-1 font-semibold text-success">
-                                                        <Users size={11} />
-                                                        {c.confirmedCount} confirmed
-                                                    </span>
+                                                    {(c.confirmedCount > 0 || !c.pendingCount) && (
+                                                        <span className="inline-flex items-center gap-1 font-semibold text-success">
+                                                            <Users size={11} />
+                                                            {c.confirmedCount} confirmed
+                                                        </span>
+                                                    )}
+                                                    {!!c.pendingCount && (
+                                                        <span className="inline-flex items-center gap-1 font-semibold text-status-invited" title="Invited — awaiting response">
+                                                            <Clock size={11} />
+                                                            {c.pendingCount} pending
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </span>
                                             <ChevronRight size={16} className="text-muted group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all shrink-0" />

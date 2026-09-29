@@ -20,6 +20,8 @@ export interface UpcomingCohortItem {
     courseId: string;
     courseName: string;
     confirmedCount: number;
+    /** Open invitations (not yet answered, deadline not passed) offering this date */
+    pendingCount: number;
 }
 
 export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date.now()): ExpiredInviteItem[] {
@@ -63,26 +65,31 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
     return items.sort((a, b) => a.deadlineMs - b.deadlineMs);
 }
 
-/** Confirmed course dates from today on, one item per course + date, soonest first. */
-export function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
+/**
+ * Course dates from today on, one item per course + date, soonest first. A date carries the students
+ * confirmed for it and the still-open invitations offering it ("pending" — same rule as the invite
+ * dialog: status invited, date offered, deadline not passed). Multi-date invites count on every date.
+ */
+function buildSessions(enrollments: any[], todayIso: string, nowMs: number): UpcomingCohortItem[] {
     const cohortMap = new Map<string, UpcomingCohortItem>();
+    const bump = (dateKey: string, en: any, field: 'confirmedCount' | 'pendingCount') => {
+        if (dateKey < todayIso) return;
+        const key = `${dateKey}:::${en.course_id}`;
+        let item = cohortMap.get(key);
+        if (!item) {
+            item = { date: dateKey, courseId: en.course_id, courseName: en.courses?.name || 'Unknown Course', confirmedCount: 0, pendingCount: 0 };
+            cohortMap.set(key, item);
+        }
+        item[field]++;
+    };
 
     for (const en of enrollments) {
-        if (en.status !== 'confirmed' || !en.confirmed_date) continue;
-        const dateKey = en.confirmed_date.split('T')[0];
-        if (dateKey < todayIso) continue;
-
-        const key = `${dateKey}:::${en.course_id}`;
-        const existing = cohortMap.get(key);
-        if (existing) {
-            existing.confirmedCount++;
-        } else {
-            cohortMap.set(key, {
-                date: dateKey,
-                courseId: en.course_id,
-                courseName: en.courses?.name || 'Unknown Course',
-                confirmedCount: 1,
-            });
+        if (en.status === 'confirmed' && en.confirmed_date) {
+            bump(en.confirmed_date.split('T')[0], en, 'confirmedCount');
+        } else if (en.status === 'invited') {
+            if (getInviteDeadline(en.invited_at, en.response_days, nowMs)?.isExpired) continue;
+            const offered: string[] = en.invited_dates?.length ? en.invited_dates : (en.invited_date ? [en.invited_date] : []);
+            for (const d of new Set(offered.map(x => x.split('T')[0]))) bump(d, en, 'pendingCount');
         }
     }
 
@@ -90,8 +97,13 @@ export function groupConfirmedSessions(enrollments: any[], todayIso: string = to
         .sort((a, b) => a.date.localeCompare(b.date) || a.courseName.localeCompare(b.courseName));
 }
 
-export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO()): UpcomingCohortItem[] {
-    const sorted = groupConfirmedSessions(enrollments, todayIso);
+/** Confirmed course dates from today on (dates with only pending invites are left out). */
+export function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
+    return buildSessions(enrollments, todayIso, nowMs).filter(c => c.confirmedCount > 0);
+}
+
+export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
+    const sorted = buildSessions(enrollments, todayIso, nowMs);
     if (sorted.length <= 12) return sorted;
     // Cap at 12, but never split a day: the dashboard groups same-day courses into one card.
     const lastDate = sorted[11].date;
