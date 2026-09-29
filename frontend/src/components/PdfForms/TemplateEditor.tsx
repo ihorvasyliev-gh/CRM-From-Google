@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import { Button } from '../ui/Button';
 import Badge from '../ui/Badge';
 import FileDropzone from '../ui/FileDropzone';
+import { Segmented } from '../ui/Tabs';
 import SheetPicker from './SheetPicker';
 import ConfirmDialog from '../ConfirmDialog';
 import { calloutCls, fieldCls, labelCls } from '../ui/styles';
@@ -70,9 +71,11 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
     );
     const [sampleRow, setSampleRow] = useState(0);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [panel, setPanel] = useState<Panel>('fields');
     const [mode, setMode] = useState<'select' | 'draw'>('select');
     const [page, setPage] = useState(0);
     const [showBoxes, setShowBoxes] = useState(true);
+    const [showValues, setShowValues] = useState(true);
     const [dirty, setDirty] = useState(false);
     const [drag, setDrag] = useState<Drag | null>(null);
     const [flagged, setFlagged] = useState<Set<string>>(new Set());
@@ -168,6 +171,20 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
         () => matchColumns(templateColumns(fields, settings), sample?.headers ?? [], aliases),
         [fields, settings, sample, aliases],
     );
+    // What the example row would print in each box: the page shows it, so a wrong link is easy to see
+    const example = useMemo(() => {
+        const row = sample?.rows[sampleRow];
+        if (!sample || !row) return null;
+        const ctx = { row, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, columns: columnMatches, user: userName };
+        const text = new Map<string, string>();
+        const ticked = new Set<string>();
+        for (const f of fields) {
+            const { value } = computeValue(f, ctx);
+            if (value.kind === 'text') text.set(f.id, value.text);
+            else value.ticked.forEach(id => ticked.add(id));
+        }
+        return { text, ticked };
+    }, [sample, sampleRow, fields, columnMatches, userName]);
     const missingColumns = useMemo(
         () => (sample ? [...columnMatches.values()].filter(m => m.index === null).map(m => m.wanted) : []),
         [columnMatches, sample],
@@ -518,13 +535,29 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                             className={`absolute pointer-events-none rounded-[3px] ${isSel ? 'bg-brand-500/15 ring-2 ring-brand-500' : flagged.has(f.id) ? 'bg-amber-400/20 ring-2 ring-amber-500' : 'bg-sky-400/10 ring-1 ring-sky-500/70'}`}
                             style={rectStyle(f.rect, scale, pageHeight)}
                         >
-                            <span className={`absolute -top-4 left-0 max-w-full truncate px-1 rounded-sm text-[9px] font-semibold leading-4 ${isSel ? 'bg-brand-500 text-white' : 'bg-sky-600/80 text-white'}`}>
-                                {f.name}
-                            </span>
+                            {/* With example answers in the boxes, only the chosen box needs its name on top */}
+                            {(isSel || !(showValues && example)) && (
+                                <span className={`absolute -top-4 left-0 max-w-full truncate px-1 rounded-sm text-[9px] font-semibold leading-4 ${isSel ? 'bg-brand-500 text-white' : 'bg-sky-600/80 text-white'}`}>
+                                    {f.name}
+                                </span>
+                            )}
+                            {showValues && example?.text.get(f.id) && (
+                                <span
+                                    className={`absolute inset-0 px-0.5 overflow-hidden font-medium text-slate-900 ${f.multiline ? 'whitespace-normal leading-tight' : 'flex items-center whitespace-nowrap'}`}
+                                    style={{ fontSize: Math.max(7, f.fontSize * scale * 0.9) }}
+                                >
+                                    {example.text.get(f.id)}
+                                </span>
+                            )}
                             {isSel && <span className="absolute -right-1.5 -bottom-1.5 w-3 h-3 rounded-sm bg-brand-500 ring-2 ring-white cursor-nwse-resize" />}
                         </div>
                     );
                 })}
+                {showValues && example && fields.flatMap(f => (f.kind === 'choice' ? f.options : [])).filter(o => o.rect.page === currentPage && example.ticked.has(o.id)).map(o => (
+                    <div key={`tick-${o.id}`} className="absolute pointer-events-none flex items-center justify-center font-bold text-emerald-700 bg-emerald-200/60 rounded-[2px]" style={{ ...rectStyle(o.rect, scale, pageHeight), fontSize: Math.max(8, o.rect.h * scale) }}>
+                        ✓
+                    </div>
+                ))}
                 {drawRect && drawRect.page === currentPage && (
                     <div className="absolute pointer-events-none ring-2 ring-brand-500 bg-brand-500/10" style={rectStyle(drawRect, scale, pageHeight)} />
                 )}
@@ -536,11 +569,11 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="sm:sticky sm:top-14 z-10 -mx-2 px-2 py-2 flex flex-wrap items-center gap-2 bg-background/90 backdrop-blur-md">
                 <Button variant="ghost" onClick={back}>
                     <ArrowLeft size={15} /> Back to all forms
                 </Button>
-                <h2 className="text-base font-semibold text-primary tracking-tight truncate flex-1 min-w-0">
+                <h2 className="text-base font-semibold text-primary tracking-tight truncate flex-1 min-w-[10rem]">
                     {template ? `Set up “${template.name}”` : 'Add a new form'}
                     {dirty && <span className="ml-2 text-xs font-medium text-status-requested">unsaved</span>}
                 </h2>
@@ -575,7 +608,13 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
 
             {step === 'pdf' ? (
                 <Card title="The blank form" icon={Upload} subtitle="The PDF exactly as you print it. Forms exported from Word are fine.">
-                    <FileDropzone accept="application/pdf,.pdf" onChange={pickPdf} title="Drop the PDF form here or click to browse" hint="Up to 20 MB" />
+                    <div className="space-y-3">
+                        <FileDropzone accept="application/pdf,.pdf" onChange={pickPdf} title="Drop the PDF form here or click to browse" hint="Up to 20 MB" />
+                        <p className="text-xs text-muted">
+                            Works best with forms saved from Word: the boxes and table cells are found by themselves. A scanned form also works, but you place each box by hand.
+                            Next you can add an example spreadsheet so the boxes are linked to its columns for you.
+                        </p>
+                    </div>
                 </Card>
             ) : step === 'sample' ? (
                 <Card title="An example spreadsheet" icon={FileSpreadsheet} subtitle="Optional, but it saves most of the work">
@@ -596,9 +635,14 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                         </div>
                         <div className="space-y-3">
                             <p className="text-sm text-primary">
-                                Drop a spreadsheet of answers (Excel or CSV, e.g. the Microsoft / Google Forms export). The fields are then placed for you:
-                                names, emails, dates, addresses and the checkboxes that match the answers.
+                                Choose a spreadsheet with the kind of answers this form will be filled with: one row per person, a title over each column
+                                (for example the answers exported from Microsoft Forms or Google Forms).
                             </p>
+                            <ul className="space-y-1 text-xs text-muted">
+                                <li className="flex items-start gap-1.5"><CheckCircle2 size={13} className="text-status-confirmed shrink-0 mt-0.5" /> Each column goes into the box with the same label on the form</li>
+                                <li className="flex items-start gap-1.5"><CheckCircle2 size={13} className="text-status-confirmed shrink-0 mt-0.5" /> Answers like “Female” or “Student” tick the matching checkboxes</li>
+                                <li className="flex items-start gap-1.5"><CheckCircle2 size={13} className="text-status-confirmed shrink-0 mt-0.5" /> It stays in your browser: nothing is uploaded. You can change anything afterwards.</li>
+                            </ul>
                             <FileDropzone
                                 accept={SHEET_ACCEPT}
                                 onChange={pickSample}
@@ -627,7 +671,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                             )}
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button variant="ghost" onClick={() => setStep('edit')} disabled={!layout}>
-                                    Skip: I'll place the fields myself
+                                    I have no spreadsheet: skip, I'll place the fields myself
                                 </Button>
                                 <Button variant="ghost" onClick={() => { setStep('pdf'); setPdfBytes(null); setPendingPdf(null); }}>
                                     Choose another PDF
@@ -694,6 +738,12 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                 <input type="checkbox" checked={showBoxes} onChange={e => setShowBoxes(e.target.checked)} className="accent-brand-500" />
                                 Show found boxes
                             </label>
+                            {example && (
+                                <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                                    <input type="checkbox" checked={showValues} onChange={e => setShowValues(e.target.checked)} className="accent-brand-500" />
+                                    Show example answers
+                                </label>
+                            )}
                         </div>
                         <div className="px-3 py-2 text-[11px] text-muted border-b border-border-subtle bg-surface-elevated/40 flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="text-primary font-medium">
@@ -731,91 +781,15 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                         )}
                     </Card>
 
-                    {/* Sidebar */}
-                    <div className="space-y-4 lg:sticky lg:top-20">
-                        <Card title="About this form" icon={FileUp}>
-                            <div className="space-y-3">
-                                <div>
-                                    <label className={labelCls} htmlFor="tpl-name">Name</label>
-                                    <input id="tpl-name" value={name} onChange={e => { nameTouched.current = true; setName(e.target.value); setDirty(true); }} className={fieldCls} placeholder="e.g. SICAP CO registration" />
-                                </div>
-                                <div>
-                                    <label className={labelCls} htmlFor="tpl-desc">Description (optional)</label>
-                                    <input id="tpl-desc" value={description} onChange={e => { setDescription(e.target.value); setDirty(true); }} className={fieldCls} placeholder="Which spreadsheet it is for" />
-                                </div>
-                                <NameSetting
-                                    value={settings.fileName}
-                                    onChange={fileName => { setSettings({ ...settings, fileName }); setDirty(true); }}
-                                    columns={columns}
-                                    automatic={defaultNamePattern(fields)}
-                                    example={pattern => {
-                                        if (!sample || !pattern) return null;
-                                        const row = sample.rows[sampleRow] ?? [];
-                                        const matches = matchColumns(templateColumns(fields, { ...settings, fileName: pattern }), sample.headers, aliases);
-                                        return safeFileName(evaluateSource(pattern, { row, columns: matches, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, user: userName })) || null;
-                                    }}
-                                />
-                                <div>
-                                    <label className={labelCls} htmlFor="tpl-mark">How boxes are ticked</label>
-                                    <select id="tpl-mark" value={settings.mark} onChange={e => { setSettings({ ...settings, mark: e.target.value as TemplateSettings['mark'] }); setDirty(true); }} className={fieldCls}>
-                                        <option value="tick">✓ Tick</option>
-                                        <option value="cross">✗ Cross</option>
-                                    </select>
-                                </div>
-                                {pendingPdf && template && (
-                                    <div className={`${calloutCls.info} text-xs p-2.5`}>New PDF: {pendingPdf.name}. It replaces revision {template.revision} when you save.</div>
-                                )}
-                            </div>
-                        </Card>
-
-                        <Card title="Sample spreadsheet" icon={FileSpreadsheet} subtitle="Optional: to set up fields and check values">
-                            <div className="space-y-3">
-                                <FileDropzone compact accept={SHEET_ACCEPT} onChange={pickSample} title={sample ? sample.fileName : 'Drop an Excel or CSV file'} hint={sample ? `${sample.rows.length} rows · ${sample.headers.length} columns` : 'Stays in your browser'} />
-                                {sample && sampleBook && (
-                                    <>
-                                        <SheetPicker
-                                            key={`${sampleBook.fileName}-${sampleSheet}`}
-                                            workbook={sampleBook}
-                                            sheetIndex={sampleSheet}
-                                            names={sampleNames}
-                                            sheet={sample}
-                                            onSheet={i => chooseSampleSheet(i)}
-                                            onNames={n => chooseSampleSheet(sampleSheet, n)}
-                                        />
-                                        <Button variant="brand-soft" className="w-full" onClick={() => autoSetup()} disabled={!layout}>
-                                            <Sparkles size={14} /> {fields.length ? 'Add fields for unused columns' : 'Set up fields automatically'}
-                                        </Button>
-                                        <div>
-                                            <label className={labelCls} htmlFor="sample-row">Example row</label>
-                                            <select id="sample-row" value={sampleRow} onChange={e => setSampleRow(Number(e.target.value))} className={fieldCls}>
-                                                {sample.rows.map((r, i) => (
-                                                    <option key={i} value={i}>
-                                                        Row {sample.rowNumbers?.[i] ?? i + 2}: {(r.find(v => /\p{L}{2}/u.test(v)) ?? r.find(v => v.trim()) ?? '').slice(0, 50)}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        {missingColumns.length > 0 && (
-                                            <div className={`${calloutCls.warning} text-xs p-2.5 space-y-2`}>
-                                                <p className="font-semibold">Columns not in this spreadsheet:</p>
-                                                {missingColumns.map(w => (
-                                                    <div key={w}>
-                                                        <p className="truncate" title={w}>{w}</p>
-                                                        <select defaultValue="" onChange={e => e.target.value && rememberColumn(w, e.target.value)} className={`${fieldCls} h-7 text-[11px] mt-1`} aria-label={`Column for ${w}`}>
-                                                            <option value="">Use column…</option>
-                                                            {sample.headers.map(h => <option key={h} value={h}>{h}</option>)}
-                                                        </select>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        </Card>
-
+                    {/* Sidebar: the form's name, then one thing at a time (a field's settings replace the tabs) */}
+                    <div className="space-y-3 lg:sticky lg:top-28 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
                         {selected ? (
-                            <Card title="Field" action={<Button size="xs" variant="ghost" onClick={() => setSelectedId(null)}>All fields</Button>}>
+                            <Card
+                                title={selected.kind === 'text' ? 'Text box' : 'Checkboxes'}
+                                subtitle={selected.kind === 'text' ? 'What is printed in the box you clicked' : 'Which answer ticks these boxes'}
+                                icon={selected.kind === 'text' ? Type : CheckSquare}
+                                action={<Button size="sm" variant="brand-soft" onClick={() => setSelectedId(null)}><ArrowLeft size={13} /> All fields</Button>}
+                            >
                                 <FieldInspector
                                     field={selected}
                                     onChange={updateField}
@@ -840,40 +814,142 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                 />
                             </Card>
                         ) : (
-                            <Card title={`Fields (${fields.length})`} subtitle={flaggedCount ? `${flaggedCount} to check after the new revision` : 'Click one to edit it'}>
-                                {fields.length === 0 ? (
-                                    <p className="text-xs text-muted">
-                                        No fields yet. Load a sample spreadsheet and click “Set up fields automatically”, or use <b>Text field</b> and <b>Checkboxes</b> above the page.
-                                    </p>
-                                ) : (
-                                    <ul className="space-y-1 max-h-[50vh] overflow-y-auto -mx-1 px-1">
-                                        {fields.map(f => {
-                                            const cols = sourceColumns(f.source);
-                                            const missing = sample && cols.some(c => columnMatches.get(c)?.index === null);
-                                            const page = f.kind === 'text' ? f.rect.page : f.options[0]?.rect.page;
-                                            return (
-                                                <li key={f.id}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => selectField(f)}
-                                                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left hover:bg-surface-elevated"
-                                                    >
-                                                        {f.kind === 'text' ? <Type size={13} className="text-sky-600 shrink-0" /> : <Square size={13} className="text-emerald-600 shrink-0" />}
-                                                        <span className="min-w-0 flex-1">
-                                                            <span className="block text-xs font-medium text-primary truncate">{f.name}</span>
-                                                            <span className="block text-[10px] text-muted truncate">← {summarizeSource(f.source)}</span>
-                                                        </span>
-                                                        {flagged.has(f.id) && <AlertTriangle size={13} className="text-status-requested shrink-0" aria-label="Check position" />}
+                            <>
+                                <Card>
+                                    <label className={labelCls} htmlFor="tpl-name">Name of this form</label>
+                                    <input id="tpl-name" value={name} onChange={e => { nameTouched.current = true; setName(e.target.value); setDirty(true); }} className={fieldCls} placeholder="e.g. SICAP CO registration" />
+                                </Card>
+                                <Segmented<Panel>
+                                    ariaLabel="Editor sections"
+                                    value={panel}
+                                    onChange={setPanel}
+                                    options={[
+                                        { value: 'fields', label: 'Fields', count: fields.length },
+                                        { value: 'sheet', label: 'Spreadsheet', dot: sample ? 'bg-emerald-500' : undefined },
+                                        { value: 'about', label: 'More settings' },
+                                    ]}
+                                    className="w-full"
+                                />
+                                {panel === 'fields' && (
+                                    <Card
+                                        title="Fields on the form"
+                                        subtitle={flaggedCount ? `${flaggedCount} to check after the new revision` : 'Click one here, or click its box on the page'}
+                                    >
+                                        {fields.length === 0 ? (
+                                            <p className="text-xs text-muted">
+                                                No fields yet. Load a sample spreadsheet and click “Set up fields automatically”, or use <b>Text field</b> and <b>Checkboxes</b> above the page.
+                                            </p>
+                                        ) : (
+                                            <ul className="space-y-1 max-h-[50vh] overflow-y-auto -mx-1 px-1">
+                                                {fields.map(f => {
+                                                    const cols = sourceColumns(f.source);
+                                                    const missing = sample && cols.some(c => columnMatches.get(c)?.index === null);
+                                                    const page = f.kind === 'text' ? f.rect.page : f.options[0]?.rect.page;
+                                                    return (
+                                                        <li key={f.id}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => selectField(f)}
+                                                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left hover:bg-surface-elevated"
+                                                            >
+                                                                {f.kind === 'text' ? <Type size={13} className="text-sky-600 shrink-0" /> : <Square size={13} className="text-emerald-600 shrink-0" />}
+                                                                <span className="min-w-0 flex-1">
+                                                                    <span className="block text-xs font-medium text-primary truncate">{f.name}</span>
+                                                                    <span className="block text-[10px] text-muted truncate">← {summarizeSource(f.source)}</span>
+                                                                </span>
+                                                                {flagged.has(f.id) && <AlertTriangle size={13} className="text-status-requested shrink-0" aria-label="Check position" />}
+                                                                {!f.source.trim() && <Badge tone="warning">no column</Badge>}
                                                         {missing && <Badge tone="warning">column?</Badge>}
-                                                        {f.kind === 'choice' && <Badge>{f.options.length}</Badge>}
-                                                        {page !== undefined && <span className="text-[10px] text-muted tabular-nums">p{page + 1}</span>}
-                                                    </button>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
+                                                                {f.kind === 'choice' && <Badge>{f.options.length}</Badge>}
+                                                                {page !== undefined && <span className="text-[10px] text-muted tabular-nums">p{page + 1}</span>}
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        )}
+                                    </Card>
                                 )}
-                            </Card>
+                                {panel === 'sheet' && (
+                                    <Card title="Example spreadsheet" icon={FileSpreadsheet} subtitle="Optional: fills the boxes with real answers so you can check them">
+                                        <div className="space-y-3">
+                                        <FileDropzone compact accept={SHEET_ACCEPT} onChange={pickSample} title={sample ? sample.fileName : 'Drop an Excel or CSV file'} hint={sample ? `${sample.rows.length} rows · ${sample.headers.length} columns` : 'Stays in your browser'} />
+                                        {sample && sampleBook && (
+                                            <>
+                                                <SheetPicker
+                                                    key={`${sampleBook.fileName}-${sampleSheet}`}
+                                                    workbook={sampleBook}
+                                                    sheetIndex={sampleSheet}
+                                                    names={sampleNames}
+                                                    sheet={sample}
+                                                    onSheet={i => chooseSampleSheet(i)}
+                                                    onNames={n => chooseSampleSheet(sampleSheet, n)}
+                                                />
+                                                <Button variant="brand-soft" className="w-full" onClick={() => { autoSetup(); setPanel('fields'); }} disabled={!layout}>
+                                                    <Sparkles size={14} /> {fields.length ? 'Add fields for unused columns' : 'Set up fields automatically'}
+                                                </Button>
+                                                <div>
+                                                    <label className={labelCls} htmlFor="sample-row">Example row</label>
+                                                    <select id="sample-row" value={sampleRow} onChange={e => setSampleRow(Number(e.target.value))} className={fieldCls}>
+                                                        {sample.rows.map((r, i) => (
+                                                            <option key={i} value={i}>
+                                                                Row {sample.rowNumbers?.[i] ?? i + 2}: {(r.find(v => /\p{L}{2}/u.test(v)) ?? r.find(v => v.trim()) ?? '').slice(0, 50)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                {missingColumns.length > 0 && (
+                                                    <div className={`${calloutCls.warning} text-xs p-2.5 space-y-2`}>
+                                                        <p className="font-semibold">Columns not in this spreadsheet:</p>
+                                                        {missingColumns.map(w => (
+                                                            <div key={w}>
+                                                                <p className="truncate" title={w}>{w}</p>
+                                                                <select defaultValue="" onChange={e => e.target.value && rememberColumn(w, e.target.value)} className={`${fieldCls} h-7 text-[11px] mt-1`} aria-label={`Column for ${w}`}>
+                                                                    <option value="">Use column…</option>
+                                                                    {sample.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                </select>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                        </div>
+                                    </Card>
+                                )}
+                                {panel === 'about' && (
+                                    <Card title="More settings">
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className={labelCls} htmlFor="tpl-desc">Description (optional)</label>
+                                                <input id="tpl-desc" value={description} onChange={e => { setDescription(e.target.value); setDirty(true); }} className={fieldCls} placeholder="Which spreadsheet it is for" />
+                                            </div>
+                                        <NameSetting
+                                            value={settings.fileName}
+                                            onChange={fileName => { setSettings({ ...settings, fileName }); setDirty(true); }}
+                                            columns={columns}
+                                            automatic={defaultNamePattern(fields)}
+                                            example={pattern => {
+                                                if (!sample || !pattern) return null;
+                                                const row = sample.rows[sampleRow] ?? [];
+                                                const matches = matchColumns(templateColumns(fields, { ...settings, fileName: pattern }), sample.headers, aliases);
+                                                return safeFileName(evaluateSource(pattern, { row, columns: matches, rowNumber: sample.rowNumbers?.[sampleRow] ?? sampleRow + 2, user: userName })) || null;
+                                            }}
+                                        />
+                                        <div>
+                                            <label className={labelCls} htmlFor="tpl-mark">How boxes are ticked</label>
+                                            <select id="tpl-mark" value={settings.mark} onChange={e => { setSettings({ ...settings, mark: e.target.value as TemplateSettings['mark'] }); setDirty(true); }} className={fieldCls}>
+                                                <option value="tick">✓ Tick</option>
+                                                <option value="cross">✗ Cross</option>
+                                            </select>
+                                        </div>
+                                        {pendingPdf && template && (
+                                            <div className={`${calloutCls.info} text-xs p-2.5`}>New PDF: {pendingPdf.name}. It replaces revision {template.revision} when you save.</div>
+                                        )}
+                                        </div>
+                                    </Card>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -901,6 +977,8 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
         </div>
     );
 }
+
+type Panel = 'fields' | 'sheet' | 'about';
 
 function Legend({ cls, label }: { cls: string; label: string }) {
     return (

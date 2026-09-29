@@ -16,9 +16,10 @@ import { clearWinner, rankTemplatesForWorkbook, type TemplateFit } from '../lib/
 import { templateColumns } from '../lib/pdfForms/plan';
 import type { PdfFormTemplate } from '../lib/pdfForms/types';
 import FillView from './PdfForms/FillView';
+import SavedScreen from './PdfForms/SavedScreen';
 import TemplateEditor from './PdfForms/TemplateEditor';
 
-type View = { mode: 'list' } | { mode: 'fill'; id: string; workbook?: Workbook; sheetIndex?: number } | { mode: 'edit'; id: string | null };
+type View = { mode: 'list' } | { mode: 'fill'; id: string; workbook?: Workbook; sheetIndex?: number } | { mode: 'edit'; id: string | null } | { mode: 'saved'; id: string; first: boolean };
 
 const GUIDE_KEY = 'pdf_forms_guide_hidden';
 
@@ -97,9 +98,23 @@ export default function PdfForms({ canManage }: PdfFormsProps) {
                 key={view.id ?? 'new'}
                 template={template}
                 onBack={() => setView({ mode: 'list' })}
-                onSaved={saved => setView({ mode: 'edit', id: saved.id })}
+                onSaved={saved => setView({ mode: 'saved', id: saved.id, first: !template })}
             />
         );
+    }
+    if (view.mode === 'saved') {
+        const template = templates.find(t => t.id === view.id);
+        if (template) {
+            return (
+                <SavedScreen
+                    template={template}
+                    first={view.first}
+                    onFill={() => setView({ mode: 'fill', id: template.id })}
+                    onEdit={canManage ? () => setView({ mode: 'edit', id: template.id }) : undefined}
+                    onBack={() => setView({ mode: 'list' })}
+                />
+            );
+        }
     }
     if (view.mode === 'fill') {
         const template = templates.find(t => t.id === view.id);

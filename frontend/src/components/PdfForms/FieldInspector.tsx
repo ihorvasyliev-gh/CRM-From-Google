@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CheckSquare, Grid2x2, ListPlus, Plus, Trash2, Type, X } from 'lucide-react';
+import { Grid2x2, ListPlus, Plus, Trash2, X } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
 import Badge from '../ui/Badge';
 import { Segmented } from '../ui/Tabs';
@@ -103,7 +103,7 @@ export function SourceEditor({ value, onChange, columns, id }: SourceEditorProps
                         onChange={e => setColumn(column, e.target.value)}
                         disabled={!column || column === 'user' || column === 'row'}
                         aria-label="What to print"
-                        className={`${fieldCls} text-xs w-auto! max-w-[150px]`}
+                        className={`${fieldCls} text-xs w-auto! max-w-[210px]`}
                     >
                         {!isDateSource && <option value="">As it is</option>}
                         {filters.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
@@ -194,18 +194,8 @@ export default function FieldInspector(props: InspectorProps) {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
-                    {field.kind === 'text' ? <Type size={14} /> : <CheckSquare size={14} />}
-                </span>
-                <span className="text-xs font-semibold text-muted uppercase tracking-wider flex-1">{field.kind === 'text' ? 'Text field' : 'Checkboxes'}</span>
-                <IconButton label="Delete field" tone="danger" size="sm" onClick={onDelete}>
-                    <Trash2 size={14} />
-                </IconButton>
-            </div>
-
             <div>
-                <label className={labelCls} htmlFor={`name-${field.id}`}>Name</label>
+                <label className={labelCls} htmlFor={`name-${field.id}`}>{field.kind === 'text' ? 'Name (only for you)' : 'Name of the question (only for you)'}</label>
                 <input id={`name-${field.id}`} value={field.name} onChange={e => onChange({ ...field, name: e.target.value })} className={fieldCls} />
             </div>
 
@@ -220,6 +210,12 @@ export default function FieldInspector(props: InspectorProps) {
             </div>
 
             {field.kind === 'text' ? <TextOptions field={field} onChange={onChange} onSnapToCell={props.onSnapToCell} /> : <ChoiceOptions {...props} field={field} />}
+
+            <div className="pt-3 border-t border-border-subtle">
+                <Button size="sm" variant="ghost" onClick={onDelete} className="text-status-rejected">
+                    <Trash2 size={13} /> Delete this {field.kind === 'text' ? 'box' : 'question'}
+                </Button>
+            </div>
         </div>
     );
 }

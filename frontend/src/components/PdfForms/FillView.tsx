@@ -81,6 +81,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
     const [preview, setPreview] = useState<{ plan: RowPlan; bytes: Uint8Array | null; warnings: string[]; error: string | null } | null>(null);
     const abortRef = useRef<AbortController | null>(null);
     const doneRef = useRef<HTMLDivElement>(null);
+    const stepThreeRef = useRef<HTMLDivElement>(null);
     const saveAliases = useSaveColumnAliases();
     const userName = useFormUserName();
 
@@ -424,7 +425,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                     </th>
                                     <th className={thCls}>Name</th>
                                     <th className={thCls}>Notes</th>
-                                    <th className={`${thCls} text-right`}>Check the form</th>
+                                    <th className={`${thCls} text-right`}>Check this form</th>
                                 </tr>
                             </thead>
                             <tbody className={tbodyCls}>
@@ -462,11 +463,11 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                                 )}
                                             </td>
                                             <td className={`${tdCls} text-right whitespace-nowrap`} onClick={e => e.stopPropagation()}>
-                                                <Button size="sm" variant="ghost" onClick={() => openPreview(p)} disabled={!pdfBytes}>
-                                                    <Eye size={14} /> Look
+                                                <Button size="sm" variant="ghost" onClick={() => openPreview(p)} disabled={!pdfBytes} title="See this filled form">
+                                                    <Eye size={14} /> Preview
                                                 </Button>
-                                                <Button size="sm" variant="ghost" onClick={() => setReviewIndex(p.index)}>
-                                                    <PencilLine size={14} /> Change
+                                                <Button size="sm" variant="ghost" onClick={() => setReviewIndex(p.index)} title="Change what is printed on this form">
+                                                    <PencilLine size={14} /> Edit
                                                 </Button>
                                             </td>
                                         </tr>
@@ -485,7 +486,19 @@ export default function FillView({ template, initialWorkbook = null, initialShee
             )}
 
             {/* ── 3. Download ──────────────────────────────────── */}
+            {sheet && count > 0 && usable.length > 8 && (
+                <div className="sticky bottom-3 z-10 flex justify-center pointer-events-none">
+                    <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-surface border border-brand-500/40 shadow-lg px-4 py-2.5">
+                        <span className="text-sm font-semibold text-primary">{count} ticked</span>
+                        <Button variant="primary" onClick={() => stepThreeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+                            <Download size={15} /> Next: download
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {sheet && (
+                <div ref={stepThreeRef}>
                 <Card title="Step 3 · Download the forms" icon={Download}>
                     <div className="space-y-4">
                         <fieldset className="grid gap-2 sm:grid-cols-3">
@@ -547,6 +560,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                         </div>
                     </div>
                 </Card>
+                </div>
             )}
 
             {result && (
