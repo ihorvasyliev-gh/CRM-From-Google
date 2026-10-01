@@ -25,7 +25,10 @@ interface FilterBarProps {
     uniqueVariants: string[];
     selectedCourseDate: string;
     setSelectedCourseDate: (d: string) => void;
-    availableCourseDates: { date: string, count: number }[];
+    /** `confirmed` / `invited` — breakdown of `count` by status (multi-date invites count on every offered date) */
+    availableCourseDates: { date: string, count: number, confirmed?: number, invited?: number }[];
+    /** People across all chips; lower than the chip sum when multi-date invites appear on several dates */
+    courseDatesTotal?: number;
     dateFrom: string;
     setDateFrom: (d: string) => void;
     dateTo: string;
@@ -65,8 +68,9 @@ const CHIP_IDLE: Record<ChipTone, string> = {
     amber: 'text-amber-600 dark:text-amber-400 hover:border-amber-500',
 };
 
-function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }: {
+function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, children }: {
     active: boolean;
+    title?: string;
     tone?: ChipTone;
     count?: number;
     onClick: () => void;
@@ -79,6 +83,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', children }:
             type="button"
             onClick={onClick}
             aria-pressed={active}
+            title={title}
             className={`inline-flex items-center gap-1.5 font-semibold rounded-full border whitespace-nowrap shrink-0 transition-all active:scale-95 ${
                 size === 'lg' ? 'px-3.5 py-2 text-sm' : 'px-2.5 py-1 text-xs'
             } ${active ? CHIP_ACTIVE[tone] : `bg-surface-elevated text-muted border-border-strong ${CHIP_IDLE[tone]}`}`}
@@ -124,6 +129,7 @@ export default function FilterBar({
     selectedCourseDate,
     setSelectedCourseDate,
     availableCourseDates,
+    courseDatesTotal,
     dateFrom,
     setDateFrom,
     dateTo,
@@ -147,7 +153,7 @@ export default function FilterBar({
     const isFiltered = filteredCount < enrollmentCount;
     // Language chips only help when there is something to choose between (or one is already picked)
     const showLanguages = selectedCourse !== 'all' && (uniqueVariants.length > 1 || selectedVariant !== 'all');
-    const datesTotal = availableCourseDates.reduce((sum, d) => sum + d.count, 0);
+    const datesTotal = courseDatesTotal ?? availableCourseDates.reduce((sum, d) => sum + d.count, 0);
 
     const selectCourse = (id: string) => {
         setSelectedCourse(id === selectedCourse ? 'all' : id);
@@ -277,13 +283,14 @@ export default function FilterBar({
             <Chip tone="emerald" size={size} active={selectedCourseDate === 'all'} count={datesTotal} onClick={() => setSelectedCourseDate('all')}>
                 All dates
             </Chip>
-            {availableCourseDates.map(({ date, count }) => (
+            {availableCourseDates.map(({ date, count, confirmed, invited }) => (
                 <Chip
                     key={date}
                     tone="emerald"
                     size={size}
                     active={selectedCourseDate === date}
                     count={count}
+                    title={invited ? `${confirmed ?? 0} confirmed · ${invited} invited, not answered yet` : undefined}
                     onClick={() => setSelectedCourseDate(selectedCourseDate === date ? 'all' : date)}
                 >
                     {formatDayDateShort(date)}

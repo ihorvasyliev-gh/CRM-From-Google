@@ -28,13 +28,11 @@ import { matchesSearch } from '../lib/searchUtils';
 import { DateInput } from './ui/DatePicker';
 import { useNowMinute } from '../hooks/useNow';
 import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
+import { courseDatesOf } from '../lib/courseDates';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
 const EMPTY_COMPLETED_COURSES: Array<{id: string, name: string}> = [];
-
-/** The course date an enrollment is about (YYYY-MM-DD), or '' when it has none. */
-const courseDateOf = (e: EnrollmentRow) => (e.confirmed_date || e.invited_date || e.completed_date || '').split('T')[0];
 
 // dnd-kit config (module-level so the objects are stable)
 const MOUSE_SENSOR_OPTS = { activationConstraint: { distance: 5 } };
@@ -190,10 +188,12 @@ export default function EnrollmentBoard({
         enrollmentsRef.current = enrollments;
     }, [enrollments]);
 
-    // Extract available course dates with student counts for current course/variant (today and future dates only)
-    const availableCourseDates = useMemo(() => {
-        const dateMap = new Map<string, number>();
+    // Upcoming course dates (today on) with student counts for the current course/variant.
+    // An open multi-date invite counts on each offered date, so the total counts people, not date slots.
+    const { availableCourseDates, courseDatesTotal } = useMemo(() => {
+        const dateMap = new Map<string, { count: number; confirmed: number; invited: number }>();
         const today = todayISO();
+        let total = 0;
 
         enrollments.forEach(item => {
             if (selectedCourse !== 'all' && item.course_id !== selectedCourse) return;
@@ -203,13 +203,24 @@ export default function EnrollmentBoard({
             }
 
             // Only include today and future dates (ISO strings compare chronologically)
-            const date = courseDateOf(item);
-            if (date && date >= today) dateMap.set(date, (dateMap.get(date) || 0) + 1);
+            const upcoming = courseDatesOf(item).filter(date => date >= today);
+            if (upcoming.length === 0) return;
+            total++;
+            upcoming.forEach(date => {
+                const entry = dateMap.get(date) || { count: 0, confirmed: 0, invited: 0 };
+                entry.count++;
+                if (item.status === 'confirmed') entry.confirmed++;
+                if (item.status === 'invited') entry.invited++;
+                dateMap.set(date, entry);
+            });
         });
 
-        return Array.from(dateMap.entries())
-            .map(([date, count]) => ({ date, count }))
-            .sort((a, b) => a.date.localeCompare(b.date));
+        return {
+            availableCourseDates: Array.from(dateMap.entries())
+                .map(([date, c]) => ({ date, ...c }))
+                .sort((a, b) => a.date.localeCompare(b.date)),
+            courseDatesTotal: total,
+        };
     }, [enrollments, selectedCourse, selectedVariant]);
 
     // Reset selectedCourseDate if no longer present in available dates
@@ -228,7 +239,7 @@ export default function EnrollmentBoard({
         if (selectedVariant !== 'all') {
             result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === selectedVariant.toLowerCase());
         }
-        if (selectedCourseDate !== 'all') result = result.filter(e => courseDateOf(e) === selectedCourseDate);
+        if (selectedCourseDate !== 'all') result = result.filter(e => courseDatesOf(e).includes(selectedCourseDate));
         if (debouncedSearchQuery.trim()) {
             result = result.filter(e =>
                 matchesSearch({
@@ -252,11 +263,11 @@ export default function EnrollmentBoard({
         }
         if (courseDateFrom) {
             const from = courseDateFrom.split('T')[0];
-            result = result.filter(e => { const d = courseDateOf(e); return !!d && d >= from; });
+            result = result.filter(e => courseDatesOf(e).some(d => d >= from));
         }
         if (courseDateTo) {
             const to = courseDateTo.split('T')[0];
-            result = result.filter(e => { const d = courseDateOf(e); return !!d && d <= to; });
+            result = result.filter(e => courseDatesOf(e).some(d => d <= to));
         }
         return result;
     }, [enrollments, selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
@@ -679,6 +690,7 @@ export default function EnrollmentBoard({
                 selectedCourseDate={selectedCourseDate}
                 setSelectedCourseDate={setSelectedCourseDate}
                 availableCourseDates={availableCourseDates}
+                courseDatesTotal={courseDatesTotal}
                 dateFrom={dateFrom}
                 setDateFrom={setDateFrom}
                 dateTo={dateTo}
