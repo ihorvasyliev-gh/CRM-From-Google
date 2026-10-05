@@ -7,7 +7,7 @@ import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailT
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -500,7 +500,7 @@ export default function OutreachLists() {
                                                 <EmploymentBadge status={contact.status} row={contact} />
                                                 {contact.status === 'responded' && contact.is_working && contact.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">
-                                                        Since {new Date(contact.started_month + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                                                        Since {formatLocalDate(new Date(contact.started_month + '-01'), { month: 'short', year: 'numeric' }, 'en-GB')}
                                                     </p>
                                                 )}
                                             </td>

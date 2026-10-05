@@ -3,6 +3,7 @@ import { CalendarDays, Users, Clock, ChevronRight, ChevronDown } from 'lucide-re
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
 import type { NavigateFn } from '../../lib/navigation';
+import { formatLocalDate } from '../../lib/dateUtils';
 
 /** Course days shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
 const COLLAPSED_COUNT = 6;
@@ -16,9 +17,9 @@ export interface UpcomingCohortsCardProps {
 function dateParts(dateKey: string) {
     const d = new Date(`${dateKey}T12:00:00`);
     return {
-        weekday: d.toLocaleDateString('en-IE', { weekday: 'short' }),
+        weekday: formatLocalDate(d, { weekday: 'short' }),
         day: d.getDate(),
-        month: d.toLocaleDateString('en-IE', { month: 'short' }),
+        month: formatLocalDate(d, { month: 'short' }),
     };
 }
 

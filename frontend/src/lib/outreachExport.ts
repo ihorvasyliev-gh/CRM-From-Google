@@ -1,5 +1,5 @@
 import type { OutreachContact } from '../hooks/useOutreach';
-import { formatDateDMY } from './dateUtils';
+import { formatDateDMY, formatLocalDate } from './dateUtils';
 import { sanitizeExcelValue } from './excelExport';
 import { downloadBlob } from './download';
 import { loadChunk } from './deployRecovery';
@@ -13,7 +13,7 @@ const STATUS_LABELS: Record<OutreachContact['status'], string> = {
 function formatMonth(value: string | null): string {
     if (!value) return '';
     const date = new Date(`${value}-01`);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    return Number.isNaN(date.getTime()) ? value : formatLocalDate(date, { month: 'short', year: 'numeric' }, 'en-GB');
 }
 
 /** One spreadsheet row per contact, ready for reporting (e.g. back to IRIS). */

@@ -1,5 +1,5 @@
 import { toast } from '../../lib/toast';
-import { todayISO } from '../../lib/dateUtils';
+import { formatLocalDate, todayISO } from '../../lib/dateUtils';
 
 /** Enrollment statuses a viewer can still request completion for. */
 const COMPLETABLE_STATUSES = ['requested', 'invited', 'confirmed'] as const;
@@ -53,7 +53,7 @@ export function weekdayDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = toLocalDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
+    return formatLocalDate(d, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export function addDaysISO(days: number): string {

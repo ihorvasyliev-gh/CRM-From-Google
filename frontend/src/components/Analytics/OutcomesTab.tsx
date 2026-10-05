@@ -23,6 +23,7 @@ import { Button } from '../ui/Button';
 import { ChartTooltip } from '../ui/chart';
 import { CHART, axisProps, gridProps, tooltipCursor, clickedRow } from '../ui/chartTheme';
 import { calloutCls } from '../ui/styles';
+import { formatLocalDate } from '../../lib/dateUtils';
 
 interface OutcomesTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -98,7 +99,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                         if (emp.started_month && /^\d{4}-\d{2}$/.test(emp.started_month)) {
                             const [year, month] = emp.started_month.split('-');
                             const d = new Date(parseInt(year), parseInt(month) - 1, 1);
-                            const formattedMonth = d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
+                            const formattedMonth = formatLocalDate(d, { month: 'short', year: '2-digit' });
                             
                             if (!startedTimeline[formattedMonth]) {
                                 startedTimeline[formattedMonth] = { count: 0, timestamp: d.getTime(), enrollments: [] };

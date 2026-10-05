@@ -9,7 +9,7 @@ import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailT
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -392,7 +392,7 @@ function GraduateOutcomes() {
                                                 <EmploymentBadge status={grad.tracking_status} row={grad} />
                                                 {grad.is_working && grad.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">
-                                                        Since {new Date(grad.started_month + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                                                        Since {formatLocalDate(new Date(grad.started_month + '-01'), { month: 'short', year: 'numeric' }, 'en-GB')}
                                                     </p>
                                                 )}
                                             </td>

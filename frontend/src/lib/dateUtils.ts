@@ -2,6 +2,23 @@
  * Consolidated date formatting utilities
  */
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * `date.toLocaleDateString(locale, options)` with the formatter built once and reused.
+ * Each toLocaleDateString call builds a new Intl.DateTimeFormat, which is slow: on a board or
+ * dashboard of a few thousand enrollments it was most of the render time (seconds on a phone).
+ */
+export function formatLocalDate(date: Date, options?: Intl.DateTimeFormatOptions, locale = 'en-IE'): string {
+    const key = `${locale}|${options ? JSON.stringify(options) : ''}`;
+    let formatter = formatters.get(key);
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat(locale, options);
+        formatters.set(key, formatter);
+    }
+    return formatter.format(date);
+}
+
 export function todayISO(): string {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -24,28 +41,28 @@ export function formatDateDMY(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return formatLocalDate(d, { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function formatDateLong(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: 'numeric' });
+    return formatLocalDate(d, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatShortDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+    return formatLocalDate(d, { day: 'numeric', month: 'short' });
 }
 
 export function formatDayDateShort(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
+    return formatLocalDate(d, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export function formatDateSpaces(dateStr: string | null | undefined): string {
@@ -73,11 +90,11 @@ export function formatDateChoiceList(dates: string[]): string {
     const parsed = list.map(parseDate);
     const parts = parsed.map((d, i) => {
         const next = parsed[i + 1];
-        const weekday = d.toLocaleDateString('en-IE', { weekday: 'short' });
+        const weekday = formatLocalDate(d, { weekday: 'short' });
         let text = `${weekday} ${d.getDate()}`;
         const monthChanges = !next || next.getMonth() !== d.getMonth() || next.getFullYear() !== d.getFullYear();
         const yearChanges = !next || next.getFullYear() !== d.getFullYear();
-        if (monthChanges) text += ` ${d.toLocaleDateString('en-IE', { month: 'short' })}`;
+        if (monthChanges) text += ` ${formatLocalDate(d, { month: 'short' })}`;
         if (yearChanges) text += ` ${d.getFullYear()}`;
         return text;
     });
@@ -91,7 +108,7 @@ export function formatShortDateList(dates: string[]): string {
     const parsed = list.map(parseDate);
     const sameMonth = parsed.every(d => d.getMonth() === parsed[0].getMonth() && d.getFullYear() === parsed[0].getFullYear());
     if (sameMonth) {
-        return `${parsed.map(d => d.getDate()).join('/')} ${parsed[0].toLocaleDateString('en-IE', { month: 'short' })}`;
+        return `${parsed.map(d => d.getDate()).join('/')} ${formatLocalDate(parsed[0], { month: 'short' })}`;
     }
     return list.map(formatShortDate).join(' / ');
 }
@@ -101,5 +118,5 @@ export function formatDateLongWithWeekday(dateStr: string | null | undefined): s
     if (!dateStr) return '';
     const d = parseDate(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+    return formatLocalDate(d, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 }

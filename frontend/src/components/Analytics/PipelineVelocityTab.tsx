@@ -15,6 +15,7 @@ import Card, { SectionHeader } from '../ui/Card';
 import Badge from '../ui/Badge';
 import { ChartTooltip, LegendItem } from '../ui/chart';
 import { CHART, axisProps, gridProps, clickedRow } from '../ui/chartTheme';
+import { formatLocalDate } from '../../lib/dateUtils';
 
 interface PipelineVelocityTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -33,7 +34,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
             if (!dateString) return null;
             const d = new Date(dateString);
             if (isNaN(d.getTime())) return null;
-            return d.toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
+            return formatLocalDate(d, { month: 'short', year: '2-digit' });
         };
 
         const addOrCreateMonth = (dateString: string | null) => {

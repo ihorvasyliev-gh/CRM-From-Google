@@ -1,5 +1,5 @@
 import { cleanVariant, fullName, type Enrollment } from '../../lib/types';
-import { todayISO, daysBetween } from '../../lib/dateUtils';
+import { todayISO, daysBetween, formatLocalDate } from '../../lib/dateUtils';
 import { getInviteDeadline, formatTimeLeft } from '../../lib/inviteDeadline';
 
 /** The enrollment fields the dashboard reads; board rows and lighter fixtures both fit. */
@@ -158,12 +158,13 @@ export function localDateKey(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const DATE_LABEL_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+
 function parseSafeDate(dateStr: string | null | undefined): { dateKey: string; dateLabel: string } {
-    const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
     let d = dateStr ? new Date(dateStr) : new Date();
     if (isNaN(d.getTime())) d = new Date();
     // Group by the user's local calendar day (not UTC) so late-evening activity lands on the right day
-    return { dateKey: localDateKey(d), dateLabel: d.toLocaleDateString('en-IE', dateOpts) };
+    return { dateKey: localDateKey(d), dateLabel: formatLocalDate(d, DATE_LABEL_OPTS) };
 }
 
 /**

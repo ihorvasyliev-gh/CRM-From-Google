@@ -4,7 +4,7 @@ import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTria
 import { useDraggable, type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
-import { formatDateChoiceList, formatDateLong, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
+import { formatDateChoiceList, formatDateLong, formatLocalDate, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -313,7 +313,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         const days = enrollment.response_days ?? DEFAULT_RESPONSE_DAYS;
 
                         if (inviteDeadline.isExpired) {
-                            const invitedDate = new Date(enrollment.invited_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+                            const invitedDate = formatLocalDate(new Date(enrollment.invited_at), { day: 'numeric', month: 'short', year: 'numeric' });
                             return (
                                 <span className={`${metaChip} bg-red-500/10 text-status-rejected font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
                                     <Timer size={10} strokeWidth={2.5} />

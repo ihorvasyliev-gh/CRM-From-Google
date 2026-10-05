@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BookOpen, Calendar, CalendarDays, CheckCircle2, Clock, Pin, Search, Users } from 'lucide-react';
 import type { ViewerUpcomingCourse } from '../lib/types';
-import { formatDateLong, todayISO } from '../lib/dateUtils';
+import { formatDateLong, formatLocalDate, todayISO } from '../lib/dateUtils';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
 import { ErrorState, Kbd, StatusDistributionBar } from './Viewer/ViewerUI';
@@ -218,9 +218,9 @@ function SessionRow({ session, onOpen }: { session: ViewerUpcomingCourse; onOpen
     return (
         <button type="button" onClick={onOpen} className="w-full flex items-center gap-3 px-3 sm:px-4 py-3 text-left hover:bg-surface-elevated/60 transition-colors group">
             <div className={`w-11 shrink-0 rounded-xl text-center py-1 border ${diff <= 1 ? 'bg-emerald-500/10 border-emerald-500/25 text-status-confirmed' : 'bg-surface-elevated border-border-subtle text-primary'}`}>
-                <div className="text-[9px] font-bold uppercase leading-none mt-0.5">{d.toLocaleDateString('en-IE', { weekday: 'short' })}</div>
+                <div className="text-[9px] font-bold uppercase leading-none mt-0.5">{formatLocalDate(d, { weekday: 'short' })}</div>
                 <div className="text-base font-bold leading-tight tabular-nums">{d.getDate()}</div>
-                <div className="text-[9px] font-semibold uppercase leading-none mb-0.5 opacity-80">{d.toLocaleDateString('en-IE', { month: 'short' })}</div>
+                <div className="text-[9px] font-semibold uppercase leading-none mb-0.5 opacity-80">{formatLocalDate(d, { month: 'short' })}</div>
             </div>
             <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{session.course_name}</div>
