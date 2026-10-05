@@ -366,3 +366,6 @@ export function useInviteFlow({
         handleSendReminder
     };
 }
+
+/** Everything the invite dialogs need from useInviteFlow. */
+export type InviteFlow = ReturnType<typeof useInviteFlow>;

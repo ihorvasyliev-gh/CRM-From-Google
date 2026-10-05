@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, Send, CheckCircle, Mail, FileText, AlertTriangle, X, RotateCcw, Loader2, Plus, CalendarRange } from 'lucide-react';
+import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -14,7 +14,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
 import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
-import { formatDateLong, formatDayDateShort, todayISO } from '../lib/dateUtils';
+import { todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
 
 import FilterBar from './EnrollmentBoard/FilterBar';
@@ -23,10 +23,13 @@ import EnrollmentCard from './EnrollmentBoard/EnrollmentCard';
 import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
 import GenerateDocsModal from './EnrollmentBoard/GenerateDocsModal';
+import InviteDateModal from './EnrollmentBoard/InviteDateModal';
+import ConfirmDateModal from './EnrollmentBoard/ConfirmDateModal';
+import EditNoteModal from './EnrollmentBoard/EditNoteModal';
+import StudentFlagModal from './EnrollmentBoard/StudentFlagModal';
 import ConfirmDialog from './ConfirmDialog';
 import { showToast } from '../lib/toast';
 import { matchesSearch } from '../lib/searchUtils';
-import { DateInput } from './ui/DatePicker';
 import { useNowMinute } from '../hooks/useNow';
 import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
 import { courseDatesOf } from '../lib/courseDates';
@@ -84,8 +87,6 @@ export default function EnrollmentBoard({
 
     // Student Flags
     const [flagModalTarget, setFlagModalTarget] = useState<{ studentId: string; studentName: string } | null>(null);
-    const [flagCourseId, setFlagCourseId] = useState('');
-    const [flagComment, setFlagComment] = useState('');
 
     // Filters
     // Board filters survive navigating away and back within the tab (session) — preferences like sort
@@ -396,8 +397,6 @@ export default function EnrollmentBoard({
     const openFlagModal = useCallback((enrollment: EnrollmentRow) => {
         const name = fullName(enrollment.students);
         setFlagModalTarget({ studentId: enrollment.student_id, studentName: name });
-        setFlagCourseId('');
-        setFlagComment('');
     }, []);
 
     async function handleConfirmWithDate() {
@@ -921,330 +920,9 @@ export default function EnrollmentBoard({
             {bulkActionBar}
 
             {/* Modals go here */}
-            {inviteFlow.inviteDateTarget && (
-                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-fadeIn" onClick={() => inviteFlow.setInviteDateTarget(null)}>
-                    <div
-                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-blue-500/10 rounded-xl text-status-invited">
-                                <Send size={22} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-primary">Invite to Course</h3>
-                                <p className="text-xs text-muted mt-0.5">
-                                    {inviteFlow.multiDate
-                                        ? 'Offer several dates — each student picks one'
-                                        : inviteFlow.inviteDateTarget.ids.length === 1
-                                            ? 'Select the date for this invitation'
-                                            : `Select the date for ${inviteFlow.inviteDateTarget.ids.length} invitations`
-                                    }
-                                </p>
-                            </div>
-                        </div>
+            <InviteDateModal inviteFlow={inviteFlow} />
 
-                        <label className="flex items-start gap-3 mb-4 p-3 rounded-xl border border-border-subtle bg-surface cursor-pointer select-none hover:border-blue-300 transition-colors">
-                            <input
-                                type="checkbox"
-                                id="invite-multi-date"
-                                checked={inviteFlow.multiDate}
-                                onChange={e => inviteFlow.setMultiDate(e.target.checked)}
-                                className="mt-0.5 rounded-sm border-border-subtle text-blue-600 focus:ring-blue-500/20"
-                            />
-                            <span className="min-w-0">
-                                <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                                    <CalendarRange size={14} className="text-blue-500" /> Multiple dates
-                                </span>
-                                <span className="block text-xs text-muted mt-0.5">
-                                    Same course in several groups — the student chooses a date on the confirmation page.
-                                </span>
-                            </span>
-                        </label>
-
-                        {inviteFlow.savedInviteDates.length > 0 && (
-                            <div className="mb-4">
-                                <label className="block text-xs font-medium text-muted mb-2">Saved dates</label>
-                                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                    {inviteFlow.savedInviteDates.map(d => {
-                                        const stats = inviteFlow.getDateStats(d);
-                                        const isSelected = inviteFlow.multiDate
-                                            ? inviteFlow.inviteDates.includes(d)
-                                            : inviteFlow.inviteDate === d;
-                                        return (
-                                            <button
-                                                key={d}
-                                                type="button"
-                                                aria-pressed={isSelected}
-                                                onClick={() => inviteFlow.multiDate ? inviteFlow.toggleInviteDate(d) : inviteFlow.setInviteDate(d)}
-                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
-                                                    isSelected
-                                                        ? 'bg-info/10 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
-                                                        : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-elevated'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-xs' : 'rounded-full'} shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
-                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
-                                                        {inviteFlow.multiDate ? formatDayDateShort(d) : formatDateLong(d)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                        {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                                        {stats.pending} pending
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {inviteFlow.multiDate ? (
-                            <div>
-                                <label htmlFor="invite-date" className="block text-sm font-medium text-primary mb-1.5">
-                                    {inviteFlow.savedInviteDates.length > 0 ? 'Or add a new date' : 'Add course dates'}
-                                </label>
-                                <div className="flex gap-2">
-                                    <DateInput
-                                        id="invite-date"
-                                        value={inviteFlow.inviteDate}
-                                        min={todayISO()}
-                                        onChange={inviteFlow.setInviteDate}
-                                        className="flex-1 min-w-0 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => inviteFlow.toggleInviteDate(inviteFlow.inviteDate)}
-                                        disabled={!inviteFlow.inviteDate || inviteFlow.inviteDates.includes(inviteFlow.inviteDate)}
-                                        className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 px-3 py-2 text-sm font-semibold text-status-invited bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl transition-all"
-                                    >
-                                        <Plus size={14} /> Add
-                                    </button>
-                                </div>
-
-                                <div className="mt-3">
-                                    <div className="text-xs font-medium text-muted mb-1.5">
-                                        Offered dates ({inviteFlow.inviteDates.length})
-                                    </div>
-                                    {inviteFlow.inviteDates.length === 0 ? (
-                                        <p className="text-xs text-muted opacity-70">Select at least two dates.</p>
-                                    ) : (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {inviteFlow.inviteDates.map(d => {
-                                                const stats = inviteFlow.getDateStats(d);
-                                                return (
-                                                    <span key={d} className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg bg-info/10 border border-blue-500/30 text-xs font-semibold text-status-invited">
-                                                        {formatDayDateShort(d)}
-                                                        <span className="font-normal text-muted" title="Confirmed / pending on this date">
-                                                            {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} · {stats.pending}p
-                                                        </span>
-                                                        <button
-                                                            type="button"
-                                                            aria-label={`Remove ${formatDateLong(d)}`}
-                                                            onClick={() => inviteFlow.toggleInviteDate(d)}
-                                                            className="p-0.5 rounded-sm hover:bg-blue-500/20"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                    {inviteFlow.inviteDates.length === 1 && (
-                                        <p className="text-xs text-status-requested mt-1.5">Add one more date, or switch off “Multiple dates”.</p>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                            <label className="block text-sm font-medium text-primary mb-1.5">
-                                {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Invitation Date'}
-                            </label>
-                            <DateInput
-                                id="invite-date"
-                                value={inviteFlow.inviteDate}
-                                min={todayISO()}
-                                onChange={inviteFlow.setInviteDate}
-                                className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface"
-                            />
-                            {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
-                                <div className="flex items-center gap-2 mt-1.5 px-1">
-                                    <span className="text-[11px] text-muted">On this date:</span>
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                        {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
-                                    </span>
-                                    <span className="text-border-subtle">•</span>
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                        {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
-                                    </span>
-                                </div>
-                            )}
-                            </div>
-                        )}
-
-                        <div className="mt-4">
-                            <label className="block text-sm font-medium text-primary mb-1.5">
-                                Response Deadline
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <input
-                                    type="number"
-                                    id="response-days"
-                                    name="responseDays"
-                                    value={inviteFlow.responseDays}
-                                    min={1}
-                                    max={90}
-                                    onChange={e => inviteFlow.setResponseDays(Math.max(1, parseInt(e.target.value) || 7))}
-                                    className="w-24 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface text-center"
-                                />
-                                <span className="text-sm text-muted">days to confirm</span>
-                            </div>
-                            <p className="text-xs text-muted mt-1.5 opacity-70">
-                                The participant will see this deadline in the invitation email
-                            </p>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => inviteFlow.setInviteDateTarget(null)}
-                                className="px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={inviteFlow.handleInviteWithDate}
-                                disabled={!inviteFlow.canInvite}
-                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl transition-all shadow-xs"
-                            >
-                                <Send size={14} /> Just Invite
-                            </button>
-                            <button
-                                onClick={inviteFlow.handleInviteAndEmail}
-                                disabled={!inviteFlow.canInvite}
-                                className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-xs"
-                            >
-                                <Mail size={14} /> Invite & Email
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {confirmDateTarget && (
-                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-fadeIn" onClick={() => setConfirmDateTarget(null)}>
-                    <div
-                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-success/10 rounded-xl text-status-confirmed">
-                                <CheckCircle size={22} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-primary">Confirm Enrollment</h3>
-                                <p className="text-xs text-muted mt-0.5">
-                                    {confirmDateTarget.ids.length === 1
-                                        ? 'Set the confirmation date for this enrollment'
-                                        : `Set the confirmation date for ${confirmDateTarget.ids.length} enrollments`
-                                    }
-                                </p>
-                            </div>
-                        </div>
-
-                        {inviteFlow.savedInviteDates.length > 0 && (
-                            <div className="mb-4">
-                                <label className="block text-xs font-medium text-muted mb-2">Saved Course Dates</label>
-                                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                    {inviteFlow.savedInviteDates.map(d => {
-                                        const stats = inviteFlow.getDateStats(d);
-                                        const isSelected = confirmDate === d;
-                                        return (
-                                            <button
-                                                key={d}
-                                                type="button"
-                                                onClick={() => setConfirmDate(d)}
-                                                className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
-                                                    isSelected
-                                                        ? 'bg-success/10 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
-                                                        : 'bg-surface border-border-subtle hover:border-emerald-300 hover:bg-surface-elevated'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <div className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-emerald-500' : 'bg-transparent border border-border-subtle'}`} />
-                                                    <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-confirmed font-bold' : 'text-primary'}`}>
-                                                        {formatDateLong(d)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                        {stats.confirmed} confirmed
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                                        {stats.pending} pending
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        <label className="block text-sm font-medium text-primary mb-1.5">
-                            {inviteFlow.savedInviteDates.length > 0 ? 'Or pick a new date' : 'Confirmation Date'}
-                        </label>
-                        <DateInput
-                            id="confirm-date"
-                            value={confirmDate}
-                            onChange={setConfirmDate}
-                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-surface"
-                        />
-                        {confirmDate && !inviteFlow.savedInviteDates.includes(confirmDate) && (
-                            <div className="flex items-center gap-2 mt-1.5 px-1">
-                                <span className="text-[11px] text-muted">On this date:</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    {inviteFlow.getDateStats(confirmDate).confirmed} confirmed
-                                </span>
-                                <span className="text-border-subtle">•</span>
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                    {inviteFlow.getDateStats(confirmDate).pending} pending
-                                </span>
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setConfirmDateTarget(null)}
-                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmWithDate}
-                                disabled={!confirmDate || confirmingDate}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {confirmingDate && <Loader2 size={14} className="animate-spin" />}
-                                Confirm
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmDateModal target={confirmDateTarget} date={confirmDate} onDateChange={setConfirmDate} busy={confirmingDate} onConfirm={handleConfirmWithDate} onClose={() => setConfirmDateTarget(null)} savedDates={inviteFlow.savedInviteDates} getDateStats={inviteFlow.getDateStats} />
 
             {enrollModalOpen && (
                 <EnrollmentModal
@@ -1324,157 +1002,11 @@ export default function EnrollmentBoard({
                 );
             })()}
 
-            {editNoteTarget && (
-                <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-fadeIn" onClick={() => setEditNoteTarget(null)}>
-                    <div
-                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-sm mx-4 animate-scaleIn"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-brand-500/10 rounded-xl text-brand-600 dark:text-brand-400">
-                                <FileText size={22} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-primary">Enrollment Note</h3>
-                                <p className="text-xs text-muted mt-0.5">
-                                    Add or edit note for this student
-                                </p>
-                            </div>
-                        </div>
-
-                        <textarea
-                            id="edit-note"
-                            name="editNote"
-                            value={editNoteText}
-                            onChange={e => setEditNoteText(e.target.value)}
-                            placeholder="Enter note here..."
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                    e.preventDefault();
-                                    handleSaveNote();
-                                }
-                            }}
-                            className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm text-primary focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface min-h-[120px] resize-none"
-                            autoFocus
-                        />
-                        <p className="text-[10px] text-muted mt-1.5 text-right">Ctrl + Enter to save</p>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setEditNoteTarget(null)}
-                                className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveNote}
-                                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-xs"
-                            >
-                                Save Note
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <EditNoteModal open={!!editNoteTarget} text={editNoteText} onTextChange={setEditNoteText} onSave={handleSaveNote} onClose={() => setEditNoteTarget(null)} />
 
             {/* Student Flag Modal */}
             {flagModalTarget && (
-                <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-fadeIn" onClick={() => setFlagModalTarget(null)}>
-                    <div
-                        className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-orange-500/10 rounded-xl text-orange-500">
-                                <AlertTriangle size={22} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-primary">Student Flags</h3>
-                                <p className="text-xs text-muted mt-0.5">
-                                    Manage flags for {flagModalTarget.studentName}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Existing flags */}
-                        {(() => {
-                            const existing = studentFlagsHook.flagsByStudentId.get(flagModalTarget.studentId) || [];
-                            if (existing.length === 0) return null;
-                            return (
-                                <div className="mb-5">
-                                    <label className="block text-xs font-medium text-muted mb-2">Existing flags</label>
-                                    <div className="space-y-1.5">
-                                        {existing.map(flag => (
-                                            <div key={flag.id} className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2">
-                                                <AlertTriangle size={13} className="text-orange-400 mt-0.5 shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-semibold text-primary">{flag.courses?.name || 'Unknown course'}</p>
-                                                    {flag.comment && (
-                                                        <p className="text-[11px] text-muted mt-0.5">{flag.comment}</p>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() => studentFlagsHook.removeFlag(flag.id)}
-                                                    className="p-1 text-muted hover:text-red-500 hover:bg-red-500/10 rounded-md transition-all shrink-0"
-                                                    aria-label="Remove flag"
-                                                >
-                                                    <X size={12} />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {/* Add new flag */}
-                        <div className="border-t border-border-subtle pt-4">
-                            <label className="block text-xs font-medium text-muted mb-2">Add new flag</label>
-                            <select
-                                id="flag-course"
-                                name="flagCourse"
-                                value={flagCourseId}
-                                onChange={e => setFlagCourseId(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 bg-surface mb-2"
-                            >
-                                <option value="">Select course...</option>
-                                {uniqueCourses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-
-                            <textarea
-                                id="flag-comment"
-                                name="flagComment"
-                                value={flagComment}
-                                onChange={e => setFlagComment(e.target.value)}
-                                placeholder="Reason (optional)..."
-                                className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 bg-surface min-h-[80px] resize-none"
-                            />
-
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={() => setFlagModalTarget(null)}
-                                    className="flex-1 px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
-                                >
-                                    Close
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (!flagCourseId) return;
-                                        studentFlagsHook.addFlag(flagModalTarget.studentId, flagCourseId, flagComment);
-                                        setFlagCourseId('');
-                                        setFlagComment('');
-                                    }}
-                                    disabled={!flagCourseId}
-                                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl transition-all shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    Add Flag
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <StudentFlagModal target={flagModalTarget} flags={studentFlagsHook.flagsByStudentId.get(flagModalTarget.studentId) ?? EMPTY_FLAGS} courses={uniqueCourses} onAddFlag={(courseId, comment) => studentFlagsHook.addFlag(flagModalTarget.studentId, courseId, comment)} onRemoveFlag={studentFlagsHook.removeFlag} onClose={() => setFlagModalTarget(null)} />
             )}
 
             {/* Student Detail Drawer */}
