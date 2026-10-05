@@ -7,6 +7,12 @@ import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
 import { CustomTooltip } from '../ui/Tooltip';
 
+// Cards rendered at first, and added each time the list is scrolled near its end. A column shows
+// about six cards at a time; rendering 50 in each of the four columns at once (some 11,000 DOM
+// nodes) blocked a phone for well over a second when the board opened.
+const INITIAL_CARDS = 16;
+const MORE_CARDS = 32;
+
 interface StatusColumnProps {
     status: string;
     items: EnrollmentRow[];
@@ -54,7 +60,7 @@ const StatusColumn = function StatusColumn({
         id: status
     });
 
-    const [visibleCount, setVisibleCount] = useState(50);
+    const [visibleCount, setVisibleCount] = useState(INITIAL_CARDS);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,13 +74,14 @@ const StatusColumn = function StatusColumn({
                 if (entries[0].isIntersecting) {
                     setVisibleCount(prev => {
                         if (prev >= items.length) return prev;
-                        return prev + 50;
+                        return prev + MORE_CARDS;
                     });
                 }
             },
             {
                 root: scrollContainerRef.current,
-                rootMargin: '200px',
+                // Well ahead of the end, so cards are there before they scroll into view
+                rootMargin: '600px',
                 threshold: 0,
             }
         );
@@ -87,16 +94,16 @@ const StatusColumn = function StatusColumn({
     // is scrolled down: realtime updates also produce a new array and would otherwise yank cards away.
     useEffect(() => {
         if ((scrollContainerRef.current?.scrollTop ?? 0) < 100) {
-            setVisibleCount(50);
+            setVisibleCount(INITIAL_CARDS);
         }
     }, [items]);
 
     const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
-        if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) {
             setVisibleCount(prev => {
                 if (prev >= items.length) return prev;
-                return prev + 50;
+                return prev + MORE_CARDS;
             });
         }
     }, [items.length]);

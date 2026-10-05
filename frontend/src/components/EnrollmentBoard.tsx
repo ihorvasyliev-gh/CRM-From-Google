@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, startTransition } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -174,6 +174,9 @@ export default function EnrollmentBoard({
     const studentFlagsHook = useStudentFlags(showToast);
 
     const enrollments = enrollmentsHook.enrollments;
+    // The hook returns a new object on every render, but these callbacks are stable: depend on them,
+    // not on the object, or every card and column re-renders whenever the board does
+    const { updateNote, updateStatus } = enrollmentsHook;
 
     useEffect(() => {
         enrollmentsRef.current = enrollments;
@@ -223,15 +226,26 @@ export default function EnrollmentBoard({
         }
     }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
 
+    // The columns follow filter changes in the background: the clicked chip or the typed text shows
+    // at once and the board catches up a moment later (dimmed meanwhile). Data changes, such as a
+    // moved card, still show immediately.
+    const filters = useMemo(() => ({
+        course: selectedCourse, variant: selectedVariant, courseDate: selectedCourseDate, search: debouncedSearchQuery,
+        dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder,
+    }), [selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder]);
+    const shownFilters = useDeferredValue(filters);
+    const filtersPending = shownFilters !== filters;
+
     // Filters derivation (everything except the invite-deadline filter, so its chip counts follow the other filters)
     const baseFilteredEnrollments = useMemo(() => {
+        const { course, variant, courseDate, search, dateFrom, dateTo, courseDateFrom, courseDateTo } = shownFilters;
         let result = enrollments;
-        if (selectedCourse !== 'all') result = result.filter(e => e.course_id === selectedCourse);
-        if (selectedVariant !== 'all') {
-            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === selectedVariant.toLowerCase());
+        if (course !== 'all') result = result.filter(e => e.course_id === course);
+        if (variant !== 'all') {
+            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === variant.toLowerCase());
         }
-        if (selectedCourseDate !== 'all') result = result.filter(e => courseDatesOf(e).includes(selectedCourseDate));
-        if (debouncedSearchQuery.trim()) {
+        if (courseDate !== 'all') result = result.filter(e => courseDatesOf(e).includes(courseDate));
+        if (search.trim()) {
             result = result.filter(e =>
                 matchesSearch({
                     firstName: e.students?.first_name,
@@ -240,7 +254,7 @@ export default function EnrollmentBoard({
                     phone: e.students?.phone,
                     notes: e.notes,
                     eircode: e.students?.eircode,
-                }, debouncedSearchQuery)
+                }, search)
             );
         }
         if (dateFrom) {
@@ -261,7 +275,7 @@ export default function EnrollmentBoard({
             result = result.filter(e => courseDatesOf(e).some(d => d <= to));
         }
         return result;
-    }, [enrollments, selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo]);
+    }, [enrollments, shownFilters]);
 
     const now = useNowMinute();
     const inviteCounts = useMemo(() => {
@@ -276,14 +290,16 @@ export default function EnrollmentBoard({
     }, [baseFilteredEnrollments, now]);
 
     const filteredEnrollments = useMemo(() => {
+        const { inviteFilter } = shownFilters;
         if (inviteFilter === 'all') return baseFilteredEnrollments;
         return baseFilteredEnrollments.filter(e =>
             e.status === 'invited' && matchesInviteFilter(getInviteDeadline(e.invited_at, e.response_days, now), inviteFilter)
         );
-    }, [baseFilteredEnrollments, inviteFilter, now]);
+    }, [baseFilteredEnrollments, shownFilters, now]);
 
     // Data grouped by status
     const byStatus = useMemo(() => {
+        const { sortOrder } = shownFilters;
         const map: Record<string, EnrollmentRow[]> = {};
         ALL_STATUSES.forEach(s => { map[s] = []; });
         filteredEnrollments.forEach(e => {
@@ -309,7 +325,7 @@ export default function EnrollmentBoard({
             });
         });
         return map;
-    }, [filteredEnrollments, sortOrder]);
+    }, [filteredEnrollments, shownFilters]);
 
     const queuePositions = useMemo(() => {
         const positions = new Map<string, number>();
@@ -385,8 +401,8 @@ export default function EnrollmentBoard({
     }, []);
 
     const handleUpdateNote = useCallback(async (id: string, noteText: string) => {
-        await enrollmentsHook.updateNote(id, noteText);
-    }, [enrollmentsHook]);
+        await updateNote(id, noteText);
+    }, [updateNote]);
 
     const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
         if (enrollment.students) {
@@ -491,7 +507,7 @@ export default function EnrollmentBoard({
             ? [target, ...linkedRows(all, [target], newStatus).alsoUpdate].map(takeEnrollmentSnapshot)
             : [];
 
-        enrollmentsHook.updateStatus(enrollmentId, newStatus);
+        updateStatus(enrollmentId, newStatus);
 
         if (isDestructive && target) {
             const name = fullName(target.students) || 'Student';
@@ -499,7 +515,7 @@ export default function EnrollmentBoard({
             setUndoData({ snapshots, newStatus, name });
             undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
         }
-    }, [enrollmentsHook]);
+    }, [updateStatus]);
 
     useEffect(() => () => {
         if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -737,7 +753,8 @@ export default function EnrollmentBoard({
             >
                 <div 
                     ref={boardContainerRef}
-                    className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2 overscroll-x-contain touch-pan-x touch-pan-y"
+                    aria-busy={filtersPending || undefined}
+                    className={`flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2 overscroll-x-contain touch-pan-x touch-pan-y transition-opacity duration-150 ${filtersPending ? 'opacity-60' : ''}`}
                     style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                     {PIPELINE_STATUSES.map(status => (
