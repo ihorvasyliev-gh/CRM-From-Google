@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, Suspense, useTransition, useRef } from 'react';
+import { useState, useEffect, useCallback, Suspense, useTransition } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
-import { flushSync } from 'react-dom';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
@@ -8,12 +7,7 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
-import { fetchAllEnrollments } from './hooks/useEnrollments';
-import { fetchGraduatesFn } from './hooks/useOutcomes';
-import { isNotificationSupported, getNotificationPermission } from './lib/notifications';
-import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
-import { fetchCourses, fetchDashboardStats, fetchEmploymentStatuses, fetchStudentsPage } from './lib/queries';
 import { fullName, Student, StudentPayload } from './lib/types';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
@@ -33,7 +27,12 @@ import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
 import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
 import { GlobalToaster } from './components/Toast';
 import { toast } from './lib/toast';
-import { isAnyModalOpen, useModalBehavior } from './hooks/useModalBehavior';
+import { useModalBehavior } from './hooks/useModalBehavior';
+import { useTheme } from './hooks/useTheme';
+import { useDensity } from './hooks/useDensity';
+import { useTabPrefetch } from './hooks/useTabPrefetch';
+import { useGlobalHotkeys } from './hooks/useGlobalHotkeys';
+import { useNotificationBanner } from './hooks/useNotificationBanner';
 import type { NavigateFn, NavState } from './lib/navigation';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
@@ -44,7 +43,6 @@ const EnrollmentBoard = lazyWithRetry(() => import('./components/EnrollmentBoard
 const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGenerator'));
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
-type Density = 'comfortable' | 'compact';
 const Analytics = lazyWithRetry(() => import('./components/Analytics'));
 const ViewerStudentsDirectory = lazyWithRetry(() => import('./components/ViewerStudentsDirectory'));
 const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
@@ -73,71 +71,13 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
 ];
 const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
-// Hover prefetch per tab: its data, plus its chunk (idle prewarm skips heavy chunks on slow connections)
-const enrollmentsQuery = { queryKey: ['enrollments'], queryFn: fetchAllEnrollments };
-const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: () => Promise<unknown> }[]; chunk?: () => Promise<unknown> }> = {
-    dashboard: { queries: [{ queryKey: ['dashboard_stats'], queryFn: fetchDashboardStats }, enrollmentsQuery] },
-    courses: { queries: [{ queryKey: ['courses'], queryFn: fetchCourses }, enrollmentsQuery], chunk: () => import('./components/CourseList') },
-    enrollments: { queries: [enrollmentsQuery] },
-    outcomes: { queries: [{ queryKey: ['outcomes_graduates'], queryFn: fetchGraduatesFn }], chunk: () => import('./components/OutcomesList') },
-    documents: { queries: [enrollmentsQuery, { queryKey: ['doc_courses'], queryFn: fetchCourses }], chunk: () => import('./components/DocumentGenerator') },
-    analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('./components/Analytics') },
-    settings: { chunk: () => import('./components/Settings') },
-    'pdf-forms': { chunk: () => import('./components/PdfForms') },
-};
-
-/** localStorage value, or null where storage is blocked (it throws in some privacy modes). */
-function readStorage(key: string): string | null {
-    try {
-        return window.localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-}
-
-const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
-const NOTIF_BANNER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-
 function App() {
     const { user, loading, signOut } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [showNotifBanner, setShowNotifBanner] = useState(false);
 
     // Fire browser notifications for enrollment confirmations
     useConfirmationNotifier();
     useGlobalRealtimeSync();
-
-    // Show notification permission banner once if not yet decided/subscribed (and not dismissed recently)
-    useEffect(() => {
-        const checkPushSubscription = async () => {
-            const dismissedAt = parseInt(readStorage(NOTIF_BANNER_DISMISSED_KEY) || '0', 10) || 0;
-            if (Date.now() - dismissedAt < NOTIF_BANNER_SNOOZE_MS) return;
-            if (isNotificationSupported() && getNotificationPermission() === 'default') {
-                const isSubscribed = await isUserSubscribed();
-                if (!isSubscribed) {
-                    setShowNotifBanner(true);
-                }
-            }
-        };
-        checkPushSubscription();
-    }, []);
-
-    // Viewers: prewarm their route chunks during idle time (admin tabs are warmed further below)
-    useEffect(() => {
-        if (getUserRole(user) !== 'viewer') return;
-        const prewarm = () => {
-            import('./components/ViewerHome');
-            import('./components/ViewerStudentsDirectory');
-            import('./components/ViewerCourses');
-            import('./components/StudentDetailDrawer');
-        };
-        if ('requestIdleCallback' in window) {
-            const handle = requestIdleCallback(prewarm, { timeout: 2000 });
-            return () => cancelIdleCallback(handle);
-        }
-        const timer = setTimeout(prewarm, 1000);
-        return () => clearTimeout(timer);
-    }, [user]);
 
     const location = useLocation();
     const navState = location.state as NavState | null;
@@ -182,138 +122,13 @@ function App() {
     const viewerDrawer = useStudentDrawer();
     const viewerListIds = useVisibleStudentIds();
 
-    const [darkMode, setDarkMode] = useState(() => {
-        // Initialize from local storage or system preference
-        const saved = readStorage('theme');
-        if (saved) return saved === 'dark';
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    });
-
-    // Apply dark mode class to root element (+ keep the mobile browser chrome colour in sync)
-    useEffect(() => {
-        document.documentElement.classList.toggle('dark', darkMode);
-        // index.html pins a light boot background for light-theme users; React owns theming from here
-        document.documentElement.removeAttribute('data-boot-theme');
-        document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', darkMode ? '#09090b' : '#f3f5f8');
-        try {
-            window.localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-        } catch {
-            // ignore storage errors (private mode)
-        }
-    }, [darkMode]);
-
-    const toggleDarkMode = useCallback(() => {
-        const root = document.documentElement;
-        const next = !root.classList.contains('dark');
-        // Swap the class synchronously so the view transition snapshots the finished theme
-        // (a plain setState would commit after the snapshot and cross-fade to the old one).
-        const apply = () => {
-            root.classList.toggle('dark', next);
-            flushSync(() => setDarkMode(next));
-        };
-        // Suppress the per-element colour transitions while the theme flips
-        root.classList.add('theme-switching');
-        const done = () => requestAnimationFrame(() => root.classList.remove('theme-switching'));
-        const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-        if (doc.startViewTransition && !reduceMotion) {
-            doc.startViewTransition(apply).finished.finally(done);
-        } else {
-            apply();
-            done();
-        }
-    }, []);
-
+    const { darkMode, toggleDarkMode } = useTheme();
     // Owned here; Settings gets it as props
-    const [density, setDensity] = useState<Density>(() =>
-        readStorage('view_density') === 'compact' ? 'compact' : 'comfortable'
-    );
-
-    useEffect(() => {
-        document.documentElement.classList.toggle('density-compact', density === 'compact');
-        try {
-            window.localStorage.setItem('view_density', density);
-        } catch {
-            // ignore storage errors (private mode)
-        }
-    }, [density]);
-
-    const toggleDensity = useCallback(() => {
-        setDensity(prev => prev === 'comfortable' ? 'compact' : 'comfortable');
-    }, []);
+    const { density, setDensity, toggleDensity } = useDensity();
 
     const queryClient = useQueryClient();
-    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Hover intent (debounced so a cursor sweeping past tabs doesn't fire them all)
-    const handleTabMouseEnter = useCallback((tab: string) => {
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(() => {
-            const { queries = [], chunk } = TAB_PREFETCH[tab] ?? {};
-            queries.forEach(q => queryClient.prefetchQuery({ ...q, staleTime: 30_000 }));
-            if (tab === 'students') {
-                queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0, staleTime: 30_000 });
-            }
-            chunk?.();
-        }, 150);
-    }, [queryClient]);
-
-    const handleTabMouseLeave = useCallback(() => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
-    }, []);
-
-    // Warm the code of the other admin tabs once the browser is idle, so the first visit to a
-    // tab doesn't wait on a chunk download (touch devices never get the hover prefetch above).
-    // Heavy chunks (charts, docx) are skipped on data-saver / slow connections.
-    useEffect(() => {
-        if (!user || isViewer || isOutreach) return;
-        const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-        if (conn?.saveData || /(^|-)2g$/.test(conn?.effectiveType ?? '')) return;
-        const slow = conn?.effectiveType === '3g';
-        const loaders: Array<() => Promise<unknown>> = [
-            () => import('./components/Dashboard'),
-            () => import('./components/StudentList'),
-            () => import('./components/EnrollmentBoard'),
-            () => import('./components/CourseList'),
-            () => import('./components/OutcomesList'),
-            () => import('./components/StudentDetailDrawer'),
-            ...(slow ? [] : [
-                () => import('./components/Settings'),
-                () => import('./components/Analytics'),
-                () => import('./components/DocumentGenerator'),
-            ]),
-        ];
-        const w = window as Window & {
-            requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-            cancelIdleCallback?: (id: number) => void;
-        };
-        let cancelled = false;
-        let handle: number | undefined;
-        const schedule = (cb: () => void) => {
-            handle = w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 4000 }) : window.setTimeout(cb, 1500);
-        };
-        // One chunk per idle slot so prewarming never competes with user interaction
-        const next = () => {
-            const load = loaders.shift();
-            if (cancelled || !load) return;
-            load().catch(() => { /* real navigation retries via lazyWithRetry */ }).finally(() => {
-                if (!cancelled) schedule(next);
-            });
-        };
-        const start = window.setTimeout(() => schedule(next), 2500);
-        return () => {
-            cancelled = true;
-            window.clearTimeout(start);
-            if (handle !== undefined) {
-                if (w.cancelIdleCallback) w.cancelIdleCallback(handle);
-                else window.clearTimeout(handle);
-            }
-        };
-    }, [user, isViewer, isOutreach]);
+    const { handleTabMouseEnter, handleTabMouseLeave } = useTabPrefetch(!user || isOutreach ? null : isViewer ? 'viewer' : 'admin');
+    const notifBanner = useNotificationBanner(user?.id);
 
     const navigate: NavigateFn = useCallback((tab: string, state?: NavState) => {
         setSidebarOpen(false);
@@ -334,94 +149,16 @@ function App() {
         }
     }, []);
 
-    // Global Keyboard Shortcuts Listener
-    useEffect(() => {
-        if (!user || isOutreach) return;
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const target = e.target as HTMLElement;
-            const isInput = target && (
-                target.tagName === 'INPUT' ||
-                target.tagName === 'TEXTAREA' ||
-                target.tagName === 'SELECT' ||
-                target.isContentEditable
-            );
-
-            // Ctrl+K or Cmd+K: Open Command Palette
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                setCommandPaletteOpen(prev => !prev);
-                return;
-            }
-
-            // Non-input hotkeys (disabled while a modal/drawer is open so they can't act "behind" it)
-            if (!isInput && !isAnyModalOpen() && !e.repeat) {
-                // ? or Shift+/ -> Open Shortcuts Modal
-                if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-                    e.preventDefault();
-                    setShortcutsModalOpen(prev => !prev);
-                    return;
-                }
-
-                // / -> Focus the current page's search input (falls back to the first visible text input)
-                if (e.key === '/') {
-                    const isVisible = (el: HTMLElement) => el.offsetParent !== null || el.getClientRects().length > 0;
-                    const candidates = [
-                        ...Array.from(document.querySelectorAll<HTMLInputElement>('main input[data-page-search]')),
-                        ...Array.from(document.querySelectorAll<HTMLInputElement>('main input[type="text"], main input[type="search"]')),
-                    ];
-                    const searchInput = candidates.find(isVisible);
-                    if (searchInput) {
-                        e.preventDefault();
-                        searchInput.focus();
-                        searchInput.select();
-                    }
-                    return;
-                }
-
-                // N -> Add Student (admin only)
-                if (!isViewer && (e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                    e.preventDefault();
-                    setGlobalAddStudentOpen(true);
-                    return;
-                }
-
-                // 1-4 -> Viewer tab navigation
-                if (isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= String(VIEWER_TABS.length)) {
-                    e.preventDefault();
-                    navigate(VIEWER_TABS[parseInt(e.key, 10) - 1].key);
-                    return;
-                }
-
-                // 1-9 -> Tab Navigation (admin only)
-                if (!isViewer && !e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '9') {
-                    const idx = parseInt(e.key, 10) - 1;
-                    if (NAV_ITEMS[idx]) {
-                        e.preventDefault();
-                        navigate(NAV_ITEMS[idx].key);
-                    }
-                    return;
-                }
-            }
-
-            // Ctrl+Shift+D -> Toggle Theme
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
-                e.preventDefault();
-                toggleDarkMode();
-                return;
-            }
-
-            // Ctrl+Shift+C -> Toggle Density
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
-                e.preventDefault();
-                toggleDensity();
-                return;
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [user, isViewer, isOutreach, toggleDarkMode, toggleDensity, navigate]);
+    useGlobalHotkeys(!!user && !isOutreach, {
+        tabKeys: isViewer ? VIEWER_TABS.map(t => t.key) : NAV_ITEMS.map(n => n.key),
+        canAddStudent: !isViewer,
+        navigate,
+        toggleCommandPalette: () => setCommandPaletteOpen(prev => !prev),
+        toggleShortcuts: () => setShortcutsModalOpen(prev => !prev),
+        openAddStudent: () => setGlobalAddStudentOpen(true),
+        toggleDarkMode,
+        toggleDensity,
+    });
 
     const handleSaveNewStudent = async (formData: StudentPayload) => {
         const { id: _id, ...rest } = formData;
@@ -600,7 +337,7 @@ function App() {
                     activeTab === 'enrollments' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* Notification Permission Banner */}
-                    {showNotifBanner && (
+                    {notifBanner.visible && (
                         <div className="bg-brand-500/[0.07] border-b border-brand-500/20 px-4 lg:px-8 py-2 flex items-center justify-between gap-3 animate-fadeIn">
                             <div className="flex items-center gap-2 text-sm">
                                 <Bell size={16} className="text-brand-500 shrink-0" />
@@ -608,27 +345,13 @@ function App() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 <button
-                                    onClick={async () => {
-                                        setShowNotifBanner(false);
-                                        if (user) {
-                                            const ok = await subscribeUserToPush(user.id);
-                                            if (ok) toast.success('Notifications enabled');
-                                            else toast.error('Notifications were not enabled (permission denied or unsupported)');
-                                        }
-                                    }}
+                                    onClick={notifBanner.enable}
                                     className="h-7 px-3 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
                                 >
                                     Enable
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        setShowNotifBanner(false);
-                                        try {
-                                            localStorage.setItem(NOTIF_BANNER_DISMISSED_KEY, String(Date.now()));
-                                        } catch {
-                                            // ignore
-                                        }
-                                    }}
+                                    onClick={notifBanner.dismiss}
                                     aria-label="Dismiss"
                                     title="Remind me later"
                                     className="text-muted hover:text-primary transition-colors p-1 rounded-md"
