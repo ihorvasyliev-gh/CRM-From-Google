@@ -23,9 +23,28 @@ import {
     groupUpcomingCohorts,
     localDateKey,
     sessionKey,
+    type ReminderItem,
     type UpcomingCohortItem,
 } from './Dashboard/dashboardUtils';
 import { useIsMobile } from '../hooks/useScreenSize';
+
+/** invite_dates columns holding "reminder sent" for the 7-day and the day-before reminder */
+const SENT_COLUMN = { week: 'reminder_sent_at', dayBefore: 'reminder_tomorrow_sent_at' } as const;
+const SENT_QUERY_KEY = { week: ['reminders_sent'], dayBefore: ['reminders_tomorrow_sent'] } as const;
+
+/** Keys (course + date) of upcoming dates whose reminder was marked as sent; none if the column is missing. */
+async function fetchSentReminderKeys(column: (typeof SENT_COLUMN)[keyof typeof SENT_COLUMN], migration: number): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('invite_dates')
+        .select('course_id, invite_date')
+        .not(column, 'is', null)
+        .gte('invite_date', todayISO());
+    if (error) {
+        console.warn(`Sent reminders unavailable (is migration ${migration} applied?):`, error);
+        return [];
+    }
+    return (data || []).map((d: { course_id: string; invite_date: string }) => sessionKey(d.course_id, d.invite_date));
+}
 
 export interface DashboardProps {
     onNavigate?: (tab: string, filter?: any) => void;
@@ -159,7 +178,8 @@ export default function Dashboard({
     const handleRefresh = () => {
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-        queryClient.invalidateQueries({ queryKey: ['reminders_sent'] });
+        queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY.week });
+        queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY.dayBefore });
     };
 
     const statusCounts = useMemo(() => {
@@ -174,26 +194,21 @@ export default function Dashboard({
     const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
     const staleRequests = useMemo(() => countStaleRequests(allEnrollments), [allEnrollments]);
 
-    // Course dates whose attendance reminder was marked as sent ("I've sent it")
+    // Course dates whose attendance reminders were marked as sent ("I've sent it"): the
+    // 7-day one and the day-before one are kept (and fail, if a migration is missing) apart.
     const { data: sentReminderKeys = [] } = useQuery({
-        queryKey: ['reminders_sent'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('invite_dates')
-                .select('course_id, invite_date')
-                .not('reminder_sent_at', 'is', null)
-                .gte('invite_date', todayISO());
-            if (error) {
-                console.warn('Sent reminders unavailable (is migration 70 applied?):', error);
-                return [];
-            }
-            return (data || []).map((d: { course_id: string; invite_date: string }) => sessionKey(d.course_id, d.invite_date));
-        },
+        queryKey: SENT_QUERY_KEY.week,
+        queryFn: () => fetchSentReminderKeys(SENT_COLUMN.week, 70),
+        staleTime: 30_000,
+    });
+    const { data: sentDayBeforeKeys = [] } = useQuery({
+        queryKey: SENT_QUERY_KEY.dayBefore,
+        queryFn: () => fetchSentReminderKeys(SENT_COLUMN.dayBefore, 76),
         staleTime: 30_000,
     });
     const reminders = useMemo(
-        () => dueReminders(allEnrollments, new Set(sentReminderKeys)),
-        [allEnrollments, sentReminderKeys],
+        () => dueReminders(allEnrollments, new Set(sentReminderKeys), 7, todayISO(), new Set(sentDayBeforeKeys)),
+        [allEnrollments, sentReminderKeys, sentDayBeforeKeys],
     );
 
     const sendReminder = (item: UpcomingCohortItem) => {
@@ -202,16 +217,17 @@ export default function Dashboard({
         void sendReminderEmail(people, (message, type) => toast[type](message));
     };
 
-    const markReminderSent = async (item: UpcomingCohortItem) => {
+    const markReminderSent = async (item: ReminderItem) => {
+        const kind = item.dayBefore ? 'dayBefore' : 'week';
         const key = sessionKey(item.courseId, item.date);
-        queryClient.setQueryData<string[]>(['reminders_sent'], (old = []) => [...old, key]);
+        queryClient.setQueryData<string[]>(SENT_QUERY_KEY[kind], (old = []) => [...old, key]);
         const { error } = await supabase
             .from('invite_dates')
-            .upsert({ course_id: item.courseId, invite_date: item.date, reminder_sent_at: new Date().toISOString() }, { onConflict: 'course_id,invite_date' });
+            .upsert({ course_id: item.courseId, invite_date: item.date, [SENT_COLUMN[kind]]: new Date().toISOString() }, { onConflict: 'course_id,invite_date' });
         if (error) {
             console.error('Failed to mark reminder as sent:', error);
-            toast.error('Could not save "sent". Is migration 70 applied?');
-            queryClient.invalidateQueries({ queryKey: ['reminders_sent'] });
+            toast.error(`Could not save "sent". Is migration ${item.dayBefore ? 76 : 70} applied?`);
+            queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY[kind] });
         }
     };
 

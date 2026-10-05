@@ -325,8 +325,28 @@ export function countStaleRequests(enrollments: any[], days = 7, nowMs: number =
 /** Key of a course date, as stored in invite_dates (course_id + invite_date). */
 export const sessionKey = (courseId: string, date: string) => `${courseId}|${date}`;
 
-/** Course dates within `days` whose attendance reminder hasn't been marked as sent. */
-export function dueReminders(enrollments: any[], sent: Set<string>, days = 7, todayIso: string = todayISO()): UpcomingCohortItem[] {
-    return groupConfirmedSessions(enrollments, todayIso)
-        .filter(c => daysBetween(todayIso, c.date) <= days && !sent.has(sessionKey(c.courseId, c.date)));
+export interface ReminderItem extends UpcomingCohortItem {
+    /** The course is tomorrow, so this is the day-before reminder (tracked apart from the 7-day one) */
+    dayBefore: boolean;
+}
+
+/**
+ * Course dates within `days` whose attendance reminder hasn't been marked as sent.
+ * A course that is tomorrow waits on its own day-before mark (`sentDayBefore`): sending
+ * that reminder covers the earlier one, and the 7-day mark doesn't hide it.
+ */
+export function dueReminders(
+    enrollments: any[],
+    sent: Set<string>,
+    days = 7,
+    todayIso: string = todayISO(),
+    sentDayBefore: Set<string> = new Set(),
+): ReminderItem[] {
+    return groupConfirmedSessions(enrollments, todayIso).flatMap(c => {
+        const away = daysBetween(todayIso, c.date);
+        if (away > days) return [];
+        const dayBefore = away === 1;
+        const done = (dayBefore ? sentDayBefore : sent).has(sessionKey(c.courseId, c.date));
+        return done ? [] : [{ ...c, dayBefore }];
+    });
 }

@@ -1,12 +1,12 @@
 import { BellRing, Check, Mail } from 'lucide-react';
-import { UpcomingCohortItem, untilLabel } from './dashboardUtils';
+import { ReminderItem, untilLabel } from './dashboardUtils';
 import { formatDateLongWithWeekday } from '../../lib/dateUtils';
 
 export interface SendRemindersBannerProps {
-    /** Course dates within a week whose reminder isn't marked as sent */
-    items: UpcomingCohortItem[];
-    onSend: (item: UpcomingCohortItem) => void;
-    onMarkSent: (item: UpcomingCohortItem) => void;
+    /** Course dates within a week whose reminder isn't marked as sent (tomorrow's wait for the day-before one) */
+    items: ReminderItem[];
+    onSend: (item: ReminderItem) => void;
+    onMarkSent: (item: ReminderItem) => void;
 }
 
 /** Stays on the dashboard until each reminder is marked as sent. */
@@ -35,6 +35,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                             <p className="text-[13px] font-semibold text-primary truncate">{item.courseName}</p>
                             <p className="text-[11px] text-muted">
                                 {formatDateLongWithWeekday(item.date)} · <span className="font-semibold text-sky-600 dark:text-sky-400">{untilLabel(item.date)}</span> · {item.confirmedCount} confirmed
+                                {item.dayBefore && <> · day-before reminder</>}
                             </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

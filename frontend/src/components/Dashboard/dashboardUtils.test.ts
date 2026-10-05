@@ -327,6 +327,30 @@ describe('dashboardUtils - dueReminders', () => {
             en('c5', '2026-10-02', 'invited'),     // not confirmed
         ];
         const due = dueReminders(enrollments, new Set(['c2|2026-10-05']), 7, '2026-10-01');
-        expect(due).toEqual([{ date: '2026-10-01', courseId: 'c1', courseName: 'c1', confirmedCount: 2, pendingCount: 0 }]);
+        expect(due).toEqual([{ date: '2026-10-01', courseId: 'c1', courseName: 'c1', confirmedCount: 2, pendingCount: 0, dayBefore: false }]);
+    });
+
+    describe('day before the course', () => {
+        const today = '2026-10-01';
+        const tomorrow = [en('c1', '2026-10-02')];
+
+        it('flags tomorrow\'s course as a day-before reminder, other dates as usual', () => {
+            const due = dueReminders([en('c1', '2026-10-01'), en('c2', '2026-10-02'), en('c3', '2026-10-03')], new Set(), 7, today);
+            expect(due.map(c => [c.courseId, c.dayBefore])).toEqual([['c1', false], ['c2', true], ['c3', false]]);
+        });
+
+        it('still asks for the day-before reminder after the 7-day one was marked as sent', () => {
+            const due = dueReminders(tomorrow, new Set(['c1|2026-10-02']), 7, today);
+            expect(due.map(c => c.dayBefore)).toEqual([true]);
+        });
+
+        it('stops asking once the day-before reminder is marked as sent', () => {
+            expect(dueReminders(tomorrow, new Set(), 7, today, new Set(['c1|2026-10-02']))).toEqual([]);
+        });
+
+        it('doesn\'t let the day-before mark hide any other date', () => {
+            const due = dueReminders([en('c1', '2026-10-01'), en('c1', '2026-10-04')], new Set(), 7, today, new Set(['c1|2026-10-01', 'c1|2026-10-04']));
+            expect(due.map(c => c.date)).toEqual(['2026-10-01', '2026-10-04']);
+        });
     });
 });

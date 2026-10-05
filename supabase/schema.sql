@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS invite_dates (
     course_id   UUID  REFERENCES courses(id) ON DELETE CASCADE,
     invite_date DATE  NOT NULL,
     reminder_sent_at TIMESTAMPTZ,         -- attendance reminder sent (migration 70)
+    reminder_tomorrow_sent_at TIMESTAMPTZ, -- day-before reminder sent (migration 76)
     created_at  TIMESTAMPTZ DEFAULT now(),
     UNIQUE (course_id, invite_date)
 );
