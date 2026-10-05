@@ -5,26 +5,28 @@ import React from 'react';
 import { useBulkActions } from './useBulkActions';
 import type { EnrollmentRow } from './useEnrollments';
 
-const updateMock = vi.fn().mockReturnValue({
-    in: vi.fn().mockResolvedValue({ error: null }),
-    eq: vi.fn().mockResolvedValue({ error: null }),
-});
+const updateIn = vi.fn().mockResolvedValue({ error: null });
+const updateEq = vi.fn().mockResolvedValue({ error: null });
+const updateMock = vi.fn().mockReturnValue({ in: updateIn, eq: updateEq });
+const deleteIn = vi.fn().mockResolvedValue({ error: null });
+const insertMock = vi.fn((rows: unknown[]) => ({
+    select: vi.fn().mockResolvedValue({ data: rows, error: null }),
+}));
 
 vi.mock('../lib/supabase', () => ({
     supabase: {
         from: vi.fn(() => ({
             update: updateMock,
-            delete: vi.fn(() => ({
-                in: vi.fn().mockResolvedValue({ error: null }),
-            })),
+            delete: vi.fn(() => ({ in: deleteIn })),
+            insert: insertMock,
         })),
     },
 }));
 
-function makeEnrollment(id: string, status: string): EnrollmentRow {
+function makeEnrollment(id: string, status: string, studentId = `stu-${id}`): EnrollmentRow {
     return {
         id,
-        student_id: `stu-${id}`,
+        student_id: studentId,
         course_id: 'crs-1',
         status,
         course_variant: 'English',
@@ -49,6 +51,7 @@ describe('useBulkActions Undo System', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        updateEq.mockResolvedValue({ error: null });
         queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -125,5 +128,55 @@ describe('useBulkActions Undo System', () => {
 
         // Verify undo toast shown
         expect(mockShowToast).toHaveBeenCalledWith('Bulk status changes undone', 'info');
+    });
+
+    /** Renders the hook over `rows`, selects `ids`, runs the bulk change and returns its Undo. */
+    async function bulkChange(rows: EnrollmentRow[], ids: string[], status: 'withdrawn' | 'completed' | 'rejected') {
+        const showToast = vi.fn();
+        const { result } = renderHook(
+            () => useBulkActions({
+                enrollments: rows,
+                setEnrollments: vi.fn(),
+                showToast,
+                openInviteModal: vi.fn(),
+                openConfirmModal: vi.fn(),
+            }),
+            { wrapper }
+        );
+        act(() => ids.forEach(id => result.current.toggleSelect(id)));
+        await act(async () => { await result.current.bulkUpdateStatus(status); });
+        const call = showToast.mock.calls.find(c => c[2]?.action?.label === 'Undo');
+        expect(call).toBeDefined();
+        return { showToast, undo: () => act(async () => { await call![2].action.onClick(); }) };
+    }
+
+    it('withdrawing also withdraws the student\'s other rows on the course, and Undo restores them too', async () => {
+        const rows = [makeEnrollment('a', 'confirmed', 's1'), makeEnrollment('b', 'rejected', 's1')];
+        const { undo } = await bulkChange(rows, ['a'], 'withdrawn');
+
+        expect(updateIn).toHaveBeenCalledWith('id', ['a', 'b']);
+        await undo();
+        expect(updateEq.mock.calls.map(c => c[1]).sort()).toEqual(['a', 'b']);
+        expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected' }));
+    });
+
+    it('completing removes the still-requested duplicate, and Undo re-creates it', async () => {
+        const rows = [makeEnrollment('a', 'confirmed', 's1'), makeEnrollment('b', 'requested', 's1')];
+        const { showToast, undo } = await bulkChange(rows, ['a'], 'completed');
+
+        expect(deleteIn).toHaveBeenCalledWith('id', ['b']);
+        expect(showToast.mock.calls[0][0]).toBe('1 enrollment(s) → completed, removed 1 requested variant(s)');
+        await undo();
+        expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({ id: 'b', status: 'requested' })]);
+        expect(insertMock.mock.calls[0][0][0]).not.toHaveProperty('courses');
+        expect(showToast).toHaveBeenLastCalledWith('Bulk status changes undone', 'info');
+    });
+
+    it('reports a failed Undo instead of claiming success', async () => {
+        const { showToast, undo } = await bulkChange([makeEnrollment('a', 'requested')], ['a'], 'rejected');
+        updateEq.mockResolvedValue({ error: { message: 'denied' } });
+
+        await undo();
+        expect(showToast).toHaveBeenLastCalledWith('Failed to undo status changes', 'error');
     });
 });

@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
-import { Student, getAvatarGradient, cleanVariant } from '../lib/types';
+import { Student, getAvatarGradient, cleanVariant, type EnrollmentStatus } from '../lib/types';
+import { linkedRows, statusUpdate } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
 import { formatDateDMY, todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -16,7 +17,8 @@ import { errorMessage } from '../lib/errors';
 
 interface Enrollment {
     id: string;
-    status: string;
+    student_id: string;
+    status: EnrollmentStatus;
     course_variant: string | null;
     created_at: string;
     confirmed_date: string | null;
@@ -313,57 +315,35 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
     };
 
-    async function handleUpdateStatus(id: string, newStatus: string) {
+    async function handleUpdateStatus(id: string, newStatus: EnrollmentStatus) {
         if (busyEnrollmentId) return;
-        const updatePayload: Record<string, string | null | boolean> = { status: newStatus };
-        const currentEnrollment = enrollments.find(e => e.id === id);
-        if (newStatus === 'confirmed') {
-            updatePayload.confirmed_at = new Date().toISOString();
-        }
-        if (newStatus === 'completed') {
-            updatePayload.completed_date = currentEnrollment?.confirmed_date || todayISO();
-            updatePayload.completed_at = new Date().toISOString();
-            if (currentEnrollment && !currentEnrollment.confirmed_at) {
-                updatePayload.confirmed_at = new Date().toISOString();
-            }
-        } else {
-            updatePayload.completed_date = null;
-            updatePayload.completed_at = null;
-        }
-
-        if (newStatus !== 'confirmed' && newStatus !== 'completed') {
-            updatePayload.confirmed_at = null;
-        }
+        const current = enrollments.find(e => e.id === id);
+        if (!current) return;
+        // Same rules as the board: withdrawing covers the student's other rows on the course,
+        // completing removes the ones still "requested"
+        const fields = statusUpdate(current, newStatus);
+        const { alsoUpdate, remove } = linkedRows(enrollments, [current], newStatus);
+        const updateIds = [id, ...alsoUpdate.map(e => e.id)];
+        const removeIds = remove.map(e => e.id);
 
         const label = STATUS_CONFIG[newStatus]?.label || newStatus;
         setBusyEnrollmentId(id);
         try {
-            if (newStatus === 'completed' || newStatus === 'withdrawn') {
-                if (!currentEnrollment || !currentEnrollment.course_id) return;
-
-                const relatedIds = enrollments
-                    .filter(e => e.course_id === currentEnrollment.course_id)
-                    .map(e => e.id);
-
-                const { error } = await supabase
-                    .from('enrollments')
-                    .update(updatePayload)
-                    .in('id', relatedIds);
-
-                if (error) throw error;
-                setEnrollments(prev => prev.map(e => relatedIds.includes(e.id) ? { ...e, ...updatePayload, status: newStatus } as Enrollment : e));
-            } else {
-                const { error } = await supabase
-                    .from('enrollments')
-                    .update(updatePayload)
-                    .eq('id', id);
-
-                if (error) throw error;
-                setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updatePayload, status: newStatus } as Enrollment : e));
-            }
-            setToast({ message: `Marked as ${label.toLowerCase()}`, type: 'success' });
+            const { error } = await supabase.from('enrollments').update(fields).in('id', updateIds);
+            if (error) throw error;
+            const { error: removeError } = removeIds.length > 0
+                ? await supabase.from('enrollments').delete().in('id', removeIds)
+                : { error: null };
+            setEnrollments(prev => prev
+                .filter(e => removeError || !removeIds.includes(e.id))
+                .map(e => updateIds.includes(e.id) ? { ...e, ...fields } : e)
+            );
+            setToast(removeError
+                ? { message: `Marked as ${label.toLowerCase()}, but the requested duplicates could not be removed`, type: 'error' }
+                : { message: `Marked as ${label.toLowerCase()}`, type: 'success' });
             invalidateRelated();
-        } catch {
+        } catch (err) {
+            console.error('Status update failed:', err);
             setToast({ message: `Failed to mark as ${label.toLowerCase()}`, type: 'error' });
         } finally {
             setBusyEnrollmentId(null);

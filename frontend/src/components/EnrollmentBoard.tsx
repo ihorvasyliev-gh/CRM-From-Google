@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePersistentState } from '../hooks/usePersistentState';
 
-import { useEnrollments, takeEnrollmentSnapshot, type EnrollmentRow, type EnrollmentSnapshot } from '../hooks/useEnrollments';
+import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
+import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
@@ -502,11 +503,7 @@ export default function EnrollmentBoard({
         const target = all.find(e => e.id === enrollmentId);
         const isDestructive = newStatus === 'rejected' || newStatus === 'withdrawn';
         const snapshots = isDestructive && target
-            ? all
-                .filter(e => e.id === enrollmentId || (
-                    newStatus === 'withdrawn' && e.student_id === target.student_id && e.course_id === target.course_id
-                ))
-                .map(takeEnrollmentSnapshot)
+            ? [target, ...linkedRows(all, [target], newStatus).alsoUpdate].map(takeEnrollmentSnapshot)
             : [];
 
         enrollmentsHook.updateStatus(enrollmentId, newStatus);

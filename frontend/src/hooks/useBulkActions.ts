@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { cleanVariant, type EnrollmentStatus } from '../lib/types';
+import { linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -76,174 +77,72 @@ export function useBulkActions({
         setSelectedIds(prev => (prev.size === 0 ? prev : new Set()));
     }, []);
 
-    const bulkUpdateMutation = useMutation({
+    const { mutate: mutateBulkStatus } = useMutation({
         mutationFn: async ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
-            let idsToUpdate = Array.from(selectedIds);
-            const updatePayload: Record<string, string | null> = { status: newStatus };
+            const chosen = enrollments.filter(e => selectedIds.has(e.id));
+            const { alsoUpdate, remove } = linkedRows(enrollments, chosen, newStatus);
+            const updatedRows = [...chosen, ...alsoUpdate];
+            // Every row the change writes or deletes, as it was, for Undo
+            const snapshots = updatedRows.map(takeEnrollmentSnapshot);
 
-            // Snapshot previous state of selected enrollments for Undo capability
-            const previousSnapshots = enrollments
-                .filter(e => selectedIds.has(e.id))
-                .map(e => ({
-                    id: e.id,
-                    status: e.status,
-                    confirmed_date: e.confirmed_date,
-                    confirmed_at: e.confirmed_at,
-                    completed_date: e.completed_date,
-                    completed_at: e.completed_at,
-                    invited_date: e.invited_date,
-                    invited_dates: e.invited_dates ?? null,
-                    invited_at: e.invited_at,
-                }));
+            // A completion's dates depend on each row; every other status writes the same fields to all
+            const fieldsById = new Map(updatedRows.map(e => [e.id, statusUpdate(e, newStatus, { confirmedDate })]));
+            const results = newStatus === 'completed'
+                ? await Promise.all(updatedRows.map(e => supabase.from('enrollments').update(fieldsById.get(e.id)!).eq('id', e.id)))
+                : [await supabase.from('enrollments').update(statusUpdate(undefined, newStatus, { confirmedDate })).in('id', updatedRows.map(e => e.id))];
+            const failed = results.find(r => r.error);
+            if (failed?.error) throw failed.error;
 
-            if (newStatus === 'confirmed') {
-                if (confirmedDate) updatePayload.confirmed_date = confirmedDate;
-                updatePayload.confirmed_at = new Date().toISOString();
+            let removeFailed = false;
+            if (remove.length > 0) {
+                const { error: removeError } = await supabase.from('enrollments').delete().in('id', remove.map(e => e.id));
+                if (removeError) console.error('Failed to remove requested duplicates:', removeError);
+                removeFailed = !!removeError;
             }
-            if (newStatus !== 'completed') {
-                updatePayload.completed_date = null;
-                updatePayload.completed_at = null;
-            }
-            if (newStatus !== 'confirmed' && newStatus !== 'completed') {
-                updatePayload.confirmed_at = null;
-            }
-            if (newStatus === 'requested' || newStatus === 'rejected') {
-                updatePayload.confirmed_date = null;
-                updatePayload.invited_date = null;
-                updatePayload.invited_dates = null;
-                updatePayload.invited_at = null;
-            }
-
-            if (newStatus === 'completed') {
-                const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
-                const siblingRequestedIds: string[] = [];
-
-                selectedEnrollments.forEach(curr => {
-                    enrollments.filter(e =>
-                        e.student_id === curr.student_id &&
-                        e.course_id === curr.course_id &&
-                        !selectedIds.has(e.id) &&
-                        e.status === 'requested'
-                    ).forEach(r => siblingRequestedIds.push(r.id));
-                });
-
-                const updatePromises = selectedEnrollments.map(curr => {
-                    const completedAt = new Date().toISOString();
-                    const confirmedAt = curr.confirmed_at || completedAt;
-                    return supabase.from('enrollments').update({
-                        status: 'completed',
-                        completed_date: curr.confirmed_date || todayISO(),
-                        completed_at: completedAt,
-                        confirmed_at: confirmedAt
-                    }).eq('id', curr.id);
-                });
-                const results = await Promise.all(updatePromises);
-                const error = results.find(r => r.error)?.error;
-
-                if (error) throw new Error('Error updating status');
-
-                if (siblingRequestedIds.length > 0) {
-                    await supabase.from('enrollments').delete().in('id', siblingRequestedIds);
-                }
-
-                return { idsToUpdate, updatePayload, type: 'completed' as const, siblingRequestedIds, selectedEnrollments, previousSnapshots };
-            }
-
-            if (newStatus === 'withdrawn') {
-                const selectedEnrollments = enrollments.filter(e => selectedIds.has(e.id));
-                const extraIds: string[] = [];
-                selectedEnrollments.forEach(curr => {
-                    enrollments.filter(e =>
-                        e.student_id === curr.student_id &&
-                        e.course_id === curr.course_id &&
-                        !selectedIds.has(e.id)
-                    ).forEach(r => extraIds.push(r.id));
-                });
-                idsToUpdate = [...idsToUpdate, ...extraIds];
-            }
-
-            const { error } = await supabase.from('enrollments').update(updatePayload).in('id', idsToUpdate);
-            if (error) throw new Error('Error updating status');
-            return { idsToUpdate, updatePayload, type: 'standard' as const, previousSnapshots };
+            return { newStatus, fieldsById, snapshots, removed: removeFailed ? [] : remove, removeFailed };
         },
-        onSuccess: (result) => {
-            const rollback = async () => {
-                try {
-                    const updatePromises = result.previousSnapshots.map(snap =>
-                        supabase.from('enrollments').update({
-                            status: snap.status,
-                            confirmed_date: snap.confirmed_date,
-                            confirmed_at: snap.confirmed_at,
-                            completed_date: snap.completed_date,
-                            completed_at: snap.completed_at,
-                            invited_date: snap.invited_date,
-                            invited_dates: snap.invited_dates,
-                            invited_at: snap.invited_at,
-                        }).eq('id', snap.id)
-                    );
-                    await Promise.all(updatePromises);
+        onSuccess: ({ newStatus, fieldsById, snapshots, removed, removeFailed }) => {
+            const removedIds = new Set(removed.map(e => e.id));
+            setEnrollments(prev => prev
+                .filter(e => !removedIds.has(e.id))
+                .map(e => fieldsById.has(e.id) ? { ...e, ...fieldsById.get(e.id)! } : e)
+            );
+            setSelectedIds(new Set());
 
-                    setEnrollments(prev => prev.map(e => {
-                        const match = result.previousSnapshots.find(s => s.id === e.id);
-                        return match ? ({ ...e, ...match } as EnrollmentRow) : e;
-                    }));
-                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            const undo = async () => {
+                try {
+                    await restoreEnrollments(snapshots, removed);
+                    const byId = new Map(snapshots.map(snap => [snap.id, snap]));
+                    setEnrollments(prev => [
+                        ...removed.filter(r => !prev.some(e => e.id === r.id)),
+                        ...prev.map(e => byId.has(e.id) ? { ...e, ...byId.get(e.id)! } : e),
+                    ]);
                     showToast('Bulk status changes undone', 'info');
-                } catch {
+                } catch (err) {
+                    console.error('Undo failed:', err);
                     showToast('Failed to undo status changes', 'error');
+                } finally {
+                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
                 }
             };
 
-            if (result.type === 'completed') {
-                setEnrollments(prev => prev
-                    .filter(e => !result.siblingRequestedIds.includes(e.id))
-                    .map(e => {
-                        if (result.idsToUpdate.includes(e.id)) {
-                            const match = result.selectedEnrollments.find(se => se.id === e.id);
-                            const completedAt = new Date().toISOString();
-                            const confirmedAt = match?.confirmed_at || completedAt;
-                            return {
-                                ...e,
-                                status: 'completed',
-                                completed_date: match?.confirmed_date || todayISO(),
-                                completed_at: completedAt,
-                                confirmed_at: confirmedAt
-                            } as EnrollmentRow;
-                        }
-                        return e;
-                    })
-                );
-                setSelectedIds(new Set());
-                const msg = `${result.idsToUpdate.length} enrollment(s) → completed`;
-                const extra = result.siblingRequestedIds.length > 0 ? `, removed ${result.siblingRequestedIds.length} requested variant(s)` : '';
-                showToast(msg + extra, 'success', {
-                    action: {
-                        label: 'Undo',
-                        onClick: () => { void rollback(); },
-                    },
-                    duration: 7000,
-                });
-            } else {
-                setEnrollments(prev => prev.map(e =>
-                    result.idsToUpdate.includes(e.id)
-                        ? { ...e, ...result.updatePayload } as EnrollmentRow
-                        : e
-                ));
-                setSelectedIds(new Set());
-                showToast(
-                    `${result.idsToUpdate.length} enrollment(s) → ${result.updatePayload.status}`,
-                    'success',
-                    {
-                        action: {
-                            label: 'Undo',
-                            onClick: () => { void rollback(); },
-                        },
-                        duration: 7000,
-                    }
-                );
+            if (removeFailed) {
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                showToast(`${fieldsById.size} enrollment(s) → ${newStatus}, but the requested duplicates could not be removed`, 'error');
+                return;
             }
+            const extra = removed.length > 0 ? `, removed ${removed.length} requested variant(s)` : '';
+            showToast(`${fieldsById.size} enrollment(s) → ${newStatus}${extra}`, 'success', {
+                action: { label: 'Undo', onClick: () => { void undo(); } },
+                duration: 7000,
+            });
         },
-        onError: () => showToast('Error updating status', 'error')
+        onError: (err) => {
+            console.error('Bulk status update failed:', err);
+            // Some rows may have been written before the failure: show what the database has
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            showToast('Error updating status', 'error');
+        }
     });
 
     const bulkUpdateStatus = useCallback(async (newStatus: EnrollmentStatus, confirmedDate?: string) => {
@@ -265,8 +164,8 @@ export function useBulkActions({
             return;
         }
 
-        bulkUpdateMutation.mutate({ newStatus, confirmedDate });
-    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, bulkUpdateMutation]);
+        mutateBulkStatus({ newStatus, confirmedDate });
+    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus]);
 
     const bulkDeleteMutation = useMutation({
         mutationFn: async () => {
