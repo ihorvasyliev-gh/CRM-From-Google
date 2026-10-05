@@ -35,7 +35,7 @@ export function useStudentFlags(showToast: (msg: string, type: 'success' | 'erro
     // Realtime changes refresh ['student_flags'] through useGlobalRealtimeSync
 
     // Add flag mutation
-    const addFlagMutation = useMutation({
+    const { mutate: mutateAddFlag } = useMutation({
         mutationFn: async ({ studentId, courseId, comment }: { studentId: string; courseId: string; comment: string }) => {
             const { data, error } = await supabase
                 .from('student_flags')
@@ -55,7 +55,7 @@ export function useStudentFlags(showToast: (msg: string, type: 'success' | 'erro
     });
 
     // Remove flag mutation
-    const removeFlagMutation = useMutation({
+    const { mutate: mutateRemoveFlag } = useMutation({
         mutationFn: async (flagId: string) => {
             const { error } = await supabase.from('student_flags').delete().eq('id', flagId);
             if (error) throw error;
@@ -79,12 +79,12 @@ export function useStudentFlags(showToast: (msg: string, type: 'success' | 'erro
     });
 
     const addFlag = useCallback((studentId: string, courseId: string, comment: string) => {
-        addFlagMutation.mutate({ studentId, courseId, comment });
-    }, [addFlagMutation]);
+        mutateAddFlag({ studentId, courseId, comment });
+    }, [mutateAddFlag]);
 
     const removeFlag = useCallback((flagId: string) => {
-        removeFlagMutation.mutate(flagId);
-    }, [removeFlagMutation]);
+        mutateRemoveFlag(flagId);
+    }, [mutateRemoveFlag]);
 
     return {
         flags,

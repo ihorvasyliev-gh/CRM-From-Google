@@ -129,7 +129,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     }, [openInviteModal, openConfirmModal, mutateStatus]);
 
     // ─── Toggle Priority Mutation ────────────────────────────────
-    const togglePriorityMutation = useMutation({
+    const { mutate: mutatePriority } = useMutation({
         mutationFn: async ({ id, currentPriority }: { id: string, currentPriority: boolean }) => {
             const newPriority = !currentPriority;
             const { error } = await supabase.from('enrollments').update({ is_priority: newPriority }).eq('id', id);
@@ -148,12 +148,12 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    const togglePriority = useCallback(async (id: string, currentPriority: boolean) => {
-        togglePriorityMutation.mutate({ id, currentPriority });
-    }, [togglePriorityMutation]);
+    const togglePriority = useCallback((id: string, currentPriority: boolean) => {
+        mutatePriority({ id, currentPriority });
+    }, [mutatePriority]);
 
     // ─── Update Note Mutation ────────────────────────────────────
-    const updateNoteMutation = useMutation({
+    const { mutateAsync: saveNote } = useMutation({
         mutationFn: async ({ id, noteText }: { id: string, noteText: string }) => {
             const { error } = await supabase.from('enrollments').update({ notes: noteText }).eq('id', id);
             if (error) throw error;
@@ -172,13 +172,18 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    const updateNote = useCallback(async (id: string, noteText: string) => {
-        updateNoteMutation.mutate({ id, noteText });
-        return true;
-    }, [updateNoteMutation]);
+    /** Resolves to whether the note was saved (a failure is already reported by a toast). */
+    const updateNote = useCallback(async (id: string, noteText: string): Promise<boolean> => {
+        try {
+            await saveNote({ id, noteText });
+            return true;
+        } catch {
+            return false;
+        }
+    }, [saveNote]);
 
     // ─── Delete Enrollment Mutation ──────────────────────────────
-    const deleteEnrollmentMutation = useMutation({
+    const { mutateAsync: removeEnrollment } = useMutation({
         mutationFn: async (id: string) => {
             const { error } = await supabase.from('enrollments').delete().eq('id', id);
             if (error) throw error;
@@ -197,15 +202,20 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    const deleteEnrollment = useCallback(async (id: string) => {
-        deleteEnrollmentMutation.mutate(id);
-        return true;
-    }, [deleteEnrollmentMutation]);
+    /** Resolves to whether the enrollment was deleted (a failure is already reported by a toast). */
+    const deleteEnrollment = useCallback(async (id: string): Promise<boolean> => {
+        try {
+            await removeEnrollment(id);
+            return true;
+        } catch {
+            return false;
+        }
+    }, [removeEnrollment]);
 
     // ─── Restore Snapshot (Undo) ─────────────────────────────────
     // Writes back the exact previous status + date fields, instead of re-running the status
     // flow (which would reopen the invite/confirm date pickers and lose the original dates).
-    const restoreMutation = useMutation({
+    const { mutate: mutateRestore } = useMutation({
         mutationFn: async (snapshots: EnrollmentSnapshot[]) => {
             await restoreEnrollments(snapshots);
             return snapshots;
@@ -231,8 +241,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     });
 
     const restoreSnapshots = useCallback((snapshots: EnrollmentSnapshot[]) => {
-        if (snapshots.length > 0) restoreMutation.mutate(snapshots);
-    }, [restoreMutation]);
+        if (snapshots.length > 0) mutateRestore(snapshots);
+    }, [mutateRestore]);
 
     return {
         enrollments,

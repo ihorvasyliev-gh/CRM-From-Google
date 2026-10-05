@@ -442,8 +442,8 @@ export default function EnrollmentBoard({
 
     async function handleSaveNote() {
         if (!editNoteTarget) return;
-        await enrollmentsHook.updateNote(editNoteTarget.id, editNoteText.trim());
-        setEditNoteTarget(null);
+        // Keep the editor (and the typed text) open if the save fails
+        if (await enrollmentsHook.updateNote(editNoteTarget.id, editNoteText.trim())) setEditNoteTarget(null);
     }
 
     const hasActiveFilters = selectedCourse !== 'all' || selectedVariant !== 'all' || selectedCourseDate !== 'all' ||
@@ -463,12 +463,12 @@ export default function EnrollmentBoard({
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
-        const ok = await enrollmentsHook.deleteEnrollment(deleteTarget.id);
-        if (ok) {
-            // Drop it from the selection if it was selected (toggleSelect would *add* unselected ids)
-            bulkActions.deselect(deleteTarget.id);
-        }
+        const { id } = deleteTarget;
         setDeleteTarget(null);
+        if (await enrollmentsHook.deleteEnrollment(id)) {
+            // Drop it from the selection if it was selected (toggleSelect would *add* unselected ids)
+            bulkActions.deselect(id);
+        }
     }
 
     // Escape / focus handling for the board's inline modals

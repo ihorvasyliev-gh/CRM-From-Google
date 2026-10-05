@@ -160,7 +160,7 @@ export function useBulkActions({
         mutateBulkStatus({ newStatus, confirmedDate });
     }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus]);
 
-    const bulkDeleteMutation = useMutation({
+    const { mutate: mutateBulkDelete } = useMutation({
         mutationFn: async () => {
             const ids = Array.from(selectedIds);
             const { error } = await supabase.from('enrollments').delete().in('id', ids);
@@ -190,8 +190,8 @@ export function useBulkActions({
 
     const handleBulkDelete = useCallback(async () => {
         if (selectedIds.size === 0) return;
-        bulkDeleteMutation.mutate();
-    }, [selectedIds, bulkDeleteMutation]);
+        mutateBulkDelete();
+    }, [selectedIds, mutateBulkDelete]);
 
     const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
         let skipped: number;
