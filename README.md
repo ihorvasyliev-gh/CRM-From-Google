@@ -239,7 +239,7 @@ CRM-From-Google/
 ├── google-apps-script/
 │   ├── Code.gs                 registration form ⇄ Supabase ⇄ CRM Mirror
 │   └── EmploymentFormSync.gs   employment survey → Supabase (own project)
-└── backups/                    backup scripts & guide (dumps are git-ignored)
+└── backups/                    backup scripts & guide (nightly backup to Cloudflare R2: .github/workflows/supabase-backup.yml)
 ```
 
 ---
