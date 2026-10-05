@@ -8,8 +8,8 @@ import { setupSleepAndWakeListener } from '../lib/realtimeSync';
 /**
  * Global Supabase realtime subscription hook.
  *
- * Subscribes to postgres_changes on the enrollments, students, courses,
- * and employment_status tables and invalidates the relevant React Query caches
+ * Subscribes to postgres_changes on the enrollments, students, courses, employment_status,
+ * outreach and student_flags tables and invalidates the relevant React Query caches
  * so that every page stays in sync without needing a manual refresh.
  *
  * Includes automatic wake-from-sleep detection, channel error recovery,
@@ -72,8 +72,7 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'enrollments' },
-                (payload) => {
-                    console.log('Realtime update: enrollments changed', payload);
+                () => {
                     queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', ...VIEWER_ENROLLMENT_KEYS]);
                 }
             )
@@ -81,8 +80,7 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'students' },
-                (payload) => {
-                    console.log('Realtime update: students changed', payload);
+                () => {
                     queueInvalidation(['students', 'dashboard_stats', 'viewer_students_directory', 'viewer_course_roster', 'restricted_student_detail']);
                 }
             )
@@ -90,8 +88,7 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'courses' },
-                (payload) => {
-                    console.log('Realtime update: courses changed', payload);
+                () => {
                     queueInvalidation(['courses', 'doc_courses', 'dashboard_stats', 'viewer_courses', 'viewer_upcoming_courses']);
                 }
             )
@@ -99,8 +96,7 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'employment_status' },
-                (payload) => {
-                    console.log('Realtime update: employment_status changed', payload);
+                () => {
                     queueInvalidation(['outcomes_graduates', 'analytics_employment_statuses_v1']);
                 }
             )
@@ -108,17 +104,23 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'outreach_contacts' },
-                (payload) => {
-                    console.log('Realtime update: outreach_contacts changed', payload);
+                () => {
                     queueInvalidation(['outreach_contacts']);
                 }
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'outreach_lists' },
-                (payload) => {
-                    console.log('Realtime update: outreach_lists changed', payload);
+                () => {
                     queueInvalidation(['outreach_lists']);
+                }
+            )
+            // ─── Student flags (board cards, student drawer) ─
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'student_flags' },
+                () => {
+                    queueInvalidation(['student_flags']);
                 }
             )
             .subscribe((status, err) => {
@@ -126,7 +128,6 @@ export function useGlobalRealtimeSync() {
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.
                 if (activeChannelRef.current !== channel) return;
                 if (status === 'SUBSCRIBED') {
-                    console.log('global_sync channel subscribed successfully');
                     if (retryTimeoutRef.current) {
                         clearTimeout(retryTimeoutRef.current);
                         retryTimeoutRef.current = null;

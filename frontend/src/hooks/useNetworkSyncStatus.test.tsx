@@ -125,4 +125,35 @@ describe('useNetworkSyncStatus', () => {
         expect(supabase.channel).toHaveBeenCalledWith('system_health');
         expect(result.current.status).toBe('online');
     });
+
+    it('starts one reconnect when two arrive in the same tick', async () => {
+        const { result } = renderHook(() => useNetworkSyncStatus());
+        const connects = (supabase.auth.getSession as any).mock.calls.length;
+
+        await act(async () => {
+            await Promise.all([result.current.reconnect(), result.current.reconnect()]);
+        });
+
+        expect((supabase.auth.getSession as any).mock.calls.length - connects).toBe(1);
+    });
+
+    it('keeps its window listeners while a reconnect is in progress', async () => {
+        const add = vi.spyOn(window, 'addEventListener');
+        const { result } = renderHook(() => useNetworkSyncStatus());
+        const attached = add.mock.calls.length;
+
+        // Hold the reconnect open so the "reconnecting" render happens before it finishes
+        let release!: () => void;
+        (supabase.auth.getSession as any).mockImplementationOnce(() => new Promise(resolve => {
+            release = () => resolve({ data: { session: null } });
+        }));
+        await act(async () => { void result.current.reconnect(); });
+        expect(result.current.isReconnecting).toBe(true);
+        expect(add.mock.calls.length).toBe(attached);
+
+        await act(async () => { release(); });
+        expect(add.mock.calls.length).toBe(attached);
+        add.mockRestore();
+    });
 });
+

@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export interface SleepWakeOptions {
@@ -139,4 +140,50 @@ export async function reconnectSupabaseRealtime(): Promise<void> {
     } catch (err) {
         console.error('[realtimeSync] reconnectSupabaseRealtime error:', err);
     }
+}
+
+/**
+ * Subscribes a channel and keeps it subscribed: after an error, a timeout or an unexpected close
+ * it is rebuilt `retryMs` later, and again whenever the app reconnects (crm:realtime-reconnect,
+ * sent after a sleep or a network drop). `build` creates the channel with its listeners, not yet
+ * subscribed. Returns the cleanup that removes it for good.
+ */
+export function subscribeWithRetry(build: () => RealtimeChannel, label: string, retryMs = 5000): () => void {
+    let channel: RealtimeChannel | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    const removeCurrent = () => {
+        const old = channel;
+        channel = null; // before removing: its "CLOSED" callback must not schedule a retry
+        if (old) supabase.removeChannel(old);
+    };
+
+    const start = () => {
+        if (stopped) return;
+        if (retryTimer) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
+        }
+        removeCurrent();
+        const current = build();
+        channel = current;
+        current.subscribe((status, err) => {
+            if (stopped || channel !== current) return; // a late callback from a replaced channel
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                console.warn(`[${label}] channel ${status}`, err ?? '');
+                if (!retryTimer) retryTimer = setTimeout(() => { retryTimer = null; start(); }, retryMs);
+            }
+        });
+    };
+
+    window.addEventListener('crm:realtime-reconnect', start);
+    start();
+
+    return () => {
+        stopped = true;
+        window.removeEventListener('crm:realtime-reconnect', start);
+        if (retryTimer) clearTimeout(retryTimer);
+        removeCurrent();
+    };
 }

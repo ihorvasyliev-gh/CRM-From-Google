@@ -28,10 +28,17 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
     const isMountedRef = useRef<boolean>(true);
     const reconnectRef = useRef<() => Promise<void>>(() => Promise.resolve());
     const realtimeConnectedRef = useRef<boolean>(true);
+    // Read synchronously by handlers and channel callbacks (state only updates on the next render)
+    const reconnectingRef = useRef<boolean>(false);
+    const isOnlineRef = useRef<boolean>(isOnline);
 
     useEffect(() => {
         realtimeConnectedRef.current = realtimeConnected;
     }, [realtimeConnected]);
+
+    useEffect(() => {
+        isOnlineRef.current = isOnline;
+    }, [isOnline]);
 
     // Clean up channel safely
     const cleanupChannel = useCallback(() => {
@@ -48,7 +55,7 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
 
     // Core subscription function
     const subscribeHealthChannel = useCallback(() => {
-        if (!user || !isOnline || !isMountedRef.current) {
+        if (!user || !isOnlineRef.current || !isMountedRef.current) {
             setRealtimeConnected(false);
             return;
         }
@@ -79,12 +86,12 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
                         }
 
                         // Schedule automated reconnect with exponential backoff if online
-                        if (isOnline && isMountedRef.current && !retryTimeoutRef.current) {
+                        if (isOnlineRef.current && isMountedRef.current && !retryTimeoutRef.current) {
                             const delayMs = Math.min(3000 * Math.pow(1.5, retryAttemptRef.current), 30000);
                             retryAttemptRef.current += 1;
                             retryTimeoutRef.current = setTimeout(() => {
                                 retryTimeoutRef.current = null;
-                                if (isMountedRef.current && isOnline) {
+                                if (isMountedRef.current && isOnlineRef.current) {
                                     reconnectRef.current?.();
                                 }
                             }, delayMs);
@@ -97,11 +104,13 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
                 setRealtimeConnected(false);
             }
         }
-    }, [user, isOnline, cleanupChannel]);
+    }, [user, cleanupChannel]);
 
-    // Manual or programmatic reconnect action
+    // Manual or programmatic reconnect action. Guarded by a ref, so two calls in the same tick
+    // (online + focus events, a double click) start one reconnect, not two.
     const reconnect = useCallback(async () => {
-        if (isReconnecting) return;
+        if (reconnectingRef.current) return;
+        reconnectingRef.current = true;
         setIsReconnecting(true);
         if (retryTimeoutRef.current) {
             clearTimeout(retryTimeoutRef.current);
@@ -112,27 +121,31 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
             await reconnectSupabaseRealtime();
             subscribeHealthChannel();
         } finally {
+            reconnectingRef.current = false;
             if (isMountedRef.current) {
                 setIsReconnecting(false);
             }
         }
-    }, [isReconnecting, subscribeHealthChannel]);
+    }, [subscribeHealthChannel]);
 
     useEffect(() => {
         reconnectRef.current = reconnect;
     }, [reconnect]);
 
-    // 1. Browser online/offline event listeners
+    // 1. Browser online/offline event listeners. Attached once: they call the latest reconnect
+    // through its ref, so reconnecting doesn't re-attach them (or reset the sleep detector below).
     useEffect(() => {
         isMountedRef.current = true;
 
         const handleOnline = () => {
+            isOnlineRef.current = true;
             setIsOnline(true);
             // Immediately attempt re-sync when network returns
-            reconnect();
+            reconnectRef.current();
         };
 
         const handleOffline = () => {
+            isOnlineRef.current = false;
             setIsOnline(false);
             setRealtimeConnected(false);
         };
@@ -145,7 +158,7 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [reconnect]);
+    }, []);
 
     // 2. Sleep / Wake & Visibility resume listener
     useEffect(() => {
@@ -153,8 +166,8 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
             (reason) => {
                 // A healthy connection doesn't need to be torn down on every focus / tab switch
                 if ((reason === 'focus' || reason === 'visibility') && realtimeConnectedRef.current) return;
-                console.log(`[useNetworkSyncStatus] Resuming from ${reason}. Re-establishing connection...`);
-                reconnect();
+                console.info(`[useNetworkSyncStatus] Resuming from ${reason}. Re-establishing connection...`);
+                reconnectRef.current();
             },
             { sleepThresholdMs: 8000, checkIntervalMs: 2500 }
         );
@@ -162,7 +175,7 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
         return () => {
             cleanupWakeListener();
         };
-    }, [reconnect]);
+    }, []);
 
     // 3. Initial subscription and dependency management
     useEffect(() => {

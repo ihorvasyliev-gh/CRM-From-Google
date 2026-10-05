@@ -1,8 +1,26 @@
 import { useEffect, useRef } from 'react';
+import type { RealtimePostgresUpdatePayload } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { showNotification, isNotificationSupported } from '../lib/notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserRole } from '../lib/roles';
+import { subscribeWithRetry } from '../lib/realtimeSync';
+
+/** A confirmation is new if it was stamped in the update itself (confirmation flows set confirmed_at = now()). */
+const NEW_CONFIRMATION_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * Whether an UPDATE of a confirmed enrollment is the confirmation itself rather than a later edit
+ * (notes, priority, reminder…). Realtime sends only the primary key as the old row (the table has
+ * no REPLICA IDENTITY FULL), so the old status can't be compared; both timestamps here come from
+ * the database, so the browser's clock doesn't matter.
+ */
+export function isNewConfirmation(payload: Pick<RealtimePostgresUpdatePayload<{ confirmed_at: string | null }>, 'commit_timestamp' | 'new'>): boolean {
+    const confirmedAt = Date.parse(payload.new.confirmed_at ?? '');
+    const committedAt = Date.parse(payload.commit_timestamp);
+    if (Number.isNaN(confirmedAt) || Number.isNaN(committedAt)) return false;
+    return Math.abs(committedAt - confirmedAt) <= NEW_CONFIRMATION_WINDOW_MS;
+}
 
 /**
  * Listens for enrollment confirmations via Supabase Realtime
@@ -22,9 +40,9 @@ export function useConfirmationNotifier() {
         if (getUserRole(user) === 'outreach') return;
         if (!isNotificationSupported()) return;
 
-        const channel = supabase
+        return subscribeWithRetry(() => supabase
             .channel('confirmation_notifier')
-            .on(
+            .on<{ id: string; confirmed_at: string | null }>(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
@@ -33,10 +51,8 @@ export function useConfirmationNotifier() {
                     filter: 'status=eq.confirmed',
                 },
                 async (payload) => {
-                    const id = payload.new.id as string;
-
-                    // Only fire when status actually changed to confirmed
-                    if (payload.old.status === 'confirmed') return;
+                    const id = payload.new.id;
+                    if (!isNewConfirmation(payload)) return;
                     // De-duplicate
                     if (notifiedIds.current.has(id)) return;
                     notifiedIds.current.add(id);
@@ -72,19 +88,6 @@ export function useConfirmationNotifier() {
                         if (oldestId) notifiedIds.current.delete(oldestId);
                     }
                 }
-            )
-            .subscribe((status, err) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('confirmation_notifier channel subscribed successfully');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('confirmation_notifier channel error:', err);
-                } else if ((status as string) === 'REJECTED') {
-                    console.warn('confirmation_notifier channel subscription rejected:', err);
-                }
-            });
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+            ), 'confirmation_notifier');
     }, [user]);
 }
