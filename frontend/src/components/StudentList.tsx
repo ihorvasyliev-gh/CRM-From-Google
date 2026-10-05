@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient, keepPreviousData, type InfiniteData } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
@@ -18,6 +17,7 @@ import { tableCls, theadCls, thCls, tbodyCls, tdCls } from './ui/styles';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
 import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
 import { fetchStudentsPage, type StudentsPage } from '../lib/queries';
+import { createStudent, deleteStudent, updateStudent } from '../lib/students';
 import type { NavigateFn } from '../lib/navigation';
 
 function SkeletonRow() {
@@ -125,13 +125,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     async function handleSaveStudent(formData: StudentPayload) {
         if (formData.id) {
             const { id, ...rest } = formData;
-            const { data: updated, error } = await supabase.from('students').update(rest).eq('id', id).select().maybeSingle();
-            if (error) {
-                if (error.message.includes('duplicate') || error.message.includes('unique')) {
-                    throw new Error('A student with this name and email already exists');
-                }
-                throw new Error(error.message);
-            }
+            const updated = await updateStudent(id, rest);
             const merged = (updated || { ...detailStudent, ...formData }) as Student;
             updateStudentInCache(merged);
             if (detailStudent?.id === id) {
@@ -139,32 +133,29 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             }
             notify({ message: 'Student updated', type: 'success' });
         } else {
-            const { error, data: inserted } = await supabase.from('students').insert(formData).select();
-            if (error) {
-                if (error.message.includes('duplicate') || error.message.includes('unique')) {
-                    throw new Error('A student with this email already exists');
-                }
-                throw new Error(error.message);
-            }
-            if (inserted) addStudentToCache();
+            await createStudent(formData);
+            addStudentToCache();
             notify({ message: 'Student added', type: 'success' });
         }
     }
 
     async function handleDeleteStudent() {
         if (!deleteTarget) return;
-        const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
-        if (error) {
-            notify({ message: 'Failed to delete student', type: 'error' });
-        } else {
-            removeStudentFromCache(deleteTarget.id);
-            // Enrollments are cascade-deleted together with the student
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            if (detailStudent?.id === deleteTarget.id) setDetailStudent(null);
-            notify({ message: 'Student deleted', type: 'success' });
-        }
+        const target = deleteTarget;
         setDeleteTarget(null);
+        try {
+            await deleteStudent(target.id);
+        } catch (err) {
+            console.error('Failed to delete student:', err);
+            notify({ message: 'Failed to delete student', type: 'error' });
+            return;
+        }
+        removeStudentFromCache(target.id);
+        // Enrollments are cascade-deleted together with the student
+        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+        if (detailStudent?.id === target.id) setDetailStudent(null);
+        notify({ message: 'Student deleted', type: 'success' });
     }
 
     function openEdit(student: Student) {

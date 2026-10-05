@@ -7,8 +7,8 @@ import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
-import { supabase } from './lib/supabase';
 import { fullName, Student, StudentPayload } from './lib/types';
+import { createStudent, fetchStudent } from './lib/students';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import StudentModal from './components/StudentModal';
@@ -140,9 +140,7 @@ function App() {
 
     const handleOpenStudentDetail = useCallback(async (studentId: string) => {
         try {
-            const { data, error } = await supabase.from('students').select('*').eq('id', studentId).single();
-            if (error || !data) throw error || new Error('Student not found');
-            setGlobalStudentDetail(data);
+            setGlobalStudentDetail(await fetchStudent(studentId));
         } catch (e) {
             console.error('Failed to load student details', e);
             toast.error('Could not open student details');
@@ -161,17 +159,10 @@ function App() {
     });
 
     const handleSaveNewStudent = async (formData: StudentPayload) => {
-        const { id: _id, ...rest } = formData;
-        const { error } = await supabase.from('students').insert([rest]);
-        if (error) {
-            if (error.message.includes('duplicate') || error.message.includes('unique')) {
-                throw new Error('A student with this name and email already exists');
-            }
-            throw new Error(error.message);
-        }
+        await createStudent(formData);
         queryClient.invalidateQueries({ queryKey: ['students'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-        toast.success(`${fullName(rest)} added`);
+        toast.success(`${fullName(formData)} added`);
         setGlobalAddStudentOpen(false);
     };
 
