@@ -42,10 +42,16 @@ if ($DbUrl -match ":6543/") {
 }
 
 # 3. Проверяем наличие установленных Node.js зависимостей
-$NodeModulesPath = Join-Path $PSScriptRoot "..\node_modules\pg"
+# (ставим в корень репозитория, где их найдёт dump_data.cjs, из какой бы папки ни запустили скрипт)
+$RepoRoot = Join-Path $PSScriptRoot ".."
+$NodeModulesPath = Join-Path $RepoRoot "node_modules\pg"
 if (-not (Test-Path $NodeModulesPath)) {
     Write-Host "Установка необходимых драйверов (pg)..." -ForegroundColor Gray
-    npm.cmd install pg --no-save
+    npm.cmd install pg --no-save --prefix $RepoRoot
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Ошибка: не удалось установить pg." -ForegroundColor Red
+        exit 1
+    }
 }
 
 # 4. Запуск резервного копирования через Node.js
