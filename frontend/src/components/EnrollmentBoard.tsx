@@ -43,10 +43,13 @@ export default function EnrollmentBoard({
     initialCourseFilter,
     initialCourseDate,
     initialInviteFilter,
+    initialStatus,
 }: {
     initialCourseFilter?: string;
     initialCourseDate?: string;
     initialInviteFilter?: InviteFilter;
+    /** Status to bring into view (dashboard status links) */
+    initialStatus?: EnrollmentStatus;
 }) {
     const [toast, setToast] = useState<ToastData | null>(null);
     const showToast = useCallback(
@@ -664,6 +667,18 @@ export default function EnrollmentBoard({
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }, []);
 
+    // Dashboard status links: show that status — its column, or the opened "Withdrawn & Rejected" section
+    const secondaryRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        if (!initialStatus) return;
+        if ((SECONDARY_STATUSES as readonly EnrollmentStatus[]).includes(initialStatus)) {
+            setShowSecondary(true);
+            const frame = requestAnimationFrame(() => secondaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            return () => cancelAnimationFrame(frame);
+        }
+        handleStatusBadgeClick(initialStatus);
+    }, [initialStatus, handleStatusBadgeClick, setShowSecondary]);
+
     // Total pipeline count for progress bars — п.1
     const totalPipelineCount = useMemo(() => {
         return PIPELINE_STATUSES.reduce((sum, s) => sum + (byStatus[s]?.length || 0), 0);
@@ -831,7 +846,7 @@ export default function EnrollmentBoard({
 
             {/* Secondary Statuses */}
             {secondaryCount > 0 && (
-                <div>
+                <div ref={secondaryRef}>
                     <button
                         onClick={() => setShowSecondary(!showSecondary)}
                         className="flex items-center gap-2 text-sm font-medium text-muted hover:text-primary transition-all mb-3"

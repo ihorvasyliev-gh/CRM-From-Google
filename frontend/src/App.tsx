@@ -776,7 +776,7 @@ function App() {
                                         />
                                         <Route path="/students" element={<StudentList onNavigate={navigate} />} />
                                         <Route path="/courses" element={<CourseList />} />
-                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} />} />
+                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} initialStatus={navState?.status} />} />
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />
