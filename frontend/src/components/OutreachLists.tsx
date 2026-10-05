@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Briefcase, Mail, Copy, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
 import StatTile from './ui/StatTile';
-import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
+import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';

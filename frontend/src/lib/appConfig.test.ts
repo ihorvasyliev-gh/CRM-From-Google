@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, DEFAULT_CONFIG, UNSUBSCRIBE_FOOTER_TEXT, hasUnsubscribeText, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './appConfig';
+import { getConfig, setConfig, resetConfig, DEFAULT_CONFIG } from './appConfig';
+import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, UNSUBSCRIBE_FOOTER_TEXT, hasUnsubscribeText, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './emailTemplates';
 
 describe('appConfig', () => {
     beforeEach(() => {
@@ -25,6 +26,25 @@ describe('appConfig', () => {
             expect(config.htmlEmailTemplate).toBe(DEFAULT_CONFIG.htmlEmailTemplate);
             expect(config.htmlEmailTemplate).toContain('{courseDetails}');
             expect(config.htmlEmailTemplate).toContain('{confirmationButton}');
+        });
+
+        it('hands every caller its own copy of the migrated config', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({ htmlEmailTemplate: '{englishWarning}', emailSubjectFormat: 'A' }));
+            const first = getConfig();
+            first.emailSubjectFormat = 'changed by a caller';
+            first.emailStyle.fontSize = 99;
+
+            const second = getConfig();
+            expect(second.emailSubjectFormat).toBe('A');
+            expect(second.emailStyle.fontSize).not.toBe(99);
+            expect(second.htmlEmailTemplate).toBe(DEFAULT_CONFIG.htmlEmailTemplate);
+        });
+
+        it('reads a changed stored config instead of the earlier one', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({ emailSubjectFormat: 'A' }));
+            expect(getConfig().emailSubjectFormat).toBe('A');
+            localStorage.setItem('crm_app_config', JSON.stringify({ emailSubjectFormat: 'B' }));
+            expect(getConfig().emailSubjectFormat).toBe('B');
         });
     });
 

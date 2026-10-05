@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { daysBetween, formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
-import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
+import { buildEmailBodyHtml, buildEmailSubject } from '../lib/emailTemplates';
 import { getCoursePill, type CourseEmailInfo } from '../lib/types';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, CalendarClock, SlidersHorizontal, ShieldCheck, MailX, Type } from 'lucide-react';
-import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, hasConfirmationTag, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
+import { getConfig, setConfig, resetConfig, hasConfirmationTag, type AppConfig } from '../lib/appConfig';
+import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type StatusEmailAudience } from '../lib/emailTemplates';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';

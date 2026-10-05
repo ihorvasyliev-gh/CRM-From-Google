@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Briefcase, Mail, Copy, Loader2, Filter, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { Segmented } from './ui/Tabs';
-import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/appConfig';
+import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';

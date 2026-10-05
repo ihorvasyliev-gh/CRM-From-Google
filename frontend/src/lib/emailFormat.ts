@@ -17,6 +17,9 @@ export interface EmailTextStyle {
 }
 
 /** Fonts every mail client has (Outlook, Gmail, Apple Mail) — web fonts would silently fall back. */
+/** Font stack the default templates and the email cards were written with. */
+export const BASE_EMAIL_FONT = "Arial,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+
 export const EMAIL_FONTS: { label: string; value: string }[] = [
     { label: 'Arial', value: "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif" },
     { label: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },

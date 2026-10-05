@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Users, Globe, Languages, Mail, BellRing } from 'lucide-react';
 import { Course, CourseEmailInfo, DocumentTemplate } from '../lib/types';
-import { buildEmailBodyHtml, getConfig, type InviteEmailKind } from '../lib/appConfig';
+import { getConfig, type InviteEmailKind } from '../lib/appConfig';
+import { buildEmailBodyHtml } from '../lib/emailTemplates';
 import { cardTextStyle } from '../lib/emailFormat';
 import EmailEditor from './EmailEditor/EmailEditor';
 import Modal, { FormError } from './ui/Modal';

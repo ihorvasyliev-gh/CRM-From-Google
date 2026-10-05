@@ -5,7 +5,8 @@ import { Editor } from '@tiptap/core';
 import EmailEditor, { type EmailEditorHandle } from './EmailEditor';
 import { createEmailExtensions } from './extensions';
 import { prepareEditorHtml, DEFAULT_EMAIL_STYLE } from '../../lib/emailFormat';
-import { buildEmailBodyHtml, buildStatusEmailBodyHtml, convertRgbToHex, DEFAULT_CONFIG } from '../../lib/appConfig';
+import { DEFAULT_CONFIG } from '../../lib/appConfig';
+import { buildEmailBodyHtml, buildStatusEmailBodyHtml, convertRgbToHex } from '../../lib/emailTemplates';
 
 /** Load stored HTML into the editor and read back what it would save. */
 function roundTrip(html: string): string {
