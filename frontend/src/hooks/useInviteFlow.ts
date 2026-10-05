@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
+import { daysBetween, formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/appConfig';
 import type { CourseEmailInfo } from '../lib/types';
 import { getCoursePill } from './useBulkActions';
@@ -79,6 +79,7 @@ async function copyHtmlAndOpenDraft(
 /**
  * Attendance reminder for confirmed people (one course + date): copies the email and opens
  * a BCC draft. Status stays unchanged. Returns false if nothing was sent.
+ * A course that is tomorrow (any time of day) gets the "day before" text instead.
  */
 export async function sendReminderEmail(
     selected: EnrollmentRow[],
@@ -115,11 +116,14 @@ export async function sendReminderEmail(
     const date = courseDate(first);
     const courseName = getCoursePill(first);
     const courseInfo = await fetchCourseInfo(first.course_id);
-    const htmlBody = buildEmailBodyHtml(courseName, date ? formatDateLongWithWeekday(date) : '', undefined, undefined, undefined, Boolean(first.courses?.requires_english), 'reminder', courseInfo);
+    const kind = date && daysBetween(todayISO(), date) === 1 ? 'reminder_tomorrow' : 'reminder';
+    const htmlBody = buildEmailBodyHtml(courseName, date ? formatDateLongWithWeekday(date) : '', undefined, undefined, undefined, Boolean(first.courses?.requires_english), kind, courseInfo);
 
     const notConfirmed = selected.length - confirmed.length;
-    const note = skippedNote(skipped.length) + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '');
-    await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, date ? formatDateLong(date) : '', undefined, 'reminder'), note, showToast);
+    const note = skippedNote(skipped.length)
+        + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '')
+        + (kind === 'reminder_tomorrow' ? ' · course is tomorrow — day-before text used' : '');
+    await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, date ? formatDateLong(date) : '', undefined, kind), note, showToast);
     return true;
 }
 

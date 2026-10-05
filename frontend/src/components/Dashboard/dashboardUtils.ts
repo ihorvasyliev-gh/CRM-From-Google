@@ -1,5 +1,5 @@
 import { cleanVariant } from '../../lib/types';
-import { todayISO } from '../../lib/dateUtils';
+import { todayISO, daysBetween } from '../../lib/dateUtils';
 import { getInviteDeadline, formatTimeLeft } from '../../lib/inviteDeadline';
 
 export interface ExpiredInviteItem {
@@ -292,12 +292,7 @@ export function buildActivityGroups(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Whole calendar days from `fromKey` to `toKey` (both YYYY-MM-DD). */
-export function daysBetween(fromKey: string, toKey: string): number {
-    const a = Date.UTC(+fromKey.slice(0, 4), +fromKey.slice(5, 7) - 1, +fromKey.slice(8, 10));
-    const b = Date.UTC(+toKey.slice(0, 4), +toKey.slice(5, 7) - 1, +toKey.slice(8, 10));
-    return Math.round((b - a) / DAY_MS);
-}
+export { daysBetween };
 
 /** "Today", "Yesterday", "3d ago", or the fallback label for older days. */
 export function relativeDayLabel(dateKey: string, fallback: string, todayKey: string = localDateKey(new Date())): string {

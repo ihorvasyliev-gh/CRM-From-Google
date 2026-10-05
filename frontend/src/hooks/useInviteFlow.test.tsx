@@ -399,6 +399,48 @@ describe('useInviteFlow multi-date invitations', () => {
         expect(supabaseMocks.update).not.toHaveBeenCalled();
     });
 
+    describe('reminder text depends on how far the course is', () => {
+        // en-3 is confirmed for 26 Aug 2026
+        async function sendReminderOn(now: string) {
+            vi.useFakeTimers({ toFake: ['Date'] });
+            vi.setSystemTime(new Date(now));
+            const write = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+            vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
+            const { result } = renderInviteFlow();
+            await act(async () => {
+                await result.current.handleSendReminder(['en-3']);
+            });
+            vi.useRealTimers();
+            vi.unstubAllGlobals();
+            expect(write).toHaveBeenCalledTimes(1);
+            return (write.mock.calls[0][0][0].items['text/html'] as Blob).text();
+        }
+
+        it.each([
+            ['early morning', '2026-08-25T00:05:00'],
+            ['midday', '2026-08-25T12:00:00'],
+            ['late evening', '2026-08-25T23:55:00'],
+        ])('uses the day-before text when the course is tomorrow (%s)', async (_label, now) => {
+            const html = await sendReminderOn(now);
+            expect(html).toContain('See You Tomorrow!');
+            expect(html).toContain('your course is <strong>tomorrow</strong>');
+            expect(html).toContain('26 Aug 2026');
+            expect(html).not.toContain('See You Soon!');
+        });
+
+        it.each([
+            ['a week before', '2026-08-19T12:00:00'],
+            ['two days before', '2026-08-24T12:00:00'],
+            ['on the day', '2026-08-26T09:00:00'],
+            ['after the course', '2026-08-27T09:00:00'],
+        ])('keeps the usual reminder text %s', async (_label, now) => {
+            const html = await sendReminderOn(now);
+            expect(html).toContain('See You Soon!');
+            expect(html).not.toContain('See You Tomorrow!');
+        });
+    });
+
     it('refuses a reminder for people on different dates', async () => {
         const write = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });

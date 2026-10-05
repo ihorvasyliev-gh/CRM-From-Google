@@ -220,6 +220,44 @@ describe('appConfig', () => {
         expect(html).toContain('Reminder about your SafePass (English) course');
     });
 
+    describe('day-before reminder', () => {
+        it('says the course is tomorrow in the header, text and subject', () => {
+            const html = buildEmailBodyHtml('SafePass (English)', 'Wed, 7 Oct 2026', undefined, undefined, undefined, false, 'reminder_tomorrow');
+            expect(html).toContain('See You Tomorrow!');
+            expect(html).toContain('Your SafePass (English) course is tomorrow');
+            expect(html).toContain('your course is <strong>tomorrow</strong>');
+            expect(html).toContain('Wed, 7 Oct 2026');
+            expect(html).toContain('Your place is reserved');
+            expect(html).not.toContain('See You Soon!');
+            expect(buildEmailSubject('SafePass', '07 Oct 2026', undefined, 'reminder_tomorrow'))
+                .toBe('Reminder: your SafePass course is tomorrow (07 Oct 2026)');
+        });
+
+        it('uses its own saved template and subject, independent of the usual reminder', () => {
+            const config = { ...DEFAULT_CONFIG, reminderTomorrowEmailTemplate: '<p>See you tomorrow!</p>{courseDetails}', reminderTomorrowEmailSubjectFormat: 'Tomorrow: {courseName}' };
+            const tomorrow = buildEmailBodyHtml('Course', 'Wed, 7 Oct 2026', undefined, config, undefined, false, 'reminder_tomorrow');
+            const usual = buildEmailBodyHtml('Course', 'Wed, 7 Oct 2026', undefined, config, undefined, false, 'reminder');
+            expect(tomorrow).toContain('See you tomorrow!');
+            expect(usual).not.toContain('See you tomorrow!');
+            expect(buildEmailSubject('Course', '07 Oct 2026', config, 'reminder_tomorrow')).toBe('Tomorrow: Course');
+            expect(buildEmailSubject('Course', '07 Oct 2026', config, 'reminder')).toBe('Reminder: your Course course on 07 Oct 2026');
+        });
+
+        it('falls back to the default text when the saved template is empty', () => {
+            const config = { ...DEFAULT_CONFIG, reminderTomorrowEmailTemplate: '', reminderTomorrowEmailSubjectFormat: '' };
+            expect(buildEmailBodyHtml('Course', 'Wed, 7 Oct 2026', undefined, config, undefined, false, 'reminder_tomorrow')).toContain('your course is <strong>tomorrow</strong>');
+            expect(buildEmailSubject('Course', '07 Oct 2026', config, 'reminder_tomorrow')).toBe(DEFAULT_CONFIG.reminderTomorrowEmailSubjectFormat.replace('{courseName}', 'Course').replace('{date}', '07 Oct 2026'));
+        });
+
+        it('gives settings saved before it existed the default text', () => {
+            localStorage.setItem('crm_app_config', JSON.stringify({ reminderEmailSubjectFormat: 'Custom: {courseName}' }));
+            const config = getConfig();
+            expect(config.reminderEmailSubjectFormat).toBe('Custom: {courseName}');
+            expect(config.reminderTomorrowEmailTemplate).toBe(DEFAULT_CONFIG.reminderTomorrowEmailTemplate);
+            expect(config.reminderTomorrowEmailSubjectFormat).toBe(DEFAULT_CONFIG.reminderTomorrowEmailSubjectFormat);
+        });
+    });
+
     describe('replaceColorSpansWithFontTags', () => {
         it('replaces color spans with font tags', () => {
             const html = '<span style="color: #e60000;">text</span>';

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, SlidersHorizontal, ShieldCheck, MailX, Type } from 'lucide-react';
+import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, CalendarClock, SlidersHorizontal, ShieldCheck, MailX, Type } from 'lucide-react';
 import { getConfig, setConfig, resetConfig, buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, hasConfirmationTag, type AppConfig, type StatusEmailAudience } from '../lib/appConfig';
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
@@ -20,7 +20,7 @@ import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 /** Placeholders replaced by a whole card or button — inserted on a line of their own. */
 const BLOCK_TAGS = new Set(['{courseDetails}', '{englishWarning}', '{capacityNotice}', '{confirmationButton}', '{attendanceNotice}', '{statusDetails}', '{statusButton}']);
 
-type InviteTab = 'high_english' | 'standard' | 'reminder';
+type InviteTab = 'high_english' | 'standard' | 'reminder' | 'reminder_tomorrow';
 /** Sample of the per-course text (Courses → edit course) so the preview shows the full card */
 const PREVIEW_COURSE_INFO = {
     description: '<p><strong>Overview:</strong> Course description written for this course.</p>',
@@ -30,11 +30,19 @@ const INVITE_BODY_KEY = {
     high_english: 'htmlEmailTemplate',
     standard: 'htmlEmailTemplateStandard',
     reminder: 'reminderEmailTemplate',
+    reminder_tomorrow: 'reminderTomorrowEmailTemplate',
+} as const;
+const INVITE_SUBJECT_KEY = {
+    high_english: 'emailSubjectFormat',
+    standard: 'emailSubjectFormat',
+    reminder: 'reminderEmailSubjectFormat',
+    reminder_tomorrow: 'reminderTomorrowEmailSubjectFormat',
 } as const;
 const inviteTabOptions = [
     { value: 'high_english' as const, label: 'High English', icon: <Languages size={13} /> },
     { value: 'standard' as const, label: 'Standard', icon: <Globe size={13} /> },
     { value: 'reminder' as const, label: 'Reminder', icon: <BellRing size={13} /> },
+    { value: 'reminder_tomorrow' as const, label: 'Day before', icon: <CalendarClock size={13} /> },
 ];
 
 type Density = 'comfortable' | 'compact';
@@ -46,9 +54,10 @@ export default function Settings({ density, onDensityChange }: { density: Densit
 
     const [inviteTemplateTab, setInviteTemplateTab] = useState<InviteTab>('high_english');
     const [previewMultiDate, setPreviewMultiDate] = useState(false);
-    const isReminderTab = inviteTemplateTab === 'reminder';
+    const isTomorrowTab = inviteTemplateTab === 'reminder_tomorrow';
+    const isReminderTab = inviteTemplateTab === 'reminder' || isTomorrowTab;
     const inviteBodyKey = INVITE_BODY_KEY[inviteTemplateTab];
-    const inviteSubjectKey = isReminderTab ? 'reminderEmailSubjectFormat' : 'emailSubjectFormat';
+    const inviteSubjectKey = INVITE_SUBJECT_KEY[inviteTemplateTab];
 
     // Invitations need the confirm button; the reminder goes to people who already confirmed
     const isValidCurrentInviteTemplate = isReminderTab || hasConfirmationTag(config[inviteBodyKey] || '');
@@ -118,10 +127,11 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     const linkStr = 'https://example.com/confirm?course_id=abc123&date=2026-03-15';
     const previewCourseName = inviteTemplateTab === 'high_english' ? 'Security Guarding (PSA)' : 'Introduction to Digital Skills';
     const previewDates = previewMultiDate ? ['Wed, 11 Mar 2026', 'Thu, 12 Mar 2026', 'Fri, 13 Mar 2026'] : '15 Mar 2026';
+    const reminderKind = isTomorrowTab ? 'reminder_tomorrow' : 'reminder';
     const previewBody = isReminderTab
-        ? buildEmailBodyHtml(previewCourseName, 'Sun, 15 Mar 2026', undefined, config, undefined, false, 'reminder', PREVIEW_COURSE_INFO)
+        ? buildEmailBodyHtml(previewCourseName, 'Sun, 15 Mar 2026', undefined, config, undefined, false, reminderKind, PREVIEW_COURSE_INFO)
         : buildEmailBodyHtml(previewCourseName, previewDates, linkStr, config, 7, inviteTemplateTab === 'high_english', 'invite', PREVIEW_COURSE_INFO);
-    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate && !isReminderTab ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config, isReminderTab ? 'reminder' : 'invite');
+    const previewSubject = buildEmailSubject(previewCourseName, previewMultiDate && !isReminderTab ? 'Wed 11, Thu 12 or Fri 13 Mar 2026' : '15 Mar 2026', config, isReminderTab ? reminderKind : 'invite');
 
     // Status template preview
     const statusLinkStr = `${window.location.origin}/status${statusAudience === 'outreach' ? '?list=example' : ''}`;
@@ -487,7 +497,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         id="settings-invitation"
                         className="scroll-mt-20"
                         title="Course invitation & reminder email"
-                        subtitle="Subject and body sent to invited students, and the reminder for those who haven't confirmed"
+                        subtitle="Subject and body sent to invited students, and the reminders for those who have confirmed"
                         icon={Mail}
                         divided
                         action={
@@ -519,18 +529,22 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         <div className={`grid grid-cols-1 ${showPreview ? '2xl:grid-cols-2 items-start' : ''} gap-6`}>
                             <div className="space-y-5 min-w-0">
                                 <div className={`${calloutCls.info} p-3 flex items-start gap-2.5 text-xs`}>
-                                    {isReminderTab
+                                    {isTomorrowTab
+                                        ? <CalendarClock size={15} className="text-status-invited shrink-0 mt-px" />
+                                        : isReminderTab
                                         ? <BellRing size={15} className="text-status-invited shrink-0 mt-px" />
                                         : inviteTemplateTab === 'high_english'
                                         ? <Languages size={15} className="text-status-invited shrink-0 mt-px" />
                                         : <Globe size={15} className="text-status-invited shrink-0 mt-px" />}
                                     <div className="space-y-0.5">
                                         <div className="font-semibold text-primary">
-                                            {isReminderTab ? 'Reminder template' : inviteTemplateTab === 'high_english' ? 'High English required template' : 'Standard course template'}
+                                            {isTomorrowTab ? 'Day-before reminder template' : isReminderTab ? 'Reminder template' : inviteTemplateTab === 'high_english' ? 'High English required template' : 'Standard course template'}
                                         </div>
                                         <div className="text-muted leading-relaxed">
-                                            {isReminderTab
-                                                ? 'Sent from the board to confirmed people (select them → bell button) before the course. {attendanceNotice} asks them to let you know in advance if they can\'t come. The course card takes the course\'s own description and time/address from Courses → edit course.'
+                                            {isTomorrowTab
+                                                ? 'The bell button on the board (and the dashboard reminder) uses this text instead of the Reminder template when the course date is tomorrow — any time of day. Same tags and course card as the Reminder template.'
+                                                : isReminderTab
+                                                ? 'Sent from the board to confirmed people (select them → bell button) before the course. {attendanceNotice} asks them to let you know in advance if they can\'t come. The course card takes the course\'s own description and time/address from Courses → edit course. When the course is tomorrow, the Day before template is used instead.'
                                                 : inviteTemplateTab === 'high_english'
                                                 ? 'Used for courses marked as "High English". Includes English suitability warnings and [I Am Confident in English — Confirm My Place] button.'
                                                 : 'Used for general courses. Does not include language warnings and uses standard [Confirm My Place] button.'}
@@ -557,7 +571,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className={labelCls + ' mb-0!'}>
-                                            {isReminderTab ? 'Email body (Reminder)' : inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
+                                            {isTomorrowTab ? 'Email body (Day before)' : isReminderTab ? 'Email body (Reminder)' : inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
                                         </span>
                                         <span className="text-[11px] text-muted">Click a tag to insert it</span>
                                     </div>
@@ -609,7 +623,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             {showPreview && (
                                 <div className="space-y-3 animate-fadeIn flex flex-col min-w-0 2xl:sticky 2xl:top-6">
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className={eyebrowCls}>Live preview · {isReminderTab ? 'Reminder' : inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'}</span>
+                                        <span className={eyebrowCls}>Live preview · {isTomorrowTab ? 'Day before' : isReminderTab ? 'Reminder' : inviteTemplateTab === 'high_english' ? 'High English' : 'Standard'}</span>
                                         {!isReminderTab && <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
                                             <input
                                                 type="checkbox"

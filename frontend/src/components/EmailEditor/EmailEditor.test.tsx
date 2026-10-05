@@ -35,7 +35,7 @@ const QUILL = '<p>Hello,</p><p>We are <strong>delighted</strong>.</p><p><br></p>
 
 describe('EmailEditor round trip', () => {
     it('saves existing templates so the email looks the same', () => {
-        const invites = [['htmlEmailTemplate', true, 'invite'], ['htmlEmailTemplateStandard', false, 'invite'], ['reminderEmailTemplate', false, 'reminder']] as const;
+        const invites = [['htmlEmailTemplate', true, 'invite'], ['htmlEmailTemplateStandard', false, 'invite'], ['reminderEmailTemplate', false, 'reminder'], ['reminderTomorrowEmailTemplate', false, 'reminder_tomorrow']] as const;
         for (const [key, english, kind] of invites) {
             for (const tpl of [DEFAULT_CONFIG[key], QUILL]) {
                 const build = (t: string) => buildEmailBodyHtml('Course', 'Wed, 7 Oct 2026', 'https://x.ie', { ...DEFAULT_CONFIG, [key]: t }, 7, english, kind);

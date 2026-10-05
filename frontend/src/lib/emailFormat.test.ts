@@ -37,7 +37,7 @@ describe('emailFormat', () => {
 
     describe('inlineEmailStyles', () => {
         it('leaves existing templates untouched', () => {
-            for (const key of ['htmlEmailTemplate', 'htmlEmailTemplateStandard', 'reminderEmailTemplate', 'statusEmailTemplate', 'outreachEmailTemplate'] as const) {
+            for (const key of ['htmlEmailTemplate', 'htmlEmailTemplateStandard', 'reminderEmailTemplate', 'reminderTomorrowEmailTemplate', 'statusEmailTemplate', 'outreachEmailTemplate'] as const) {
                 expect(inlineEmailStyles(DEFAULT_CONFIG[key], DEFAULT_EMAIL_STYLE)).toBe(DEFAULT_CONFIG[key]);
             }
             const quill = '<p>Hello,</p><p><br></p><ul><li>One</li><li>Two</li></ul><p><span style="color: rgb(230, 0, 0);">red</span></p>';

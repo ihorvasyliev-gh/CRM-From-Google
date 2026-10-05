@@ -7,6 +7,13 @@ export function todayISO(): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** Whole calendar days from `fromKey` to `toKey` (both YYYY-MM-DD). */
+export function daysBetween(fromKey: string, toKey: string): number {
+    const a = Date.UTC(+fromKey.slice(0, 4), +fromKey.slice(5, 7) - 1, +fromKey.slice(8, 10));
+    const b = Date.UTC(+toKey.slice(0, 4), +toKey.slice(5, 7) - 1, +toKey.slice(8, 10));
+    return Math.round((b - a) / (24 * 60 * 60 * 1000));
+}
+
 function parseDate(dateStr: string): Date {
     // If date-only string like YYYY-MM-DD, append T12:00:00 to prevent UTC midnight timezone shift
     const cleanStr = dateStr.length === 10 && !dateStr.includes('T') ? `${dateStr}T12:00:00` : dateStr;

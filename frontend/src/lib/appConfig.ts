@@ -22,6 +22,10 @@ export interface AppConfig {
     reminderEmailTemplate: string;
     /** Reminder subject. Supports placeholders: {courseName}, {date} */
     reminderEmailSubjectFormat: string;
+    /** Same reminder, used instead when the course is tomorrow. Supports: {courseDetails}, {attendanceNotice} */
+    reminderTomorrowEmailTemplate: string;
+    /** Subject of the "course is tomorrow" reminder. Supports placeholders: {courseName}, {date} */
+    reminderTomorrowEmailSubjectFormat: string;
     /** Columns to include in the Excel spreadsheet exported with the archive */
     excelColumns: ExcelColumn[];
     /** HTML Email body template for status clarification. Supports: {statusButton}, {statusLink} */
@@ -85,6 +89,12 @@ export const DEFAULT_CONFIG: AppConfig = {
 {attendanceNotice}
 <p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you have any questions, feel free to reply to this email.</p>`,
     reminderEmailSubjectFormat: 'Reminder: your {courseName} course on {date}',
+    reminderTomorrowEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Just a quick reminder that your course is <strong>tomorrow</strong>. Please check the date, time and location below and make sure you arrive on time — we look forward to seeing you!</p>
+{courseDetails}
+{attendanceNotice}
+<p style="margin:0 0 10px 0;font-size:15px;line-height:22px;color:#475569;font-family:${FONT};">If you have any questions, feel free to reply to this email.</p>`,
+    reminderTomorrowEmailSubjectFormat: 'Reminder: your {courseName} course is tomorrow ({date})',
     excelColumns: DEFAULT_EXCEL_COLUMNS,
     statusEmailTemplate: `<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">Hello,</p>
 <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#1e293b;font-family:${FONT};">We hope you are keeping well! You recently completed a course with <strong>Cork City Partnership</strong>, and we would love to hear how things have been going for you since then.</p>
@@ -113,7 +123,8 @@ export function hasConfirmationTag(tpl: string): boolean {
     return tpl.includes('{confirmationButton}') || tpl.includes('{confirmationLink}');
 }
 
-export type InviteEmailKind = 'invite' | 'reminder';
+/** 'reminder' is the usual attendance reminder; 'reminder_tomorrow' goes out the day before the course. */
+export type InviteEmailKind = 'invite' | 'reminder' | 'reminder_tomorrow';
 
 /** Read the full config, merging saved values over defaults. */
 export function getConfig(): AppConfig {
@@ -411,6 +422,7 @@ function getEmailWrapper(content: string, type: InviteEmailKind | 'status', incl
     const [heroTitle, heroSubtitle] = {
         invite: ["You're Invited!", 'Cork City Partnership course invitation'],
         reminder: ['See You Soon!', safeCourseTitle ? `Reminder about your ${safeCourseTitle} course` : 'Reminder about your Cork City Partnership course'],
+        reminder_tomorrow: ['See You Tomorrow!', safeCourseTitle ? `Your ${safeCourseTitle} course is tomorrow` : 'Your Cork City Partnership course is tomorrow'],
         status: ['How Are Things Going?', 'Cork City Partnership participant update'],
     }[type];
     const cacheBuster = Date.now();
@@ -626,7 +638,9 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
 </table>`
         : '';
         
-    let body = kind === 'reminder'
+    let body = kind === 'reminder_tomorrow'
+        ? (config.reminderTomorrowEmailTemplate || DEFAULT_CONFIG.reminderTomorrowEmailTemplate)
+        : kind === 'reminder'
         ? (config.reminderEmailTemplate || DEFAULT_CONFIG.reminderEmailTemplate)
         : requiresEnglish
         ? (config.htmlEmailTemplate || DEFAULT_CONFIG.htmlEmailTemplate)
@@ -666,7 +680,12 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
 /** Build the email subject by replacing placeholders. */
 export function buildEmailSubject(courseName: string, date: string, customConfig?: AppConfig, kind: InviteEmailKind = 'invite'): string {
     const config = customConfig || getConfig();
-    return (kind === 'reminder' ? config.reminderEmailSubjectFormat || DEFAULT_CONFIG.reminderEmailSubjectFormat : config.emailSubjectFormat)
+    const format = kind === 'reminder_tomorrow'
+        ? config.reminderTomorrowEmailSubjectFormat || DEFAULT_CONFIG.reminderTomorrowEmailSubjectFormat
+        : kind === 'reminder'
+        ? config.reminderEmailSubjectFormat || DEFAULT_CONFIG.reminderEmailSubjectFormat
+        : config.emailSubjectFormat;
+    return format
         .replace(/\{courseName\}/g, courseName)
         .replace(/\{date\}/g, date);
 }
