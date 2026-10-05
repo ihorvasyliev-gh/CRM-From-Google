@@ -18,6 +18,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
 import { fetchOutreachContactsFn, fetchOutreachListsFn, type OutreachContact } from '../hooks/useOutreach';
 import { exportOutreachListToExcel } from '../lib/outreachExport';
+import { useProgressiveList } from '../hooks/useProgressiveList';
 
 type StatusFilter = 'all' | OutreachContact['status'];
 
@@ -94,6 +95,9 @@ export default function OutreachLists() {
         }
         return result;
     }, [contacts, filterStatus, debouncedSearchQuery]);
+
+    // Rows render in steps as the table is scrolled (imported lists can be hundreds of contacts)
+    const { visible: visibleContacts, hasMore, sentinelRef } = useProgressiveList(filtered, `${listId}|${filterStatus}|${debouncedSearchQuery}`);
 
     const statusCounts = useMemo(() => {
         const counts = { all: contacts.length, not_contacted: 0, pending: 0, responded: 0 };
@@ -452,14 +456,14 @@ export default function OutreachLists() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(contact => {
+                                {visibleContacts.map(contact => {
                                     const isSelected = selectedIds.has(contact.id);
                                     const initials = `${contact.first_name[0] || contact.email[0] || ''}${contact.last_name[0] || ''}`.toUpperCase();
                                     return (
                                         <tr
                                             key={contact.id}
                                             onClick={() => toggleSelect(contact.id)}
-                                            className={`cv-auto-row border-b border-border-subtle/50 transition-all cursor-pointer ${
+                                            className={`border-b border-border-subtle/50 transition-colors cursor-pointer ${
                                                 isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50'
                                             }`}
                                         >
@@ -521,6 +525,11 @@ export default function OutreachLists() {
                                         </tr>
                                     );
                                 })}
+                                {hasMore && (
+                                    <tr ref={sentinelRef} key={visibleContacts.length} aria-hidden="true">
+                                        <td colSpan={7} className="py-4 text-center text-xs text-muted">Loading more…</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

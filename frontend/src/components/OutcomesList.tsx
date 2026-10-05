@@ -20,6 +20,7 @@ import OutreachLists from './OutreachLists';
 
 export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
+import { useProgressiveList } from '../hooks/useProgressiveList';
 
 type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
 
@@ -90,6 +91,9 @@ function GraduateOutcomes() {
         }
         return result;
     }, [graduates, filterStatus, filterCourse, debouncedSearchQuery]);
+
+    // Rows render in steps as the table is scrolled (a full list is hundreds of rows)
+    const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(filtered, `${filterStatus}|${filterCourse}|${debouncedSearchQuery}`);
 
     // Status counts
     const statusCounts = useMemo(() => {
@@ -340,13 +344,13 @@ function GraduateOutcomes() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(grad => {
+                                {visibleGraduates.map(grad => {
                                     const isSelected = selectedIds.has(grad.student_id);
                                     return (
                                         <tr
                                             key={grad.student_id}
                                             onClick={() => toggleSelect(grad.student_id)}
-                                            className={`cv-auto-row border-b border-border-subtle/50 transition-all cursor-pointer ${
+                                            className={`border-b border-border-subtle/50 transition-colors cursor-pointer ${
                                                 isSelected
                                                     ? 'bg-brand-500/5'
                                                     : 'hover:bg-surface-elevated/50'
@@ -415,6 +419,11 @@ function GraduateOutcomes() {
                                         </tr>
                                     );
                                 })}
+                                {hasMore && (
+                                    <tr ref={sentinelRef} key={visibleGraduates.length} aria-hidden="true">
+                                        <td colSpan={7} className="py-4 text-center text-xs text-muted">Loading more…</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
