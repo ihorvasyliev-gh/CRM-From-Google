@@ -15,7 +15,7 @@ import SearchInput from '../ui/SearchInput';
 import Pagination from '../ui/Pagination';
 import { EmptyState } from '../ui/States';
 import { ChartTooltip, LegendItem } from '../ui/chart';
-import { CHART, axisProps, axisTick, gridProps, tooltipCursor } from '../ui/chartTheme';
+import { CHART, axisProps, axisTick, gridProps, tooltipCursor, clickedRow } from '../ui/chartTheme';
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
@@ -272,11 +272,9 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                             <BarChart
                                 data={comparisonChartData}
                                 margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
-                                onClick={(data: any) => {
-                                    if (data && data.activePayload && data.activePayload[0]) {
-                                        const payload = data.activePayload[0].payload;
-                                        onDrillDown(`Course: ${payload.fullName}`, payload.items);
-                                    }
+                                onClick={state => {
+                                    const row = clickedRow(comparisonChartData, state);
+                                    if (row) onDrillDown(`Course: ${row.fullName}`, row.items);
                                 }}
                             >
                                 <CartesianGrid {...gridProps} vertical={false} />
@@ -297,11 +295,9 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                                 data={variantBreakdownData}
                                 layout="vertical"
                                 margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
-                                onClick={(data: any) => {
-                                    if (data && data.activePayload && data.activePayload[0]) {
-                                        const payload = data.activePayload[0].payload;
-                                        onDrillDown(`Variant: ${payload.name}`, payload.items);
-                                    }
+                                onClick={state => {
+                                    const row = clickedRow(variantBreakdownData, state);
+                                    if (row) onDrillDown(`Variant: ${row.name}`, row.items);
                                 }}
                             >
                                 <CartesianGrid {...gridProps} horizontal={false} vertical />

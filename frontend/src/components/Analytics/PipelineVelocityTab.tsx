@@ -14,7 +14,7 @@ import { calculateSpeedMetrics, calculateFunnelAnalysis } from './analyticsUtils
 import Card, { SectionHeader } from '../ui/Card';
 import Badge from '../ui/Badge';
 import { ChartTooltip, LegendItem } from '../ui/chart';
-import { CHART, axisProps, gridProps } from '../ui/chartTheme';
+import { CHART, axisProps, gridProps, clickedRow } from '../ui/chartTheme';
 
 interface PipelineVelocityTabProps {
     enrollments: EnrollmentWithRelations[];
@@ -226,11 +226,9 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                             <AreaChart
                                 data={trendsData}
                                 margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
-                                onClick={(data: any) => {
-                                    if (data && data.activePayload && data.activePayload[0]) {
-                                        const payload = data.activePayload[0].payload;
-                                        onDrillDown(`Cohort Enrollments in ${payload.name}`, payload.items);
-                                    }
+                                onClick={state => {
+                                    const row = clickedRow(trendsData, state);
+                                    if (row) onDrillDown(`Cohort Enrollments in ${row.name}`, row.items);
                                 }}
                             >
                                 <defs>

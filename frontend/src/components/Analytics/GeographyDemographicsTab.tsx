@@ -316,10 +316,9 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                                         paddingAngle={2}
                                         dataKey="value"
                                         stroke="none"
-                                        onClick={(data: any) => {
-                                            if (data && data.payload) {
-                                                onDrillDown(`Age Group: ${data.name}`, data.payload.items);
-                                            }
+                                        onClick={(_sector, index) => {
+                                            const row = ageData[index];
+                                            if (row) onDrillDown(`Age Group: ${row.name}`, row.items);
                                         }}
                                         className="cursor-pointer outline-hidden"
                                     >

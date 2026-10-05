@@ -1,3 +1,5 @@
+import type { MouseHandlerDataParam } from 'recharts';
+
 /**
  * Chart vocabulary shared by every recharts graph: one palette (CSS variables, so light/dark
  * follow the theme) and common axis / grid props.
@@ -40,3 +42,14 @@ export const axisProps = {
 } as const;
 
 export const tooltipCursor = { fill: CHART.grid, opacity: 0.35 } as const;
+
+/**
+ * The data row under a click on a chart. Recharts 3 gives a chart's onClick the index of the
+ * active point, not its payload (`activePayload` is gone), so look the row up in the chart data.
+ */
+export function clickedRow<T>(data: readonly T[], state: Pick<MouseHandlerDataParam, 'activeIndex'>): T | undefined {
+    const { activeIndex } = state;
+    if (activeIndex === null || activeIndex === undefined || activeIndex === '') return undefined;
+    const index = Number(activeIndex);
+    return Number.isInteger(index) && index >= 0 ? data[index] : undefined;
+}

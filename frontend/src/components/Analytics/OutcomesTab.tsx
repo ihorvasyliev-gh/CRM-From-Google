@@ -21,7 +21,7 @@ import Card, { SectionHeader } from '../ui/Card';
 import StatTile from '../ui/StatTile';
 import { Button } from '../ui/Button';
 import { ChartTooltip } from '../ui/chart';
-import { CHART, axisProps, gridProps, tooltipCursor } from '../ui/chartTheme';
+import { CHART, axisProps, gridProps, tooltipCursor, clickedRow } from '../ui/chartTheme';
 import { calloutCls } from '../ui/styles';
 
 interface OutcomesTabProps {
@@ -254,11 +254,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 data={graduateData.funnelData}
                                 layout="vertical"
                                 margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
-                                onClick={(data: any) => {
-                                    if (data && data.activePayload && data.activePayload[0]) {
-                                        const payload = data.activePayload[0].payload;
-                                        onDrillDown(`Survey Funnel: ${payload.name}`, payload.items);
-                                    }
+                                onClick={state => {
+                                    const row = clickedRow(graduateData.funnelData, state);
+                                    if (row) onDrillDown(`Survey Funnel: ${row.name}`, row.items);
                                 }}
                             >
                                 <CartesianGrid {...gridProps} horizontal={false} vertical />
@@ -284,11 +282,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 <BarChart
                                     data={graduateData.fieldsData}
                                     margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
-                                    onClick={(data: any) => {
-                                        if (data && data.activePayload && data.activePayload[0]) {
-                                            const payload = data.activePayload[0].payload;
-                                            onDrillDown(`Field of Work: ${payload.name}`, payload.items);
-                                        }
+                                    onClick={state => {
+                                        const row = clickedRow(graduateData.fieldsData, state);
+                                        if (row) onDrillDown(`Field of Work: ${row.name}`, row.items);
                                     }}
                                 >
                                     <CartesianGrid {...gridProps} vertical={false} />
@@ -311,11 +307,9 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 <AreaChart
                                     data={graduateData.timelineData}
                                     margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
-                                    onClick={(data: any) => {
-                                        if (data && data.activePayload && data.activePayload[0]) {
-                                            const payload = data.activePayload[0].payload;
-                                            onDrillDown(`Employed in ${payload.name}`, payload.items);
-                                        }
+                                    onClick={state => {
+                                        const row = clickedRow(graduateData.timelineData, state);
+                                        if (row) onDrillDown(`Employed in ${row.name}`, row.items);
                                     }}
                                 >
                                     <defs>
