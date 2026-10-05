@@ -6,17 +6,16 @@ import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { todayISO } from '../lib/dateUtils';
-import { linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot, type StatusFields } from '../lib/enrollmentStatus';
+import { changeEnrollmentStatus, linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
 
 export type EnrollmentRow = EnrollmentWithRelations;
 
-/** A status change, worked out before it is written so the optimistic update and the write agree. */
+/** A status change, taken from the rows loaded when it was asked for. */
 interface StatusChange {
-    fields: Partial<StatusFields> & { status: EnrollmentStatus };
-    /** Rows written with `fields`: the chosen one, plus the student's other rows on the course for a withdrawal */
-    updateIds: string[];
-    /** Still-requested rows of the course that a completion deletes */
-    removeIds: string[];
+    all: EnrollmentRow[];
+    row: EnrollmentRow;
+    status: EnrollmentStatus;
+    dates: { confirmedDate?: string; invitedDate?: string };
 }
 
 interface UseEnrollmentsProps {
@@ -67,35 +66,36 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
 
     // ─── Status Update Mutation ──────────────────────────────────
     const { mutate: mutateStatus } = useMutation({
-        mutationFn: async (change: StatusChange) => {
-            const { error } = await supabase.from('enrollments').update(change.fields).in('id', change.updateIds);
-            if (error) throw error;
-            if (change.removeIds.length === 0) return { ...change, removeFailed: false };
-            // The status is saved by now; report a failed clean-up instead of claiming the rows are gone
-            const { error: removeError } = await supabase.from('enrollments').delete().in('id', change.removeIds);
-            if (removeError) console.error('Failed to remove requested duplicates:', removeError);
-            return { ...change, removeFailed: !!removeError };
-        },
-        onMutate: async ({ fields, updateIds, removeIds }) => {
+        mutationFn: ({ all, row, status, dates }: StatusChange) => changeEnrollmentStatus(all, [row], status, dates),
+        onMutate: async ({ all, row, status, dates }) => {
             // Cancel without awaiting to avoid blocking the UI thread
             queryClient.cancelQueries({ queryKey: ['enrollments'] });
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
-            const updated = new Set(updateIds);
-            const removed = new Set(removeIds);
+            // Show the change straight away; the saved values replace it once the database answers
+            const fields = statusUpdate(row, status, dates);
+            const { alsoUpdate, remove } = linkedRows(all, [row], status);
+            const updated = new Set([row.id, ...alsoUpdate.map(e => e.id)]);
+            const removed = new Set(remove.map(e => e.id));
             setEnrollments(prev => prev
                 .filter(e => !removed.has(e.id))
                 .map(e => updated.has(e.id) ? { ...e, ...fields } : e)
             );
             return { previousEnrollments };
         },
-        onSuccess: ({ fields, updateIds, removeIds, removeFailed }) => {
+        onSuccess: ({ updated, removed, removeFailed }, { status }) => {
+            const saved = new Map(updated.map(snap => [snap.id, snap]));
+            const removedIds = new Set(removed.map(e => e.id));
+            setEnrollments(prev => prev
+                .filter(e => !removedIds.has(e.id))
+                .map(e => saved.has(e.id) ? { ...e, ...saved.get(e.id)! } : e)
+            );
             if (removeFailed) {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                showToast(`Completed, but ${removeIds.length} requested duplicate(s) could not be removed`, 'error');
-            } else if (fields.status === 'completed') {
-                showToast(removeIds.length > 0 ? `Completed! Removed ${removeIds.length} requested variant(s)` : 'Completed!', 'success');
-            } else if (fields.status === 'withdrawn') {
-                showToast(`Updated ${updateIds.length} related enrollment(s)`, 'success');
+                showToast('Completed, but the requested duplicate(s) could not be removed', 'error');
+            } else if (status === 'completed') {
+                showToast(removed.length > 0 ? `Completed! Removed ${removed.length} requested variant(s)` : 'Completed!', 'success');
+            } else if (status === 'withdrawn') {
+                showToast(`Updated ${updated.length} related enrollment(s)`, 'success');
             }
         },
         onError: (err, _variables, context) => {
@@ -121,12 +121,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             if (current) openConfirmModal(id, defaultDate, current.course_id);
             return;
         }
-        const { alsoUpdate, remove } = current ? linkedRows(all, [current], newStatus) : { alsoUpdate: [], remove: [] };
-        mutateStatus({
-            fields: statusUpdate(current, newStatus, { confirmedDate, invitedDate }),
-            updateIds: [id, ...alsoUpdate.map(e => e.id)],
-            removeIds: remove.map(e => e.id),
-        });
+        if (!current) return;
+        mutateStatus({ all, row: current, status: newStatus, dates: { confirmedDate, invitedDate } });
     }, [openInviteModal, openConfirmModal, mutateStatus]);
 
     // ─── Toggle Priority Mutation ────────────────────────────────

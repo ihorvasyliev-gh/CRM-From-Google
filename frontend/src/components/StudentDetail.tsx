@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus } from '../lib/types';
-import { linkedRows, statusUpdate } from '../lib/enrollmentStatus';
+import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
 import { formatDateDMY, todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -22,7 +22,10 @@ interface Enrollment {
     course_variant: string | null;
     created_at: string;
     confirmed_date: string | null;
-    confirmed_at?: string | null;
+    confirmed_at: string | null;
+    invited_date: string | null;
+    invited_dates: string[] | null;
+    invited_at: string | null;
     completed_date?: string | null;
     completed_at?: string | null;
     pending_completion_date?: string | null;
@@ -244,7 +247,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('enrollments')
-                .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, completed_date, completed_at, pending_completion_date, completion_request_status, completion_requested_at, completion_requested_by, completion_rejection_reason, courses(name)')
+                .select('id, student_id, course_id, status, course_variant, created_at, confirmed_date, confirmed_at, invited_date, invited_dates, invited_at, completed_date, completed_at, pending_completion_date, completion_request_status, completion_requested_at, completion_requested_by, completion_rejection_reason, courses(name)')
                 .eq('student_id', student.id)
                 .order('created_at', { ascending: false });
             if (error) throw error;
@@ -318,26 +321,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         if (busyEnrollmentId) return;
         const current = enrollments.find(e => e.id === id);
         if (!current) return;
-        // Same rules as the board: withdrawing covers the student's other rows on the course,
-        // completing removes the ones still "requested"
-        const fields = statusUpdate(current, newStatus);
-        const { alsoUpdate, remove } = linkedRows(enrollments, [current], newStatus);
-        const updateIds = [id, ...alsoUpdate.map(e => e.id)];
-        const removeIds = remove.map(e => e.id);
-
         const label = STATUS_CONFIG[newStatus]?.label || newStatus;
         setBusyEnrollmentId(id);
         try {
-            const { error } = await supabase.from('enrollments').update(fields).in('id', updateIds);
-            if (error) throw error;
-            const { error: removeError } = removeIds.length > 0
-                ? await supabase.from('enrollments').delete().in('id', removeIds)
-                : { error: null };
+            // Same rules as the board: withdrawing covers the student's other rows on the course,
+            // completing removes the ones still "requested"
+            const { updated, removed, removeFailed } = await changeEnrollmentStatus(enrollments, [current], newStatus);
+            const saved = new Map(updated.map(snap => [snap.id, snap]));
+            const removedIds = new Set(removed.map(e => e.id));
             setEnrollments(prev => prev
-                .filter(e => removeError || !removeIds.includes(e.id))
-                .map(e => updateIds.includes(e.id) ? { ...e, ...fields } : e)
+                .filter(e => !removedIds.has(e.id))
+                .map(e => saved.has(e.id) ? { ...e, ...saved.get(e.id)! } : e)
             );
-            notify(removeError
+            notify(removeFailed
                 ? { message: `Marked as ${label.toLowerCase()}, but the requested duplicates could not be removed`, type: 'error' }
                 : { message: `Marked as ${label.toLowerCase()}`, type: 'success' });
             invalidateRelated();

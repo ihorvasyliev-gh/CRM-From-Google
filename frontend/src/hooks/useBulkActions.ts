@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
-import { linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from '../lib/enrollmentStatus';
+import { changeEnrollmentStatus, restoreEnrollments } from '../lib/enrollmentStatus';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -68,41 +68,23 @@ export function useBulkActions({
     }, []);
 
     const { mutate: mutateBulkStatus } = useMutation({
-        mutationFn: async ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
+        mutationFn: ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
             const chosen = enrollments.filter(e => selectedIds.has(e.id));
-            const { alsoUpdate, remove } = linkedRows(enrollments, chosen, newStatus);
-            const updatedRows = [...chosen, ...alsoUpdate];
-            // Every row the change writes or deletes, as it was, for Undo
-            const snapshots = updatedRows.map(takeEnrollmentSnapshot);
-
-            // A completion's dates depend on each row; every other status writes the same fields to all
-            const fieldsById = new Map(updatedRows.map(e => [e.id, statusUpdate(e, newStatus, { confirmedDate })]));
-            const results = newStatus === 'completed'
-                ? await Promise.all(updatedRows.map(e => supabase.from('enrollments').update(fieldsById.get(e.id)!).eq('id', e.id)))
-                : [await supabase.from('enrollments').update(statusUpdate(undefined, newStatus, { confirmedDate })).in('id', updatedRows.map(e => e.id))];
-            const failed = results.find(r => r.error);
-            if (failed?.error) throw failed.error;
-
-            let removeFailed = false;
-            if (remove.length > 0) {
-                const { error: removeError } = await supabase.from('enrollments').delete().in('id', remove.map(e => e.id));
-                if (removeError) console.error('Failed to remove requested duplicates:', removeError);
-                removeFailed = !!removeError;
-            }
-            return { newStatus, fieldsById, snapshots, removed: removeFailed ? [] : remove, removeFailed };
+            return changeEnrollmentStatus(enrollments, chosen, newStatus, { confirmedDate });
         },
-        onSuccess: ({ newStatus, fieldsById, snapshots, removed, removeFailed }) => {
+        onSuccess: ({ updated, removed, removeFailed, undo: undoData }, { newStatus }) => {
+            const saved = new Map(updated.map(snap => [snap.id, snap]));
             const removedIds = new Set(removed.map(e => e.id));
             setEnrollments(prev => prev
                 .filter(e => !removedIds.has(e.id))
-                .map(e => fieldsById.has(e.id) ? { ...e, ...fieldsById.get(e.id)! } : e)
+                .map(e => saved.has(e.id) ? { ...e, ...saved.get(e.id)! } : e)
             );
             setSelectedIds(new Set());
 
             const undo = async () => {
                 try {
-                    await restoreEnrollments(snapshots, removed);
-                    const byId = new Map(snapshots.map(snap => [snap.id, snap]));
+                    await restoreEnrollments(undoData.snapshots, undoData.removed);
+                    const byId = new Map(undoData.snapshots.map(snap => [snap.id, snap]));
                     setEnrollments(prev => [
                         ...removed.filter(r => !prev.some(e => e.id === r.id)),
                         ...prev.map(e => byId.has(e.id) ? { ...e, ...byId.get(e.id)! } : e),
@@ -118,11 +100,12 @@ export function useBulkActions({
 
             if (removeFailed) {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                showToast(`${fieldsById.size} enrollment(s) → ${newStatus}, but the requested duplicates could not be removed`, 'error');
+                showToast(`${updated.length} enrollment(s) → ${newStatus}, but the requested duplicates could not be removed`, 'error');
                 return;
             }
-            const extra = removed.length > 0 ? `, removed ${removed.length} requested variant(s)` : '';
-            showToast(`${fieldsById.size} enrollment(s) → ${newStatus}${extra}`, 'success', {
+            const removedCount = undoData.removed.length;
+            const extra = removedCount > 0 ? `, removed ${removedCount} requested variant(s)` : '';
+            showToast(`${updated.length} enrollment(s) → ${newStatus}${extra}`, 'success', {
                 action: { label: 'Undo', onClick: () => { void undo(); } },
                 duration: 7000,
             });

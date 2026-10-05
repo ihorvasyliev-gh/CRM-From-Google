@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from './enrollmentStatus';
+import { changeEnrollmentStatus, linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from './enrollmentStatus';
 import { supabase } from './supabase';
 import type { Enrollment } from './types';
 
-vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }));
+vi.mock('./supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
+
+const fromMock = supabase.from as ReturnType<typeof vi.fn>;
+const rpcMock = supabase.rpc as ReturnType<typeof vi.fn>;
+/** PostgREST's answer while migration 77 has not been run */
+const MISSING_FUNCTION = { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
 
 const NOW = new Date('2026-10-05T10:00:00.000Z');
 const AT = NOW.toISOString();
@@ -86,12 +91,103 @@ describe('takeEnrollmentSnapshot', () => {
     });
 });
 
+describe('changeEnrollmentStatus', () => {
+    const update = vi.fn();
+    const del = vi.fn();
+    const updateIn = vi.fn();
+    const updateEq = vi.fn();
+    const deleteIn = vi.fn();
+    beforeEach(() => {
+        vi.clearAllMocks();
+        fromMock.mockReturnValue({ update, delete: del });
+        update.mockReturnValue({ in: updateIn, eq: updateEq });
+        del.mockReturnValue({ in: deleteIn });
+        updateIn.mockResolvedValue({ error: null });
+        updateEq.mockResolvedValue({ error: null });
+        deleteIn.mockResolvedValue({ error: null });
+    });
+
+    const row = (id: string, status: Enrollment['status'], extra: Partial<Enrollment> = {}) => ({
+        id, student_id: 's1', course_id: 'c1', status, confirmed_date: null, confirmed_at: null,
+        invited_date: null, invited_dates: null, invited_at: null, completed_date: null, completed_at: null, ...extra,
+    });
+    const confirmed = row('a', 'confirmed', { confirmed_date: '2026-10-01' });
+    const duplicate = row('b', 'requested');
+    const all = [confirmed, duplicate];
+
+    it('lets the database make the whole change, and returns what it saved', async () => {
+        const saved = { ...takeEnrollmentSnapshot(confirmed), status: 'completed', completed_date: '2026-10-01' };
+        const storedDuplicate = { ...duplicate, notes: null, updated_at: '2026-09-01T00:00:00+00:00' };
+        rpcMock.mockResolvedValue({
+            data: { previous: [takeEnrollmentSnapshot(confirmed)], updated: [saved], removed: [storedDuplicate] },
+            error: null,
+        });
+
+        const result = await changeEnrollmentStatus(all, [confirmed], 'completed', { confirmedDate: '2026-10-01' });
+
+        expect(rpcMock).toHaveBeenCalledWith('change_enrollment_status', expect.objectContaining({
+            p_ids: ['a'], p_status: 'completed', p_confirmed_date: '2026-10-01', p_invited_date: null,
+        }));
+        expect(fromMock).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            updated: [saved],
+            removed: [duplicate],
+            removeFailed: false,
+            undo: { snapshots: [takeEnrollmentSnapshot(confirmed)], removed: [storedDuplicate] },
+        });
+    });
+
+    it('throws a refused change without trying the separate writes', async () => {
+        rpcMock.mockResolvedValue({ data: null, error: { code: '42501', message: 'denied' } });
+        await expect(changeEnrollmentStatus(all, [confirmed], 'withdrawn')).rejects.toEqual({ code: '42501', message: 'denied' });
+        expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    describe('without migration 77', () => {
+        beforeEach(() => rpcMock.mockResolvedValue(MISSING_FUNCTION));
+
+        it('withdraws the chosen row and its siblings in one update', async () => {
+            const result = await changeEnrollmentStatus(all, [confirmed], 'withdrawn');
+
+            expect(updateIn).toHaveBeenCalledWith('id', ['a', 'b']);
+            expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'withdrawn', confirmed_at: null }));
+            expect(result.updated.map(e => [e.id, e.status])).toEqual([['a', 'withdrawn'], ['b', 'withdrawn']]);
+            expect(result.undo.snapshots).toEqual([takeEnrollmentSnapshot(confirmed), takeEnrollmentSnapshot(duplicate)]);
+            expect(result.removed).toEqual([]);
+        });
+
+        it('completes row by row, then deletes the still-requested duplicate', async () => {
+            const result = await changeEnrollmentStatus(all, [confirmed], 'completed');
+
+            expect(updateEq).toHaveBeenCalledWith('id', 'a');
+            expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: 'completed', completed_date: '2026-10-01' }));
+            expect(deleteIn).toHaveBeenCalledWith('id', ['b']);
+            expect(result).toMatchObject({ removed: [duplicate], removeFailed: false, undo: { removed: [duplicate] } });
+        });
+
+        it('reports a failed deletion after the status was saved', async () => {
+            deleteIn.mockResolvedValue({ error: { message: 'denied' } });
+            const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+            const result = await changeEnrollmentStatus(all, [confirmed], 'completed');
+            expect(result).toMatchObject({ removed: [], removeFailed: true, undo: { removed: [] } });
+            consoleError.mockRestore();
+        });
+
+        it('throws when the status cannot be written', async () => {
+            updateIn.mockResolvedValue({ error: { message: 'denied' } });
+            await expect(changeEnrollmentStatus(all, [confirmed], 'rejected')).rejects.toEqual({ message: 'denied' });
+            expect(del).not.toHaveBeenCalled();
+        });
+    });
+});
+
 describe('restoreEnrollments', () => {
     const update = vi.fn();
     const insert = vi.fn();
     beforeEach(() => {
         vi.clearAllMocks();
-        (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue({ update, insert });
+        fromMock.mockReturnValue({ update, insert });
     });
 
     const snapshot = takeEnrollmentSnapshot({
@@ -99,27 +195,47 @@ describe('restoreEnrollments', () => {
         invited_at: null, completed_date: null, completed_at: null,
     });
     const removed = { id: 'b', student_id: 's1', course_id: 'c1', status: 'requested', students: { id: 's1' }, courses: { id: 'c1' } } as unknown as Enrollment;
+    const removedColumns = { id: 'b', student_id: 's1', course_id: 'c1', status: 'requested' };
 
-    it('writes the snapshots back, then re-creates removed rows without their joined data', async () => {
-        update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
-        insert.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: 'b' }], error: null }) });
+    it('lets the database put everything back in one call, without the joined data', async () => {
+        rpcMock.mockResolvedValue({ data: null, error: null });
 
         await restoreEnrollments([snapshot], [removed]);
 
-        const { id: _id, ...fields } = snapshot;
-        expect(update).toHaveBeenCalledWith(fields);
-        expect(insert).toHaveBeenCalledWith([{ id: 'b', student_id: 's1', course_id: 'c1', status: 'requested' }]);
+        expect(rpcMock).toHaveBeenCalledWith('restore_enrollments', { p_rows: [snapshot], p_removed: [removedColumns] });
+        expect(fromMock).not.toHaveBeenCalled();
     });
 
-    it('throws when a snapshot cannot be written', async () => {
-        update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: { message: 'denied' } }) });
-        await expect(restoreEnrollments([snapshot])).rejects.toEqual({ message: 'denied' });
-        expect(insert).not.toHaveBeenCalled();
+    it('throws when the database refuses, without trying the separate writes', async () => {
+        rpcMock.mockResolvedValue({ data: null, error: { code: 'P0002', message: 'not found' } });
+        await expect(restoreEnrollments([snapshot])).rejects.toEqual({ code: 'P0002', message: 'not found' });
+        expect(fromMock).not.toHaveBeenCalled();
     });
 
-    it('throws when the database silently skips a re-created row', async () => {
-        update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
-        insert.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [], error: null }) });
-        await expect(restoreEnrollments([snapshot], [removed])).rejects.toThrow('could not be re-created');
+    describe('without migration 77', () => {
+        beforeEach(() => rpcMock.mockResolvedValue(MISSING_FUNCTION));
+
+        it('writes the snapshots back, then re-creates removed rows without their joined data', async () => {
+            update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+            insert.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: 'b' }], error: null }) });
+
+            await restoreEnrollments([snapshot], [removed]);
+
+            const { id: _id, ...fields } = snapshot;
+            expect(update).toHaveBeenCalledWith(fields);
+            expect(insert).toHaveBeenCalledWith([removedColumns]);
+        });
+
+        it('throws when a snapshot cannot be written', async () => {
+            update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: { message: 'denied' } }) });
+            await expect(restoreEnrollments([snapshot])).rejects.toEqual({ message: 'denied' });
+            expect(insert).not.toHaveBeenCalled();
+        });
+
+        it('throws when the database silently skips a re-created row', async () => {
+            update.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+            insert.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [], error: null }) });
+            await expect(restoreEnrollments([snapshot], [removed])).rejects.toThrow('could not be re-created');
+        });
     });
 });

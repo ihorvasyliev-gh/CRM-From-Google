@@ -12,9 +12,13 @@ const deleteIn = vi.fn().mockResolvedValue({ error: null });
 const insertMock = vi.fn((rows: unknown[]) => ({
     select: vi.fn().mockResolvedValue({ data: rows, error: null }),
 }));
+const rpcMock = vi.fn();
+/** PostgREST's answer while migration 77 has not been run */
+const MISSING_FUNCTION = { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
 
 vi.mock('../lib/supabase', () => ({
     supabase: {
+        rpc: (...args: unknown[]) => rpcMock(...args),
         from: vi.fn(() => ({
             update: updateMock,
             delete: vi.fn(() => ({ in: deleteIn })),
@@ -52,6 +56,7 @@ describe('useBulkActions Undo System', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         updateEq.mockResolvedValue({ error: null });
+        rpcMock.mockResolvedValue(MISSING_FUNCTION);
         queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
@@ -150,7 +155,7 @@ describe('useBulkActions Undo System', () => {
         return { showToast, undo: () => act(async () => { await call![2].action.onClick(); }) };
     }
 
-    it('withdrawing also withdraws the student\'s other rows on the course, and Undo restores them too', async () => {
+    it('without migration 77: withdrawing also withdraws the student\'s other rows on the course, and Undo restores them too', async () => {
         const rows = [makeEnrollment('a', 'confirmed', 's1'), makeEnrollment('b', 'rejected', 's1')];
         const { undo } = await bulkChange(rows, ['a'], 'withdrawn');
 
@@ -160,7 +165,7 @@ describe('useBulkActions Undo System', () => {
         expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected' }));
     });
 
-    it('completing removes the still-requested duplicate, and Undo re-creates it', async () => {
+    it('without migration 77: completing removes the still-requested duplicate, and Undo re-creates it', async () => {
         const rows = [makeEnrollment('a', 'confirmed', 's1'), makeEnrollment('b', 'requested', 's1')];
         const { showToast, undo } = await bulkChange(rows, ['a'], 'completed');
 
@@ -178,5 +183,52 @@ describe('useBulkActions Undo System', () => {
 
         await undo();
         expect(showToast).toHaveBeenLastCalledWith('Failed to undo status changes', 'error');
+    });
+
+    describe('with migration 77', () => {
+        const snap = (id: string, status: string) => ({
+            id, status, confirmed_date: null, confirmed_at: null, invited_date: null, invited_dates: null,
+            invited_at: null, completed_date: status === 'completed' ? '2026-10-05' : null,
+            completed_at: status === 'completed' ? '2026-10-05T10:00:00+00:00' : null,
+        });
+
+        it('completes in one database call, then Undo restores what the database reports', async () => {
+            const storedB = { id: 'b', student_id: 's1', course_id: 'crs-1', status: 'requested', updated_at: '2026-02-01T00:00:00Z' };
+            rpcMock.mockImplementation(async (fn: string) => fn === 'change_enrollment_status'
+                ? { data: { previous: [snap('a', 'confirmed')], updated: [snap('a', 'completed')], removed: [storedB] }, error: null }
+                : { data: null, error: null });
+            const rows = [makeEnrollment('a', 'confirmed', 's1'), makeEnrollment('b', 'requested', 's1')];
+            const { showToast, undo } = await bulkChange(rows, ['a'], 'completed');
+
+            expect(rpcMock).toHaveBeenCalledWith('change_enrollment_status', expect.objectContaining({ p_ids: ['a'], p_status: 'completed' }));
+            expect(updateMock).not.toHaveBeenCalled();
+            expect(deleteIn).not.toHaveBeenCalled();
+            expect(showToast.mock.calls[0][0]).toBe('1 enrollment(s) → completed, removed 1 requested variant(s)');
+
+            await undo();
+            expect(rpcMock).toHaveBeenLastCalledWith('restore_enrollments', { p_rows: [snap('a', 'confirmed')], p_removed: [storedB] });
+            expect(insertMock).not.toHaveBeenCalled();
+            expect(showToast).toHaveBeenLastCalledWith('Bulk status changes undone', 'info');
+        });
+
+        it('a refused change is reported, with no fallback writes', async () => {
+            rpcMock.mockResolvedValue({ data: null, error: { code: 'P0002', message: 'Some enrollments were not found' } });
+            const showToast = vi.fn();
+            const { result } = renderHook(
+                () => useBulkActions({
+                    enrollments: [makeEnrollment('a', 'requested')],
+                    setEnrollments: vi.fn(),
+                    showToast,
+                    openInviteModal: vi.fn(),
+                    openConfirmModal: vi.fn(),
+                }),
+                { wrapper }
+            );
+            act(() => result.current.toggleSelect('a'));
+            await act(async () => { await result.current.bulkUpdateStatus('rejected'); });
+
+            expect(updateMock).not.toHaveBeenCalled();
+            expect(showToast).toHaveBeenLastCalledWith('Error updating status', 'error');
+        });
     });
 });
