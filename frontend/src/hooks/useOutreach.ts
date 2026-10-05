@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/queries';
 
 /** A named external list, e.g. "Action 11" (clients registered in IRIS). */
 export interface OutreachList {
@@ -38,22 +39,12 @@ export async function fetchOutreachListsFn(): Promise<OutreachList[]> {
 }
 
 export async function fetchOutreachContactsFn(listId: string): Promise<OutreachContact[]> {
-    let contacts: OutreachContact[] = [];
-    let from = 0;
-    const limit = 1000;
-    while (true) {
-        const { data, error } = await supabase
-            .from('outreach_contacts_view')
-            .select('*')
-            .eq('list_id', listId)
-            .order('created_at', { ascending: false })
-            .order('id')
-            .range(from, from + limit - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        contacts = [...contacts, ...data];
-        if (data.length < limit) break;
-        from += limit;
-    }
-    return contacts;
+    return fetchAllPages((from, to) => supabase
+        .from('outreach_contacts_view')
+        .select('*')
+        .eq('list_id', listId)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    ) as Promise<OutreachContact[]>;
 }

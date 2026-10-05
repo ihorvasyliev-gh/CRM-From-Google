@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { ENROLLMENT_SELECT } from '../lib/queries';
+import { ENROLLMENT_SELECT, fetchAllPages } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EnrollmentStatus } from '../lib/types';
 import { todayISO } from '../lib/dateUtils';
@@ -42,28 +42,15 @@ interface UseEnrollmentsProps {
 }
 
 
-export async function fetchAllEnrollments() {
-    const allData: EnrollmentRow[] = [];
-    let from = 0;
-    const limit = 1000;
-
-    while (true) {
-        const { data, error } = await supabase
-            .from('enrollments')
-            .select(ENROLLMENT_SELECT)
-            .order('created_at', { ascending: false })
-            .range(from, from + limit - 1);
-            
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-
-        allData.push(...(data as EnrollmentRow[]));
-
-        if (data.length < limit) break;
-        from += limit;
-    }
-    
-    return allData;
+export async function fetchAllEnrollments(): Promise<EnrollmentRow[]> {
+    // Newest first; id breaks ties (rows imported together share created_at)
+    return fetchAllPages((from, to) => supabase
+        .from('enrollments')
+        .select(ENROLLMENT_SELECT)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    ) as Promise<EnrollmentRow[]>;
 }
 
 export function useEnrollments({ showToast, openInviteModal, openConfirmModal }: UseEnrollmentsProps) {

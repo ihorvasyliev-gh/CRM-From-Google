@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { EmploymentStatusRow } from '../lib/types';
+import { fetchAllPages, fetchEmploymentStatuses } from '../lib/queries';
 
 export interface GraduateRow {
     student_id: string;
@@ -27,40 +28,18 @@ interface GraduateEnrollment {
 }
 
 export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
-    // Get all completed enrollments with student info
-    let enrollments: GraduateEnrollment[] = [];
-    let from = 0;
-    const limit = 1000;
-    while (true) {
-        const { data, error } = await supabase
+    // All completed enrollments with student info, and every employment_status row. A failed
+    // page throws: an empty or partial list would look like real data.
+    const [enrollments, empStatuses] = await Promise.all([
+        fetchAllPages((from, to) => supabase
             .from('enrollments')
             .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
             .eq('status', 'completed')
-            .range(from, from + limit - 1);
-        if (error) {
-            console.error('Error fetching graduates:', error);
-            return [];
-        }
-        if (!data || data.length === 0) break;
-        enrollments = [...enrollments, ...(data as unknown as GraduateEnrollment[])];
-        if (data.length < limit) break;
-        from += limit;
-    }
-
-    // Get all employment_status records
-    let empStatuses: EmploymentStatusRow[] = [];
-    from = 0;
-    while (true) {
-        const { data, error } = await supabase
-            .from('employment_status')
-            .select('*')
-            .range(from, from + limit - 1);
-        if (error) break;
-        if (!data || data.length === 0) break;
-        empStatuses = [...empStatuses, ...(data as EmploymentStatusRow[])];
-        if (data.length < limit) break;
-        from += limit;
-    }
+            .order('id')
+            .range(from, to)
+        ) as unknown as Promise<GraduateEnrollment[]>,
+        fetchEmploymentStatuses(),
+    ]);
 
     // Index employment statuses by student_id for instant O(1) lookup
     const empStatusMap = new Map<string, EmploymentStatusRow>();

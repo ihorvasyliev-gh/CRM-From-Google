@@ -47,9 +47,11 @@ describe('useOutcomes - fetchGraduatesFn', () => {
                 return {
                     select: vi.fn().mockReturnValue({
                         eq: vi.fn().mockReturnValue({
-                            range: vi.fn().mockResolvedValue({
-                                data: mockEnrollments,
-                                error: null,
+                            order: vi.fn().mockReturnValue({
+                                range: vi.fn().mockResolvedValue({
+                                    data: mockEnrollments,
+                                    error: null,
+                                }),
                             }),
                         }),
                     }),
@@ -58,9 +60,11 @@ describe('useOutcomes - fetchGraduatesFn', () => {
             if (table === 'employment_status') {
                 return {
                     select: vi.fn().mockReturnValue({
-                        range: vi.fn().mockResolvedValue({
-                            data: mockEmploymentStatus,
-                            error: null,
+                        order: vi.fn().mockReturnValue({
+                            range: vi.fn().mockResolvedValue({
+                                data: mockEmploymentStatus,
+                                error: null,
+                            }),
                         }),
                     }),
                 };
@@ -75,5 +79,16 @@ describe('useOutcomes - fetchGraduatesFn', () => {
         expect(graduates[0].tracking_status).toBe('responded');
         expect(graduates[0].is_working).toBe(true);
         expect(graduates[0].field_of_work).toBe('Construction');
+    });
+
+    it('fails instead of returning an empty or partial list when a request fails', async () => {
+        const failing = { data: null, error: { message: 'JWT expired' } };
+        (supabase.from as any).mockImplementation((table: string) => {
+            const range = vi.fn().mockResolvedValue(table === 'employment_status' ? failing : { data: [], error: null });
+            const order = vi.fn().mockReturnValue({ range });
+            return { select: vi.fn().mockReturnValue({ order, eq: vi.fn().mockReturnValue({ order }) }) };
+        });
+
+        await expect(fetchGraduatesFn()).rejects.toMatchObject({ message: 'JWT expired' });
     });
 });

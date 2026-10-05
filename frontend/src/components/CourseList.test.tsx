@@ -74,7 +74,9 @@ describe('CourseList Component', () => {
                 return {
                     select: vi.fn().mockReturnValue({
                         order: vi.fn().mockReturnValue({
-                            range: vi.fn().mockResolvedValue({ data: mockEnrollments, error: null }),
+                            order: vi.fn().mockReturnValue({
+                                range: vi.fn().mockResolvedValue({ data: mockEnrollments, error: null }),
+                            }),
                         }),
                     }),
                 };
@@ -118,7 +120,9 @@ describe('CourseList Component', () => {
                 return {
                     select: vi.fn().mockReturnValue({
                         order: vi.fn().mockReturnValue({
-                            range: vi.fn().mockResolvedValue({ data: mockEnrollments, error: null }),
+                            order: vi.fn().mockReturnValue({
+                                range: vi.fn().mockResolvedValue({ data: mockEnrollments, error: null }),
+                            }),
                         }),
                     }),
                 };

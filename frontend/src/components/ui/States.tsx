@@ -1,6 +1,7 @@
 import type React from 'react';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 import { Button } from './Button';
+import { errorMessage } from '../../lib/errors';
 
 export function EmptyState({
     icon,
@@ -50,7 +51,7 @@ export function ErrorState({
             </div>
             <h3 className="text-base font-semibold text-primary">{title}</h3>
             <p className="text-sm text-muted mt-1">
-                {error instanceof Error ? error.message : (error as { message?: string } | null)?.message || 'Check your connection and try again.'}
+                {errorMessage(error, 'Check your connection and try again.')}
             </p>
             <div className="mt-4 flex justify-center">
                 <Button variant="primary" onClick={onRetry}>

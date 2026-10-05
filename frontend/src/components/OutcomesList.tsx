@@ -15,6 +15,7 @@ import Toast, { ToastData } from './Toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
+import { ErrorState } from './ui/States';
 import OutreachLists from './OutreachLists';
 
 export { type GraduateRow } from '../hooks/useOutcomes';
@@ -47,7 +48,7 @@ export default function OutcomesList() {
 function GraduateOutcomes() {
 
 
-    const { data: graduates = [], isLoading: loading, refetch: fetchGraduates } = useQuery({
+    const { data: graduates = [], isLoading: loading, error: loadError, refetch: fetchGraduates } = useQuery({
         queryKey: ['outcomes_graduates'],
         queryFn: fetchGraduatesFn,
     });
@@ -206,6 +207,10 @@ function GraduateOutcomes() {
                 </div>
             </div>
         );
+    }
+
+    if (loadError && graduates.length === 0) {
+        return <ErrorState title="Could not load the graduates" error={loadError} onRetry={() => fetchGraduates()} />;
     }
 
     return (

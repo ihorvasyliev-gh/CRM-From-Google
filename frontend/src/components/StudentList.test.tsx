@@ -33,13 +33,17 @@ vi.mock('../lib/supabase', () => ({
     supabase: {
         from: vi.fn(() => ({
             select: vi.fn(() => ({
-                order: vi.fn(() => ({
-                    range: vi.fn().mockResolvedValue({
-                        data: mockStudents,
-                        count: mockStudents.length,
-                        error: null,
-                    }),
-                })),
+                // .order('created_at').order('id').range()
+                order: vi.fn(function order() {
+                    return {
+                        order,
+                        range: vi.fn().mockResolvedValue({
+                            data: mockStudents,
+                            count: mockStudents.length,
+                            error: null,
+                        }),
+                    };
+                }),
                 eq: vi.fn(() => ({
                     order: vi.fn().mockResolvedValue({ data: [] }),
                 })),
