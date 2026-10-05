@@ -65,7 +65,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
         const startedTimeline: Record<string, { count: number, timestamp: number, enrollments: EnrollmentWithRelations[] }> = {};
 
         // O(1) lookup instead of scanning every status row for every graduate
-        const statusByStudent = new Map<string, any>();
+        const statusByStudent = new Map<string, EmploymentStatusRow>();
         for (const es of employmentStatuses) {
             if (!statusByStudent.has(es.student_id)) statusByStudent.set(es.student_id, es);
         }

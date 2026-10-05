@@ -24,7 +24,7 @@ export default tseslint.config(
                 { allowConstantExport: true },
             ],
             'react-hooks/set-state-in-effect': 'off',
-            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-explicit-any': 'error',
             '@typescript-eslint/no-unused-vars': [
                 'warn',
                 {
@@ -33,6 +33,13 @@ export default tseslint.config(
                     caughtErrorsIgnorePattern: '^_',
                 },
             ],
+        },
+    },
+    {
+        // Mocks and fixtures in tests may stay loosely typed
+        files: ['**/*.test.{ts,tsx}', 'vitest-setup.ts', 'src/components/Viewer/testUtils.tsx'],
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
         },
     }
 )

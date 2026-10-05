@@ -7,6 +7,7 @@ import { failedChunkUrl, isChunkLoadError, recoverStaleAssets } from './deployRe
  * and reload, retrying a few times with a back-off. After that the error reaches ErrorBoundary.
  */
 export function lazyWithRetry(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same signature as React.lazy: any component
     componentImport: () => Promise<{ default: ComponentType<any> }>
 ): ReturnType<typeof lazy> {
     return lazy(async () => {
