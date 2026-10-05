@@ -1,4 +1,5 @@
-import { BellRing, Check, Mail } from 'lucide-react';
+import { useState } from 'react';
+import { BellRing, Check, ChevronDown, Mail } from 'lucide-react';
 import { ReminderItem, untilLabel } from './dashboardUtils';
 import { formatDateLongWithWeekday } from '../../lib/dateUtils';
 
@@ -9,9 +10,16 @@ export interface SendRemindersBannerProps {
     onMarkSent: (item: ReminderItem) => void;
 }
 
+/** Reminders listed before "Show all": the soonest dates (a busy week has 15 and filled the screen). */
+const COLLAPSED_COUNT = 3;
+
 /** Stays on the dashboard until each reminder is marked as sent. */
 export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendRemindersBannerProps) {
+    const [expanded, setExpanded] = useState(false);
     if (items.length === 0) return null;
+    // Hiding a single row would save nothing
+    const collapsible = items.length > COLLAPSED_COUNT + 1;
+    const shown = collapsible && !expanded ? items.slice(0, COLLAPSED_COUNT) : items;
     return (
         <div className="p-3 pl-4 rounded-2xl bg-sky-500/10 border border-sky-500/40 ring-1 ring-sky-500/20 space-y-2.5">
             <div className="flex items-center gap-3">
@@ -26,7 +34,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                 </div>
             </div>
             <ul className="space-y-1.5">
-                {items.map(item => (
+                {shown.map(item => (
                     <li
                         key={`${item.courseId}|${item.date}`}
                         className="flex flex-wrap items-center justify-between gap-2 p-2 pl-3 rounded-xl bg-surface border border-border-subtle"
@@ -57,6 +65,17 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                     </li>
                 ))}
             </ul>
+            {collapsible && (
+                <button
+                    type="button"
+                    onClick={() => setExpanded(e => !e)}
+                    aria-expanded={expanded}
+                    className="w-full flex items-center justify-center gap-1 h-8 text-xs font-semibold text-sky-700 dark:text-sky-300 rounded-lg hover:bg-sky-500/10 transition-colors cursor-pointer"
+                >
+                    {expanded ? 'Show fewer' : `Show all ${items.length}`}
+                    <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                </button>
+            )}
         </div>
     );
 }

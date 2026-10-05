@@ -40,4 +40,23 @@ describe('SendRemindersBanner', () => {
         fireEvent.click(screen.getAllByRole('button', { name: /I've sent it/i })[1]);
         expect(onMarkSent).toHaveBeenCalledWith(items[1]);
     });
+
+    it('shows the soonest three of a long list until "Show all" is clicked', () => {
+        const items = Array.from({ length: 6 }, (_, i) => item(`c${i}`, i + 1, false));
+        render(<SendRemindersBanner items={items} onSend={vi.fn()} onMarkSent={vi.fn()} />);
+        expect(screen.getAllByRole('listitem')).toHaveLength(3);
+
+        fireEvent.click(screen.getByRole('button', { name: /Show all 6/ }));
+        expect(screen.getAllByRole('listitem')).toHaveLength(6);
+
+        fireEvent.click(screen.getByRole('button', { name: /Show fewer/ }));
+        expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    });
+
+    it('lists four reminders in full (hiding one would save nothing)', () => {
+        const items = Array.from({ length: 4 }, (_, i) => item(`c${i}`, i + 1, false));
+        render(<SendRemindersBanner items={items} onSend={vi.fn()} onMarkSent={vi.fn()} />);
+        expect(screen.getAllByRole('listitem')).toHaveLength(4);
+        expect(screen.queryByRole('button', { name: /Show all/ })).toBeNull();
+    });
 });
