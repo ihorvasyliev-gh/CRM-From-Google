@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { AlertCircle } from 'lucide-react';
-import { getConfig } from '../lib/appConfig';
+import { clearStoredConfig, getConfig, storeServerConfig } from '../lib/appConfig';
 
 interface AuthContextType {
     session: Session | null;
@@ -18,13 +18,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [setupError, setSetupError] = useState<string | null>(null);
+    // 'config': the Supabase URL/key are missing from the build; 'connection': they are there,
+    // but the session could not be loaded (offline, Supabase unreachable, broken token)
+    const [setupError, setSetupError] = useState<{ kind: 'config' | 'connection'; message: string } | null>(null);
 
     useEffect(() => {
         const url = import.meta.env.VITE_SUPABASE_URL;
         const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
         if (!url || !key) {
-            setSetupError("Supabase configuration is missing. Please check your .env file or environment variables.");
+            setSetupError({ kind: 'config', message: 'Supabase configuration is missing. Please check your .env file or environment variables.' });
             setLoading(false);
             return;
         }
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     console.error('Error fetching user settings:', error);
                     syncedUsers.delete(userId);
                 } else if (data && data.settings) {
-                    localStorage.setItem('crm_app_config', JSON.stringify(data.settings));
+                    storeServerConfig(data.settings);
                 } else {
                     // Create settings row in Supabase using the existing local config (if any) or defaults
                     const settingsToSave = getConfig();
@@ -71,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .then(({ data: { session }, error }) => {
                 if (error) {
                     console.error("Auth Session Error:", error);
-                    setSetupError(error.message || "Failed to connect. Invalid or expired token.");
+                    setSetupError({ kind: 'connection', message: error.message || 'Failed to connect. Invalid or expired token.' });
                 } else {
                     setSession(session);
                     setUser(session?.user ?? null);
@@ -83,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             .catch(err => {
                 console.error("Auth Session Catch:", err);
-                setSetupError(err.message || "Network error. Failed to connect to Supabase backend.");
+                setSetupError({ kind: 'connection', message: err.message || 'Network error. Failed to connect to Supabase backend.' });
                 setLoading(false);
             });
 
@@ -96,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (session?.user) {
                     syncUserSettings(session.user.id);
                 } else if (event === 'SIGNED_OUT') {
-                    localStorage.removeItem('crm_app_config');
+                    clearStoredConfig();
                 }
                 
                 setLoading(false);
@@ -106,14 +108,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => subscription?.unsubscribe();
     }, []);
 
-    const signIn = async (email: string, password: string) => {
+    const signIn = useCallback(async (email: string, password: string) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error as Error | null };
-    };
+    }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         await supabase.auth.signOut();
-    };
+    }, []);
+
+    // A new object on every render would re-render every useAuth() consumer with it
+    const value = useMemo(() => ({ session, user, loading, signIn, signOut }), [session, user, loading, signIn, signOut]);
 
     if (setupError) {
         return (
@@ -123,7 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         <AlertCircle size={32} />
                     </div>
                     <h2 className="text-xl font-bold text-primary mb-2">Connection Error</h2>
-                    <p className="text-sm text-muted mb-6">{setupError}</p>
+                    <p className="text-sm text-muted mb-6">{setupError.message}</p>
+                    {setupError.kind === 'config' && (
                     <div className="bg-surface p-4 rounded-xl border border-border-subtle text-left">
                         <h4 className="text-xs font-bold uppercase text-primary mb-2">How to fix this:</h4>
                         <ol className="text-xs text-muted space-y-2 list-decimal list-inside pl-1">
@@ -133,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             <li>Restart your development server.</li>
                         </ol>
                     </div>
+                    )}
                     <button 
                         onClick={() => window.location.reload()}
                         className="mt-6 w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors shadow-xs"
@@ -145,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ session, user, loading, signIn, signOut }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );

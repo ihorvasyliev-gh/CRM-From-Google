@@ -198,6 +198,16 @@ export function getConfig(): AppConfig {
     }
 }
 
+/** Replace the locally stored config with the copy saved on the server (on sign-in). */
+export function storeServerConfig(settings: unknown): void {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+}
+
+/** Forget the locally stored config (on sign-out), without touching the server copy. */
+export function clearStoredConfig(): void {
+    localStorage.removeItem(STORAGE_KEY);
+}
+
 /** Persist a partial config update (merges with existing). */
 export function setConfig(patch: Partial<AppConfig>): AppConfig {
     const current = getConfig();
