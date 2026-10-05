@@ -1,16 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertCircle, X, RotateCcw } from 'lucide-react';
-import { subscribeToasts } from '../lib/toast';
+import { subscribeToasts, type ToastData } from '../lib/toast';
 
-export interface ToastData {
-    message: string;
-    type: 'success' | 'error' | 'info';
-    action?: {
-        label: string;
-        onClick: () => void;
-    };
-    duration?: number;
-}
+export type { ToastData };
 
 interface Props {
     toast: ToastData | null;

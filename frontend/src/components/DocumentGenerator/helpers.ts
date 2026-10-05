@@ -1,10 +1,9 @@
 import type { ChangeEvent } from 'react';
-import type { ToastData } from '../Toast';
 import { describeDateRule, parseDateRule, type DateRule } from '../../lib/documentUtils';
 import type { TemplateVariable } from '../../lib/types';
 import { errorMessage } from '../../lib/errors';
 
-export type ShowToast = (message: string, type: ToastData['type'], duration?: number) => void;
+export type { ShowToast } from '../../lib/toast';
 
 /** Asks for confirmation before a destructive action (template / variable deletion). */
 export type ConfirmDelete = (request: { title: string; message: string; run: () => Promise<unknown> }) => void;

@@ -11,7 +11,7 @@ import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatDateDMY } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
-import Toast, { ToastData } from './Toast';
+import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
@@ -60,9 +60,7 @@ function GraduateOutcomes() {
     const [filterCourse, setFilterCourse] = useState('all');
     const [sending, setSending] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
-    const [toast, setToast] = useState<ToastData | null>(null);
     const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
-    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
 
 
@@ -472,8 +470,6 @@ function GraduateOutcomes() {
                     }}
                 />
             )}
-
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

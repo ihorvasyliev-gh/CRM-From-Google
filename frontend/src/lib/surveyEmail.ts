@@ -1,7 +1,7 @@
 // Survey email helpers shared by the Outcomes graduates table and the External lists.
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from './emailOptOut';
 
-type ShowToast = (message: string, type: 'success' | 'error') => void;
+import type { ShowToast } from './toast';
 
 /** Copies the selected addresses ("a; b"), leaving out people who unsubscribed from our emails. */
 export async function copyOptedInEmails(emails: string[], showToast: ShowToast) {

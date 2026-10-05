@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { ENROLLMENT_SELECT, fetchAllPages } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EnrollmentStatus } from '../lib/types';
+import type { ShowToast } from '../lib/toast';
 import { todayISO } from '../lib/dateUtils';
 import { linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot, type StatusFields } from '../lib/enrollmentStatus';
 
@@ -19,7 +20,7 @@ interface StatusChange {
 }
 
 interface UseEnrollmentsProps {
-    showToast: (msg: string, type: 'success' | 'error') => void;
+    showToast: ShowToast;
     openInviteModal: (ids: string[], bulk: boolean) => void;
     openConfirmModal: (id: string, defaultDate: string, courseId: string) => void;
 }

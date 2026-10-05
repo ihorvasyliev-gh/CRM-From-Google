@@ -11,7 +11,7 @@ import { EmptyState } from './ui/States';
 import { Course, CourseEmailInfo, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
 import ConfirmDialog from './ConfirmDialog';
-import Toast, { ToastData } from './Toast';
+import { notify } from '../lib/toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import { coursePreset, fetchDocumentTemplates } from '../lib/documentUtils';
@@ -142,7 +142,6 @@ export default function CourseList() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
-    const [toast, setToast] = useState<ToastData | null>(null);
 
     // Dashboard "+ Course" quick action lands here with { openCreate: true }
     const location = useLocation();
@@ -175,7 +174,7 @@ export default function CourseList() {
             setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity, template_ids: data.template_ids, email_templates: data.email_templates } : c));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
-            setToast({ message: 'Course updated', type: 'success' });
+            notify({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase
                 .from('courses')
@@ -184,7 +183,7 @@ export default function CourseList() {
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
-            setToast({ message: 'Course created', type: 'success' });
+            notify({ message: 'Course created', type: 'success' });
         }
     }
 
@@ -201,14 +200,14 @@ export default function CourseList() {
             if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
-            setToast({
+            notify({
                 message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
                 type: 'success'
             });
         } catch {
             // Rollback on error
             setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !newRequiresEnglish } : c));
-            setToast({ message: 'Failed to update course template', type: 'error' });
+            notify({ message: 'Failed to update course template', type: 'error' });
         }
     }
 
@@ -216,13 +215,13 @@ export default function CourseList() {
         if (!deleteTarget) return;
         const { error } = await supabase.from('courses').delete().eq('id', deleteTarget.id);
         if (error) {
-            setToast({ message: 'Failed to delete course', type: 'error' });
+            notify({ message: 'Failed to delete course', type: 'error' });
         } else {
             setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-            setToast({ message: 'Course deleted', type: 'success' });
+            notify({ message: 'Course deleted', type: 'success' });
         }
         setDeleteTarget(null);
     }
@@ -404,7 +403,6 @@ export default function CourseList() {
                 onConfirm={handleDelete}
                 onCancel={() => setDeleteTarget(null)}
             />
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

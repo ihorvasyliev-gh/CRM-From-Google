@@ -6,7 +6,7 @@ import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
-import Toast, { ToastData } from './Toast';
+import { notify } from '../lib/toast';
 import { Student, StudentFormData, StudentPayload, fullName, getAvatarGradient } from '../lib/types';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
@@ -88,7 +88,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
     const [enrollStudentId, setEnrollStudentId] = useState<string | undefined>();
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
-    const [toast, setToast] = useState<ToastData | null>(null);
 
     const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -138,7 +137,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             if (detailStudent?.id === id) {
                 setDetailStudent(prev => (prev ? { ...prev, ...merged } : prev));
             }
-            setToast({ message: 'Student updated', type: 'success' });
+            notify({ message: 'Student updated', type: 'success' });
         } else {
             const { error, data: inserted } = await supabase.from('students').insert(formData).select();
             if (error) {
@@ -148,7 +147,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 throw new Error(error.message);
             }
             if (inserted) addStudentToCache();
-            setToast({ message: 'Student added', type: 'success' });
+            notify({ message: 'Student added', type: 'success' });
         }
     }
 
@@ -156,14 +155,14 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         if (!deleteTarget) return;
         const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
         if (error) {
-            setToast({ message: 'Failed to delete student', type: 'error' });
+            notify({ message: 'Failed to delete student', type: 'error' });
         } else {
             removeStudentFromCache(deleteTarget.id);
             // Enrollments are cascade-deleted together with the student
             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             if (detailStudent?.id === deleteTarget.id) setDetailStudent(null);
-            setToast({ message: 'Student deleted', type: 'success' });
+            notify({ message: 'Student deleted', type: 'success' });
         }
         setDeleteTarget(null);
     }
@@ -463,7 +462,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                     open={true}
                     preselectedStudentId={enrollStudentId}
                     onSave={() => {
-                        setToast({ message: 'Enrollment created', type: 'success' });
+                        notify({ message: 'Enrollment created', type: 'success' });
                         if (detailStudent) setDetailStudent({ ...detailStudent });
                     }}
                     onClose={() => setEnrollModalOpen(false)}
@@ -476,7 +475,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 onConfirm={handleDeleteStudent}
                 onCancel={() => setDeleteTarget(null)}
             />
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

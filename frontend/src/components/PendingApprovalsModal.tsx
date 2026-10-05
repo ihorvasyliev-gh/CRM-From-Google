@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
-import Toast, { ToastData } from './Toast';
+import { notify } from '../lib/toast';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import { formatDateDMY } from '../lib/dateUtils';
 import {
@@ -39,7 +39,6 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [rejectionTargetId, setRejectionTargetId] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState<string>('');
-    const [toast, setToast] = useState<ToastData | null>(null);
 
     useModalBehavior(open, onClose);
     useModalBehavior(!!rejectionTargetId, () => setRejectionTargetId(null));
@@ -71,7 +70,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     const handleApproveSingle = async (item: PendingCompletionRequest) => {
         try {
             await approveMutation.mutateAsync({ enrollmentIds: [item.enrollment_id] });
-            setToast({
+            notify({
                 message: `Approved course completion for ${item.student_name} (${item.course_name})`,
                 type: 'success',
             });
@@ -82,7 +81,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
             });
             refetch();
         } catch (err) {
-            setToast({ message: errorMessage(err, 'Failed to approve request'), type: 'error' });
+            notify({ message: errorMessage(err, 'Failed to approve request'), type: 'error' });
         }
     };
 
@@ -90,14 +89,14 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
         if (ids.length === 0) return;
         try {
             await approveMutation.mutateAsync({ enrollmentIds: ids });
-            setToast({
+            notify({
                 message: `Approved ${ids.length} course completion(s)`,
                 type: 'success',
             });
             setSelectedIds(new Set());
             refetch();
         } catch (err) {
-            setToast({ message: errorMessage(err, 'Failed to approve requests'), type: 'error' });
+            notify({ message: errorMessage(err, 'Failed to approve requests'), type: 'error' });
         }
     };
 
@@ -108,7 +107,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 enrollmentIds: [rejectionTargetId],
                 reason: rejectionReason.trim() || undefined,
             });
-            setToast({
+            notify({
                 message: 'Completion request rejected',
                 type: 'info',
             });
@@ -121,7 +120,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
             });
             refetch();
         } catch (err) {
-            setToast({ message: errorMessage(err, 'Failed to reject request'), type: 'error' });
+            notify({ message: errorMessage(err, 'Failed to reject request'), type: 'error' });
         }
     };
 
@@ -351,8 +350,6 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                     </div>
                 </div>
             )}
-
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

@@ -9,7 +9,7 @@ import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatDateDMY } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
-import Toast, { ToastData } from './Toast';
+import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import OutreachImportModal from './OutreachImportModal';
 import OutreachAddContactModal from './OutreachAddContactModal';
@@ -69,8 +69,6 @@ export default function OutreachLists() {
     const [confirmDeleteList, setConfirmDeleteList] = useState(false);
     const [editing, setEditing] = useState<OutreachContact | null>(null);
     const [newListName, setNewListName] = useState<string | null>(null);
-    const [toast, setToast] = useState<ToastData | null>(null);
-    const showToast = (message: string, type: 'success' | 'error') => setToast({ message, type });
 
     // Selection and filters belong to one list
     useEffect(() => {
@@ -612,8 +610,6 @@ export default function OutreachLists() {
                 onConfirm={handleDeleteList}
                 onCancel={() => setConfirmDeleteList(false)}
             />
-
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import type { EnrollmentStatus } from '../lib/types';
+import type { ShowToast } from '../lib/toast';
 import { linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
@@ -18,11 +19,7 @@ function collectEmails(enrollments: EnrollmentRow[]): string {
 interface UseBulkActionsProps {
     enrollments: EnrollmentRow[];
     setEnrollments: React.Dispatch<React.SetStateAction<EnrollmentRow[]>>;
-    showToast: (
-        msg: string,
-        type: 'success' | 'error' | 'info',
-        options?: { action?: { label: string; onClick: () => void }; duration?: number }
-    ) => void;
+    showToast: ShowToast;
     openInviteModal: (ids: string[], bulk: boolean) => void;
     openConfirmModal: (ids: string[], defaultDate: string, courseId: string) => void;
 }

@@ -11,7 +11,7 @@ import { STATUS_CONFIG } from '../lib/statusConfig';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import MergeModal from './MergeModal';
 import { CalendarPanel } from './ui/DatePicker';
-import Toast, { ToastData } from './Toast';
+import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
 import { errorMessage } from '../lib/errors';
 
@@ -232,7 +232,6 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     const queryClient = useQueryClient();
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
-    const [toast, setToast] = useState<ToastData | null>(null);
     const [busyEnrollmentId, setBusyEnrollmentId] = useState<string | null>(null);
 
     useModalBehavior(true, onClose);
@@ -274,14 +273,14 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         
         navigator.clipboard.writeText(textToCopy)
             .then(() => {
-                setToast({
+                notify({
                     message: `${label} copied to clipboard!`,
                     type: 'success'
                 });
             })
             .catch((err) => {
                 console.error('Failed to copy text:', err);
-                setToast({
+                notify({
                     message: `Failed to copy ${label.toLowerCase()}`,
                     type: 'error'
                 });
@@ -292,14 +291,14 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         const summary = formatStudentContactSummary(student);
         navigator.clipboard.writeText(summary)
             .then(() => {
-                setToast({
+                notify({
                     message: 'Contact summary copied to clipboard!',
                     type: 'success'
                 });
             })
             .catch((err) => {
                 console.error('Failed to copy contact summary:', err);
-                setToast({
+                notify({
                     message: 'Failed to copy contact summary',
                     type: 'error'
                 });
@@ -338,13 +337,13 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 .filter(e => removeError || !removeIds.includes(e.id))
                 .map(e => updateIds.includes(e.id) ? { ...e, ...fields } : e)
             );
-            setToast(removeError
+            notify(removeError
                 ? { message: `Marked as ${label.toLowerCase()}, but the requested duplicates could not be removed`, type: 'error' }
                 : { message: `Marked as ${label.toLowerCase()}`, type: 'success' });
             invalidateRelated();
         } catch (err) {
             console.error('Status update failed:', err);
-            setToast({ message: `Failed to mark as ${label.toLowerCase()}`, type: 'error' });
+            notify({ message: `Failed to mark as ${label.toLowerCase()}`, type: 'error' });
         } finally {
             setBusyEnrollmentId(null);
         }
@@ -361,10 +360,10 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
             if (error) throw error;
             setEnrollments(prev => prev.filter(e => e.id !== id));
             setConfirmDeleteId(null);
-            setToast({ message: 'Enrollment deleted', type: 'success' });
+            notify({ message: 'Enrollment deleted', type: 'success' });
             invalidateRelated();
         } catch {
-            setToast({ message: 'Failed to delete enrollment', type: 'error' });
+            notify({ message: 'Failed to delete enrollment', type: 'error' });
         } finally {
             setBusyEnrollmentId(null);
         }
@@ -375,7 +374,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
         const updated = { ...student, [field]: value || null };
         onStudentUpdated?.(updated as Student);
         queryClient.invalidateQueries({ queryKey: ['students'] });
-        setToast({ message: 'Saved', type: 'success' });
+        notify({ message: 'Saved', type: 'success' });
     }
 
     // Navigate to enrollments filtered by course
@@ -466,7 +465,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
-                                onError={message => setToast({ message, type: 'error' })}
+                                onError={message => notify({ message, type: 'error' })}
                             />
                             <InlineEditField
                                 icon={<Phone size={14} />}
@@ -477,7 +476,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
-                                onError={message => setToast({ message, type: 'error' })}
+                                onError={message => notify({ message, type: 'error' })}
                                 extraActions={
                                     student.phone ? (
                                         <div className="flex items-center gap-1">
@@ -513,7 +512,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
-                                onError={message => setToast({ message, type: 'error' })}
+                                onError={message => notify({ message, type: 'error' })}
                                 extraActions={
                                     student.address && formatGoogleMapsUrl(student.address) ? (
                                         <a
@@ -536,7 +535,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
-                                onError={message => setToast({ message, type: 'error' })}
+                                onError={message => notify({ message, type: 'error' })}
                                 extraActions={
                                     student.eircode && formatGoogleMapsUrl(student.eircode) ? (
                                         <a
@@ -561,7 +560,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                 studentId={student.id}
                                 onSaved={handleFieldSaved}
                                 onCopy={handleCopyField}
-                                onError={message => setToast({ message, type: 'error' })}
+                                onError={message => notify({ message, type: 'error' })}
                             />
                         </div>
                     </div>
@@ -627,9 +626,9 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                             try {
                                                                 await approveMutation.mutateAsync({ enrollmentIds: [en.id] });
                                                                 fetchEnrollments();
-                                                                setToast({ message: 'Approved completion', type: 'success' });
+                                                                notify({ message: 'Approved completion', type: 'success' });
                                                             } catch (err) {
-                                                                setToast({ message: errorMessage(err, 'Failed to approve'), type: 'error' });
+                                                                notify({ message: errorMessage(err, 'Failed to approve'), type: 'error' });
                                                             }
                                                         }}
                                                         disabled={approveMutation.isPending}
@@ -642,9 +641,9 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                             try {
                                                                 await rejectMutation.mutateAsync({ enrollmentIds: [en.id] });
                                                                 fetchEnrollments();
-                                                                setToast({ message: 'Rejected completion request', type: 'info' });
+                                                                notify({ message: 'Rejected completion request', type: 'info' });
                                                             } catch (err) {
-                                                                setToast({ message: errorMessage(err, 'Failed to reject'), type: 'error' });
+                                                                notify({ message: errorMessage(err, 'Failed to reject'), type: 'error' });
                                                             }
                                                         }}
                                                         disabled={rejectMutation.isPending}
@@ -715,7 +714,6 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 onClose={() => setMergeModalOpen(false)}
                 onSuccess={onClose}
             />
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
         </div>
     );
 }

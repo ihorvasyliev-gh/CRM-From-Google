@@ -24,7 +24,7 @@ import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
 import GenerateDocsModal from './EnrollmentBoard/GenerateDocsModal';
 import ConfirmDialog from './ConfirmDialog';
-import Toast, { ToastData } from './Toast';
+import { showToast } from '../lib/toast';
 import { matchesSearch } from '../lib/searchUtils';
 import { DateInput } from './ui/DatePicker';
 import { useNowMinute } from '../hooks/useNow';
@@ -52,20 +52,6 @@ export default function EnrollmentBoard({
     /** Status to bring into view (dashboard status links) */
     initialStatus?: EnrollmentStatus;
 }) {
-    const [toast, setToast] = useState<ToastData | null>(null);
-    const showToast = useCallback(
-        (
-            message: string,
-            type: 'success' | 'error' | 'info' = 'success',
-            options?: { action?: { label: string; onClick: () => void }; duration?: number }
-        ) => setToast({
-            message,
-            type,
-            action: options?.action,
-            duration: options?.duration,
-        }),
-        []
-    );
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
@@ -1390,8 +1376,6 @@ export default function EnrollmentBoard({
                     </div>
                 </div>
             )}
-
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
 
             {/* Student Flag Modal */}
             {flagModalTarget && (

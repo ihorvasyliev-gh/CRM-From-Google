@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FileArchive, Tag, Users, Variable } from 'lucide-react';
 import { fetchCourses } from '../lib/queries';
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
-import Toast, { type ToastData } from './Toast';
+import { showToast } from '../lib/toast';
 import ConfirmDialog from './ConfirmDialog';
 import StatTile from './ui/StatTile';
 import { ErrorState } from './ui/States';
@@ -12,7 +12,7 @@ import PlaceholderReference from './DocumentGenerator/PlaceholderReference';
 import { WordTemplatesCard, SingleTemplateCard } from './DocumentGenerator/TemplateCards';
 import { CustomVariablesCard, ExcelColumnsCard } from './DocumentGenerator/SettingsCards';
 import { useDocumentSetup } from './DocumentGenerator/useDocumentSetup';
-import type { ConfirmDelete, ShowToast } from './DocumentGenerator/helpers';
+import type { ConfirmDelete } from './DocumentGenerator/helpers';
 
 export default function DocumentGenerator() {
     const { data: courses = [], isLoading: coursesLoading } = useQuery({
@@ -28,9 +28,7 @@ export default function DocumentGenerator() {
     });
     const setup = useDocumentSetup();
 
-    const [toast, setToast] = useState<ToastData | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Parameters<ConfirmDelete>[0] | null>(null);
-    const showToast: ShowToast = useCallback((message, type, duration) => setToast({ message, type, duration }), []);
 
     if (coursesLoading || enrollmentsLoading || setup.loading) {
         return (
@@ -46,7 +44,6 @@ export default function DocumentGenerator() {
 
     return (
         <div className="pb-8 space-y-5">
-            <Toast toast={toast} onDismiss={() => setToast(null)} />
             <ConfirmDialog
                 open={!!pendingDelete}
                 title={pendingDelete?.title || ''}

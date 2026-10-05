@@ -5,6 +5,7 @@ import type { EnrollmentRow } from './useEnrollments';
 import { daysBetween, formatDateChoiceList, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/emailTemplates';
 import { getCoursePill, type CourseEmailInfo } from '../lib/types';
+import type { ShowToast } from '../lib/toast';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
 export interface DateStats {
@@ -16,7 +17,7 @@ interface UseInviteFlowProps {
     enrollments: EnrollmentRow[];
     setEnrollments: React.Dispatch<React.SetStateAction<EnrollmentRow[]>>;
     clearSelection: () => void;
-    showToast: (msg: string, type: 'success' | 'error') => void;
+    showToast: ShowToast;
 }
 
 /** The course's own text for the email course card (none if it can't be loaded). */
@@ -58,7 +59,7 @@ async function copyHtmlAndOpenDraft(
     emails: (string | null | undefined)[],
     subject: string,
     note: string,
-    showToast: (msg: string, type: 'success' | 'error') => void
+    showToast: ShowToast
 ) {
     try {
         await navigator.clipboard.write([new ClipboardItem({
@@ -82,7 +83,7 @@ async function copyHtmlAndOpenDraft(
  */
 export async function sendReminderEmail(
     selected: EnrollmentRow[],
-    showToast: (msg: string, type: 'success' | 'error') => void
+    showToast: ShowToast
 ): Promise<boolean> {
     const confirmed = selected.filter(e => e.status === 'confirmed');
     if (confirmed.length === 0) {

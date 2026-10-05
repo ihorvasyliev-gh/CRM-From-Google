@@ -31,11 +31,11 @@ function useTemplateUpload(setup: DocumentSetup, showToast: ShowToast) {
         try {
             const vet = await vetTemplateFile(file, kind, setup.customVarMap);
             if ('error' in vet) {
-                showToast(vet.error, 'error', 12000);
+                showToast(vet.error, 'error', { duration: 12000 });
                 return;
             }
             await save(file);
-            showToast(`${label}.${vet.note}`, vet.note ? 'info' : 'success', vet.note ? 12000 : undefined);
+            showToast(`${label}.${vet.note}`, vet.note ? 'info' : 'success', vet.note ? { duration: 12000 } : undefined);
         } catch (err: unknown) {
             console.error('Upload error:', err);
             showToast(`Upload failed: ${errorText(err)}`, 'error');

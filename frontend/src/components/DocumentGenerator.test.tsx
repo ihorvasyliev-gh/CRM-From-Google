@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PizZip from 'pizzip';
 import DocumentGenerator from './DocumentGenerator';
+import { GlobalToaster } from './Toast';
 import { supabase } from '../lib/supabase';
 import { downloadBlob } from '../lib/download';
 
@@ -85,7 +86,8 @@ const storage = { upload: vi.fn(), remove: vi.fn(), download: vi.fn() };
 
 function renderPage() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(<QueryClientProvider client={client}><DocumentGenerator /></QueryClientProvider>);
+    // The app shell's toaster shows the page's messages
+    return render(<QueryClientProvider client={client}><DocumentGenerator /><GlobalToaster /></QueryClientProvider>);
 }
 
 async function chooseCourse(name = /Python 101/) {

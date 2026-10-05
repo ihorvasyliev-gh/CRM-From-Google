@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/queries';
 import type { StudentFlag } from '../lib/types';
+import type { ShowToast } from '../lib/toast';
 
-export function useStudentFlags(showToast: (msg: string, type: 'success' | 'error') => void) {
+export function useStudentFlags(showToast: ShowToast) {
     const queryClient = useQueryClient();
 
     // All student flags with the course name, newest first (paged: one request stops at 1000 rows)
