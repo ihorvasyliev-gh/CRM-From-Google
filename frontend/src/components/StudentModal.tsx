@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { User, AlertTriangle } from 'lucide-react';
-import { StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
+import { fullName, StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { todayISO } from '../lib/dateUtils';
 import { normalizePhone } from '../lib/contactUtils';
@@ -92,7 +92,7 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
                 if (data && data.length > 0) {
                     const match = data[0];
                     const matchedOnEmail = match.email && match.email.trim().toLowerCase() === checkEmail;
-                    setDuplicateWarning(`A student named "${match.first_name} ${match.last_name}" already exists with this ${matchedOnEmail ? 'email' : 'phone'}.`);
+                    setDuplicateWarning(`A student named "${fullName(match)}" already exists with this ${matchedOnEmail ? 'email' : 'phone'}.`);
                 } else {
                     setDuplicateWarning('');
                 }

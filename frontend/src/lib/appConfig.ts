@@ -2,7 +2,7 @@
 // Centralized config for email templates, display preferences, etc.
 import { supabase } from './supabase';
 import type { CourseEmailInfo } from './types';
-import { DEFAULT_EMAIL_STYLE, inlineEmailStyles, isLegacyDefaultFont, lineHeightPx, normalizeEmailStyle, type EmailTextStyle } from './emailFormat';
+import { DEFAULT_EMAIL_STYLE, inlineEmailStyles, isLegacyDefaultFont, lineHeightPx, normalizeEmailStyle, QUILL_FONTS, QUILL_SIZES, quillColor, type EmailTextStyle } from './emailFormat';
 
 export interface ExcelColumn {
     /** Column header text shown in the Excel file */
@@ -273,30 +273,6 @@ export function convertRgbToHex(html: string): string {
  * This is crucial for HTML email rendering in clients like Outlook which do not load the Quill stylesheet.
  */
 export function convertQuillClassesToInlineStyles(html: string): string {
-    const colorMap: Record<string, string> = {
-        'black': '#000000',
-        'red': '#e60000',
-        'orange': '#ff9900',
-        'yellow': '#ffff00',
-        'green': '#008a00',
-        'blue': '#0066cc',
-        'purple': '#9933ff',
-        'white': '#ffffff',
-        'silver': '#bbbbbb',
-        'gray': '#888888'
-    };
-
-    const fontMap: Record<string, string> = {
-        'serif': 'Georgia, Times New Roman, serif',
-        'monospace': 'Monaco, Courier New, monospace'
-    };
-
-    const sizeMap: Record<string, string> = {
-        'small': '0.75em',
-        'large': '1.5em',
-        'huge': '2.5em'
-    };
-
     return html.replace(/<([a-z0-9]+)(\s+[^>]*)>/gi, (tagMatch, tagName, attrs) => {
         const classMatch = attrs.match(/class=["']([^"']+)["']/i);
         if (!classMatch) return tagMatch;
@@ -309,29 +285,25 @@ export function convertQuillClassesToInlineStyles(html: string): string {
             let processed = false;
 
             if (cls.startsWith('ql-color-')) {
-                const val = cls.substring(9);
-                const color = colorMap[val] || (val.match(/^[0-9a-f]{3,6}$/i) ? `#${val}` : null);
+                const color = quillColor(cls.substring(9));
                 if (color) {
                     stylesToAdd.push(`color: ${color};`);
                     processed = true;
                 }
             } else if (cls.startsWith('ql-bg-')) {
-                const val = cls.substring(6);
-                const color = colorMap[val] || (val.match(/^[0-9a-f]{3,6}$/i) ? `#${val}` : null);
+                const color = quillColor(cls.substring(6));
                 if (color) {
                     stylesToAdd.push(`background-color: ${color};`);
                     processed = true;
                 }
             } else if (cls.startsWith('ql-font-')) {
-                const val = cls.substring(8);
-                const font = fontMap[val];
+                const font = QUILL_FONTS[cls.substring(8)];
                 if (font) {
                     stylesToAdd.push(`font-family: ${font};`);
                     processed = true;
                 }
             } else if (cls.startsWith('ql-size-')) {
-                const val = cls.substring(8);
-                const size = sizeMap[val];
+                const size = QUILL_SIZES[cls.substring(8)];
                 if (size) {
                     stylesToAdd.push(`font-size: ${size};`);
                     processed = true;

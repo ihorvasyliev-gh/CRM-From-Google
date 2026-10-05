@@ -1,14 +1,10 @@
 /**
- * Tests for useBulkActions utility functions.
- *
- * We test the pure, non-hook utility functions exported from useBulkActions:
- *   - getCoursePill
- *
- * cleanVariant (from types.ts) is also exercised indirectly here.
+ * Tests for getCoursePill (types.ts), the "Course (Variant)" label on board cards and emails.
+ * cleanVariant is also exercised indirectly here.
  */
 import { describe, it, expect } from 'vitest';
-import { getCoursePill } from './useBulkActions';
-import type { EnrollmentRow } from './useEnrollments';
+import { getCoursePill } from './types';
+import type { EnrollmentRow } from '../hooks/useEnrollments';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

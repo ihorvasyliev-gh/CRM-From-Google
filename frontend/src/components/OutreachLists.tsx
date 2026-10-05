@@ -8,7 +8,7 @@ import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatDateDMY } from '../lib/dateUtils';
-import { getAvatarGradient } from '../lib/types';
+import { fullName, getAvatarGradient } from '../lib/types';
 import Toast, { ToastData } from './Toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
 import OutreachImportModal from './OutreachImportModal';
@@ -480,7 +480,7 @@ export default function OutreachLists() {
                                                     </div>
                                                     <div className="min-w-0">
                                                         <p className="font-semibold text-primary text-[13px] truncate flex items-center gap-1.5">
-                                                            {`${contact.first_name} ${contact.last_name}`.trim() || '—'}
+                                                            {fullName(contact) || '—'}
                                                             {contact.in_crm && (
                                                                 <span title="The same email is also a student in the CRM" className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed">In CRM</span>
                                                             )}

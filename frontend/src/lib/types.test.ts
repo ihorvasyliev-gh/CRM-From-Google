@@ -5,7 +5,7 @@
  *   - cleanVariant: extracts the meaningful variant label from raw values
  */
 import { describe, it, expect } from 'vitest';
-import { cleanVariant } from './types';
+import { cleanVariant, fullName } from './types';
 
 describe('cleanVariant', () => {
     it('returns the variant as-is when it does not match the course name', () => {
@@ -57,5 +57,19 @@ describe('cleanVariant', () => {
         // Does NOT start with the course name → no stripping
         const result = cleanVariant('Python', 'Advanced Python');
         expect(result).toBe('Advanced python');
+    });
+});
+
+describe('fullName', () => {
+    it('joins first and last name, leaving out a missing part', () => {
+        expect(fullName({ first_name: 'Siobhán', last_name: "O'Brien" })).toBe("Siobhán O'Brien");
+        expect(fullName({ first_name: 'Liam', last_name: null })).toBe('Liam');
+        expect(fullName({ first_name: null, last_name: 'Murphy' })).toBe('Murphy');
+    });
+
+    it('is empty for no person or no name', () => {
+        expect(fullName(null)).toBe('');
+        expect(fullName(undefined)).toBe('');
+        expect(fullName({})).toBe('');
     });
 });

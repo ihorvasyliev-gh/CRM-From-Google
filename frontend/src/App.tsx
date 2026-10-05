@@ -14,7 +14,7 @@ import { isNotificationSupported, getNotificationPermission } from './lib/notifi
 import { isUserSubscribed, subscribeUserToPush } from './lib/pushNotifications';
 import { supabase } from './lib/supabase';
 import { fetchCourses, fetchDashboardStats, fetchEmploymentStatuses, fetchStudentsPage } from './lib/queries';
-import { Student, StudentPayload } from './lib/types';
+import { fullName, Student, StudentPayload } from './lib/types';
 import CommandPalette from './components/CommandPalette';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import StudentModal from './components/StudentModal';
@@ -434,7 +434,7 @@ function App() {
         }
         queryClient.invalidateQueries({ queryKey: ['students'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-        toast.success(`${rest.first_name} ${rest.last_name} added`);
+        toast.success(`${fullName(rest)} added`);
         setGlobalAddStudentOpen(false);
     };
 

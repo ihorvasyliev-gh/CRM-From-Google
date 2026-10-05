@@ -265,6 +265,17 @@ export function getAvatarGradient(id: string): string {
     return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
 }
 
+/** "First Last", leaving out a missing part ("" when both are missing). */
+export function fullName(p: { first_name?: string | null; last_name?: string | null } | null | undefined): string {
+    return `${p?.first_name || ''} ${p?.last_name || ''}`.trim();
+}
+
+/** "Course (Variant)" label for an enrollment, e.g. "ECDL (Ukrainian)". */
+export function getCoursePill(enrollment: { courses?: { name: string } | null; course_variant: string | null }): string {
+    const name = enrollment.courses?.name || 'Unknown';
+    return `${name} (${cleanVariant(name, enrollment.course_variant)})`;
+}
+
 export function cleanVariant(courseName: string, variant: string | null | undefined): string {
     if (!variant || !variant.trim()) return 'English';
     let v = variant.trim();

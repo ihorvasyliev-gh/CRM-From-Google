@@ -2,7 +2,7 @@
 // thread when a worker is not available (tests, very old browsers).
 // pizzip / docxtemplater are imported dynamically so they stay out of the main bundle.
 import type { Student, Course, Enrollment } from './types';
-import { cleanVariant } from './types';
+import { cleanVariant, fullName } from './types';
 import { formatDateLong, formatDateDMY, todayISO } from './dateUtils';
 import { loadChunk } from './deployRecovery';
 
@@ -225,7 +225,6 @@ export function courseDateOf(e: Pick<Enrollment, 'confirmed_date' | 'invited_dat
     return e.confirmed_date || e.invited_date || e.completed_date || null;
 }
 
-const fullNameOf = (s: Pick<Student, 'first_name' | 'last_name'> | null) => [s?.first_name, s?.last_name].filter(Boolean).join(' ');
 
 export function buildPlaceholderData(enrollment: EnrollmentWithRelations, today: string = todayISO()): Record<string, string> {
     const s = enrollment.students;
@@ -236,7 +235,7 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations, today:
         userId: s?.id || '',
         firstName: s?.first_name || '',
         lastName: s?.last_name || '',
-        fullName: fullNameOf(s),
+        fullName: fullName(s),
         email: s?.email || '',
         phone: s?.phone || '',
         mobileNumber: s?.phone || '',
@@ -310,7 +309,7 @@ export function buildSheetPages(
                 n: String(p * pageSize + i + 1),
                 firstName: s.first_name || '',
                 lastName: s.last_name || '',
-                fullName: fullNameOf(s),
+                fullName: fullName(s),
                 phone: s.phone || '',
                 mobileNumber: s.phone || '',
                 email: s.email || '',
@@ -635,7 +634,7 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
                 result.totalDocs++;
             } catch (err) {
                 templateOk = false;
-                result.failedDocs.push({ student: fullNameOf(s) || 'Unknown', template: tpl.name, error: describeDocxError(err) });
+                result.failedDocs.push({ student: fullName(s) || 'Unknown', template: tpl.name, error: describeDocxError(err) });
             }
             await tick();
         }

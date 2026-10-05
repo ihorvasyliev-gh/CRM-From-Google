@@ -21,8 +21,9 @@ import {
 } from './ViewerUI';
 import { handleRowArrowKeys } from './viewerMeta';
 import {
-    copyList, daysFromToday, fullName, isCompletable, nameSortKey, pluralize, relativeDay, sessionDate, weekdayDate,
+    copyList, daysFromToday, isCompletable, nameSortKey, pluralize, relativeDay, sessionDate, weekdayDate,
 } from './viewerUtils';
+import { fullName } from '../../lib/types';
 
 type RosterTab = 'all' | 'confirmed' | 'invited' | 'requested' | 'completed' | 'awaiting' | 'declined';
 type RosterSort = 'queue' | 'session' | 'newest' | 'name';

@@ -5,6 +5,7 @@ import { showNotification, isNotificationSupported } from '../lib/notifications'
 import { useAuth } from '../contexts/AuthContext';
 import { getUserRole } from '../lib/roles';
 import { subscribeWithRetry } from '../lib/realtimeSync';
+import { fullName } from '../lib/types';
 
 /** A confirmation is new if it was stamped in the update itself (confirmation flows set confirmed_at = now()). */
 const NEW_CONFIRMATION_WINDOW_MS = 2 * 60 * 1000;
@@ -71,9 +72,7 @@ export function useConfirmationNotifier() {
                         students: { first_name: string; last_name: string } | null;
                         courses: { name: string } | null;
                     };
-                    const studentName = student
-                        ? `${student.first_name} ${student.last_name}`
-                        : 'A student';
+                    const studentName = fullName(student) || 'A student';
                     const courseName = course?.name || 'a course';
 
                     showNotification('✅ Enrollment Confirmed', {

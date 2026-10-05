@@ -2,7 +2,7 @@
 // The rendering itself lives in documentRender.ts and runs in a Web Worker (documentJob.ts).
 import { supabase } from './supabase';
 import { ENROLLMENT_SELECT } from './queries';
-import { cleanVariant, type DocumentTemplate, type Enrollment, type TemplateVariable } from './types';
+import { cleanVariant, fullName, type DocumentTemplate, type Enrollment, type TemplateVariable } from './types';
 import { formatDateSpaces, todayISO } from './dateUtils';
 import { getConfig, setConfig, type ExcelColumn } from './appConfig';
 import { downloadBlob } from './download';
@@ -240,7 +240,7 @@ export async function refreshParticipants(
     for (const e of selected) {
         const now = freshById.get(e.id);
         if (now && stillWanted(now)) people.push(now);
-        else skipped.push([e.students?.first_name, e.students?.last_name].filter(Boolean).join(' ') || 'Unknown');
+        else skipped.push(fullName(e.students) || 'Unknown');
     }
     return { people, skipped };
 }

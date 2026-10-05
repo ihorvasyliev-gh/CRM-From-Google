@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { suggestEmailCorrection } from '../lib/emailValidation';
 import { getGoogleCalendarUrl, downloadIcsFile } from '../lib/calendarUtils';
+import { fullName } from '../lib/types';
 
 type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline_confirm' | 'full';
 
@@ -376,7 +377,7 @@ export default function ConfirmationPage() {
             if (results.some(r => r.success)) {
                 const confirmedNames = matchedStudents
                     .filter(s => results.some(r => r.success && r.id === s.student_id))
-                    .map(s => `${s.first_name} ${s.last_name}`.trim())
+                    .map(s => fullName(s))
                     .join(', ');
                 const note = results.every(r => r.success)
                     ? ' We look forward to seeing you!'

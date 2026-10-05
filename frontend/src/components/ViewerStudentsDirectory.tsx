@@ -14,7 +14,8 @@ import {
     SearchField, Segmented, SelectField, SkeletonRows, StatusBadge, type SegmentOption,
 } from './Viewer/ViewerUI';
 import { handleRowArrowKeys } from './Viewer/viewerMeta';
-import { fullName, pluralize, relativeDay } from './Viewer/viewerUtils';
+import { pluralize, relativeDay } from './Viewer/viewerUtils';
+import { fullName } from '../lib/types';
 
 export type { ViewerStudentDirectoryItem };
 export type SortOption = 'date_desc' | 'date_asc' | 'queue' | 'name_asc';

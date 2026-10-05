@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { cleanVariant, type EnrollmentStatus } from '../lib/types';
+import type { EnrollmentStatus } from '../lib/types';
 import { linkedRows, restoreEnrollments, statusUpdate, takeEnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
@@ -13,13 +13,6 @@ function collectEmails(enrollments: EnrollmentRow[]): string {
         .map(e => e.students?.email)
         .filter((email): email is string => !!email && email.trim() !== '');
     return [...new Set(emails)].join('; ');
-}
-
-export function getCoursePill(enrollment: EnrollmentRow): string {
-    const name = enrollment.courses?.name || 'Unknown';
-    const variant = enrollment.course_variant;
-    const cleaned = cleanVariant(name, variant);
-    return `${name} (${cleaned})`;
 }
 
 interface UseBulkActionsProps {

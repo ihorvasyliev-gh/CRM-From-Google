@@ -7,7 +7,7 @@ import StudentDetail from './StudentDetail';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import Toast, { ToastData } from './Toast';
-import { Student, StudentFormData, StudentPayload, getAvatarGradient } from '../lib/types';
+import { Student, StudentFormData, StudentPayload, fullName, getAvatarGradient } from '../lib/types';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
 import Badge from './ui/Badge';
@@ -472,7 +472,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             <ConfirmDialog
                 open={!!deleteTarget}
                 title="Delete Student"
-                message={`Are you sure you want to delete ${deleteTarget?.first_name} ${deleteTarget?.last_name}? All their enrollments will also be deleted.`}
+                message={`Are you sure you want to delete ${fullName(deleteTarget)}? All their enrollments will also be deleted.`}
                 onConfirm={handleDeleteStudent}
                 onCancel={() => setDeleteTarget(null)}
             />

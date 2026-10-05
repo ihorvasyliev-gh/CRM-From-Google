@@ -119,15 +119,22 @@ function isEmptyBlock(el: Element): boolean {
 
 // ─── Editor input ──────────────────────────────────────────────
 
+// Templates saved by the old Quill editor still carry its class names (ql-color-red, ql-size-large…).
+// These are the inline styles the email builder has always given them.
+const QUILL_COLORS: Record<string, string> = {
+    black: '#000000', red: '#e60000', orange: '#ff9900', yellow: '#ffff00', green: '#008a00',
+    blue: '#0066cc', purple: '#9933ff', white: '#ffffff', silver: '#bbbbbb', gray: '#888888',
+};
+export const QUILL_FONTS: Record<string, string> = { serif: 'Georgia, Times New Roman, serif', monospace: 'Monaco, Courier New, monospace' };
+export const QUILL_SIZES: Record<string, string> = { small: '0.75em', large: '1.5em', huge: '2.5em' };
+
+/** A Quill colour class value (`red`, `facccc`) as a CSS colour, or null. */
+export function quillColor(value: string): string | null {
+    return QUILL_COLORS[value] || (/^[0-9a-f]{3,6}$/i.test(value) ? `#${value}` : null);
+}
+
 /** Old Quill class names → the inline styles the email builder has always given them. */
 function quillClassesToStyles(root: HTMLElement) {
-    const colorMap: Record<string, string> = {
-        black: '#000000', red: '#e60000', orange: '#ff9900', yellow: '#ffff00', green: '#008a00',
-        blue: '#0066cc', purple: '#9933ff', white: '#ffffff', silver: '#bbbbbb', gray: '#888888',
-    };
-    const color = (v: string) => colorMap[v] || (/^[0-9a-f]{3,6}$/i.test(v) ? `#${v}` : null);
-    const fontMap: Record<string, string> = { serif: 'Georgia, Times New Roman, serif', monospace: 'Monaco, Courier New, monospace' };
-    const sizeMap: Record<string, string> = { small: '0.75em', large: '1.5em', huge: '2.5em' };
 
     root.querySelectorAll('[class]').forEach(el => {
         const classes = el.className.split(/\s+/).filter(Boolean);
@@ -136,10 +143,10 @@ function quillClassesToStyles(root: HTMLElement) {
         const keep: string[] = [];
         for (const cls of classes) {
             let m: RegExpMatchArray | null;
-            if ((m = cls.match(/^ql-color-(.+)$/)) && color(m[1])) map.set('color', color(m[1])!);
-            else if ((m = cls.match(/^ql-bg-(.+)$/)) && color(m[1])) map.set('background-color', color(m[1])!);
-            else if ((m = cls.match(/^ql-font-(.+)$/)) && fontMap[m[1]]) map.set('font-family', fontMap[m[1]]);
-            else if ((m = cls.match(/^ql-size-(.+)$/)) && sizeMap[m[1]]) map.set('font-size', sizeMap[m[1]]);
+            if ((m = cls.match(/^ql-color-(.+)$/)) && quillColor(m[1])) map.set('color', quillColor(m[1])!);
+            else if ((m = cls.match(/^ql-bg-(.+)$/)) && quillColor(m[1])) map.set('background-color', quillColor(m[1])!);
+            else if ((m = cls.match(/^ql-font-(.+)$/)) && QUILL_FONTS[m[1]]) map.set('font-family', QUILL_FONTS[m[1]]);
+            else if ((m = cls.match(/^ql-size-(.+)$/)) && QUILL_SIZES[m[1]]) map.set('font-size', QUILL_SIZES[m[1]]);
             else if (!cls.startsWith('ql-')) keep.push(cls);
         }
         writeStyle(el, map);

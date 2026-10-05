@@ -12,7 +12,8 @@ import { formatDateDMY } from '../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary } from '../lib/contactUtils';
 import { Avatar, PriorityStar, StatusBadge } from './Viewer/ViewerUI';
 import CompletionRequestModal, { type CompletionTarget } from './Viewer/CompletionRequestModal';
-import { copyText, fullName, isCompletable, relativeDay, sessionDate, weekdayDate } from './Viewer/viewerUtils';
+import { copyText, isCompletable, relativeDay, sessionDate, weekdayDate } from './Viewer/viewerUtils';
+import { fullName } from '../lib/types';
 
 export interface EnrollmentDetail {
     id: string;

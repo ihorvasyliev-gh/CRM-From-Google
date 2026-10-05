@@ -8,10 +8,6 @@ export function isCompletable(status: string, completionRequestStatus?: string |
     return (COMPLETABLE_STATUSES as readonly string[]).includes(status) && completionRequestStatus !== 'pending';
 }
 
-export function fullName(p: { first_name?: string | null; last_name?: string | null }): string {
-    return `${p.first_name || ''} ${p.last_name || ''}`.trim();
-}
-
 export function initials(p: { first_name?: string | null; last_name?: string | null }): string {
     return `${p.first_name?.[0] || ''}${p.last_name?.[0] || ''}`.toUpperCase() || '?';
 }

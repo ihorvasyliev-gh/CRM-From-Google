@@ -9,10 +9,10 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
-import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
+import { useBulkActions } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { ALL_STATUSES, cleanVariant, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
+import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { formatDateLong, formatDayDateShort, todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -408,7 +408,7 @@ export default function EnrollmentBoard({
     }, []);
 
     const openFlagModal = useCallback((enrollment: EnrollmentRow) => {
-        const name = [enrollment.students?.first_name, enrollment.students?.last_name].filter(Boolean).join(' ');
+        const name = fullName(enrollment.students);
         setFlagModalTarget({ studentId: enrollment.student_id, studentName: name });
         setFlagCourseId('');
         setFlagComment('');
@@ -509,7 +509,7 @@ export default function EnrollmentBoard({
         enrollmentsHook.updateStatus(enrollmentId, newStatus);
 
         if (isDestructive && target) {
-            const name = [target.students?.first_name, target.students?.last_name].filter(Boolean).join(' ') || 'Student';
+            const name = fullName(target.students) || 'Student';
             if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
             setUndoData({ snapshots, newStatus, name });
             undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
@@ -1304,7 +1304,7 @@ export default function EnrollmentBoard({
 
             {confirmMoveTarget && (() => {
                 const enrollment = enrollments.find(e => e.id === confirmMoveTarget.enrollmentId);
-                const name = [enrollment?.students?.first_name, enrollment?.students?.last_name].filter(Boolean).join(' ') || 'this student';
+                const name = fullName(enrollment?.students) || 'this student';
                 const targetLabel = STATUS_CONFIG[confirmMoveTarget.newStatus]?.label || confirmMoveTarget.newStatus;
                 return (
                     <ConfirmDialog

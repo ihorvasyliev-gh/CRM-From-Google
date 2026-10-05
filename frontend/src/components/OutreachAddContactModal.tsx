@@ -6,6 +6,7 @@ import Modal from './ui/Modal';
 import { Button } from './ui/Button';
 import { fieldCls, labelCls } from './ui/styles';
 import { errorMessage } from '../lib/errors';
+import { fullName } from '../lib/types';
 
 interface OutreachAddContactModalProps {
     listId: string;
@@ -42,7 +43,7 @@ export default function OutreachAddContactModal({ listId, listName, existingEmai
             });
             if (rpcError) throw rpcError;
             onAdded({
-                name: `${form.first_name} ${form.last_name}`.trim() || email,
+                name: fullName(form) || email,
                 alreadyOnList: existingEmails.has(email),
             });
             onClose();

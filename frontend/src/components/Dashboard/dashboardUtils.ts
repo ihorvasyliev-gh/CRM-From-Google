@@ -1,4 +1,4 @@
-import { cleanVariant, type Enrollment } from '../../lib/types';
+import { cleanVariant, fullName, type Enrollment } from '../../lib/types';
 import { todayISO, daysBetween } from '../../lib/dateUtils';
 import { getInviteDeadline, formatTimeLeft } from '../../lib/inviteDeadline';
 
@@ -54,7 +54,7 @@ export function calculateExpiredInvites(enrollments: DashboardEnrollment[], nowM
                 timeLabel = `${formatTimeLeft(remainingMs)} left`;
             }
 
-            const studentName = [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown Student';
+            const studentName = fullName(en.students) || 'Unknown Student';
 
             items.push({
                 id: en.id,
@@ -206,7 +206,7 @@ function toActivityEnrollment(en: DashboardEnrollment): ActivityEnrollment {
 }
 
 function studentNameOf(en: DashboardEnrollment): string {
-    return [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
+    return fullName(en.students) || 'Unknown';
 }
 
 /**

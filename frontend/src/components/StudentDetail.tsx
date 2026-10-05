@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
-import { Student, getAvatarGradient, cleanVariant, type EnrollmentStatus } from '../lib/types';
+import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus } from '../lib/types';
 import { linkedRows, statusUpdate } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
 import { formatDateDMY, todayISO } from '../lib/dateUtils';
@@ -402,7 +402,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                             </div>
                             <div>
                                 <h2 
-                                    onClick={() => handleCopyField(`${student.first_name} ${student.last_name}`, 'Name')}
+                                    onClick={() => handleCopyField(fullName(student), 'Name')}
                                     className="font-bold text-primary cursor-pointer hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
                                     title="Click to copy name to clipboard"
                                 >
