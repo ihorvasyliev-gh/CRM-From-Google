@@ -27,6 +27,7 @@ import { canManagePdfForms, getUserRole } from './lib/roles';
 
 import { TooltipProvider } from './components/ui/Tooltip';
 import { AppFallback } from './components/ui/PageFallbacks';
+import ErrorBoundary from './components/ErrorBoundary';
 import { IconButton } from './components/ui/Button';
 import NetworkStatusIndicator from './components/ui/NetworkStatusIndicator';
 import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
@@ -85,6 +86,15 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     'pdf-forms': { chunk: () => import('./components/PdfForms') },
 };
 
+/** localStorage value, or null where storage is blocked (it throws in some privacy modes). */
+function readStorage(key: string): string | null {
+    try {
+        return window.localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
 const NOTIF_BANNER_DISMISSED_KEY = 'notif_banner_dismissed_at';
 const NOTIF_BANNER_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
@@ -100,12 +110,7 @@ function App() {
     // Show notification permission banner once if not yet decided/subscribed (and not dismissed recently)
     useEffect(() => {
         const checkPushSubscription = async () => {
-            let dismissedAt = 0;
-            try {
-                dismissedAt = parseInt(localStorage.getItem(NOTIF_BANNER_DISMISSED_KEY) || '0', 10) || 0;
-            } catch {
-                // storage unavailable — just show the banner
-            }
+            const dismissedAt = parseInt(readStorage(NOTIF_BANNER_DISMISSED_KEY) || '0', 10) || 0;
             if (Date.now() - dismissedAt < NOTIF_BANNER_SNOOZE_MS) return;
             if (isNotificationSupported() && getNotificationPermission() === 'default') {
                 const isSubscribed = await isUserSubscribed();
@@ -179,7 +184,7 @@ function App() {
 
     const [darkMode, setDarkMode] = useState(() => {
         // Initialize from local storage or system preference
-        const saved = window.localStorage.getItem('theme');
+        const saved = readStorage('theme');
         if (saved) return saved === 'dark';
         return window.matchMedia('(prefers-color-scheme: dark)').matches;
     });
@@ -222,7 +227,7 @@ function App() {
 
     // Owned here; Settings gets it as props
     const [density, setDensity] = useState<Density>(() =>
-        window.localStorage.getItem('view_density') === 'compact' ? 'compact' : 'comfortable'
+        readStorage('view_density') === 'compact' ? 'compact' : 'comfortable'
     );
 
     useEffect(() => {
@@ -741,6 +746,8 @@ function App() {
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
                             : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'
                     }`}>
+                        {/* A page that crashes shows its error here; the sidebar and other tabs keep working */}
+                        <ErrorBoundary inline key={activeTab}>
                         <Suspense fallback={
                             <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
                                 <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
@@ -787,6 +794,7 @@ function App() {
                                 )}
                             </Routes>
                         </Suspense>
+                        </ErrorBoundary>
                     </main>
                 </div>
             </div>

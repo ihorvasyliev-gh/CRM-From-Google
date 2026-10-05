@@ -50,10 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 } else {
                     // Create settings row in Supabase using the existing local config (if any) or defaults
                     const settingsToSave = getConfig();
-                    await supabase.from('user_settings').insert({
+                    const { error: insertError } = await supabase.from('user_settings').insert({
                         user_id: userId,
                         settings: settingsToSave
                     });
+                    if (insertError) {
+                        // Try again on the next sign-in event instead of assuming the row exists
+                        console.error('Error creating user settings:', insertError);
+                        syncedUsers.delete(userId);
+                    }
                 }
             } catch (e) {
                 console.error('Failed to sync user settings:', e);

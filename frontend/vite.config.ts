@@ -23,9 +23,12 @@ export default defineConfig({
     worker: { format: 'es' },
     build: {
         rolldownOptions: {
+            // Drop debug output in production but keep console.error / console.warn: for many
+            // failures (caught errors, failed syncs) they are the only trace left
+            treeshake: { manualPureFunctions: ['console.log', 'console.debug', 'console.info'] },
             output: {
                 minify: {
-                    compress: { dropConsole: true, dropDebugger: true },
+                    compress: { dropDebugger: true },
                 },
                 codeSplitting: {
                     groups: [

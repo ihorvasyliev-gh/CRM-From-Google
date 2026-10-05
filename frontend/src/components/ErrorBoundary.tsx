@@ -4,6 +4,11 @@ import { failedChunkUrl, isChunkLoadError, recoverStaleAssets, resetAssetRecover
 
 interface Props {
     children?: ReactNode;
+    /**
+     * Shown inside the page area (a crashed tab) instead of over the whole screen, with a
+     * "Try again" that re-renders the page. Give it a `key` per page so switching tabs resets it.
+     */
+    inline?: boolean;
 }
 
 interface State {
@@ -26,6 +31,10 @@ export default class ErrorBoundary extends Component<Props, State> {
         console.error('Uncaught error in ErrorBoundary:', error, errorInfo);
     }
 
+    private handleRetry = () => {
+        this.setState({ hasError: false, error: undefined });
+    };
+
     /** Fetch the latest code past the browser cache, then reload. */
     private handleReload = () => {
         resetAssetRecovery();
@@ -39,7 +48,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             const chunkError = isChunkLoadError(this.state.error);
 
             return (
-                <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 space-y-4">
+                <div role="alert" className={`${this.props.inline ? 'flex-1 min-h-[50vh]' : 'min-h-screen bg-background'} flex flex-col items-center justify-center p-6 space-y-4`}>
                     <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center text-danger mb-4">
                         <AlertTriangle size={32} />
                     </div>
@@ -61,13 +70,23 @@ export default class ErrorBoundary extends Component<Props, State> {
                         </div>
                     )}
 
-                    <button
-                        onClick={this.handleReload}
-                        className="mt-6 flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition-all shadow-xs"
-                    >
-                        <RefreshCw size={18} />
-                        Reload Page
-                    </button>
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        {this.props.inline && !chunkError && (
+                            <button
+                                onClick={this.handleRetry}
+                                className="px-6 py-3 border border-border-strong text-primary hover:bg-surface-elevated font-semibold rounded-xl transition-all"
+                            >
+                                Try again
+                            </button>
+                        )}
+                        <button
+                            onClick={this.handleReload}
+                            className="flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition-all shadow-xs"
+                        >
+                            <RefreshCw size={18} />
+                            Reload Page
+                        </button>
+                    </div>
                 </div>
             );
         }
