@@ -1,20 +1,20 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/queries';
 import type { StudentFlag } from '../lib/types';
 
 export function useStudentFlags(showToast: (msg: string, type: 'success' | 'error') => void) {
     const queryClient = useQueryClient();
 
-    // Fetch all student flags with joined course name
-    const fetchFlagsFn = async () => {
-        const { data, error } = await supabase
-            .from('student_flags')
-            .select('*, courses(id, name)')
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data as StudentFlag[];
-    };
+    // All student flags with the course name, newest first (paged: one request stops at 1000 rows)
+    const fetchFlagsFn = () => fetchAllPages((from, to) => supabase
+        .from('student_flags')
+        .select('*, courses(id, name)')
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    ) as Promise<StudentFlag[]>;
 
     const { data: flags = [] } = useQuery({
         queryKey: ['student_flags'],
