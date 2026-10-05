@@ -9,14 +9,8 @@ import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
 import { fullName, Student, StudentPayload } from './lib/types';
 import { createStudent, fetchStudent } from './lib/students';
-import CommandPalette from './components/CommandPalette';
-import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
-import StudentModal from './components/StudentModal';
-import StudentDetail from './components/StudentDetail';
-import EnrollmentModal from './components/EnrollmentModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import MobileFloatingActions from './components/MobileFloatingActions';
-import OutreachShell from './components/OutreachShell';
 import { canManagePdfForms, getUserRole } from './lib/roles';
 
 import { TooltipProvider } from './components/ui/Tooltip';
@@ -51,6 +45,14 @@ const OutreachLists = lazyWithRetry(() => import('./components/OutreachLists'));
 const PdfForms = lazyWithRetry(() => import('./components/PdfForms'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
+// Dialogs opened on demand, and the External Lists / PDF Forms shell: not part of the first load
+// (useTabPrefetch warms them while the browser is idle)
+const CommandPalette = lazyWithRetry(() => import('./components/CommandPalette'));
+const KeyboardShortcutsModal = lazyWithRetry(() => import('./components/KeyboardShortcutsModal'));
+const StudentModal = lazyWithRetry(() => import('./components/StudentModal'));
+const StudentDetail = lazyWithRetry(() => import('./components/StudentDetail'));
+const EnrollmentModal = lazyWithRetry(() => import('./components/EnrollmentModal'));
+const OutreachShell = lazyWithRetry(() => import('./components/OutreachShell'));
 import ViewerHeader from './components/Viewer/ViewerHeader';
 import { VIEWER_TABS, type ViewerTab } from './components/Viewer/viewerMeta';
 import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/studentDrawer';
@@ -178,7 +180,9 @@ function App() {
         return (
             <NetworkStatusProvider>
                 <TooltipProvider delayDuration={100}>
-                    <OutreachShell role={role === 'forms' ? 'forms' : 'outreach'} darkMode={darkMode} toggleDarkMode={toggleDarkMode} userEmail={user.email} onSignOut={signOut} />
+                    <Suspense fallback={<AppFallback />}>
+                        <OutreachShell role={role === 'forms' ? 'forms' : 'outreach'} darkMode={darkMode} toggleDarkMode={toggleDarkMode} userEmail={user.email} onSignOut={signOut} />
+                    </Suspense>
                 </TooltipProvider>
             </NetworkStatusProvider>
         );
@@ -551,61 +555,73 @@ function App() {
             <GlobalToaster />
 
             {/* Global Command Palette */}
-            <CommandPalette
-                open={commandPaletteOpen}
-                onClose={() => setCommandPaletteOpen(false)}
-                onNavigate={navigate}
-                onOpenStudentDetail={student => {
-                    if (isViewer) {
-                        viewerDrawer.open(student.id);
-                    } else {
-                        setGlobalStudentDetail(student);
-                    }
-                }}
-                onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
-                onOpenApprovals={() => setApprovalsModalOpen(true)}
-                onOpenShortcuts={() => setShortcutsModalOpen(true)}
-                darkMode={darkMode}
-                toggleDarkMode={toggleDarkMode}
-                density={density}
-                toggleDensity={toggleDensity}
-                isViewer={isViewer}
-                pendingApprovalsCount={pendingApprovalsCount}
-            />
+            {commandPaletteOpen && (
+                <Suspense fallback={null}>
+                    <CommandPalette
+                        open={true}
+                        onClose={() => setCommandPaletteOpen(false)}
+                        onNavigate={navigate}
+                        onOpenStudentDetail={student => {
+                            if (isViewer) {
+                                viewerDrawer.open(student.id);
+                            } else {
+                                setGlobalStudentDetail(student);
+                            }
+                        }}
+                        onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
+                        onOpenApprovals={() => setApprovalsModalOpen(true)}
+                        onOpenShortcuts={() => setShortcutsModalOpen(true)}
+                        darkMode={darkMode}
+                        toggleDarkMode={toggleDarkMode}
+                        density={density}
+                        toggleDensity={toggleDensity}
+                        isViewer={isViewer}
+                        pendingApprovalsCount={pendingApprovalsCount}
+                    />
+                </Suspense>
+            )}
 
             {/* Global Keyboard Shortcuts Modal */}
-            <KeyboardShortcutsModal
-                open={shortcutsModalOpen}
-                onClose={() => setShortcutsModalOpen(false)}
-                isViewer={isViewer}
-            />
+            {shortcutsModalOpen && (
+                <Suspense fallback={null}>
+                    <KeyboardShortcutsModal
+                        open={true}
+                        onClose={() => setShortcutsModalOpen(false)}
+                        isViewer={isViewer}
+                    />
+                </Suspense>
+            )}
 
             {/* Global Add Student Modal */}
             {globalAddStudentOpen && (
-                <StudentModal
-                    open={true}
-                    student={null}
-                    onSave={handleSaveNewStudent}
-                    onClose={() => setGlobalAddStudentOpen(false)}
-                />
+                <Suspense fallback={null}>
+                    <StudentModal
+                        open={true}
+                        student={null}
+                        onSave={handleSaveNewStudent}
+                        onClose={() => setGlobalAddStudentOpen(false)}
+                    />
+                </Suspense>
             )}
 
             {/* Global New Enrollment Modal */}
             {globalEnrollModalOpen && (
-                <EnrollmentModal
-                    open={true}
-                    onSave={() => {
-                        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
-                        queryClient.invalidateQueries({ queryKey: ['courses'] });
-                        toast.success('Enrollment created');
-                    }}
-                    preselectedStudentId={globalEnrollStudentId}
-                    onClose={() => {
-                        setGlobalEnrollModalOpen(false);
-                        setGlobalEnrollStudentId(undefined);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <EnrollmentModal
+                        open={true}
+                        onSave={() => {
+                            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                            queryClient.invalidateQueries({ queryKey: ['courses'] });
+                            toast.success('Enrollment created');
+                        }}
+                        preselectedStudentId={globalEnrollStudentId}
+                        onClose={() => {
+                            setGlobalEnrollModalOpen(false);
+                            setGlobalEnrollStudentId(undefined);
+                        }}
+                    />
+                </Suspense>
             )}
 
             {/* Viewer Student Detail Drawer (URL driven: ?student=<id>) */}
@@ -629,16 +645,18 @@ function App() {
 
             {/* Global Student Detail Modal */}
             {!isViewer && globalStudentDetail && (
-                <StudentDetail
-                    student={globalStudentDetail}
-                    onClose={() => setGlobalStudentDetail(null)}
-                    onNavigate={navigate}
-                    onStudentUpdated={setGlobalStudentDetail}
-                    onEnroll={() => {
-                        setGlobalEnrollStudentId(globalStudentDetail.id);
-                        setGlobalEnrollModalOpen(true);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <StudentDetail
+                        student={globalStudentDetail}
+                        onClose={() => setGlobalStudentDetail(null)}
+                        onNavigate={navigate}
+                        onStudentUpdated={setGlobalStudentDetail}
+                        onEnroll={() => {
+                            setGlobalEnrollStudentId(globalStudentDetail.id);
+                            setGlobalEnrollModalOpen(true);
+                        }}
+                    />
+                </Suspense>
             )}
         </TooltipProvider>
         </NetworkStatusProvider>

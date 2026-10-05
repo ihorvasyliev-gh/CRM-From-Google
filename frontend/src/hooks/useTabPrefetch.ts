@@ -73,6 +73,8 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
             import('../components/ViewerStudentsDirectory');
             import('../components/ViewerCourses');
             import('../components/StudentDetailDrawer');
+            import('../components/CommandPalette');
+            import('../components/KeyboardShortcutsModal');
         };
         const w = window as IdleWindow;
         if (w.requestIdleCallback && w.cancelIdleCallback) {
@@ -92,6 +94,12 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
         if (conn?.saveData || /(^|-)2g$/.test(conn?.effectiveType ?? '')) return;
         const slow = conn?.effectiveType === '3g';
         const loaders: Array<() => Promise<unknown>> = [
+            // The dialogs App opens from anywhere (search, add student, enroll, student card)
+            () => import('../components/CommandPalette'),
+            () => import('../components/StudentDetail'),
+            () => import('../components/EnrollmentModal'),
+            () => import('../components/StudentModal'),
+            () => import('../components/KeyboardShortcutsModal'),
             () => import('../components/Dashboard'),
             () => import('../components/StudentList'),
             () => import('../components/EnrollmentBoard'),
