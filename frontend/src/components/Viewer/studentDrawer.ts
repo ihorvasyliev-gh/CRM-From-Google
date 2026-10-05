@@ -9,7 +9,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
  * for Previous / Next navigation (↑ / ↓) without closing.
  */
 
-export const STUDENT_PARAM = 'student';
+const STUDENT_PARAM = 'student';
 
 let visibleIds: string[] = [];
 const listeners = new Set<() => void>();
@@ -18,7 +18,7 @@ function emit() {
     listeners.forEach(l => l());
 }
 
-export function setVisibleStudentIds(ids: string[]) {
+function setVisibleStudentIds(ids: string[]) {
     if (ids.length === visibleIds.length && ids.every((id, i) => id === visibleIds[i])) return;
     visibleIds = ids;
     emit();

@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { DEFAULT_SETTINGS, type PdfFormTemplate, type PdfFormTemplateDraft } from '../lib/pdfForms/types';
 
 // Templates live in public.pdf_form_templates, their PDFs in the private "pdf-forms" bucket (migration 75).
-export const PDF_FORMS_BUCKET = 'pdf-forms';
-export const PDF_FORMS_KEY = ['pdf_form_templates'] as const;
+const PDF_FORMS_BUCKET = 'pdf-forms';
+const PDF_FORMS_KEY = ['pdf_form_templates'] as const;
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 function normalize(row: PdfFormTemplate): PdfFormTemplate {
@@ -24,7 +24,7 @@ export function useFormUserName(): string {
     return (meta.full_name || meta.name || user?.email || '').trim();
 }
 
-export async function fetchPdfFormTemplates(): Promise<PdfFormTemplate[]> {
+async function fetchPdfFormTemplates(): Promise<PdfFormTemplate[]> {
     const { data, error } = await supabase.from('pdf_form_templates').select('*').order('name');
     if (error) throw error;
     return ((data ?? []) as PdfFormTemplate[]).map(normalize);

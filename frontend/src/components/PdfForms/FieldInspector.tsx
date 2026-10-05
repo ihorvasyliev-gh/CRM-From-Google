@@ -26,7 +26,7 @@ interface SourceEditorProps {
 }
 
 /** Chips for a value: columns in blue, today / your name in violet, fixed text in grey */
-export function SourceChips({ source }: { source: string }) {
+function SourceChips({ source }: { source: string }) {
     const parts = describeSource(source);
     if (parts.length === 0) return <span className="text-[11px] text-muted italic">No value yet</span>;
     return (
@@ -54,7 +54,7 @@ export function SourceChips({ source }: { source: string }) {
  * Where a value comes from, point and click: a spreadsheet column (optionally "first name",
  * "day"…), the same text for everyone, or (advanced) free text with {Column} placeholders.
  */
-export function SourceEditor({ value, onChange, columns, id }: SourceEditorProps) {
+function SourceEditor({ value, onChange, columns, id }: SourceEditorProps) {
     const simple = simpleSource(value);
     const [mode, setMode] = useState<SourceMode>(simple.kind === 'fixed' ? 'fixed' : simple.kind === 'combined' ? 'advanced' : 'column');
     const column = simple.kind === 'column' ? simple.column : '';

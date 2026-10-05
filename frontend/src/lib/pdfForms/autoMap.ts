@@ -84,7 +84,7 @@ export function saysSelectOne(boxes: Checkbox[], layout: PdfLayout): boolean {
     return notes.some(p => SINGLE_NOTE.test(p.text) && !MULTI_NOTE.test(p.text));
 }
 
-export function shortName(header: string, max = 48): string {
+function shortName(header: string, max = 48): string {
     const clean = header.replace(/\s+/g, ' ').trim();
     const first = clean.split(/(?<=[?:.])\s/)[0];
     const name = (first.length >= 3 ? first : clean).replace(/[\s:;,.-]+$/, '');

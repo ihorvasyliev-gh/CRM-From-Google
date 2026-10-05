@@ -79,7 +79,7 @@ export async function checkTemplate(file: Blob, kind: TemplateKind, customVariab
 }
 
 /** Upload a .docx to the templates bucket under a fresh, unique path. */
-export async function uploadTemplateFile(file: File, prefix: string): Promise<string> {
+async function uploadTemplateFile(file: File, prefix: string): Promise<string> {
     const storagePath = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.docx`;
     const { error } = await supabase.storage.from(BUCKET).upload(storagePath, file, { cacheControl: '3600', upsert: false });
     if (error) throw error;
@@ -87,7 +87,7 @@ export async function uploadTemplateFile(file: File, prefix: string): Promise<st
 }
 
 /** Remove stored files. A failure only leaves an unused file behind, so it is logged, not thrown. */
-export async function removeTemplateFiles(paths: string[]): Promise<void> {
+async function removeTemplateFiles(paths: string[]): Promise<void> {
     const { error } = await supabase.storage.from(BUCKET).remove(paths);
     if (error) console.warn(`Could not remove ${paths.join(', ')} from storage:`, error);
 }
@@ -139,7 +139,7 @@ export async function deleteTemplate(table: TemplateTable, row: DocumentTemplate
 }
 
 /** Download a template's bytes. The bucket is private, so this goes through the signed-in session. */
-export async function fetchTemplateFile(storagePath: string): Promise<ArrayBuffer> {
+async function fetchTemplateFile(storagePath: string): Promise<ArrayBuffer> {
     const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
     if (error || !data) throw new Error(/not.?found|404/i.test(error?.message || '') ? 'File not found' : (error?.message || 'No data'));
     return data.arrayBuffer();
@@ -212,7 +212,7 @@ export function defaultSessionKey<T>(sessions: CourseSession<T>[], status: Gener
 }
 
 /** Re-read enrollments right before generating, so documents never use a stale cached name or address. */
-export async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWithRelations[]> {
+async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWithRelations[]> {
     const CHUNK = 150; // keeps the id=in.(…) URL well under server limits
     const chunks = Array.from({ length: Math.ceil(ids.length / CHUNK) }, (_, i) => ids.slice(i * CHUNK, (i + 1) * CHUNK));
     const results = await Promise.all(chunks.map(async chunk => {

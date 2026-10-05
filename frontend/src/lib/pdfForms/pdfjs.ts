@@ -12,7 +12,7 @@ type PdfJs = typeof import('pdfjs-dist');
 
 let pdfjsPromise: Promise<PdfJs> | null = null;
 
-export function loadPdfJs(): Promise<PdfJs> {
+function loadPdfJs(): Promise<PdfJs> {
     pdfjsPromise ??= loadChunk(() => Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<PdfJs>, import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]))
         .then(([lib, worker]) => {
             lib.GlobalWorkerOptions.workerSrc = worker.default;
@@ -85,7 +85,7 @@ export async function extractLayout(doc: PDFDocumentProxy): Promise<PdfLayout> {
     return layoutFromDoc(await loadPdfJs(), doc);
 }
 
-export async function layoutFromDoc(pdfjs: PdfJs, doc: PDFDocumentProxy): Promise<PdfLayout> {
+async function layoutFromDoc(pdfjs: PdfJs, doc: PDFDocumentProxy): Promise<PdfLayout> {
     const pages: { w: number; h: number }[] = [];
     const items: RawTextItem[] = [];
     const rects: RawRect[] = [];

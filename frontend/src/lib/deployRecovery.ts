@@ -44,7 +44,7 @@ export function resetAssetRecovery(): void {
 }
 
 /** Tell the app its code is out of date, so it can offer a reload. */
-export function notifyStaleAssets(url?: string): void {
+function notifyStaleAssets(url?: string): void {
     recoveryWindow()?.dispatchEvent(new CustomEvent(STALE_ASSETS_EVENT, { detail: url }));
 }
 

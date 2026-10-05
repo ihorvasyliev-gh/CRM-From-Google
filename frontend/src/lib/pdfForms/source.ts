@@ -8,7 +8,7 @@ import { HEADER_THRESHOLD, normalizeText, similarity } from './text';
 
 const PLACEHOLDER_RE = /\{([^{}|]+)((?:\|[^{}|]*)*)\}/g;
 
-export const SPECIAL_COLUMNS = ['today', 'row', 'user'] as const;
+const SPECIAL_COLUMNS = ['today', 'row', 'user'] as const;
 
 export const FILTERS: { key: string; label: string }[] = [
     { key: 'first', label: 'First name (from a full name)' },
@@ -56,7 +56,7 @@ export function placeholderFor(column: string, filters: string[] = []): string {
 // ─── Plain-language descriptions (so people never have to read "{…|…}") ───
 
 /** Short names for filters, as shown next to a column: "Contact Name · first name" */
-export const FILTER_SHORT: Record<string, string> = {
+const FILTER_SHORT: Record<string, string> = {
     first: 'first name',
     last: 'last name',
     phone: 'phone',

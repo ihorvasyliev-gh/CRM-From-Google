@@ -88,7 +88,7 @@ export default function Modal({
     );
 }
 
-export function ModalHeader({
+function ModalHeader({
     title,
     subtitle,
     icon: Icon,
@@ -137,7 +137,7 @@ export function ModalHeader({
     );
 }
 
-export function ModalFooter({ children, className = '' }: { children: ReactNode; className?: string }) {
+function ModalFooter({ children, className = '' }: { children: ReactNode; className?: string }) {
     return (
         <div className={`flex items-center justify-end gap-2 px-5 sm:px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40 shrink-0 ${className}`}>
             {children}

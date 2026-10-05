@@ -98,7 +98,7 @@ function buildSessions(enrollments: any[], todayIso: string, nowMs: number): Upc
 }
 
 /** Confirmed course dates from today on (dates with only pending invites are left out). */
-export function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
+function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
     return buildSessions(enrollments, todayIso, nowMs).filter(c => c.confirmedCount > 0);
 }
 

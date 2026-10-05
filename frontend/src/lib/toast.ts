@@ -13,7 +13,7 @@ export function subscribeToasts(listener: Listener): () => void {
     return () => { listeners.delete(listener); };
 }
 
-export function notify(toast: ToastData): void {
+function notify(toast: ToastData): void {
     listeners.forEach(l => l(toast));
 }
 

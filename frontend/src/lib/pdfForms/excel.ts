@@ -51,7 +51,7 @@ export type NameSource =
 export const AUTO_NAMES: NameSource = { kind: 'auto' };
 
 /** Excel's column letters: 0 → A, 26 → AA */
-export function columnLetter(index: number): string {
+function columnLetter(index: number): string {
     let n = index + 1;
     let out = '';
     while (n > 0) {

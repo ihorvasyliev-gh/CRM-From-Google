@@ -44,7 +44,7 @@ export interface AppConfig {
 
 const STORAGE_KEY = 'crm_app_config';
 
-export const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
+const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
     { header: 'First Name', placeholder: 'firstName' },
     { header: 'Last Name', placeholder: 'lastName' },
     { header: 'Email', placeholder: 'email' },
@@ -488,7 +488,7 @@ function getEmailWrapper(content: string, type: InviteEmailKind | 'status', incl
 }
 
 /** Sanitize string for safe insertion into HTML email templates. */
-export function escapeHtml(str: string): string {
+function escapeHtml(str: string): string {
     return (str || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

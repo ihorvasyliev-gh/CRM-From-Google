@@ -339,7 +339,7 @@ interface DocxLibs { PizZip: PizZipCtor; Docxtemplater: DocxtemplaterCtor; fixDo
 
 let libsPromise: Promise<DocxLibs> | null = null;
 
-export function loadDocxLibs(): Promise<DocxLibs> {
+function loadDocxLibs(): Promise<DocxLibs> {
     libsPromise ??= loadChunk(() => Promise.all([
         import('pizzip'),
         import('docxtemplater'),

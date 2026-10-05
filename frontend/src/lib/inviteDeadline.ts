@@ -6,7 +6,7 @@
 export const HOUR_MS = 60 * 60 * 1000;
 export const DAY_MS = 24 * HOUR_MS;
 /** An invite counts as "due soon" once this little time is left. */
-export const DUE_SOON_MS = 48 * HOUR_MS;
+const DUE_SOON_MS = 48 * HOUR_MS;
 export const DEFAULT_RESPONSE_DAYS = 7;
 
 export type InviteFilter = 'all' | 'expired' | 'soon' | 'attention';

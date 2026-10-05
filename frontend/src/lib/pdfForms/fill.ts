@@ -215,7 +215,7 @@ function drawTextField(page: PDFPage, font: PDFFont, field: TextField, text: str
     return fitted.truncated;
 }
 
-export function drawMark(page: PDFPage, rect: Rect, style: TemplateSettings['mark'], lib: PdfLib): void {
+function drawMark(page: PDFPage, rect: Rect, style: TemplateSettings['mark'], lib: PdfLib): void {
     const s = Math.min(rect.w, rect.h);
     const cx = rect.x + rect.w / 2;
     const cy = rect.y + rect.h / 2;

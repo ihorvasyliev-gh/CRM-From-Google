@@ -17,7 +17,7 @@ function formatMonth(value: string | null): string {
 }
 
 /** One spreadsheet row per contact, ready for reporting (e.g. back to IRIS). */
-export function outreachExportRows(contacts: OutreachContact[]) {
+function outreachExportRows(contacts: OutreachContact[]) {
     return contacts.map(c => ({
         firstName: sanitizeExcelValue(c.first_name),
         lastName: sanitizeExcelValue(c.last_name),

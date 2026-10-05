@@ -9,7 +9,7 @@ import {
 import type { ExcelColumn } from '../../lib/appConfig';
 import type { DocumentTemplate, TemplateVariable } from '../../lib/types';
 
-export const DOC_KEYS = {
+const DOC_KEYS = {
     templates: ['doc_templates'],
     variables: ['doc_custom_vars'],
     excel: ['doc_excel_columns'],

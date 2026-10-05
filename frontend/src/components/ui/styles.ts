@@ -43,18 +43,7 @@ export const calloutCls = {
     brand: 'rounded-xl border border-brand-500/20 bg-brand-500/[0.07] text-primary',
 } as const;
 
-/** Icon colour for callouts / icon chips (readable in both themes). */
-export const toneTextCls = {
-    brand: 'text-brand-600 dark:text-brand-400',
-    info: 'text-status-invited',
-    success: 'text-status-confirmed',
-    warning: 'text-status-requested',
-    danger: 'text-status-rejected',
-    completed: 'text-status-completed',
-    neutral: 'text-muted',
-} as const;
-
-/** Icon chip backgrounds, paired with `toneTextCls`. */
+/** Icon chip backgrounds with a matching icon colour (readable in both themes). */
 export const toneChipCls = {
     brand: 'bg-brand-500/10 text-brand-600 dark:text-brand-400',
     info: 'bg-info/15 text-status-invited',

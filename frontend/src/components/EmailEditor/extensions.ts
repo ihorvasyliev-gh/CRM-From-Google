@@ -33,7 +33,7 @@ declare module '@tiptap/core' {
  * Block-level formatting stored as inline styles: line height and left indent on <p>/<h*>, plus
  * whatever other inline style a paragraph or list already had, so templates round-trip unchanged.
  */
-export const BlockFormat = Extension.create({
+const BlockFormat = Extension.create({
     name: 'blockFormat',
 
     addGlobalAttributes() {
@@ -114,7 +114,7 @@ function tagDecorations(doc: PMNode): DecorationSet {
 }
 
 /** Highlights {placeholders} so they stand out from the text around them. */
-export const TagHighlight = Extension.create({
+const TagHighlight = Extension.create({
     name: 'tagHighlight',
     addProseMirrorPlugins() {
         const key = new PluginKey<DecorationSet>('tagHighlight');

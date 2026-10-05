@@ -99,4 +99,4 @@ export function CustomTooltip({ children, content, side = "top" }: { children: R
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+export { TooltipProvider };

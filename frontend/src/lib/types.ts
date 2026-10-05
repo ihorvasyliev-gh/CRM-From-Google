@@ -224,7 +224,7 @@ export interface ViewerUpcomingCourse {
 
 // ─── UI Utilities ────────────────────────────────────────────
 
-export const AVATAR_GRADIENTS = [
+const AVATAR_GRADIENTS = [
     'from-brand-500 to-brand-600',
     'from-violet-500 to-purple-600',
     'from-emerald-500 to-teal-600',

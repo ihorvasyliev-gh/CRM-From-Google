@@ -2,7 +2,7 @@ import { toast } from '../../lib/toast';
 import { todayISO } from '../../lib/dateUtils';
 
 /** Enrollment statuses a viewer can still request completion for. */
-export const COMPLETABLE_STATUSES = ['requested', 'invited', 'confirmed'] as const;
+const COMPLETABLE_STATUSES = ['requested', 'invited', 'confirmed'] as const;
 
 export function isCompletable(status: string, completionRequestStatus?: string | null): boolean {
     return (COMPLETABLE_STATUSES as readonly string[]).includes(status) && completionRequestStatus !== 'pending';

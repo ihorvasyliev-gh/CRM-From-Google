@@ -82,7 +82,7 @@ export function bigramSimilarity(a: string, b: string): number {
 }
 
 /** Dice on word sets (stop words ignored), 0..1 */
-export function tokenSimilarity(a: string, b: string): number {
+function tokenSimilarity(a: string, b: string): number {
     const A = new Set(contentTokens(a));
     const B = new Set(contentTokens(b));
     if (A.size === 0 || B.size === 0) return 0;
