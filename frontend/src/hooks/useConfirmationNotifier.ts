@@ -77,7 +77,7 @@ export function useConfirmationNotifier() {
 
                     showNotification('✅ Enrollment Confirmed', {
                         body: `${studentName} confirmed for ${courseName}`,
-                        icon: '/favicon.ico',
+                        icon: '/icon-192.png',
                         tag: `confirm-${id}`, // prevents duplicate system notifications
                     });
 

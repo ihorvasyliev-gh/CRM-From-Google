@@ -1,5 +1,13 @@
 import { supabase } from './supabase';
 
+/**
+ * Public half of the VAPID key pair used by the send-push-notification Edge Function
+ * (its VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY secrets). A new pair means setting
+ * VITE_VAPID_PUBLIC_KEY and those two secrets together.
+ */
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+    || 'BEXKy7-1BQOoZ23lEfJVE11pQJaQd1eRl1LavYMMAUb7R5y2jUelEmSTMIr-UUf7jF0UmsiQC2zaJwrecHE5m-o';
+
 // Converts the base64 URL-safe VAPID public key to a Uint8Array (atob accepts missing padding).
 const urlB64ToUint8Array = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 
@@ -56,8 +64,7 @@ export async function subscribeUserToPush(userId: string): Promise<boolean> {
         }
 
         // 2. Subscribe to push notifications using VAPID public key
-        const publicVapidKey = 'BEXKy7-1BQOoZ23lEfJVE11pQJaQd1eRl1LavYMMAUb7R5y2jUelEmSTMIr-UUf7jF0UmsiQC2zaJwrecHE5m-o';
-        const convertedVapidKey = urlB64ToUint8Array(publicVapidKey);
+        const convertedVapidKey = urlB64ToUint8Array(VAPID_PUBLIC_KEY);
 
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,

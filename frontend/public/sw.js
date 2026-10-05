@@ -21,8 +21,8 @@ self.addEventListener('push', function (event) {
     const title = payload.title || '🎓 CCP CRM';
     const options = {
         body: payload.body || 'New update received.',
-        icon: payload.icon || '/favicon.ico',
-        badge: payload.badge || '/favicon.ico',
+        icon: payload.icon || '/icon-192.png',
+        badge: payload.badge || '/icon-192.png',
         tag: payload.tag || 'crm-default-tag',
         data: {
             url: payload.url || '/'
