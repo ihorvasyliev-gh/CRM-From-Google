@@ -337,10 +337,10 @@ function GraduateOutcomes() {
                                     </th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Student</th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Courses</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Employment</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
-                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Actions</th>
+                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -369,11 +369,16 @@ function GraduateOutcomes() {
                                                     <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(grad.student_id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
                                                         {(grad.first_name[0] || '').toUpperCase()}{(grad.last_name[0] || '').toUpperCase()}
                                                     </div>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 max-w-[calc(100vw-13rem)] sm:max-w-none">
                                                         <p className="font-semibold text-primary text-[13px] truncate">
                                                             {grad.first_name} {grad.last_name}
                                                         </p>
                                                         <p className="text-[11px] text-muted truncate">{grad.email}</p>
+                                                        {/* Phones: the status columns are hidden, so their badges go under the name */}
+                                                        <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
+                                                            <TrackingBadge status={grad.tracking_status} />
+                                                            {grad.tracking_status === 'responded' && <EmploymentBadge status={grad.tracking_status} row={grad} />}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -386,13 +391,13 @@ function GraduateOutcomes() {
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={grad.tracking_status} />
                                                 {grad.tracking_status === 'pending' && grad.last_sent_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={grad.tracking_status} row={grad} />
                                                 {grad.is_working && grad.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">

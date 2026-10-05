@@ -19,7 +19,7 @@ export function EmploymentBadge({ status, row }: {
     if (!row.is_working) return <span className={`${pillCls} bg-orange-500/20 text-orange-400`}>Not working</span>;
     const type = row.employment_type === 'full_time' ? 'Full-time' : row.employment_type === 'part_time' ? 'Part-time' : '';
     return (
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <span className={`${pillCls} bg-success/15 text-status-confirmed`}>
                 <Briefcase size={10} /> Working {type && `· ${type}`}
             </span>

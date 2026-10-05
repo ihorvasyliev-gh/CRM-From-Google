@@ -449,10 +449,10 @@ export default function OutreachLists() {
                                     </th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Contact</th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Employment</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
+                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
                                     <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
-                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider">Actions</th>
+                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -480,7 +480,7 @@ export default function OutreachLists() {
                                                     <div className={`w-8 h-8 bg-linear-to-br ${getAvatarGradient(contact.id)} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
                                                         {initials}
                                                     </div>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 max-w-[calc(100vw-13rem)] sm:max-w-none">
                                                         <p className="font-semibold text-primary text-[13px] truncate flex items-center gap-1.5">
                                                             {fullName(contact) || '—'}
                                                             {contact.in_crm && (
@@ -488,19 +488,24 @@ export default function OutreachLists() {
                                                             )}
                                                         </p>
                                                         <p className="text-[11px] text-muted truncate">{contact.email}</p>
+                                                        {/* Phones: the status columns are hidden, so their badges go under the name */}
+                                                        <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
+                                                            <TrackingBadge status={contact.status} />
+                                                            {contact.status === 'responded' && <EmploymentBadge status={contact.status} row={contact} />}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <span className="text-xs text-muted">{contact.external_ref || '—'}</span>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={contact.status} />
                                                 {contact.status === 'pending' && contact.last_invited_at && (
                                                     <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(contact.last_invited_at)}</p>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={contact.status} row={contact} />
                                                 {contact.status === 'responded' && contact.is_working && contact.started_month && (
                                                     <p className="text-[10px] text-muted mt-0.5">
