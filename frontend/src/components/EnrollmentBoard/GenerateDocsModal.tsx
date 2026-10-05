@@ -6,7 +6,8 @@ import { calloutCls } from '../ui/styles';
 import GenerationReport from '../DocumentGenerator/GenerationReport';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { formatDateLong } from '../../lib/dateUtils';
-import { courseDateOf, generateSelectionArchive, isAbortError, summarizeGeneration, type GenerationResult,
+import {
+    courseDateOf, generateSelectionArchive, isAbortError, summarizeGeneration, type GenerationResult,
 } from '../../lib/documentUtils';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
