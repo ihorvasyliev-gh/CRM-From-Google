@@ -593,6 +593,7 @@ function normalizeCourseName_(raw) {
  * Normalizes course variant to match CRM frontend cleanVariant logic.
  * E.g. "SNA (English)" -> "English", "" / null -> "English", "ECDL Ukrainian" -> "Ukrainian"
  */
+// Same rules as cleanVariant in frontend/src/lib/types.ts (keep the two in step)
 function cleanVariant_(courseName, variant) {
   if (!variant || !String(variant).trim()) return 'English';
   var v = String(variant).trim();
@@ -815,6 +816,8 @@ function formatIsoDateTime(dateObj) {
   return new Date().toISOString();
 }
 
+// Same rules as normalizePhone in frontend/src/lib/contactUtils.ts: keep the two in step,
+// or a number typed in the CRM and the same number from the form are stored differently.
 function normalizePhone(phone) {
   if (!phone) return "";
   var cleaned = String(phone).replace(/[^\d+]/g, '');

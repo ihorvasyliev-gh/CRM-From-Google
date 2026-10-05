@@ -90,6 +90,7 @@ const UA_MOBILE_CODES = ['050', '066', '095', '099', '067', '068', '096', '097',
 
 /**
  * Normalizes a phone number to an international (+XXX) format before saving.
+ * google-apps-script/Code.gs normalizePhone applies the same rules to form registrations: keep them in step.
  * Handles Irish (08x / 8x), UK (07x), Ukrainian (0xx) and 00-prefixed numbers.
  * Returns an empty string for empty input.
  */

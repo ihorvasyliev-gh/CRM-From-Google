@@ -276,6 +276,7 @@ export function getCoursePill(enrollment: { courses?: { name: string } | null; c
     return `${name} (${cleanVariant(name, enrollment.course_variant)})`;
 }
 
+/** Readable variant label ("English" by default); google-apps-script/Code.gs cleanVariant_ mirrors it. */
 export function cleanVariant(courseName: string, variant: string | null | undefined): string {
     if (!variant || !variant.trim()) return 'English';
     let v = variant.trim();

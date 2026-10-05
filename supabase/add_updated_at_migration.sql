@@ -1,3 +1,5 @@
+-- HISTORY ONLY — already part of schema.sql; a new database does not need this file.
+--
 -- 1. Add updated_at column to enrollments if it doesn't exist
 ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 

@@ -1,5 +1,9 @@
+-- HISTORY ONLY — do not run. schema.sql already creates this function, and migrations
+-- 25/26 since made it SECURITY INVOKER with a fixed search_path: running this file again
+-- would turn it back into an unguarded SECURITY DEFINER function. Nothing in the app or
+-- the Apps Script calls bulk_update_registration_dates any more.
+--
 -- SQL Script to create the RPC function for bulk updating registration dates
--- You can run this in the Supabase SQL Editor.
 
 CREATE OR REPLACE FUNCTION bulk_update_registration_dates(updates jsonb)
 RETURNS void
