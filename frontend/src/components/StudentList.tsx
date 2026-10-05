@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, keepPreviousData, type InfiniteData } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
@@ -17,7 +17,8 @@ import { EmptyState, SkeletonRows } from './ui/States';
 import { tableCls, theadCls, thCls, tbodyCls, tdCls } from './ui/styles';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
 import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
-import { fetchStudentsPage } from '../lib/queries';
+import { fetchStudentsPage, type StudentsPage } from '../lib/queries';
+import type { NavigateFn } from '../lib/navigation';
 
 function SkeletonRow() {
     return (
@@ -39,8 +40,15 @@ function SkeletonRow() {
     );
 }
 
+/** Cache updater for the loaded student pages that rewrites each page's students. */
+const mapStudentPages = (update: (students: Student[]) => Student[]) =>
+    (oldData: InfiniteData<StudentsPage> | undefined) => oldData && {
+        ...oldData,
+        pages: oldData.pages.map(page => ({ ...page, data: update(page.data) })),
+    };
+
 interface StudentListProps {
-    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
+    onNavigate?: NavigateFn;
 }
 
 export default function StudentList({ onNavigate }: StudentListProps) {
@@ -98,16 +106,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
 
     // Optimistic cache updates
     const updateStudentInCache = useCallback((updatedStudent: Student) => {
-        queryClient.setQueryData(['students', debouncedSearch], (oldData: any) => {
-            if (!oldData) return oldData;
-            return {
-                ...oldData,
-                pages: oldData.pages.map((page: any) => ({
-                    ...page,
-                    data: page.data.map((s: Student) => s.id === updatedStudent.id ? updatedStudent : s)
-                }))
-            };
-        });
+        queryClient.setQueryData(['students', debouncedSearch], mapStudentPages(students =>
+            students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
+        ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
     }, [queryClient, debouncedSearch]);
 
@@ -116,16 +117,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     }, [queryClient]);
 
     const removeStudentFromCache = useCallback((id: string) => {
-        queryClient.setQueryData(['students', debouncedSearch], (oldData: any) => {
-            if (!oldData) return oldData;
-            return {
-                ...oldData,
-                pages: oldData.pages.map((page: any) => ({
-                    ...page,
-                    data: page.data.filter((s: Student) => s.id !== id)
-                }))
-            };
-        });
+        queryClient.setQueryData(['students', debouncedSearch], mapStudentPages(students =>
+            students.filter(s => s.id !== id)
+        ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
     }, [queryClient, debouncedSearch]);
 

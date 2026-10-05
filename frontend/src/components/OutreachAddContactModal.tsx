@@ -5,6 +5,7 @@ import { extractEmail } from '../lib/contactImport';
 import Modal from './ui/Modal';
 import { Button } from './ui/Button';
 import { fieldCls, labelCls } from './ui/styles';
+import { errorMessage } from '../lib/errors';
 
 interface OutreachAddContactModalProps {
     listId: string;
@@ -45,9 +46,9 @@ export default function OutreachAddContactModal({ listId, listName, existingEmai
                 alreadyOnList: existingEmails.has(email),
             });
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('Add contact error:', err);
-            setError(err.message || 'Could not add the person.');
+            setError(errorMessage(err, 'Could not add the person.'));
         } finally {
             setSaving(false);
         }

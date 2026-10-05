@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { Briefcase, Mail, TrendingUp, Users, Clock, HelpCircle, Check, Send } from 'lucide-react';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import type { EmploymentStatusRow, Student } from '../../lib/types';
 import { copyEmailsToClipboard } from './analyticsUtils';
 import Card, { SectionHeader } from '../ui/Card';
 import StatTile from '../ui/StatTile';
@@ -25,7 +26,7 @@ import { calloutCls } from '../ui/styles';
 
 interface OutcomesTabProps {
     enrollments: EnrollmentWithRelations[];
-    employmentStatuses: any[];
+    employmentStatuses: EmploymentStatusRow[];
     onDrillDown: (title: string, data: EnrollmentWithRelations[]) => void;
 }
 
@@ -35,7 +36,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
     // Identify graduates (students with 'completed' enrollments in this filtered list)
     const graduateData = useMemo(() => {
-        const uniqueGraduates = new Map<string, { student: any; enrollment: EnrollmentWithRelations; allEnrollments: EnrollmentWithRelations[] }>();
+        const uniqueGraduates = new Map<string, { student: Student; enrollment: EnrollmentWithRelations; allEnrollments: EnrollmentWithRelations[] }>();
         
         enrollments.forEach(e => {
             if (e.status === 'completed' && e.students) {

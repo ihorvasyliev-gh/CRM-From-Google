@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
 import { useDraggable, type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
-import type { StudentFlag } from '../../lib/types';
+import type { EnrollmentStatus, StudentFlag } from '../../lib/types';
 import { getCoursePill } from '../../hooks/useBulkActions';
 import { formatDateChoiceList, formatDateLong, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
 import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
@@ -12,6 +12,9 @@ import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
 import { getInviteDeadline, formatTimeLeft, DEFAULT_RESPONSE_DAYS } from '../../lib/inviteDeadline';
 import { CustomTooltip } from '../ui/Tooltip';
+
+/** Statuses offered by the card's "move to" menu, in menu order. */
+const MOVE_TARGETS: readonly EnrollmentStatus[] = ['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'];
 import { useModalBehavior } from '../../hooks/useModalBehavior';
 
 interface EnrollmentCardProps {
@@ -28,7 +31,7 @@ interface EnrollmentCardProps {
     onFlagClick?: (enrollment: EnrollmentRow) => void;
     isOverlay?: boolean;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
-    onMoveStatus?: (id: string, currentStatus: string, targetStatus: string) => void;
+    onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
 }
 
 /** Props the thin draggable wrapper hands down to the (memoised) card body. */
@@ -658,7 +661,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                             {/* Status Option Buttons */}
                             <div className="py-1 space-y-2 overflow-y-auto flex-1">
-                                {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                {MOVE_TARGETS.map(st => {
                                     if (st === status) return null;
                                     const stCfg = STATUS_CONFIG[st];
                                     if (!stCfg) return null;
@@ -722,7 +725,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                     </button>
                                 </div>
                                 <div className="py-1 space-y-0.5 overflow-y-auto">
-                                    {['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'].map(st => {
+                                    {MOVE_TARGETS.map(st => {
                                         if (st === status) return null;
                                         const stCfg = STATUS_CONFIG[st];
                                         if (!stCfg) return null;

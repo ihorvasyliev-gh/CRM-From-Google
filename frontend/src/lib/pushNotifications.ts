@@ -61,7 +61,7 @@ export async function subscribeUserToPush(userId: string): Promise<boolean> {
 
         const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: convertedVapidKey as any
+            applicationServerKey: convertedVapidKey
         });
 
         // 3. Extract credentials and serialize keys

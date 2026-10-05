@@ -1,15 +1,21 @@
 // Query functions shared by the pages and App's hover prefetch (App can't import the lazy pages).
 import { supabase } from './supabase';
 import { buildStudentSearchFilters } from './searchUtils';
-import type { Course, Student } from './types';
+import type { Course, EmploymentStatusRow, Student } from './types';
 
 const STUDENTS_PAGE_SIZE = 30;
 
 /** Enrollment columns plus the student and course fields the board and documents use. */
 export const ENROLLMENT_SELECT = '*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english, max_capacity)';
 
+export interface StudentsPage {
+    data: Student[];
+    count: number;
+    nextPage: number | undefined;
+}
+
 // queryKey: ['students', search]
-export async function fetchStudentsPage({ pageParam = 0, queryKey }: { pageParam?: number; queryKey: readonly unknown[] }) {
+export async function fetchStudentsPage({ pageParam = 0, queryKey }: { pageParam?: number; queryKey: readonly unknown[] }): Promise<StudentsPage> {
     const search = queryKey[1] as string;
     const from = pageParam * STUDENTS_PAGE_SIZE;
 
@@ -49,8 +55,8 @@ export async function fetchDashboardStats() {
     };
 }
 
-export async function fetchEmploymentStatuses() {
+export async function fetchEmploymentStatuses(): Promise<EmploymentStatusRow[]> {
     const { data, error } = await supabase.from('employment_status').select('*');
     if (error) throw error;
-    return data || [];
+    return (data || []) as EmploymentStatusRow[];
 }

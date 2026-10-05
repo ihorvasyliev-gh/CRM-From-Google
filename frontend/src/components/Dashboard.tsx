@@ -27,6 +27,7 @@ import {
     type UpcomingCohortItem,
 } from './Dashboard/dashboardUtils';
 import { useIsMobile } from '../hooks/useScreenSize';
+import type { NavigateFn } from '../lib/navigation';
 
 /** invite_dates columns holding "reminder sent" for the 7-day and the day-before reminder */
 const SENT_COLUMN = { week: 'reminder_sent_at', dayBefore: 'reminder_tomorrow_sent_at' } as const;
@@ -47,7 +48,7 @@ async function fetchSentReminderKeys(column: (typeof SENT_COLUMN)[keyof typeof S
 }
 
 export interface DashboardProps {
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     onOpenStudentDetail?: (studentId: string) => void;
     pendingApprovalsCount?: number;
     onOpenApprovals?: () => void;

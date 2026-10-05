@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { setupSleepAndWakeListener, reconnectSupabaseRealtime } from '../lib/realtimeSync';
@@ -21,7 +22,7 @@ export function useNetworkSyncStatus(): NetworkSyncStatus {
     const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
 
     // Track active channel and retry timer references
-    const activeChannelRef = useRef<any>(null);
+    const activeChannelRef = useRef<RealtimeChannel | null>(null);
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const retryAttemptRef = useRef<number>(0);
     const isMountedRef = useRef<boolean>(true);

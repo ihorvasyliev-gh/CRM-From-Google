@@ -11,6 +11,8 @@ import { useModalBehavior } from '../hooks/useModalBehavior';
 import MergeModal from './MergeModal';
 import { CalendarPanel } from './ui/DatePicker';
 import Toast, { ToastData } from './Toast';
+import type { NavigateFn } from '../lib/navigation';
+import { errorMessage } from '../lib/errors';
 
 interface Enrollment {
     id: string;
@@ -37,7 +39,7 @@ interface Props {
     onDelete?: () => void;
     onEnroll?: () => void;
     onStudentUpdated?: (student: Student) => void;
-    onNavigate?: (tab: string, filter?: { courseId?: string }) => void;
+    onNavigate?: NavigateFn;
 }
 
 const STATUS_BADGE: Record<string, { icon: React.JSX.Element; className: string }> = {
@@ -646,8 +648,8 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                                 await approveMutation.mutateAsync({ enrollmentIds: [en.id] });
                                                                 fetchEnrollments();
                                                                 setToast({ message: 'Approved completion', type: 'success' });
-                                                            } catch (err: any) {
-                                                                setToast({ message: err.message || 'Failed to approve', type: 'error' });
+                                                            } catch (err) {
+                                                                setToast({ message: errorMessage(err, 'Failed to approve'), type: 'error' });
                                                             }
                                                         }}
                                                         disabled={approveMutation.isPending}
@@ -661,8 +663,8 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                                 await rejectMutation.mutateAsync({ enrollmentIds: [en.id] });
                                                                 fetchEnrollments();
                                                                 setToast({ message: 'Rejected completion request', type: 'info' });
-                                                            } catch (err: any) {
-                                                                setToast({ message: err.message || 'Failed to reject', type: 'error' });
+                                                            } catch (err) {
+                                                                setToast({ message: errorMessage(err, 'Failed to reject'), type: 'error' });
                                                             }
                                                         }}
                                                         disabled={rejectMutation.isPending}

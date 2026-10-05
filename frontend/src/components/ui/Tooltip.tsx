@@ -30,6 +30,15 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
   else if (ref && typeof ref === 'object') (ref as React.MutableRefObject<T | null>).current = value;
 }
 
+/** The trigger props the tooltip reads or wraps. */
+interface TriggerProps {
+  title?: unknown;
+  'aria-label'?: string;
+  onPointerEnter?: (e: React.PointerEvent) => void;
+  onFocus?: (e: React.FocusEvent) => void;
+  ref?: React.Ref<HTMLElement>;
+}
+
 // A simple wrapper for ease of use.
 // The Radix tooltip is only mounted after the trigger is first hovered/focused: boards and tables
 // render hundreds of these, and most are never used — this keeps initial renders light.
@@ -40,21 +49,21 @@ export function CustomTooltip({ children, content, side = "top" }: { children: R
 
   // Strip native `title` from child to prevent duplicate native OS/browser tooltips from overlaying Radix tooltips
   let triggerChild = children;
-  if (React.isValidElement(children)) {
-    const childProps = children.props as Record<string, any>;
+  if (React.isValidElement<TriggerProps>(children)) {
+    const childProps = children.props;
     if (childProps.title !== undefined) {
       const { title } = childProps;
       // cloneElement merges props, so the native title must be explicitly cleared
-      triggerChild = React.cloneElement(children as React.ReactElement<any>, {
+      triggerChild = React.cloneElement(children, {
         title: undefined,
         'aria-label': childProps['aria-label'] || (typeof title === 'string' ? title : undefined),
       });
     }
   }
 
-  if (!armed && React.isValidElement(triggerChild)) {
-    const childProps = triggerChild.props as Record<string, any>;
-    return React.cloneElement(triggerChild as React.ReactElement<any>, {
+  if (!armed && React.isValidElement<TriggerProps>(triggerChild)) {
+    const childProps = triggerChild.props;
+    return React.cloneElement(triggerChild, {
       onPointerEnter: (e: React.PointerEvent) => {
         childProps.onPointerEnter?.(e);
         if (e.pointerType !== 'touch') setArmed('pointer');
@@ -71,9 +80,10 @@ export function CustomTooltip({ children, content, side = "top" }: { children: R
 
   // Arming swaps the element tree, which remounts the trigger — if it was armed by keyboard focus,
   // move focus onto the new node so keyboard users don't lose their place.
-  if (armed === 'focus' && React.isValidElement(triggerChild)) {
-    const originalRef = (triggerChild as any).ref;
-    triggerChild = React.cloneElement(triggerChild as React.ReactElement<any>, {
+  if (armed === 'focus' && React.isValidElement<TriggerProps>(triggerChild)) {
+    // React 19 passes ref as a regular prop
+    const originalRef = triggerChild.props.ref;
+    triggerChild = React.cloneElement(triggerChild, {
       ref: (node: HTMLElement | null) => {
         assignRef(originalRef, node);
         if (node) {

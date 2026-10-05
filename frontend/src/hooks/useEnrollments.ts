@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ENROLLMENT_SELECT } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
+import type { EnrollmentStatus } from '../lib/types';
 import { todayISO } from '../lib/dateUtils';
 
 export type EnrollmentRow = EnrollmentWithRelations;
@@ -10,7 +11,7 @@ export type EnrollmentRow = EnrollmentWithRelations;
 /** The status-related fields of an enrollment, captured before a change so it can be undone. */
 export interface EnrollmentSnapshot {
     id: string;
-    status: string;
+    status: EnrollmentStatus;
     confirmed_date: string | null;
     confirmed_at: string | null;
     invited_date: string | null;
@@ -95,7 +96,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
 
     // ─── Status Update Mutation ──────────────────────────────────
     const updateStatusMutation = useMutation({
-        mutationFn: async ({ id, newStatus, confirmedDate, invitedDate }: { id: string, newStatus: string, confirmedDate?: string, invitedDate?: string }) => {
+        mutationFn: async ({ id, newStatus, confirmedDate, invitedDate }: { id: string, newStatus: EnrollmentStatus, confirmedDate?: string, invitedDate?: string }) => {
             // Read through the ref: onMutate has already applied the optimistic update and the
             // closure's `enrollments` may be stale when several moves happen quickly.
             const snapshot = enrollmentsRef.current;
@@ -170,7 +171,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             
             setEnrollments(prev => prev.map(e => {
                 if (e.id === id) {
-                    const optimisticUpdate: Partial<EnrollmentRow> = { status: newStatus as any };
+                    const optimisticUpdate: Partial<EnrollmentRow> = { status: newStatus };
                     if (newStatus === 'confirmed' && confirmedDate) optimisticUpdate.confirmed_date = confirmedDate;
                     if (newStatus === 'invited' && invitedDate) optimisticUpdate.invited_date = invitedDate;
                     if (newStatus === 'completed') optimisticUpdate.completed_date = e.confirmed_date || todayISO();
@@ -218,7 +219,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     });
 
-    const updateStatus = useCallback(async (id: string, newStatus: string, confirmedDate?: string, invitedDate?: string) => {
+    const updateStatus = useCallback(async (id: string, newStatus: EnrollmentStatus, confirmedDate?: string, invitedDate?: string) => {
         const current = enrollmentsRef.current.find(e => e.id === id);
         if (newStatus === 'invited' && !invitedDate) {
             openInviteModal([id], false);

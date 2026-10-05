@@ -17,6 +17,7 @@ import { ChartTooltip } from '../ui/chart';
 import { CHART_SERIES } from '../ui/chartTheme';
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import type { Student } from '../../lib/types';
 import { calculateGeographicFunnel } from './analyticsUtils';
 
 interface GeographyDemographicsTabProps {
@@ -55,7 +56,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
     // Unique students mapping for demographic analysis
     const uniqueStudentsData = useMemo(() => {
         const studentMap = new Map<string, {
-            student: any;
+            student: Student;
             enrollments: EnrollmentWithRelations[];
         }>();
 

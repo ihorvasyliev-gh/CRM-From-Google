@@ -3,6 +3,7 @@ import { X, Upload, FileSpreadsheet, AlertCircle, Loader2, ClipboardPaste } from
 import { supabase } from '../lib/supabase';
 import { parseContactsFile, parseDelimitedText, tableToContacts, type ParsedContacts } from '../lib/contactImport';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import { errorMessage } from '../lib/errors';
 
 interface OutreachImportModalProps {
     listId: string;
@@ -37,8 +38,8 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
         try {
             setParsed(await parseContactsFile(file));
             setSourceLabel(file.name);
-        } catch (err: any) {
-            setError(err.message || 'Could not read the file.');
+        } catch (err) {
+            setError(errorMessage(err, 'Could not read the file.'));
         } finally {
             setReading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -51,8 +52,8 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
         try {
             setParsed(tableToContacts(parseDelimitedText(pasteText)));
             setSourceLabel('Pasted rows');
-        } catch (err: any) {
-            setError(err.message || 'Could not read the pasted rows.');
+        } catch (err) {
+            setError(errorMessage(err, 'Could not read the pasted rows.'));
         }
     }
 
@@ -68,9 +69,9 @@ export default function OutreachImportModal({ listId, listName, existingEmails, 
             if (rpcError) throw rpcError;
             onImported({ inserted: data?.inserted ?? 0, updated: data?.updated ?? 0 });
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('Import error:', err);
-            setError(err.message || 'Import failed.');
+            setError(errorMessage(err, 'Import failed.'));
         } finally {
             setImporting(false);
         }

@@ -2,14 +2,14 @@ import type { ChangeEvent } from 'react';
 import type { ToastData } from '../Toast';
 import { describeDateRule, parseDateRule, type DateRule } from '../../lib/documentUtils';
 import type { TemplateVariable } from '../../lib/types';
+import { errorMessage } from '../../lib/errors';
 
 export type ShowToast = (message: string, type: ToastData['type'], duration?: number) => void;
 
 /** Asks for confirmation before a destructive action (template / variable deletion). */
 export type ConfirmDelete = (request: { title: string; message: string; run: () => Promise<unknown> }) => void;
 
-export const errorText = (err: unknown) =>
-    err instanceof Error ? err.message : (err as { message?: string } | null)?.message || 'Unknown error';
+export const errorText = (err: unknown) => errorMessage(err);
 
 /** onChange for a file input: hands over the picked file and resets the input, so the same file can be picked again. */
 export const fileInputHandler = (handler: (file: File) => void) => (e: ChangeEvent<HTMLInputElement>) => {

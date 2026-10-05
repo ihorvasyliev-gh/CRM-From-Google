@@ -33,6 +33,7 @@ import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
 import { GlobalToaster } from './components/Toast';
 import { toast } from './lib/toast';
 import { isAnyModalOpen, useModalBehavior } from './hooks/useModalBehavior';
+import type { NavigateFn, NavState } from './lib/navigation';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -134,6 +135,7 @@ function App() {
     }, [user]);
 
     const location = useLocation();
+    const navState = location.state as NavState | null;
     const navigateFn = useNavigate();
     const [, startTransition] = useTransition();
     const role = getUserRole(user);
@@ -308,7 +310,7 @@ function App() {
         };
     }, [user, isViewer, isOutreach]);
 
-    const navigate = useCallback((tab: string, state?: any) => {
+    const navigate: NavigateFn = useCallback((tab: string, state?: NavState) => {
         setSidebarOpen(false);
         startTransition(() => {
             navigateFn(`/${tab}`, state ? { state } : undefined);
@@ -774,7 +776,7 @@ function App() {
                                         />
                                         <Route path="/students" element={<StudentList onNavigate={navigate} />} />
                                         <Route path="/courses" element={<CourseList />} />
-                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={location.state?.courseId} initialCourseDate={location.state?.courseDate} initialInviteFilter={location.state?.inviteFilter} />} />
+                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} />} />
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />

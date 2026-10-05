@@ -1,9 +1,7 @@
 import { ReactNode } from 'react';
 import { Clock, Send, CheckCircle, GraduationCap, LogOut, Ban } from 'lucide-react';
 
-export const PIPELINE_STATUSES = ['requested', 'invited', 'confirmed', 'completed'] as const;
-export const SECONDARY_STATUSES = ['withdrawn', 'rejected'] as const;
-export const ALL_STATUSES = [...PIPELINE_STATUSES, ...SECONDARY_STATUSES] as const;
+// The status lists themselves (PIPELINE_STATUSES, ALL_STATUSES…) live in types.ts
 
 /**
  * STATUS COLOR MAP

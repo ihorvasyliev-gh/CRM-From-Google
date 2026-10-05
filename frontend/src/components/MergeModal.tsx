@@ -5,6 +5,7 @@ import { Student } from '../lib/types';
 import { X, Loader2, Search, GitMerge, Check, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import { errorMessage } from '../lib/errors';
 
 interface Props {
     open: boolean;
@@ -70,8 +71,9 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
                 if (err) throw err;
                 if (active) setSearchResults(data || []);
-            } catch (e: any) {
-                console.error(e);
+            } catch (e) {
+                console.error('Student search failed:', e);
+                if (active) setError(errorMessage(e, 'Search failed. Please try again.'));
             } finally {
                 if (active) setSearching(false);
             }
@@ -143,11 +145,11 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
             if (onSuccess) onSuccess();
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             if (clearedDuplicateEmail) {
                 await supabase.from('students').update({ email: clearedDuplicateEmail }).eq('id', duplicateId);
             }
-            setError(err.message || 'Failed to merge students');
+            setError(errorMessage(err, 'Failed to merge students'));
         } finally {
             setMerging(false);
         }
@@ -170,8 +172,8 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
             if (onSuccess) onSuccess();
             onClose();
-        } catch (err: any) {
-            setError(err.message || 'Failed to mark profiles as non-duplicates');
+        } catch (err) {
+            setError(errorMessage(err, 'Failed to mark profiles as non-duplicates'));
         } finally {
             setMarkingNonDuplicate(false);
         }

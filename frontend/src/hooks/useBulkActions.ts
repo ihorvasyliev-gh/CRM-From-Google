@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
-import { cleanVariant } from '../lib/types';
+import { cleanVariant, type EnrollmentStatus } from '../lib/types';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -77,7 +77,7 @@ export function useBulkActions({
     }, []);
 
     const bulkUpdateMutation = useMutation({
-        mutationFn: async ({ newStatus, confirmedDate }: { newStatus: string, confirmedDate?: string }) => {
+        mutationFn: async ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
             let idsToUpdate = Array.from(selectedIds);
             const updatePayload: Record<string, string | null> = { status: newStatus };
 
@@ -246,7 +246,7 @@ export function useBulkActions({
         onError: () => showToast('Error updating status', 'error')
     });
 
-    const bulkUpdateStatus = useCallback(async (newStatus: string, confirmedDate?: string) => {
+    const bulkUpdateStatus = useCallback(async (newStatus: EnrollmentStatus, confirmedDate?: string) => {
         if (selectedIds.size === 0) return;
 
         if (newStatus === 'invited') {

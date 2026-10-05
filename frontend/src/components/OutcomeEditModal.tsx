@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { MonthPicker } from './ui/DatePicker';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import { errorMessage } from '../lib/errors';
 
 /** Survey answer as stored for a graduate or an outreach list contact. */
 export interface OutcomeValues {
@@ -67,9 +68,9 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
 
             onSaved();
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('Save error:', err);
-            setError(err.message || 'Failed to update outcomes.');
+            setError(errorMessage(err, 'Failed to update outcomes.'));
         } finally {
             setSaving(false);
         }
@@ -82,9 +83,9 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
         try {
             await onDelete();
             onClose();
-        } catch (err: any) {
+        } catch (err) {
             console.error('Delete error:', err);
-            setError(err.message || 'Failed to remove.');
+            setError(errorMessage(err, 'Failed to remove.'));
         } finally {
             setSaving(false);
         }

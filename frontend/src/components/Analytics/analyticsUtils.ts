@@ -1,5 +1,5 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
-import { cleanVariant } from '../../lib/types';
+import { cleanVariant, type EmploymentStatusRow } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { downloadBlob } from '../../lib/download';
 import { levenshteinDistance } from '../../lib/similarity';
@@ -582,7 +582,7 @@ export function calculateGeographicFunnel(enrollments: EnrollmentWithRelations[]
         topInflowDistrict,
         highestSuccessDistrict: highestSuccessDistrict ? {
             name: highestSuccessDistrict.name,
-            rate: 'completionRate' in highestSuccessDistrict ? (highestSuccessDistrict as any).completionRate : (highestSuccessDistrict as any).rate,
+            rate: 'completionRate' in highestSuccessDistrict ? highestSuccessDistrict.completionRate : highestSuccessDistrict.rate,
             total: highestSuccessDistrict.total
         } : null,
         summarySplit: {
@@ -749,7 +749,7 @@ export function exportCustomCSV(enrollments: EnrollmentWithRelations[], filename
 
 export async function exportExecutiveExcelReport(
     enrollments: EnrollmentWithRelations[],
-    employmentStatuses: any[],
+    employmentStatuses: EmploymentStatusRow[],
     filterLabel = 'All Time'
 ) {
     const ExcelJSModule = await loadChunk(() => import('exceljs'));

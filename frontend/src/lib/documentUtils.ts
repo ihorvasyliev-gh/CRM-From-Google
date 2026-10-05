@@ -6,6 +6,7 @@ import { cleanVariant, type DocumentTemplate, type Enrollment, type TemplateVari
 import { formatDateSpaces, todayISO } from './dateUtils';
 import { getConfig, setConfig, type ExcelColumn } from './appConfig';
 import { downloadBlob } from './download';
+import { errorMessage } from './errors';
 import { sanitizeExcelValue, styleWorksheet } from './excelExport';
 import { runRenderJob } from './documentJob';
 import {
@@ -24,7 +25,6 @@ export interface TemplateDescriptor {
     storagePath: string;
 }
 
-const errorMessage = (err: unknown) => err instanceof Error ? err.message : (err as { message?: string })?.message || String(err);
 
 // ─── Templates ──────────────────────────────────────────────
 
@@ -341,11 +341,11 @@ export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ 
     // Download every template (and build the Excel list) up front, in parallel
     const download = (name: string, path: string): Promise<TemplateFile> => fetchTemplate(path).then(
         buffer => ({ name, buffer }),
-        (err: unknown) => ({ name, buffer: null, error: `Download failed: ${errorMessage(err)}` }),
+        (err: unknown) => ({ name, buffer: null, error: `Download failed: ${errorMessage(err, String(err))}` }),
     );
     const excelFile = (): Promise<ExtraFile> => buildParticipantsWorkbook(people, excelColumns, customVariables, dateVariables, today).then(
         buffer => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer }),
-        (err: unknown) => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer: null, error: errorMessage(err) }),
+        (err: unknown) => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer: null, error: errorMessage(err, String(err)) }),
     );
     const [docFiles, attendance, labels, excel] = await Promise.all([
         Promise.all(templates.map(t => download(t.name, t.storagePath))),

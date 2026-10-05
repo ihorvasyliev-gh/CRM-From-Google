@@ -116,12 +116,7 @@ async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentC
         }
         const bucket = counts[e.course_id];
         bucket.total += 1;
-        // Note: avoid `(x as number)++` — the dev-server Babel transform drops the parentheses
-        // and esbuild then fails to compile the whole page.
-        const byStatus = bucket as unknown as Record<string, number>;
-        if (e.status !== 'course_id' && e.status !== 'total' && e.status in byStatus) {
-            byStatus[e.status] += 1;
-        }
+        bucket[e.status] += 1;
     }
     return counts;
 }

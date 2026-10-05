@@ -548,7 +548,7 @@ describe('date variables', () => {
     });
 
     it('counts from the course date, the completion date or the generation date', () => {
-        const e = { ...makeFullEnrollment(), confirmed_date: '2026-10-01', status: 'completed', completed_date: '2026-10-20' };
+        const e = { ...makeFullEnrollment(), confirmed_date: '2026-10-01', status: 'completed' as const, completed_date: '2026-10-20' };
         expect(dateRuleIso(rule(), e, '2026-09-26')).toBe('2028-10-01');
         expect(dateRuleIso(rule({ base: 'completedAt', amount: 4 }), e, '2026-09-26')).toBe('2030-10-20');
         expect(dateRuleIso(rule({ base: 'today', amount: 1, unit: 'months' }), null, '2026-09-26')).toBe('2026-10-26');

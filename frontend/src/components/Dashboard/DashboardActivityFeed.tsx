@@ -3,6 +3,7 @@ import { Activity, Search, X, ChevronDown, Inbox } from 'lucide-react';
 import DashboardCard from '../ui/Card';
 import StudentAvatar from './StudentAvatar';
 import { relativeDayLabel, type ActivityGroup, type ActivityStatusFilter } from './dashboardUtils';
+import type { NavigateFn } from '../../lib/navigation';
 
 export type ActivityFilter = ActivityStatusFilter;
 export type GroupedActivity = ActivityGroup;
@@ -12,7 +13,7 @@ export interface DashboardActivityFeedProps {
     activityFilter: ActivityFilter;
     setActivityFilter: (f: ActivityFilter) => void;
     filterCounts: Record<ActivityFilter, number>;
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     onOpenStudentDetail?: (studentId: string) => void;
     loading?: boolean;
     className?: string;

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import type { EmploymentStatusRow } from '../lib/types';
 
 export interface GraduateRow {
     student_id: string;
@@ -17,9 +18,17 @@ export interface GraduateRow {
     last_sent_at: string | null;
 }
 
+/** A completed enrollment with the student and course fields the outcomes list needs. */
+interface GraduateEnrollment {
+    student_id: string;
+    course_id: string;
+    courses: { name: string } | null;
+    students: { id: string; first_name: string; last_name: string; email: string } | null;
+}
+
 export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
     // Get all completed enrollments with student info
-    let enrollments: any[] = [];
+    let enrollments: GraduateEnrollment[] = [];
     let from = 0;
     const limit = 1000;
     while (true) {
@@ -33,13 +42,13 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
             return [];
         }
         if (!data || data.length === 0) break;
-        enrollments = [...enrollments, ...data];
+        enrollments = [...enrollments, ...(data as unknown as GraduateEnrollment[])];
         if (data.length < limit) break;
         from += limit;
     }
 
     // Get all employment_status records
-    let empStatuses: any[] = [];
+    let empStatuses: EmploymentStatusRow[] = [];
     from = 0;
     while (true) {
         const { data, error } = await supabase
@@ -48,13 +57,13 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
             .range(from, from + limit - 1);
         if (error) break;
         if (!data || data.length === 0) break;
-        empStatuses = [...empStatuses, ...data];
+        empStatuses = [...empStatuses, ...(data as EmploymentStatusRow[])];
         if (data.length < limit) break;
         from += limit;
     }
 
     // Index employment statuses by student_id for instant O(1) lookup
-    const empStatusMap = new Map<string, any>();
+    const empStatusMap = new Map<string, EmploymentStatusRow>();
     for (const es of empStatuses) {
         if (es.student_id) {
             empStatusMap.set(es.student_id, es);
@@ -65,8 +74,8 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
     const studentMap = new Map<string, GraduateRow>();
 
     for (const e of enrollments) {
-        const student = e.students as unknown as { id: string; first_name: string; last_name: string; email: string };
-        const course = e.courses as unknown as { name: string };
+        const student = e.students;
+        const course = e.courses;
         if (!student || !student.id) continue;
 
         if (!studentMap.has(student.id)) {
@@ -74,7 +83,7 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
 
             let trackingStatus: GraduateRow['tracking_status'] = 'not_contacted';
             if (empStatus) {
-                trackingStatus = empStatus.status as 'pending' | 'responded';
+                trackingStatus = empStatus.status as GraduateRow['tracking_status'];
             }
 
             studentMap.set(student.id, {

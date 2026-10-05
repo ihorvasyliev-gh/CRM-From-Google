@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Student, Course, getAvatarGradient } from '../lib/types';
+import { Student, Course, getAvatarGradient, type ViewerCourse, type ViewerStudentDirectoryItem } from '../lib/types';
 import { matchesSearch, buildStudentSearchFilters } from '../lib/searchUtils';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import {
@@ -10,11 +10,25 @@ import {
     Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
     X, CornerDownLeft, Sparkles, Loader2
 } from 'lucide-react';
+import type { NavigateFn } from '../lib/navigation';
+
+/** A row of the viewer students directory, as the palette's Student. */
+const directoryStudent = (s: ViewerStudentDirectoryItem): Student => ({
+    id: s.student_id,
+    first_name: s.first_name,
+    last_name: s.last_name,
+    email: s.email,
+    phone: s.phone ?? '',
+    address: s.address,
+    eircode: s.eircode,
+    dob: s.dob,
+    created_at: s.created_at,
+});
 
 export interface CommandPaletteProps {
     open: boolean;
     onClose: () => void;
-    onNavigate: (tab: string, filter?: { courseId?: string }) => void;
+    onNavigate: NavigateFn;
     onOpenStudentDetail?: (student: Student) => void;
     onOpenAddStudent?: () => void;
     onOpenApprovals?: () => void;
@@ -92,70 +106,40 @@ export default function CommandPalette({
             }
             try {
                 if (isViewer) {
-                    const promises: PromiseLike<any>[] = [];
-                    if (needsCourses) {
-                        promises.push(supabase.rpc('get_viewer_courses'));
-                    }
-                    promises.push(supabase.rpc('get_viewer_students_directory', { p_limit: 30 }));
-
-                    const results = await Promise.all(promises);
+                    const [coursesRes, studentsRes] = await Promise.all([
+                        needsCourses ? supabase.rpc('get_viewer_courses') : null,
+                        supabase.rpc('get_viewer_students_directory', { p_limit: 30 }),
+                    ]);
                     if (isMounted) {
-                        let studentsData = null;
-                        if (needsCourses) {
-                            const coursesRes = results[0];
-                            studentsData = results[1]?.data;
-                            if (coursesRes?.data) {
-                                const mappedCourses: Course[] = coursesRes.data.map((c: any) => ({
-                                    id: c.id,
-                                    name: c.name,
-                                    created_at: c.created_at,
-                                }));
-                                setCourses(mappedCourses);
-                                queryClient?.setQueryData(['courses'], mappedCourses);
-                            }
-                        } else {
-                            studentsData = results[0]?.data;
-                        }
-                        if (studentsData) {
-                            const mappedStudents: Student[] = studentsData.map((s: any) => ({
-                                id: s.student_id || s.id,
-                                first_name: s.first_name,
-                                last_name: s.last_name,
-                                email: s.email,
-                                phone: s.phone,
-                                address: s.address,
-                                eircode: s.eircode,
-                                dob: s.dob,
-                                created_at: s.created_at,
+                        if (coursesRes?.data) {
+                            const mappedCourses: Course[] = (coursesRes.data as ViewerCourse[]).map(c => ({
+                                id: c.id,
+                                name: c.name,
+                                created_at: c.created_at,
                             }));
+                            setCourses(mappedCourses);
+                            queryClient?.setQueryData(['courses'], mappedCourses);
+                        }
+                        if (studentsRes.data) {
+                            const mappedStudents = (studentsRes.data as ViewerStudentDirectoryItem[]).map(directoryStudent);
                             setStudents(mappedStudents);
                             initialStudentsRef.current = mappedStudents;
                         }
                     }
                 } else {
-                    const promises: PromiseLike<any>[] = [];
-                    if (needsCourses) {
+                    const [coursesRes, studentsRes] = await Promise.all([
                         // Full list: this result is written to the shared ['courses'] cache used by the Courses page
-                        promises.push(supabase.from('courses').select('*').order('name'));
-                    }
-                    promises.push(supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30));
-
-                    const results = await Promise.all(promises);
+                        needsCourses ? supabase.from('courses').select('*').order('name') : null,
+                        supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30),
+                    ]);
                     if (isMounted) {
-                        let studentsData = null;
-                        if (needsCourses) {
-                            const coursesRes = results[0];
-                            studentsData = results[1]?.data;
-                            if (coursesRes?.data) {
-                                setCourses(coursesRes.data as Course[]);
-                                queryClient?.setQueryData(['courses'], coursesRes.data);
-                            }
-                        } else {
-                            studentsData = results[0]?.data;
+                        if (coursesRes?.data) {
+                            setCourses(coursesRes.data as Course[]);
+                            queryClient?.setQueryData(['courses'], coursesRes.data);
                         }
-                        if (studentsData) {
-                            setStudents(studentsData as Student[]);
-                            initialStudentsRef.current = studentsData as Student[];
+                        if (studentsRes.data) {
+                            setStudents(studentsRes.data as Student[]);
+                            initialStudentsRef.current = studentsRes.data as Student[];
                         }
                     }
                 }
@@ -192,17 +176,7 @@ export default function CommandPalette({
                     p_limit: 20,
                 });
                 if (active && data) {
-                    setStudents(data.map((s: any) => ({
-                        id: s.student_id || s.id,
-                        first_name: s.first_name,
-                        last_name: s.last_name,
-                        email: s.email,
-                        phone: s.phone,
-                        address: s.address,
-                        eircode: s.eircode,
-                        dob: s.dob,
-                        created_at: s.created_at,
-                    })) as Student[]);
+                    setStudents((data as ViewerStudentDirectoryItem[]).map(directoryStudent));
                 }
             } else {
                 let q = supabase.from('students').select('*').limit(20);

@@ -1,15 +1,17 @@
 import { useState, type JSX } from 'react';
 import { PieChart, GraduationCap, ChevronRight } from 'lucide-react';
 import DashboardCard from '../ui/Card';
+import type { NavigateFn } from '../../lib/navigation';
+import type { EnrollmentStatus } from '../../lib/types';
 
 export interface StatusBreakdownCardProps {
     statusBreakdown: Record<string, number>;
     loading?: boolean;
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     className?: string;
 }
 
-const STATUS_ITEMS = [
+const STATUS_ITEMS: { key: EnrollmentStatus; label: string; color: string; stroke: string }[] = [
     { key: 'requested', label: 'Requested', color: 'bg-warning', stroke: 'oklch(var(--status-warning))' },
     { key: 'invited', label: 'Invited', color: 'bg-info', stroke: 'oklch(var(--status-info))' },
     { key: 'confirmed', label: 'Confirmed', color: 'bg-success', stroke: 'oklch(var(--status-success))' },

@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
-import type { StudentFlag } from '../../lib/types';
+import type { EnrollmentStatus, StudentFlag } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
 import { CustomTooltip } from '../ui/Tooltip';
@@ -25,7 +25,7 @@ interface StatusColumnProps {
     emptyCompletedCourses: Array<{id: string, name: string}>;
     totalCount?: number;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
-    onMoveStatus?: (id: string, currentStatus: string, targetStatus: string) => void;
+    onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
 }
 
 const StatusColumn = function StatusColumn({

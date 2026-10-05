@@ -3,10 +3,11 @@ import { AlarmClock, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import { ExpiredInviteItem } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
 import StudentAvatar from './StudentAvatar';
+import type { NavigateFn } from '../../lib/navigation';
 
 export interface ExpiredInvitesCardProps {
     items: ExpiredInviteItem[];
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     onOpenStudentDetail?: (studentId: string) => void;
     className?: string;
 }

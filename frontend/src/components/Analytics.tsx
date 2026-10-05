@@ -20,7 +20,7 @@ import {
 
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
-import type { Student } from '../lib/types';
+import type { EmploymentStatusRow, Student } from '../lib/types';
 import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import StatTile from './ui/StatTile';
@@ -38,7 +38,7 @@ const DataExplorerTab = memo(lazyWithRetry(() => import('./Analytics/DataExplore
 const MultiCourseCompletersTab = memo(lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab')));
 
 const EMPTY_ENROLLMENTS: EnrollmentWithRelations[] = [];
-const EMPTY_STATUSES: any[] = [];
+const EMPTY_STATUSES: EmploymentStatusRow[] = [];
 import DrillDownModal from './Analytics/DrillDownModal';
 import { 
     calculateSpeedMetrics, 
@@ -82,7 +82,7 @@ export default function Analytics() {
     // 4. TanStack Data Queries
     const { data: allEnrollments = EMPTY_ENROLLMENTS, isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
         queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments as any,
+        queryFn: fetchAllEnrollments,
     });
 
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
@@ -174,9 +174,9 @@ export default function Analytics() {
             filteredEnrollments.filter(e => e.status === 'completed' && e.student_id).map(e => e.student_id)
         );
         const respondedStatuses = employmentStatuses.filter(
-            (es: any) => completedStudentIds.has(es.student_id) && es.status === 'responded'
+            es => completedStudentIds.has(es.student_id) && es.status === 'responded'
         );
-        const workingCount = respondedStatuses.filter((es: any) => es.is_working === true).length;
+        const workingCount = respondedStatuses.filter(es => es.is_working === true).length;
         const employmentRate = respondedStatuses.length > 0 ? Math.round((workingCount / respondedStatuses.length) * 100) : 0;
 
         return {

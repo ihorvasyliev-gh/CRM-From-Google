@@ -35,11 +35,21 @@ export interface CourseEmailInfo {
     details?: string;
 }
 
+/** Enrollment statuses in pipeline order; the database CHECK constraint allows exactly these. */
+export const PIPELINE_STATUSES = ['requested', 'invited', 'confirmed', 'completed'] as const;
+export const SECONDARY_STATUSES = ['withdrawn', 'rejected'] as const;
+export const ALL_STATUSES = [...PIPELINE_STATUSES, ...SECONDARY_STATUSES] as const;
+export type EnrollmentStatus = typeof ALL_STATUSES[number];
+
+export function isEnrollmentStatus(value: unknown): value is EnrollmentStatus {
+    return (ALL_STATUSES as readonly unknown[]).includes(value);
+}
+
 export interface Enrollment {
     id: string;
     student_id: string;
     course_id: string;
-    status: string;
+    status: EnrollmentStatus;
     course_variant: string | null;
     notes: string | null;
     confirmed_date: string | null;
@@ -82,7 +92,7 @@ export interface ViewerCourseRosterItem {
     last_name: string;
     email: string;
     phone: string | null;
-    status: string;
+    status: EnrollmentStatus;
     course_variant: string | null;
     notes: string | null;
     is_priority: boolean;
@@ -177,6 +187,22 @@ export interface TemplateVariable {
     created_at: string;
 }
 
+/** A graduate's answer to the employment survey (employment_status table, one row per student). */
+export interface EmploymentStatusRow {
+    id: string;
+    student_id: string;
+    email: string | null;
+    is_working: boolean | null;
+    /** 'YYYY-MM' */
+    started_month: string | null;
+    field_of_work: string | null;
+    /** 'full_time' | 'part_time' */
+    employment_type: string | null;
+    status: 'pending' | 'responded' | null;
+    last_invited_at: string | null;
+    last_responded_at: string | null;
+}
+
 export interface StudentFlag {
     id: string;
     student_id: string;
@@ -198,7 +224,7 @@ export interface ViewerStudentDirectoryItem {
     created_at: string;
     primary_course_name: string | null;
     primary_course_id: string | null;
-    primary_status: string | null;
+    primary_status: EnrollmentStatus | null;
     primary_course_variant: string | null;
     primary_queue_position: number | null;
     is_priority: boolean;

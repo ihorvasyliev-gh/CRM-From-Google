@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { setupSleepAndWakeListener } from '../lib/realtimeSync';
@@ -22,7 +23,7 @@ const VIEWER_ENROLLMENT_KEYS = ['viewer_courses', 'viewer_course_roster', 'viewe
 export function useGlobalRealtimeSync() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
-    const activeChannelRef = useRef<any>(null);
+    const activeChannelRef = useRef<RealtimeChannel | null>(null);
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const subscribeChannelRef = useRef<() => void>(() => {});
     const lastResyncRef = useRef<number>(0);

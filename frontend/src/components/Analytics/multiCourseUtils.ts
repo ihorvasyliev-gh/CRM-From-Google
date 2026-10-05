@@ -308,7 +308,7 @@ export async function exportMultiCourseExcelReport(
 
     // Populate data rows
     profiles.forEach((profile, idx) => {
-        const rowData: any = {
+        const rowData: Record<string, string | number | null | undefined> = {
             firstName: profile.firstName,
             lastName: profile.lastName,
             email: profile.email,

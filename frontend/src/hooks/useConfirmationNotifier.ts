@@ -50,8 +50,11 @@ export function useConfirmationNotifier() {
 
                     if (!data) return;
 
-                    const student = (data as any).students;
-                    const course = (data as any).courses;
+                    // Without generated database types the client reads embedded rows as arrays; these are single rows
+                    const { students: student, courses: course } = data as unknown as {
+                        students: { first_name: string; last_name: string } | null;
+                        courses: { name: string } | null;
+                    };
                     const studentName = student
                         ? `${student.first_name} ${student.last_name}`
                         : 'A student';

@@ -8,6 +8,7 @@ import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
     Calendar, CheckSquare, Square, Loader2, AlertCircle
 } from 'lucide-react';
+import { errorMessage } from '../lib/errors';
 
 interface PendingApprovalsModalProps {
     open: boolean;
@@ -80,8 +81,8 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 return next;
             });
             refetch();
-        } catch (err: any) {
-            setToast({ message: err.message || 'Failed to approve request', type: 'error' });
+        } catch (err) {
+            setToast({ message: errorMessage(err, 'Failed to approve request'), type: 'error' });
         }
     };
 
@@ -95,8 +96,8 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
             });
             setSelectedIds(new Set());
             refetch();
-        } catch (err: any) {
-            setToast({ message: err.message || 'Failed to approve requests', type: 'error' });
+        } catch (err) {
+            setToast({ message: errorMessage(err, 'Failed to approve requests'), type: 'error' });
         }
     };
 
@@ -119,8 +120,8 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 return next;
             });
             refetch();
-        } catch (err: any) {
-            setToast({ message: err.message || 'Failed to reject request', type: 'error' });
+        } catch (err) {
+            setToast({ message: errorMessage(err, 'Failed to reject request'), type: 'error' });
         }
     };
 

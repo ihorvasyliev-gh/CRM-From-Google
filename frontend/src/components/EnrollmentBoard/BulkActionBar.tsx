@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import { CustomTooltip } from '../ui/Tooltip';
+import type { EnrollmentStatus } from '../../lib/types';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
 interface BulkActionBarProps {
     selectedCount: number;
     selectedEnrollments: EnrollmentRow[];
     handleCopySelectedEmails: () => void;
-    bulkUpdateStatus: (status: string) => void;
+    bulkUpdateStatus: (status: EnrollmentStatus) => void;
     /** Opens the document generation dialog for the selection. */
     handleGenerateDocuments: () => void;
     sendReminder: () => void;

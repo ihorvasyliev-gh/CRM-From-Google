@@ -11,10 +11,10 @@ import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useBulkActions, getCoursePill } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { cleanVariant, Student } from '../lib/types';
+import { ALL_STATUSES, cleanVariant, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { formatDateLong, formatDayDateShort, todayISO } from '../lib/dateUtils';
-import { ALL_STATUSES, SECONDARY_STATUSES, STATUS_CONFIG, PIPELINE_STATUSES } from '../lib/statusConfig';
+import { STATUS_CONFIG } from '../lib/statusConfig';
 
 import FilterBar from './EnrollmentBoard/FilterBar';
 import StatusColumn from './EnrollmentBoard/StatusColumn';
@@ -80,8 +80,8 @@ export default function EnrollmentBoard({
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
     // The selection "Generate Docs" was opened for (kept while the dialog is open)
     const [docsFor, setDocsFor] = useState<EnrollmentRow[] | null>(null);
-    const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: string } | null>(null);
-    const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: string; confirmedCount: number; totalCount: number } | null>(null);
+    const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: EnrollmentStatus } | null>(null);
+    const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: EnrollmentStatus; confirmedCount: number; totalCount: number } | null>(null);
     const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
     const [confirmingDate, setConfirmingDate] = useState(false);
@@ -89,7 +89,7 @@ export default function EnrollmentBoard({
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
     const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [undoData, setUndoData] = useState<{ snapshots: EnrollmentSnapshot[]; newStatus: string; name: string } | null>(null);
+    const [undoData, setUndoData] = useState<{ snapshots: EnrollmentSnapshot[]; newStatus: EnrollmentStatus; name: string } | null>(null);
     const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Student Flags
@@ -494,7 +494,7 @@ export default function EnrollmentBoard({
 
     // Applies a status change; for destructive moves (rejected / withdrawn) captures the previous
     // state of every affected row first and offers a one-click Undo that restores it exactly.
-    const moveWithUndo = useCallback((enrollmentId: string, newStatus: string) => {
+    const moveWithUndo = useCallback((enrollmentId: string, newStatus: EnrollmentStatus) => {
         const all = enrollmentsRef.current;
         const target = all.find(e => e.id === enrollmentId);
         const isDestructive = newStatus === 'rejected' || newStatus === 'withdrawn';
@@ -529,9 +529,9 @@ export default function EnrollmentBoard({
             
             const enrollmentId = active.id as string;
             const oldStatus = active.data.current?.status;
-            const newStatus = over.id as string;
+            const newStatus = over.id;
             
-            if (oldStatus && newStatus && oldStatus !== newStatus) {
+            if (oldStatus && isEnrollmentStatus(newStatus) && oldStatus !== newStatus) {
                 // Moving from confirmed to anything other than completed requires confirmation
                 if (oldStatus === 'confirmed' && newStatus !== 'completed') {
                     setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
@@ -551,7 +551,7 @@ export default function EnrollmentBoard({
         moveWithUndo(enrollmentId, newStatus);
     }, [confirmMoveTarget, moveWithUndo]);
 
-    const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: string) => {
+    const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: EnrollmentStatus) => {
         if (oldStatus === newStatus) return;
         if (oldStatus === 'confirmed' && newStatus !== 'completed') {
             setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
@@ -570,7 +570,7 @@ export default function EnrollmentBoard({
 
     const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
 
-    const handleBulkUpdateStatus = useCallback((newStatus: string) => {
+    const handleBulkUpdateStatus = useCallback((newStatus: EnrollmentStatus) => {
         const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
         const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
         

@@ -1,4 +1,5 @@
 import { Users, Clock, Send, CheckCircle2, ArrowUpRight, type LucideIcon } from 'lucide-react';
+import type { NavigateFn } from '../../lib/navigation';
 
 export type KpiKey = 'students' | 'requested' | 'invited' | 'confirmed';
 
@@ -11,7 +12,7 @@ export interface KpiHint {
 export interface DashboardKPIsProps {
     stats: { students: number; courses: number; enrollments: number };
     statusCounts: Record<string, number>;
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     loading?: boolean;
     /** Optional contextual line under each number (overrides the default sub-label). */
     hints?: Partial<Record<KpiKey, KpiHint>>;

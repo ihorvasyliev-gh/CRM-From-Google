@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { CalendarDays, Users, Clock, ChevronRight, ChevronDown } from 'lucide-react';
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
+import type { NavigateFn } from '../../lib/navigation';
 
 /** Course days shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
 const COLLAPSED_COUNT = 6;
 
 export interface UpcomingCohortsCardProps {
     cohorts?: UpcomingCohortItem[];
-    onNavigate?: (tab: string, filter?: any) => void;
+    onNavigate?: NavigateFn;
     className?: string;
 }
 

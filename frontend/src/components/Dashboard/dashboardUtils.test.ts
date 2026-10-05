@@ -7,12 +7,14 @@ import {
     groupUpcomingCohorts,
     relativeDayLabel,
     untilLabel,
+    type DashboardEnrollment,
 } from './dashboardUtils';
+import type { EnrollmentStatus } from '../../lib/types';
 
 describe('dashboardUtils - calculateExpiredInvites', () => {
     it('correctly identifies expired and expiring (<48h) invites and sorts by overdue urgency', () => {
         const now = new Date('2026-09-04T12:00:00Z').getTime();
-        const enrollments = [
+        const enrollments: DashboardEnrollment[] = [
             {
                 id: '1',
                 student_id: 's1',
@@ -70,7 +72,7 @@ describe('dashboardUtils - calculateExpiredInvites', () => {
 
     it('formats time labels correctly for expired today and expiring in days', () => {
         const now = new Date('2026-09-04T12:00:00Z').getTime();
-        const enrollments = [
+        const enrollments: DashboardEnrollment[] = [
             {
                 id: '1',
                 student_id: 's1',
@@ -105,9 +107,9 @@ describe('dashboardUtils - calculateExpiredInvites', () => {
     });
 
     it('ignores invalid dates or missing invite dates', () => {
-        const enrollments = [
-            { id: '1', status: 'invited', invited_at: null },
-            { id: '2', status: 'invited', invited_at: 'invalid-date' },
+        const enrollments: DashboardEnrollment[] = [
+            { id: '1', course_id: 'c1', status: 'invited', invited_at: null },
+            { id: '2', course_id: 'c1', status: 'invited', invited_at: 'invalid-date' },
         ];
         expect(calculateExpiredInvites(enrollments)).toEqual([]);
     });
@@ -116,7 +118,7 @@ describe('dashboardUtils - calculateExpiredInvites', () => {
 describe('dashboardUtils - pending invites on upcoming dates', () => {
     const now = new Date('2026-10-01T12:00:00Z').getTime();
     const base = { course_id: 'c1', courses: { name: 'SafePass' } };
-    const enrollments = [
+    const enrollments: DashboardEnrollment[] = [
         { ...base, id: '1', status: 'confirmed', confirmed_date: '2026-10-07' },
         { ...base, id: '2', status: 'invited', invited_at: '2026-09-30T00:00:00Z', response_days: 7, invited_date: '2026-10-07' },
         // multi-date invite: pending on both offered dates
@@ -141,7 +143,7 @@ describe('dashboardUtils - pending invites on upcoming dates', () => {
 
 describe('dashboardUtils - groupUpcomingCohorts', () => {
     it('groups confirmed enrollments by upcoming confirmed_date and course', () => {
-        const enrollments = [
+        const enrollments: DashboardEnrollment[] = [
             {
                 id: 'e1',
                 course_id: 'c1',
@@ -196,7 +198,7 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
     });
 
     it('handles ISO timestamps with time component and caps at 12 cohorts', () => {
-        const enrollments = [];
+        const enrollments: DashboardEnrollment[] = [];
         // Create 15 unique days of cohorts
         for (let i = 1; i <= 15; i++) {
             const day = i < 10 ? `0${i}` : `${i}`;
@@ -216,7 +218,7 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
     });
 
     it('never cuts a day in half when capping at 12 cohorts', () => {
-        const enrollments: any[] = [];
+        const enrollments: DashboardEnrollment[] = [];
         for (let i = 1; i <= 11; i++) {
             const day = i < 10 ? `0${i}` : `${i}`;
             enrollments.push({ id: `e-${i}`, course_id: `c-${i}`, status: 'confirmed', confirmed_date: `2026-10-${day}`, courses: { name: `Course ${i}` } });
@@ -234,8 +236,8 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
     });
 
     it('handles missing course name or missing confirmed_date', () => {
-        const enrollments = [
-            { id: '1', status: 'confirmed', confirmed_date: null },
+        const enrollments: DashboardEnrollment[] = [
+            { id: '1', course_id: 'c0', status: 'confirmed', confirmed_date: null },
             { id: '2', status: 'confirmed', confirmed_date: '2026-09-10', courses: null, course_id: 'c1' },
         ];
         const cohorts = groupUpcomingCohorts(enrollments, '2026-09-01');
@@ -245,7 +247,7 @@ describe('dashboardUtils - groupUpcomingCohorts', () => {
 });
 
 describe('dashboardUtils - buildActivityGroups', () => {
-    const en = (id: string, student: string, course: string, status: string, created: string, variant: string | null = null) => ({
+    const en = (id: string, student: string, course: string, status: EnrollmentStatus, created: string, variant: string | null = null): DashboardEnrollment => ({
         id,
         student_id: student,
         course_id: `c-${course}`,
@@ -304,22 +306,22 @@ describe('dashboardUtils - labels & metrics', () => {
 
     it('counts stale requests older than the threshold', () => {
         const now = new Date('2026-09-20T12:00:00Z').getTime();
-        const enrollments = [
-            { status: 'requested', created_at: '2026-09-01T12:00:00Z' },
-            { status: 'requested', created_at: '2026-09-18T12:00:00Z' },
-            { status: 'invited', created_at: '2026-09-01T12:00:00Z' },
-            { status: 'requested', created_at: null },
+        const enrollments: DashboardEnrollment[] = [
+            { id: '1', course_id: 'c1', status: 'requested', created_at: '2026-09-01T12:00:00Z' },
+            { id: '2', course_id: 'c1', status: 'requested', created_at: '2026-09-18T12:00:00Z' },
+            { id: '3', course_id: 'c1', status: 'invited', created_at: '2026-09-01T12:00:00Z' },
+            { id: '4', course_id: 'c1', status: 'requested' },
         ];
         expect(countStaleRequests(enrollments, 7, now)).toBe(1);
     });
 });
 
 describe('dashboardUtils - dueReminders', () => {
-    const en = (course_id: string, confirmed_date: string, status = 'confirmed') =>
-        ({ status, course_id, confirmed_date, courses: { name: course_id } });
+    const en = (course_id: string, confirmed_date: string, status: EnrollmentStatus = 'confirmed'): DashboardEnrollment =>
+        ({ id: `${course_id}-${confirmed_date}`, status, course_id, confirmed_date, courses: { name: course_id } });
 
     it('lists course dates within 7 days that are not marked as sent', () => {
-        const enrollments = [
+        const enrollments: DashboardEnrollment[] = [
             en('c1', '2026-10-01'), en('c1', '2026-10-01'),
             en('c2', '2026-10-05'),                // marked as sent
             en('c3', '2026-10-09'),                // 8 days away

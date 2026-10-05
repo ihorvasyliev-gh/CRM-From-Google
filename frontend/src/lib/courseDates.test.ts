@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { courseDatesOf } from './courseDates';
 
-const base = { status: 'requested', confirmed_date: null, invited_date: null, invited_dates: null, completed_date: null };
+const base = { status: 'requested' as const, confirmed_date: null, invited_date: null, invited_dates: null, completed_date: null };
 
 describe('courseDatesOf', () => {
     it('returns nothing for an enrollment without dates', () => {

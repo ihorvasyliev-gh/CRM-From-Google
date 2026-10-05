@@ -1,6 +1,15 @@
-import { cleanVariant } from '../../lib/types';
+import { cleanVariant, type Enrollment } from '../../lib/types';
 import { todayISO, daysBetween } from '../../lib/dateUtils';
 import { getInviteDeadline, formatTimeLeft } from '../../lib/inviteDeadline';
+
+/** The enrollment fields the dashboard reads; board rows and lighter fixtures both fit. */
+export type DashboardEnrollment = Pick<Enrollment, 'id' | 'course_id' | 'status'>
+    & Partial<Pick<Enrollment, 'student_id' | 'course_variant' | 'invited_at' | 'response_days'
+        | 'confirmed_date' | 'invited_date' | 'invited_dates' | 'created_at'>>
+    & {
+        students?: { first_name?: string | null; last_name?: string | null } | null;
+        courses?: { name?: string | null } | null;
+    };
 
 export interface ExpiredInviteItem {
     id: string;
@@ -24,7 +33,7 @@ export interface UpcomingCohortItem {
     pendingCount: number;
 }
 
-export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date.now()): ExpiredInviteItem[] {
+export function calculateExpiredInvites(enrollments: DashboardEnrollment[], nowMs: number = Date.now()): ExpiredInviteItem[] {
     const items: ExpiredInviteItem[] = [];
 
     for (const en of enrollments) {
@@ -70,9 +79,9 @@ export function calculateExpiredInvites(enrollments: any[], nowMs: number = Date
  * confirmed for it and the still-open invitations offering it ("pending" — same rule as the invite
  * dialog: status invited, date offered, deadline not passed). Multi-date invites count on every date.
  */
-function buildSessions(enrollments: any[], todayIso: string, nowMs: number): UpcomingCohortItem[] {
+function buildSessions(enrollments: DashboardEnrollment[], todayIso: string, nowMs: number): UpcomingCohortItem[] {
     const cohortMap = new Map<string, UpcomingCohortItem>();
-    const bump = (dateKey: string, en: any, field: 'confirmedCount' | 'pendingCount') => {
+    const bump = (dateKey: string, en: DashboardEnrollment, field: 'confirmedCount' | 'pendingCount') => {
         if (dateKey < todayIso) return;
         const key = `${dateKey}:::${en.course_id}`;
         let item = cohortMap.get(key);
@@ -98,11 +107,11 @@ function buildSessions(enrollments: any[], todayIso: string, nowMs: number): Upc
 }
 
 /** Confirmed course dates from today on (dates with only pending invites are left out). */
-function groupConfirmedSessions(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
+function groupConfirmedSessions(enrollments: DashboardEnrollment[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
     return buildSessions(enrollments, todayIso, nowMs).filter(c => c.confirmedCount > 0);
 }
 
-export function groupUpcomingCohorts(enrollments: any[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
+export function groupUpcomingCohorts(enrollments: DashboardEnrollment[], todayIso: string = todayISO(), nowMs: number = Date.now()): UpcomingCohortItem[] {
     const sorted = buildSessions(enrollments, todayIso, nowMs);
     if (sorted.length <= 12) return sorted;
     // Cap at 12, but never split a day: the dashboard groups same-day courses into one card.
@@ -186,7 +195,7 @@ export function mergeCoursePills<T extends ActivityEnrollment>(enrollments: T[])
         });
 }
 
-function toActivityEnrollment(en: any): ActivityEnrollment {
+function toActivityEnrollment(en: DashboardEnrollment): ActivityEnrollment {
     return {
         id: en.id,
         courseId: en.course_id,
@@ -196,7 +205,7 @@ function toActivityEnrollment(en: any): ActivityEnrollment {
     };
 }
 
-function studentNameOf(en: any): string {
+function studentNameOf(en: DashboardEnrollment): string {
     return [en.students?.first_name, en.students?.last_name].filter(Boolean).join(' ') || 'Unknown';
 }
 
@@ -205,10 +214,10 @@ function studentNameOf(en: any): string {
  * student's enrollment history from other days. `search` matches student or course names.
  */
 export function buildActivityGroups(
-    enrollments: any[],
+    enrollments: DashboardEnrollment[],
     { filter = 'all', search = '', limit = 50 }: { filter?: ActivityStatusFilter; search?: string; limit?: number } = {},
 ): { groups: ActivityGroup[]; total: number } {
-    const byStudent = new Map<string, any[]>();
+    const byStudent = new Map<string, DashboardEnrollment[]>();
     for (const en of enrollments) {
         if (!en.student_id) continue;
         const list = byStudent.get(en.student_id);
@@ -216,7 +225,7 @@ export function buildActivityGroups(
         else byStudent.set(en.student_id, [en]);
     }
 
-    const time = (en: any) => {
+    const time = (en: DashboardEnrollment) => {
         const t = en.created_at ? new Date(en.created_at).getTime() : 0;
         return isNaN(t) ? 0 : t;
     };
@@ -312,7 +321,7 @@ export function untilLabel(dateKey: string, todayKey: string = localDateKey(new 
 }
 
 /** Requests that have been waiting longer than `days`. */
-export function countStaleRequests(enrollments: any[], days = 7, nowMs: number = Date.now()): number {
+export function countStaleRequests(enrollments: DashboardEnrollment[], days = 7, nowMs: number = Date.now()): number {
     let count = 0;
     for (const en of enrollments) {
         if (en.status !== 'requested' || !en.created_at) continue;
@@ -336,7 +345,7 @@ export interface ReminderItem extends UpcomingCohortItem {
  * that reminder covers the earlier one, and the 7-day mark doesn't hide it.
  */
 export function dueReminders(
-    enrollments: any[],
+    enrollments: DashboardEnrollment[],
     sent: Set<string>,
     days = 7,
     todayIso: string = todayISO(),
