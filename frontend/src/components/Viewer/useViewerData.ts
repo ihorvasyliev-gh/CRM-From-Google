@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase';
 import type { ViewerCourse, ViewerUpcomingCourse } from '../../lib/types';
 
 /** All courses with per-status counts. Shared cache between every viewer page. */
-export function useViewerCourses() {
+export function useViewerCourses(enabled = true) {
     return useQuery<ViewerCourse[]>({
         queryKey: ['viewer_courses'],
+        enabled,
         queryFn: async () => {
             const { data, error } = await supabase.rpc('get_viewer_courses');
             if (error) throw error;

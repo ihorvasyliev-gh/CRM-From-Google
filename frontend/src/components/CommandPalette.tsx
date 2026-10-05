@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Student, Course, getAvatarGradient, type ViewerCourse, type ViewerStudentDirectoryItem } from '../lib/types';
+import { Student, Course, getAvatarGradient, type ViewerStudentDirectoryItem } from '../lib/types';
+import { fetchCourses } from '../lib/queries';
+import { useDebounce } from '../hooks/useDebounce';
+import { useViewerCourses } from './Viewer/useViewerData';
 import { matchesSearch, buildStudentSearchFilters } from '../lib/searchUtils';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import {
@@ -24,6 +27,30 @@ const directoryStudent = (s: ViewerStudentDirectoryItem): Student => ({
     dob: s.dob,
     created_at: s.created_at,
 });
+
+const NO_COURSES: Pick<Course, 'id' | 'name'>[] = [];
+const NO_STUDENTS: Student[] = [];
+
+/** Students for the palette: the newest ones, or the matches for `search` (viewers go through their RPC). */
+async function fetchPaletteStudents(isViewer: boolean, search: string): Promise<Student[]> {
+    if (isViewer) {
+        const { data, error } = await supabase.rpc('get_viewer_students_directory', search ? { p_search: search, p_limit: 20 } : { p_limit: 30 });
+        if (error) throw error;
+        return ((data || []) as ViewerStudentDirectoryItem[]).map(directoryStudent);
+    }
+    if (!search) {
+        const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30);
+        if (error) throw error;
+        return (data || []) as Student[];
+    }
+    let q = supabase.from('students').select('*').limit(20);
+    buildStudentSearchFilters(search).forEach(filter => {
+        q = q.or(filter);
+    });
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []) as Student[];
+}
 
 export interface CommandPaletteProps {
     open: boolean;
@@ -69,14 +96,9 @@ export default function CommandPalette({
 }: CommandPaletteProps) {
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const [students, setStudents] = useState<Student[]>([]);
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [loadingData, setLoadingData] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const initialStudentsRef = useRef<Student[]>([]);
 
-    const queryClient = useQueryClient();
 
     useModalBehavior(open, onClose);
 
@@ -89,113 +111,23 @@ export default function CommandPalette({
         }
     }, [open]);
 
-    // Load initial courses and recent students with instant cache pre-fill
-    useEffect(() => {
-        if (!open) return;
+    // Courses come from the same caches as the courses pages (admins and viewers see different lists)
+    const adminCourses = useQuery({ queryKey: ['courses'], queryFn: fetchCourses, enabled: open && !isViewer });
+    const viewerCourses = useViewerCourses(open && isViewer);
+    const courses = (isViewer ? viewerCourses.data : adminCourses.data) ?? NO_COURSES;
 
-        let isMounted = true;
-        const cachedCourses = queryClient?.getQueryData<Course[]>(['courses']);
-        if (cachedCourses && cachedCourses.length > 0) {
-            setCourses(cachedCourses);
-        }
-
-        const fetchData = async () => {
-            const needsCourses = !cachedCourses || cachedCourses.length === 0;
-            if (needsCourses) {
-                setLoadingData(true);
-            }
-            try {
-                if (isViewer) {
-                    const [coursesRes, studentsRes] = await Promise.all([
-                        needsCourses ? supabase.rpc('get_viewer_courses') : null,
-                        supabase.rpc('get_viewer_students_directory', { p_limit: 30 }),
-                    ]);
-                    if (isMounted) {
-                        if (coursesRes?.data) {
-                            const mappedCourses: Course[] = (coursesRes.data as ViewerCourse[]).map(c => ({
-                                id: c.id,
-                                name: c.name,
-                                created_at: c.created_at,
-                            }));
-                            setCourses(mappedCourses);
-                            queryClient?.setQueryData(['courses'], mappedCourses);
-                        }
-                        if (studentsRes.data) {
-                            const mappedStudents = (studentsRes.data as ViewerStudentDirectoryItem[]).map(directoryStudent);
-                            setStudents(mappedStudents);
-                            initialStudentsRef.current = mappedStudents;
-                        }
-                    }
-                } else {
-                    const [coursesRes, studentsRes] = await Promise.all([
-                        // Full list: this result is written to the shared ['courses'] cache used by the Courses page
-                        needsCourses ? supabase.from('courses').select('*').order('name') : null,
-                        supabase.from('students').select('*').order('created_at', { ascending: false }).limit(30),
-                    ]);
-                    if (isMounted) {
-                        if (coursesRes?.data) {
-                            setCourses(coursesRes.data as Course[]);
-                            queryClient?.setQueryData(['courses'], coursesRes.data);
-                        }
-                        if (studentsRes.data) {
-                            setStudents(studentsRes.data as Student[]);
-                            initialStudentsRef.current = studentsRes.data as Student[];
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Error fetching data for CommandPalette:', err);
-            } finally {
-                if (isMounted) setLoadingData(false);
-            }
-        };
-
-        fetchData();
-        return () => {
-            isMounted = false;
-        };
-    }, [open, queryClient, isViewer]);
-
-    // Reset to initial students when query is cleared
-    useEffect(() => {
-        if (open && !query.trim() && initialStudentsRef.current.length > 0) {
-            setStudents(initialStudentsRef.current);
-        }
-    }, [query, open]);
-
-    // Debounced student search when user types a specific query
-    useEffect(() => {
-        if (!open || !query.trim() || query.trim().length < 2) return;
-
-        let active = true;
-        const timer = setTimeout(async () => {
-            const trimmed = query.trim();
-            if (isViewer) {
-                const { data } = await supabase.rpc('get_viewer_students_directory', {
-                    p_search: trimmed,
-                    p_limit: 20,
-                });
-                if (active && data) {
-                    setStudents((data as ViewerStudentDirectoryItem[]).map(directoryStudent));
-                }
-            } else {
-                let q = supabase.from('students').select('*').limit(20);
-                buildStudentSearchFilters(trimmed).forEach(filter => {
-                    q = q.or(filter);
-                });
-
-                const { data } = await q;
-                if (active && data) {
-                    setStudents(data as Student[]);
-                }
-            }
-        }, 200);
-
-        return () => {
-            active = false;
-            clearTimeout(timer);
-        };
-    }, [query, open, isViewer]);
+    // Recent students until two characters are typed, then a server-side search
+    const debouncedQuery = useDebounce(query.trim(), 200);
+    const studentSearch = debouncedQuery.length >= 2 ? debouncedQuery : '';
+    const studentsQuery = useQuery({
+        queryKey: ['palette_students', isViewer ? 'viewer' : 'admin', studentSearch],
+        queryFn: () => fetchPaletteStudents(isViewer, studentSearch),
+        enabled: open,
+        staleTime: 30_000,
+        placeholderData: keepPreviousData,
+    });
+    const students = studentsQuery.data ?? NO_STUDENTS;
+    const loadingData = (isViewer ? viewerCourses.isLoading : adminCourses.isLoading) || studentsQuery.isLoading;
 
     // Construct searchable items
     const items: PaletteItem[] = useMemo(() => {

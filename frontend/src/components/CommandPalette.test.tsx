@@ -272,6 +272,28 @@ describe('CommandPalette Component', () => {
             expect(mockClose).toHaveBeenCalledTimes(1);
         });
 
+        it('leaves the admin courses cache alone (viewers get a shorter course list)', async () => {
+            const client = createTestQueryClient();
+            rtlRender(
+                <QueryClientProvider client={client}>
+                    <CommandPalette
+                        open={true}
+                        onClose={mockClose}
+                        onNavigate={mockNavigate}
+                        darkMode={false}
+                        toggleDarkMode={mockToggleDarkMode}
+                        density="comfortable"
+                        toggleDensity={mockToggleDensity}
+                        isViewer={true}
+                    />
+                </QueryClientProvider>
+            );
+
+            expect(await screen.findByText('Digital Skills')).toBeInTheDocument();
+            expect(client.getQueryData(['courses'])).toBeUndefined();
+            expect(client.getQueryData(['viewer_courses'])).toHaveLength(2);
+        });
+
         it('navigates to courses tab when viewer selects a course item', async () => {
             render(
                 <CommandPalette
