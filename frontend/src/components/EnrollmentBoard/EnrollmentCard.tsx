@@ -63,7 +63,9 @@ function getRelativeTime(isoDate: string): string {
 // Shared class strings for the compact card layout
 const iconBtnBase = 'w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors';
 const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surface-elevated`;
-const contactBtn = 'w-6 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
+const contactBtn = 'w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
+// Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
+const narrowHidden = '@max-2xs:hidden';
 const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium shrink-0 whitespace-nowrap';
 
 const EnrollmentCardBody = function EnrollmentCardBody({
@@ -237,14 +239,14 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
     // Date shown on the card: the one that matters for the current stage; the full history goes in the tooltip
     const stageDate = status === 'completed' && enrollment.completed_date
-        ? <><GraduationCap size={10} />{formatShortDate(enrollment.completed_date)}</>
+        ? <><GraduationCap size={10} className={narrowHidden} />{formatShortDate(enrollment.completed_date)}</>
         : status === 'confirmed' && enrollment.confirmed_date
-            ? <><CheckCircle size={10} />{formatShortDate(enrollment.confirmed_date)}</>
+            ? <><CheckCircle size={10} className={narrowHidden} />{formatShortDate(enrollment.confirmed_date)}</>
             : offeredDates
-                ? <><Send size={10} />{formatShortDateList(offeredDates)}</>
+                ? <><Send size={10} className={narrowHidden} />{formatShortDateList(offeredDates)}</>
             : status === 'invited' && enrollment.invited_date
-                ? <><Send size={10} />{formatShortDate(enrollment.invited_date)}</>
-                : <>{formatShortDate(enrollment.created_at)} · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</>;
+                ? <><Send size={10} className={narrowHidden} />{formatShortDate(enrollment.invited_date)}</>
+                : <>{formatShortDate(enrollment.created_at)}<span className={narrowHidden}> · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</span></>;
     const dateTooltip = [
         `Added ${formatDateLong(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
         offeredDates
@@ -253,6 +255,41 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
         enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
     ].filter(Boolean).join('\n');
+
+    const flagTooltip = studentFlags.length > 0
+        ? `⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`
+        : 'Flag student (e.g. failed a course)';
+    const flagButton = (className: string) => (
+        <CustomTooltip content={flagTooltip}>
+            <button
+                aria-label={studentFlags.length > 0 ? 'Student flags' : 'Flag student'}
+                onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
+                className={`${iconBtnBase} ${studentFlags.length > 0
+                    ? 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'
+                    : 'text-muted/60 hover:text-orange-500 hover:bg-surface-elevated'
+                } ${className}`}
+            >
+                <AlertTriangle size={13} strokeWidth={studentFlags.length > 0 ? 2.5 : 2} />
+            </button>
+        </CustomTooltip>
+    );
+    const starButton = (className: string) => (
+        <CustomTooltip content={enrollment.is_priority ? 'Remove priority' : 'Mark as priority'}>
+            <button
+                aria-label={enrollment.is_priority ? 'Remove priority' : 'Mark as priority'}
+                onClick={e => {
+                    e.stopPropagation();
+                    togglePriority(enrollment.id, !!enrollment.is_priority);
+                }}
+                className={`${iconBtnBase} ${enrollment.is_priority
+                    ? 'text-warning hover:bg-warning/10'
+                    : 'text-muted/60 hover:text-warning hover:bg-surface-elevated'
+                } ${className}`}
+            >
+                <Star size={13} fill={enrollment.is_priority ? 'currentColor' : 'none'} />
+            </button>
+        </CustomTooltip>
+    );
 
     return (
         <div
@@ -301,7 +338,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 )}
             </div>
 
-            <div className="flex-1 min-w-0">
+            {/* A size container: in the narrow four-column layout the contact row drops its decorations
+                (@max-2xs) so the phone number fits */}
+            <div className="flex-1 min-w-0 @container">
                 {/* Row 1: Name, timer & actions */}
                 <div className="flex items-center gap-1 min-w-0">
                     <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
@@ -338,8 +377,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     })()}
 
                     <div className="card-actions-col flex items-center shrink-0 -my-1 -mr-1">
-                        {/* Secondary actions — revealed on hover (always visible on touch screens) */}
-                        <div className="flex items-center lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+                        {/* Secondary actions: in the row on touch screens; on desktop a small toolbar
+                            over the card's top-right corner on hover, so they don't take the name's space */}
+                        <div className="flex items-center lg:absolute lg:top-1 lg:right-1 lg:z-10 lg:p-0.5 lg:rounded-lg lg:bg-surface lg:border lg:border-border-subtle lg:shadow-sm lg:opacity-0 lg:pointer-events-none lg:group-hover:opacity-100 lg:group-hover:pointer-events-auto lg:focus-within:opacity-100 lg:focus-within:pointer-events-auto transition-opacity">
                             {!enrollment.notes && (
                                 <CustomTooltip content="Add note">
                                     <button aria-label="Add Note" onClick={handleStartEditNote} className={iconBtn}>
@@ -373,48 +413,15 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 </button>
                             </CustomTooltip>
 
-                            {studentFlags.length === 0 && (
-                                <CustomTooltip content="Flag student (e.g. failed a course)">
-                                    <button
-                                        aria-label="Flag student"
-                                        onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                        className={`${iconBtnBase} text-muted/60 hover:text-orange-500 hover:bg-surface-elevated`}
-                                    >
-                                        <AlertTriangle size={13} />
-                                    </button>
-                                </CustomTooltip>
-                            )}
+                            {/* Flag and star: in the toolbar on desktop (it covers the indicators below);
+                                on touch screens only "add a flag" is here */}
+                            {flagButton(studentFlags.length > 0 ? 'max-lg:hidden' : '')}
+                            {starButton('max-lg:hidden')}
                         </div>
 
-                        {/* ⚠ Student Flags — always visible when set */}
-                        {studentFlags.length > 0 && (
-                            <CustomTooltip content={`⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`}>
-                                <button
-                                    aria-label="Student flags"
-                                    onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                                    className={`${iconBtnBase} text-orange-500 hover:text-orange-600 hover:bg-orange-500/10`}
-                                >
-                                    <AlertTriangle size={13} strokeWidth={2.5} />
-                                </button>
-                            </CustomTooltip>
-                        )}
-
-                        {/* Star Priority — always visible when set */}
-                        <CustomTooltip content={enrollment.is_priority ? "Remove priority" : "Mark as priority"}>
-                            <button
-                                aria-label={enrollment.is_priority ? "Remove priority" : "Mark as priority"}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    togglePriority(enrollment.id, !!enrollment.is_priority);
-                                }}
-                                className={`${iconBtnBase} ${enrollment.is_priority
-                                    ? 'text-warning hover:bg-warning/10'
-                                    : 'text-muted/60 hover:text-warning hover:bg-surface-elevated lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100'
-                                }`}
-                            >
-                                <Star size={13} fill={enrollment.is_priority ? "currentColor" : "none"} />
-                            </button>
-                        </CustomTooltip>
+                        {/* Set flags and priority stay visible (hidden under the desktop toolbar on hover) */}
+                        {studentFlags.length > 0 && flagButton('lg:group-hover:invisible')}
+                        {starButton(enrollment.is_priority ? 'lg:group-hover:invisible' : 'lg:hidden')}
                     </div>
                 </div>
 
@@ -452,16 +459,16 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         onClick={e => e.stopPropagation()}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors shrink-0 mr-1"
+                                        className="flex items-center gap-1 min-w-0 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors mr-1 @max-2xs:mr-0"
                                         title="Click to call"
                                     >
-                                        <Phone size={11} className="shrink-0 text-primary/50" />
-                                        <span>{enrollment.students.phone}</span>
+                                        <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
+                                        <span className="truncate">{enrollment.students.phone}</span>
                                     </a>
                                 ) : (
-                                    <span className="flex items-center gap-1 tabular-nums text-primary shrink-0 mr-1">
-                                        <Phone size={11} className="shrink-0 text-primary/50" />
-                                        {enrollment.students.phone}
+                                    <span className="flex items-center gap-1 min-w-0 tabular-nums text-primary mr-1 @max-2xs:mr-0" title={enrollment.students.phone}>
+                                        <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
+                                        <span className="truncate">{enrollment.students.phone}</span>
                                     </span>
                                 )}
                                 {waUrl && (
@@ -501,7 +508,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                     {/* Stage date — the most relevant date for the current status; all dates in the tooltip */}
                     <CustomTooltip content={dateTooltip}>
-                        <span className="card-info ml-auto text-[11px] text-primary/50 whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
+                        <span className="card-info ml-auto pl-1 text-[11px] text-primary/50 whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
                             {stageDate}
                         </span>
                     </CustomTooltip>
