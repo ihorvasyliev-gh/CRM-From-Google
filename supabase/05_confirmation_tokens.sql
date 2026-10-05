@@ -16,16 +16,28 @@ CREATE TABLE IF NOT EXISTS confirmation_tokens (
 CREATE INDEX IF NOT EXISTS idx_confirmation_tokens_expires ON confirmation_tokens(expires_at);
 
 -- RLS: authenticated users can create tokens, anon can read (resolve) them
+-- Safe to re-run: schema.sql already creates this table and its policy on a fresh install,
+-- and an existing policy (possibly tightened by a later migration) is never replaced.
 ALTER TABLE confirmation_tokens ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated can manage tokens"
-    ON confirmation_tokens FOR ALL
-    USING (auth.role() = 'authenticated')
-    WITH CHECK (auth.role() = 'authenticated');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'confirmation_tokens' AND policyname = 'Authenticated can manage tokens') THEN
+        CREATE POLICY "Authenticated can manage tokens" ON confirmation_tokens
+            FOR ALL
+            USING (auth.role() = 'authenticated')
+            WITH CHECK (auth.role() = 'authenticated');
+    END IF;
+END $$;
 
-CREATE POLICY "Anon can read tokens"
-    ON confirmation_tokens FOR SELECT
-    USING (true);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'confirmation_tokens' AND policyname = 'Anon can read tokens') THEN
+        CREATE POLICY "Anon can read tokens" ON confirmation_tokens
+            FOR SELECT
+            USING (true);
+    END IF;
+END $$;
 
 -- ============================================================
 -- RPC: create_confirmation_token

@@ -51,5 +51,13 @@ REVOKE EXECUTE ON FUNCTION public.get_viewer_students_directory(TEXT, UUID, TEXT
 -- ------------------------------------------------------------
 -- 2. Trigger functions: not callable through the API at all
 -- ------------------------------------------------------------
-REVOKE EXECUTE ON FUNCTION public.enforce_limited_user_enrollment_updates() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.handle_new_user_role() FROM PUBLIC, anon, authenticated;
+-- Both were created outside the numbered migrations, so a fresh install may not have them
+DO $$
+BEGIN
+    IF to_regprocedure('public.enforce_limited_user_enrollment_updates()') IS NOT NULL THEN
+        REVOKE EXECUTE ON FUNCTION public.enforce_limited_user_enrollment_updates() FROM PUBLIC, anon, authenticated;
+    END IF;
+    IF to_regprocedure('public.handle_new_user_role()') IS NOT NULL THEN
+        REVOKE EXECUTE ON FUNCTION public.handle_new_user_role() FROM PUBLIC, anon, authenticated;
+    END IF;
+END $$;

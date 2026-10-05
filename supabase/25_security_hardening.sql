@@ -1,5 +1,10 @@
 -- ============================================================
 -- Migration 25: Security Hardening (Search Path & Execution Rights)
+--
+-- Several of these functions were created outside the numbered migrations
+-- (in the Supabase dashboard) and do not exist on a fresh install. Each
+-- statement runs only when its function exists, so a database that already
+-- has them gets exactly the original changes.
 -- ============================================================
 
 -- 1. Fix search_path for mutable search_path functions (CWE-426)
@@ -7,20 +12,42 @@
 -- We restrict them to 'public' to prevent hijacking.
 
 -- Trigger functions & internal helpers
-ALTER FUNCTION public.update_updated_at_column() SET search_path = public;
-ALTER FUNCTION public.update_user_roles_updated_at_column() SET search_path = public;
-ALTER FUNCTION public.trg_students_normalize_fn() SET search_path = public;
-ALTER FUNCTION public.handle_new_user_role() SET search_path = public;
-ALTER FUNCTION public.enforce_limited_user_enrollment_updates() SET search_path = public;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.update_updated_at_column()', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.update_user_roles_updated_at_column()', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.trg_students_normalize_fn()', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.handle_new_user_role()', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.enforce_limited_user_enrollment_updates()', 'ALTER FUNCTION %s SET search_path = public']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 -- RPC functions
-ALTER FUNCTION public.create_status_token(uuid) SET search_path = public;
-ALTER FUNCTION public.resolve_status_token(text) SET search_path = public;
-ALTER FUNCTION public.submit_employment_status(text, boolean, text, text, text, timestamptz) SET search_path = public;
-ALTER FUNCTION public.submit_employment_status(text, text, boolean, text, text, text) SET search_path = public;
-ALTER FUNCTION public.get_user_role() SET search_path = public;
-ALTER FUNCTION public.search_students_enrollments(text) SET search_path = public;
-ALTER FUNCTION public.mark_students_outcomes_invited(uuid[]) SET search_path = public;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.create_status_token(uuid)', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.resolve_status_token(text)', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.submit_employment_status(text, boolean, text, text, text, timestamptz)', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.submit_employment_status(text, text, boolean, text, text, text)', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.get_user_role()', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.search_students_enrollments(text)', 'ALTER FUNCTION %s SET search_path = public'],
+        ['public.mark_students_outcomes_invited(uuid[])', 'ALTER FUNCTION %s SET search_path = public']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 
 -- 2. Revoke and Restrict API Execution Permissions
@@ -28,48 +55,103 @@ ALTER FUNCTION public.mark_students_outcomes_invited(uuid[]) SET search_path = p
 -- We revoke PUBLIC execute permission and grant it back explicitly to required roles only.
 
 -- Revoke execute from PUBLIC on trigger functions & internal helpers (never executed via API)
-REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.update_user_roles_updated_at_column() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.trg_students_normalize_fn() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.handle_new_user_role() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.enforce_limited_user_enrollment_updates() FROM PUBLIC;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.update_updated_at_column()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.update_user_roles_updated_at_column()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.trg_students_normalize_fn()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.handle_new_user_role()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.enforce_limited_user_enrollment_updates()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 -- Revoke execute from PUBLIC on all security definer RPC functions
-REVOKE EXECUTE ON FUNCTION public.create_status_token(uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.resolve_status_token(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.submit_employment_status(text, boolean, text, text, text, timestamptz) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.submit_employment_status(text, text, boolean, text, text, text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_user_role() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.search_students_enrollments(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.mark_students_outcomes_invited(uuid[]) FROM PUBLIC;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.create_status_token(uuid)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.resolve_status_token(text)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.submit_employment_status(text, boolean, text, text, text, timestamptz)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.submit_employment_status(text, text, boolean, text, text, text)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.get_user_role()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.search_students_enrollments(text)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.mark_students_outcomes_invited(uuid[])', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 -- Revoke execute from PUBLIC on previously defined definer functions
-REVOKE EXECUTE ON FUNCTION public.bulk_update_registration_dates(jsonb) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_confirmation_token(uuid, date) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_public_course_info(uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.mark_students_outcomes_pending(uuid[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.merge_students(uuid, uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.public_confirm_enrollment(text, uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.resolve_confirmation_token(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.bulk_update_registration_dates(jsonb)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.create_confirmation_token(uuid, date)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.get_public_course_info(uuid)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.mark_students_outcomes_pending(uuid[])', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.merge_students(uuid, uuid)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.public_confirm_enrollment(text, uuid)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.resolve_confirmation_token(text)', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC'],
+        ['public.rls_auto_enable()', 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 
 -- 3. Grant EXECUTE to specific target roles (anon/authenticated)
 
 -- Admin-only RPCs (authenticated only)
-GRANT EXECUTE ON FUNCTION public.create_status_token(uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.search_students_enrollments(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.mark_students_outcomes_invited(uuid[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.bulk_update_registration_dates(jsonb) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_confirmation_token(uuid, date) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.mark_students_outcomes_pending(uuid[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.merge_students(uuid, uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_user_role() TO authenticated;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.create_status_token(uuid)', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.search_students_enrollments(text)', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.mark_students_outcomes_invited(uuid[])', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.bulk_update_registration_dates(jsonb)', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.create_confirmation_token(uuid, date)', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.mark_students_outcomes_pending(uuid[])', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.merge_students(uuid, uuid)', 'GRANT EXECUTE ON FUNCTION %s TO authenticated'],
+        ['public.get_user_role()', 'GRANT EXECUTE ON FUNCTION %s TO authenticated']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;
 
 -- Public flows (both anon and authenticated)
-GRANT EXECUTE ON FUNCTION public.resolve_status_token(text) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.submit_employment_status(text, boolean, text, text, text, timestamptz) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.submit_employment_status(text, text, boolean, text, text, text) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_public_course_info(uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.public_confirm_enrollment(text, uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.resolve_confirmation_token(text) TO anon, authenticated;
+DO $$
+DECLARE
+    item text[];
+BEGIN
+    FOREACH item SLICE 1 IN ARRAY ARRAY[
+        ['public.resolve_status_token(text)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated'],
+        ['public.submit_employment_status(text, boolean, text, text, text, timestamptz)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated'],
+        ['public.submit_employment_status(text, text, boolean, text, text, text)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated'],
+        ['public.get_public_course_info(uuid)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated'],
+        ['public.public_confirm_enrollment(text, uuid)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated'],
+        ['public.resolve_confirmation_token(text)', 'GRANT EXECUTE ON FUNCTION %s TO anon, authenticated']
+    ] LOOP
+        IF to_regprocedure(item[1]) IS NOT NULL THEN
+            EXECUTE format(item[2], item[1]);
+        END IF;
+    END LOOP;
+END $$;

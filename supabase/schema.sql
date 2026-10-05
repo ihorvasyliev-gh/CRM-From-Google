@@ -1,8 +1,14 @@
 -- ============================================================
--- schema.sql — Current Database Schema (auto-generated)
--- Reflects all migrations 01 → 22 + add_updated_at + update_dates_rpc
--- Last updated: 2026-05-26
--- DO NOT edit by hand — apply changes via numbered migration files.
+-- schema.sql — Base database schema
+--
+-- Fresh install: run this file, then every numbered migration
+-- (01 → latest) in order. This file already contains part of what
+-- those migrations add, so they are written to run over it
+-- (IF NOT EXISTS, policies created only when missing, statements
+-- skipped for functions that are absent).
+--
+-- Do not add new changes here: put them in a new numbered migration,
+-- and keep it safe to run over this file.
 -- ============================================================
 
 -- Enable UUID extension
@@ -235,9 +241,8 @@ CREATE POLICY "Authenticated access" ON student_flags
 CREATE POLICY "Users can manage their own settings" ON user_settings
     FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Document settings: admins only (migration 73)
-CREATE POLICY "Admins manage document settings" ON document_settings
-    FOR ALL USING (public.is_app_admin()) WITH CHECK (public.is_app_admin());
+-- Document settings: admins only. The policy needs is_app_admin() (migration 58),
+-- so migration 73 creates it.
 
 -- Confirmation tokens: authenticated admins can create, anon can read (to resolve /c/:token links)
 CREATE POLICY "Authenticated can manage tokens" ON confirmation_tokens
