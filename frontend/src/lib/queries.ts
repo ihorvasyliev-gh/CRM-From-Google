@@ -2,31 +2,59 @@
 import { supabase } from './supabase';
 import { buildStudentSearchFilters } from './searchUtils';
 import type { Course, EmploymentStatusRow, Student } from './types';
+import type { EnrollmentWithRelations } from './documentRender';
 
 const STUDENTS_PAGE_SIZE = 30;
 
 /** Rows per request when reading a whole table; PostgREST's default limit (max-rows). */
 const FETCH_ALL_PAGE_SIZE = 1000;
+/** Pages requested at once after a full first page. */
+const FETCH_ALL_PARALLEL_PAGES = 3;
 
 /**
  * Every row of a query, read page by page; the first failed page throws (never a partial list).
  * `page(from, to)` must order by a unique key (e.g. created_at, then id): with ties, rows can move
  * between pages from one request to the next and be skipped or read twice.
+ *
+ * The first page is read alone (most tables fit in it); after a full one the next pages are
+ * requested a few at a time, so a 5000-row table takes 3 round trips instead of 6.
  */
 export async function fetchAllPages<T>(
     page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
+    const read = (index: number) => page(index * FETCH_ALL_PAGE_SIZE, (index + 1) * FETCH_ALL_PAGE_SIZE - 1);
     const rows: T[] = [];
-    for (let from = 0; ; from += FETCH_ALL_PAGE_SIZE) {
-        const { data, error } = await page(from, from + FETCH_ALL_PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data) rows.push(...data);
-        if (!data || data.length < FETCH_ALL_PAGE_SIZE) return rows;
+    for (let next = 0; ;) {
+        const count = next === 0 ? 1 : FETCH_ALL_PARALLEL_PAGES;
+        const results = await Promise.all(Array.from({ length: count }, (_, i) => read(next + i)));
+        next += count;
+        // In order: the first error throws, and the first short page is the end
+        for (const { data, error } of results) {
+            if (error) throw error;
+            if (data) rows.push(...data);
+            if (!data || data.length < FETCH_ALL_PAGE_SIZE) return rows;
+        }
     }
 }
 
 /** Enrollment columns plus the student and course fields the board and documents use. */
 export const ENROLLMENT_SELECT = '*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english, max_capacity)';
+
+/**
+ * Fresh copies of these enrollments, in the order of `ids`. Deleted ones (and ones this user may
+ * no longer see) are left out.
+ */
+export async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWithRelations[]> {
+    const CHUNK = 150; // keeps the id=in.(…) URL well under server limits
+    const chunks = Array.from({ length: Math.ceil(ids.length / CHUNK) }, (_, i) => ids.slice(i * CHUNK, (i + 1) * CHUNK));
+    const results = await Promise.all(chunks.map(async chunk => {
+        const { data, error } = await supabase.from('enrollments').select(ENROLLMENT_SELECT).in('id', chunk);
+        if (error) throw error;
+        return (data || []) as EnrollmentWithRelations[];
+    }));
+    const byId = new Map(results.flat().map(e => [e.id, e]));
+    return ids.map(id => byId.get(id)).filter((e): e is EnrollmentWithRelations => !!e);
+}
 
 export interface StudentsPage {
     data: Student[];

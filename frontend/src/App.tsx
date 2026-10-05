@@ -127,7 +127,7 @@ function App() {
     const { density, setDensity, toggleDensity } = useDensity();
 
     const queryClient = useQueryClient();
-    const { handleTabMouseEnter, handleTabMouseLeave } = useTabPrefetch(!user || isOutreach ? null : isViewer ? 'viewer' : 'admin');
+    const { handleTabMouseEnter, handleTabMouseLeave } = useTabPrefetch(!user || isOutreach ? null : isViewer ? 'viewer' : 'admin', activeTab);
     const notifBanner = useNotificationBanner(user?.id);
 
     const navigate: NavigateFn = useCallback((tab: string, state?: NavState) => {

@@ -1,7 +1,7 @@
 // Document generation: templates and settings in Supabase, and the archive run.
 // The rendering itself lives in documentRender.ts and runs in a Web Worker (documentJob.ts).
 import { supabase } from './supabase';
-import { ENROLLMENT_SELECT } from './queries';
+import { fetchEnrollmentsByIds } from './queries';
 import { cleanVariant, fullName, type DocumentTemplate, type Enrollment, type TemplateVariable } from './types';
 import { formatDateSpaces, todayISO } from './dateUtils';
 import { getConfig, setConfig, type ExcelColumn } from './appConfig';
@@ -209,19 +209,6 @@ export function defaultSessionKey<T>(sessions: CourseSession<T>[], status: Gener
         if (upcoming) return upcoming.key;
     }
     return dated[dated.length - 1].key;
-}
-
-/** Re-read enrollments right before generating, so documents never use a stale cached name or address. */
-async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWithRelations[]> {
-    const CHUNK = 150; // keeps the id=in.(…) URL well under server limits
-    const chunks = Array.from({ length: Math.ceil(ids.length / CHUNK) }, (_, i) => ids.slice(i * CHUNK, (i + 1) * CHUNK));
-    const results = await Promise.all(chunks.map(async chunk => {
-        const { data, error } = await supabase.from('enrollments').select(ENROLLMENT_SELECT).in('id', chunk);
-        if (error) throw error;
-        return (data || []) as EnrollmentWithRelations[];
-    }));
-    const byId = new Map(results.flat().map(e => [e.id, e]));
-    return ids.map(id => byId.get(id)).filter((e): e is EnrollmentWithRelations => !!e);
 }
 
 /**

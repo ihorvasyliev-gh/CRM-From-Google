@@ -31,6 +31,12 @@ vi.mock('../lib/realtimeSync', () => ({
     setupSleepAndWakeListener: () => () => {},
 }));
 
+const patchCachedEnrollments = vi.fn<(client: unknown, ids: string[]) => Promise<boolean>>();
+vi.mock('../lib/enrollmentCache', () => ({
+    ENROLLMENTS_KEY: ['enrollments'],
+    patchCachedEnrollments: (client: unknown, ids: string[]) => patchCachedEnrollments(client, ids),
+}));
+
 function setup() {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
@@ -45,6 +51,7 @@ function setup() {
 describe('useGlobalRealtimeSync', () => {
     beforeEach(() => {
         vi.useFakeTimers();
+        patchCachedEnrollments.mockReset().mockResolvedValue(true);
     });
 
     afterEach(() => {
@@ -82,5 +89,52 @@ describe('useGlobalRealtimeSync', () => {
         }
 
         expect(invalidatedKeys()).toContain('enrollments');
+    });
+
+    it('re-reads only the changed enrollments instead of reloading the list', async () => {
+        const { invalidatedKeys } = setup();
+
+        act(() => {
+            handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-1' }, old: { id: 'e-1' } });
+            handlers.enrollments({ eventType: 'INSERT', new: { id: 'e-2' }, old: {} });
+            handlers.enrollments({ eventType: 'DELETE', new: {}, old: { id: 'e-3' } });
+            handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-1' }, old: { id: 'e-1' } });
+        });
+        await act(async () => { vi.advanceTimersByTime(250); });
+
+        expect(patchCachedEnrollments).toHaveBeenCalledTimes(1);
+        expect(patchCachedEnrollments.mock.calls[0][1].sort()).toEqual(['e-1', 'e-2', 'e-3']);
+        expect(invalidatedKeys()).not.toContain('enrollments');
+        // The counts that depend on enrollments are still refreshed
+        expect(invalidatedKeys()).toContain('dashboard_stats');
+    });
+
+    it('reloads the whole list when the changes could not be patched in', async () => {
+        patchCachedEnrollments.mockResolvedValue(false);
+        const { invalidatedKeys } = setup();
+
+        act(() => { handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-1' } }); });
+        await act(async () => { vi.advanceTimersByTime(250); });
+
+        expect(patchCachedEnrollments).toHaveBeenCalledTimes(1);
+        expect(invalidatedKeys()).toContain('enrollments');
+    });
+
+    it('reloads the whole list when an event in the burst has no row id', async () => {
+        const { invalidatedKeys } = setup();
+
+        act(() => {
+            handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-1' } });
+            handlers.enrollments({ eventType: 'UPDATE' });
+        });
+        await act(async () => { vi.advanceTimersByTime(250); });
+
+        expect(patchCachedEnrollments).not.toHaveBeenCalled();
+        expect(invalidatedKeys()).toContain('enrollments');
+
+        // The next burst starts over with patching
+        act(() => { handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-2' } }); });
+        await act(async () => { vi.advanceTimersByTime(250); });
+        expect(patchCachedEnrollments).toHaveBeenCalledWith(expect.anything(), ['e-2']);
     });
 });

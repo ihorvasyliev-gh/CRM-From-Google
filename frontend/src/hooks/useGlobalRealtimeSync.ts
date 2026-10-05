@@ -4,13 +4,15 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { setupSleepAndWakeListener } from '../lib/realtimeSync';
+import { ENROLLMENTS_KEY, patchCachedEnrollments } from '../lib/enrollmentCache';
 
 /**
  * Global Supabase realtime subscription hook.
  *
  * Subscribes to postgres_changes on the enrollments, students, courses, employment_status,
  * outreach and student_flags tables and invalidates the relevant React Query caches
- * so that every page stays in sync without needing a manual refresh.
+ * so that every page stays in sync without needing a manual refresh. Changed enrollments are
+ * re-read one by one into the cached list rather than reloading all of them.
  *
  * Includes automatic wake-from-sleep detection, channel error recovery,
  * and cache invalidation on resume so data stays fresh.
@@ -19,6 +21,13 @@ import { setupSleepAndWakeListener } from '../lib/realtimeSync';
  */
 // Viewer portal caches that depend on enrollment rows
 const VIEWER_ENROLLMENT_KEYS = ['viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail'];
+
+/** The changed row's id: `new` for inserts and updates, `old` for deletes. */
+function changedRowId(payload: unknown): string | undefined {
+    const { new: next, old } = (payload ?? {}) as { new?: { id?: unknown }; old?: { id?: unknown } };
+    const id = next?.id ?? old?.id;
+    return typeof id === 'string' ? id : undefined;
+}
 
 export function useGlobalRealtimeSync() {
     const queryClient = useQueryClient();
@@ -35,13 +44,28 @@ export function useGlobalRealtimeSync() {
     const pendingKeysRef = useRef<Set<string>>(new Set());
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const burstStartRef = useRef<number>(0);
+    // Enrollments changed in this burst: only these rows are re-read into the cached list
+    // (null: an event without an id, so the whole list is reloaded)
+    const pendingEnrollmentIdsRef = useRef<Set<string> | null>(new Set());
 
     const flushInvalidations = useCallback(() => {
         flushTimerRef.current = null;
         burstStartRef.current = 0;
         const keys = Array.from(pendingKeysRef.current);
         pendingKeysRef.current.clear();
-        keys.forEach(key => queryClient.invalidateQueries({ queryKey: [key], type: 'active' }));
+        const enrollmentIds = pendingEnrollmentIdsRef.current;
+        pendingEnrollmentIdsRef.current = new Set();
+        // Not just the active queries: a page that isn't open (the board while on Students) would
+        // otherwise show its old data when opened again within its staleTime
+        keys.forEach(key => {
+            if (key === ENROLLMENTS_KEY[0] && enrollmentIds) {
+                void patchCachedEnrollments(queryClient, Array.from(enrollmentIds)).then(patched => {
+                    if (!patched) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY });
+                });
+                return;
+            }
+            queryClient.invalidateQueries({ queryKey: [key] });
+        });
     }, [queryClient]);
 
     const queueInvalidation = useCallback((keys: string[]) => {
@@ -72,7 +96,10 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'enrollments' },
-                () => {
+                payload => {
+                    const id = changedRowId(payload);
+                    if (id) pendingEnrollmentIdsRef.current?.add(id);
+                    else pendingEnrollmentIdsRef.current = null;
                     queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', ...VIEWER_ENROLLMENT_KEYS]);
                 }
             )
@@ -174,7 +201,8 @@ export function useGlobalRealtimeSync() {
                 pendingResyncRef.current = null;
                 lastResyncRef.current = Date.now();
                 console.log(`[useGlobalRealtimeSync] Resyncing active queries (source: ${reason || 'unknown'})`);
-                queryClient.invalidateQueries({ type: 'active' });
+                // Everything may have changed while asleep; open pages reload now, the rest when opened
+                queryClient.invalidateQueries();
 
                 const channelState = activeChannelRef.current?.state;
                 if (!isSoft || channelState !== 'joined') {
@@ -204,6 +232,7 @@ export function useGlobalRealtimeSync() {
                 flushTimerRef.current = null;
             }
             pendingKeys.clear();
+            pendingEnrollmentIdsRef.current = new Set();
             burstStartRef.current = 0;
             if (activeChannelRef.current) {
                 supabase.removeChannel(activeChannelRef.current);

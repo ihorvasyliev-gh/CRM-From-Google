@@ -97,8 +97,8 @@ describe('fetchAllEnrollments', () => {
 
         const result = await fetchAllEnrollments();
         expect(result).toHaveLength(1005);
-        // Supabase.from was called twice (once per page)
-        expect(supabase.from).toHaveBeenCalledTimes(2);
+        // The first page alone, then the next pages three at a time (the ones after the short page are ignored)
+        expect(supabase.from).toHaveBeenCalledTimes(4);
     });
 
     it('throws when Supabase returns an error', async () => {

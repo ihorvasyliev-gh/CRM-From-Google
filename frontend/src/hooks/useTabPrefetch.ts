@@ -27,21 +27,32 @@ type IdleWindow = Window & {
  * sweeping past the sidebar doesn't fetch everything), and the code of the other tabs while the
  * browser is idle (touch devices never hover). `shell` says which tabs this user has.
  */
-export function useTabPrefetch(shell: 'admin' | 'viewer' | null) {
+export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: string) {
     const queryClient = useQueryClient();
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const prefetchTabData = useCallback((tab: string) => {
+        const { queries = [] } = TAB_PREFETCH[tab] ?? {};
+        queries.forEach(q => queryClient.prefetchQuery({ ...q, staleTime: 30_000 }));
+        if (tab === 'students') {
+            queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0, staleTime: 30_000 });
+        }
+    }, [queryClient]);
 
     const handleTabMouseEnter = useCallback((tab: string) => {
         if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
         hoverTimerRef.current = setTimeout(() => {
-            const { queries = [], chunk } = TAB_PREFETCH[tab] ?? {};
-            queries.forEach(q => queryClient.prefetchQuery({ ...q, staleTime: 30_000 }));
-            if (tab === 'students') {
-                queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0, staleTime: 30_000 });
-            }
-            chunk?.();
+            prefetchTabData(tab);
+            TAB_PREFETCH[tab]?.chunk?.();
         }, 150);
-    }, [queryClient]);
+    }, [prefetchTabData]);
+
+    // The page open after sign-in / reload: its data starts loading now, alongside its code,
+    // instead of after the page's chunk has downloaded and rendered
+    const initialTabRef = useRef(initialTab);
+    useEffect(() => {
+        if (shell === 'admin' && initialTabRef.current) prefetchTabData(initialTabRef.current);
+    }, [shell, prefetchTabData]);
 
     const handleTabMouseLeave = useCallback(() => {
         if (hoverTimerRef.current) {
