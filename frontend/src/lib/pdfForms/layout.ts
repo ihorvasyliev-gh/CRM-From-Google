@@ -351,11 +351,3 @@ export function guessTitle(layout: PdfLayout): string {
         .replace(/\s+/g, ' ')
         .trim();
 }
-
-export function rectCenter(r: Rect): { x: number; y: number } {
-    return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
-}
-
-export function pointInRect(r: Rect, page: number, x: number, y: number, pad = 0): boolean {
-    return r.page === page && x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad;
-}

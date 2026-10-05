@@ -15,6 +15,8 @@ vi.mock('react-router-dom', () => ({
 vi.mock('../lib/supabase', () => ({
     supabase: {
         from: vi.fn(),
+        // Without the counting function (migration 44) the page counts enrollments itself
+        rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'function get_course_enrollment_counts does not exist' } }),
     },
 }));
 

@@ -337,8 +337,7 @@ function App() {
                 target.tagName === 'INPUT' ||
                 target.tagName === 'TEXTAREA' ||
                 target.tagName === 'SELECT' ||
-                target.isContentEditable ||
-                target.classList?.contains('ql-editor')
+                target.isContentEditable
             );
 
             // Ctrl+K or Cmd+K: Open Command Palette

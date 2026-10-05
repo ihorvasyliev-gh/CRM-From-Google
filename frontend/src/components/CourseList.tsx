@@ -78,29 +78,26 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
 }
 
 async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentCount>> {
-    try {
-        if (typeof (supabase as any).rpc === 'function') {
-            const { data, error } = await (supabase as any).rpc('get_course_enrollment_counts');
-            if (!error && Array.isArray(data)) {
-                const map: Record<string, EnrollmentCount> = {};
-                for (const row of data) {
-                    map[row.course_id] = {
-                        course_id: row.course_id,
-                        total: Number(row.total || 0),
-                        requested: Number(row.requested || 0),
-                        invited: Number(row.invited || 0),
-                        confirmed: Number(row.confirmed || 0),
-                        completed: Number(row.completed || 0),
-                        withdrawn: Number(row.withdrawn || 0),
-                        rejected: Number(row.rejected || 0),
-                    };
-                }
-                return map;
-            }
+    // Counted on the server (migration 44); without that function, count the enrollments here
+    const { data, error } = await supabase.rpc('get_course_enrollment_counts');
+    if (!error && Array.isArray(data)) {
+        const map: Record<string, EnrollmentCount> = {};
+        for (const row of data as Array<Record<keyof EnrollmentCount, string | number | null>>) {
+            const courseId = String(row.course_id);
+            map[courseId] = {
+                course_id: courseId,
+                total: Number(row.total || 0),
+                requested: Number(row.requested || 0),
+                invited: Number(row.invited || 0),
+                confirmed: Number(row.confirmed || 0),
+                completed: Number(row.completed || 0),
+                withdrawn: Number(row.withdrawn || 0),
+                rejected: Number(row.rejected || 0),
+            };
         }
-    } catch {
-        // Fallback to client-side aggregation if RPC is unavailable
+        return map;
     }
+    if (error) console.warn('get_course_enrollment_counts unavailable, counting on the client:', error.message);
 
     const enrollments = await fetchAllEnrollments();
     const counts: Record<string, EnrollmentCount> = {};

@@ -256,10 +256,6 @@ export function resetConfig(): AppConfig {
  * Converts rgb(...) and rgba(...) color values in HTML string to hex format (#RRGGBB).
  * This ensures Outlook compatibility, as Outlook ignores rgb() colors in inline styles.
  */
-/**
- * Converts rgb(...) and rgba(...) color values in HTML string to hex format (#RRGGBB).
- * This ensures Outlook compatibility, as Outlook ignores rgb() colors in inline styles.
- */
 export function convertRgbToHex(html: string): string {
     return html.replace(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/gi, (_match, rStr, gStr, bStr) => {
         const r = parseInt(rStr, 10);
