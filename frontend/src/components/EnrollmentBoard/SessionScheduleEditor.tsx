@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Clock, MapPin, Plus, Repeat, X } from 'lucide-react';
 import { DateInput } from '../ui/DatePicker';
+import { TimeInput } from '../ui/TimeInput';
 import { formatDateLongWithWeekday } from '../../lib/dateUtils';
 import { sessionDays, weeklyDates, type CourseSession, type SessionDay } from '../../lib/courseSessions';
 
@@ -13,7 +14,7 @@ interface SessionScheduleEditorProps {
     locationSuggestions?: string[];
 }
 
-const timeInput = 'w-full min-w-0 px-2.5 py-2 border border-border-subtle rounded-lg text-sm bg-surface focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 tabular-nums';
+const timeInput = 'w-full min-w-0 px-2.5 py-2 border border-border-subtle rounded-lg text-sm text-primary placeholder:text-muted/70 bg-surface focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 tabular-nums';
 const smallBtn = 'inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
 /** YYYY-MM-DD `n` days after `date`. */
@@ -69,20 +70,21 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
                     <Clock size={13} className="text-blue-500" /> Time
                 </label>
                 <div className="flex items-center gap-1.5 min-w-0">
-                    <input
+                    <TimeInput
                         id={`${uid}-start`}
-                        type="time"
-                        aria-label="Start time"
+                        ariaLabel="Start time"
+                        placeholder="Start"
                         value={session.start_time ?? ''}
-                        onChange={e => onChange({ start_time: e.target.value || null })}
+                        onChange={v => onChange({ start_time: v || null })}
                         className={timeInput}
                     />
                     <span className="text-muted text-sm">–</span>
-                    <input
-                        type="time"
-                        aria-label="End time"
+                    <TimeInput
+                        ariaLabel="End time"
+                        placeholder="End"
                         value={session.end_time ?? ''}
-                        onChange={e => onChange({ end_time: e.target.value || null })}
+                        durationFrom={session.start_time}
+                        onChange={v => onChange({ end_time: v || null })}
                         className={timeInput}
                     />
                 </div>
@@ -98,7 +100,7 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
                     maxLength={500}
                     placeholder="Address or room"
                     onChange={e => onChange({ location: e.target.value === '' ? null : e.target.value })}
-                    className="w-full min-w-0 px-2.5 py-2 border border-border-subtle rounded-lg text-sm bg-surface focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full min-w-0 px-2.5 py-2 border border-border-subtle rounded-lg text-sm text-primary placeholder:text-muted/70 bg-surface focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
                 {suggestions.length > 0 && (
                     <datalist id={`${uid}-places`}>
@@ -153,19 +155,20 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
                                 </div>
                                 {ownTime && days.length > 1 && (
                                     <div className="flex items-center gap-1.5 pl-12 pr-[72px]">
-                                        <input
-                                            type="time"
-                                            aria-label={`Day ${i + 1} start time`}
+                                        <TimeInput
+                                            ariaLabel={`Day ${i + 1} start time`}
+                                            placeholder="Start"
                                             value={d.start ?? session.start_time ?? ''}
-                                            onChange={e => changeDay(i, { start: e.target.value || undefined })}
+                                            onChange={v => changeDay(i, { start: v || undefined })}
                                             className={timeInput}
                                         />
                                         <span className="text-muted text-sm">–</span>
-                                        <input
-                                            type="time"
-                                            aria-label={`Day ${i + 1} end time`}
+                                        <TimeInput
+                                            ariaLabel={`Day ${i + 1} end time`}
+                                            placeholder="End"
                                             value={d.end ?? session.end_time ?? ''}
-                                            onChange={e => changeDay(i, { end: e.target.value || undefined })}
+                                            durationFrom={d.start ?? session.start_time}
+                                            onChange={v => changeDay(i, { end: v || undefined })}
                                             className={timeInput}
                                         />
                                     </div>
