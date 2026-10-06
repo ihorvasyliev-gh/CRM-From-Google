@@ -1,0 +1,128 @@
+# Ночной бэкап Supabase (база + файлы Storage) в Cloudflare R2.
+# Архив шифруется паролем (7z, AES-256, имена файлов тоже скрыты) ещё на раннере GitHub.
+# Настройка и восстановление: backups/README.md, раздел «Автоматический бэкап в Cloudflare R2».
+name: Supabase backup
+
+on:
+  schedule:
+    - cron: '17 2 * * *' # каждый день в 02:17 UTC
+  workflow_dispatch: # кнопка «Run workflow» во вкладке Actions
+
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash # с pipefail: ошибка в любой части конвейера валит шаг
+
+env:
+  KEEP_DAILY_DAYS: 30 # ежедневные копии хранятся 30 дней
+  KEEP_MONTHLY_DAYS: 365 # первая копия каждого месяца хранится год
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # R2 не принимает контрольные суммы, которые новые версии aws cli шлют по умолчанию
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+
+    steps:
+      - name: Check secrets
+        run: |
+          missing=0
+          for name in SUPABASE_DB_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY BACKUP_PASSWORD \
+                      R2_ACCOUNT_ID R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Не задан секрет ${name/AWS_/R2_} (Settings -> Secrets and variables -> Actions)"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Тот же набор, что в официальной инструкции Supabase: роли, схема, данные
+      # (данные включают auth.users и метаданные storage)
+      - name: Dump database
+        run: |
+          mkdir -p out/db
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f out/db/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f out/db/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f out/db/data.sql --use-copy --data-only
+
+      - name: Check database dump
+        run: |
+          grep -q 'CREATE TABLE' out/db/schema.sql || { echo "::error::В schema.sql нет таблиц"; exit 1; }
+          grep -q '^COPY "public"\.' out/db/data.sql || { echo "::error::В data.sql нет данных схемы public"; exit 1; }
+          {
+            echo "### Строк в таблицах"
+            echo "| Таблица | Строк |"
+            echo "|---|---:|"
+            awk '/^COPY /{t=$2; n=0; next} /^\\\.$/{if (t) print "| " t " | " n " |"; t=""; next} t{n++}' out/db/data.sql | tr -d '"'
+          } >> "$GITHUB_STEP_SUMMARY"
+          ls -lh out/db
+
+      - name: Download Storage files
+        run: node backups/dump_storage.mjs out/storage
+
+      - name: Pack and encrypt
+        run: |
+          name="crm-backup_$(date -u +%Y-%m-%d_%H%M).7z"
+          (cd out && 7z a -t7z -mx=9 -mhe=on -p"$BACKUP_PASSWORD" "../$name" . > /dev/null)
+          7z t -p"$BACKUP_PASSWORD" "$name" > /dev/null
+          rm -rf out
+          echo "ARCHIVE=$name" >> "$GITHUB_ENV"
+          echo "Архив: **$name** ($(du -h "$name" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload to R2
+        run: |
+          r2="aws --endpoint-url https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          $r2 s3 cp "$ARCHIVE" "s3://$R2_BUCKET/daily/$ARCHIVE" --only-show-errors
+          # Первая удачная копия месяца дополнительно кладётся в monthly/
+          month="crm-backup_$(date -u +%Y-%m)"
+          if [ -z "$($r2 s3 ls "s3://$R2_BUCKET/monthly/$month")" ]; then
+            $r2 s3 cp "s3://$R2_BUCKET/daily/$ARCHIVE" "s3://$R2_BUCKET/monthly/$ARCHIVE" --only-show-errors
+            echo "Сохранена ежемесячная копия monthly/$ARCHIVE"
+          fi
+
+      # Удаляем только файлы crm-backup_ГГГГ-ММ-ДД_*.7z, дата берётся из имени
+      - name: Delete old backups
+        run: |
+          r2="aws --endpoint-url https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          prune() {
+            local prefix=$1 cutoff
+            cutoff=$(date -u -d "$2 days ago" +%Y-%m-%d)
+            $r2 s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$prefix" --query 'Contents[].Key' --output json \
+              | jq -r '.[]?' | while read -r key; do
+                  if [[ "$key" =~ ^${prefix}crm-backup_([0-9]{4}-[0-9]{2}-[0-9]{2})_[0-9]{4}\.7z$ ]] \
+                     && [[ "${BASH_REMATCH[1]}" < "$cutoff" ]]; then
+                    $r2 s3 rm "s3://$R2_BUCKET/$key" --only-show-errors
+                    echo "Удалён $key"
+                  fi
+                done
+          }
+          prune daily/ "$KEEP_DAILY_DAYS"
+          prune monthly/ "$KEEP_MONTHLY_DAYS"

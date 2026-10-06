@@ -23,6 +23,7 @@ backups/*
 !backups/README.md
 !backups/backup.ps1
 !backups/dump_data.cjs
+!backups/dump_storage.mjs
 
 # Python & Local temporary files
 __pycache__/
