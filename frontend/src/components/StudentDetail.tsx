@@ -6,7 +6,9 @@ import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, Check
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
-import { formatDateDMY, todayISO } from '../lib/dateUtils';
+import { formatDateDMY, formatDateLongWithWeekday, todayISO } from '../lib/dateUtils';
+import { useCourseSessions } from '../hooks/useCourseSessions';
+import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
 import { STATUS_CONFIG } from '../lib/statusConfig';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import MergeModal from './MergeModal';
@@ -233,6 +235,7 @@ function InlineEditField({
 
 export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const queryClient = useQueryClient();
+    const courseSessions = useCourseSessions();
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
     const [busyEnrollmentId, setBusyEnrollmentId] = useState<string | null>(null);
@@ -602,6 +605,7 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                                                 {en.course_variant && (
                                                     <span className="text-[10px] text-muted block">{cleanVariant(en.courses?.name || '', en.course_variant)}</span>
                                                 )}
+                                                <SessionLine session={sessionForEnrollment({ ...en, completed_date: en.completed_date ?? null }, courseSessions)} />
                                             </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
                                                 {STATUS_BADGE[en.status]?.icon} {STATUS_CONFIG[en.status]?.label || en.status}
@@ -711,5 +715,19 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                 onSuccess={onClose}
             />
         </div>
+    );
+}
+
+/** Course date of an enrollment with its days, time and place (when they are set). */
+function SessionLine({ session }: { session: CourseSession | null }) {
+    if (!sessionHasSchedule(session)) return null;
+    const days = sessionDays(session);
+    const time = days.length > 1 && hasDayOverrides(session) ? '' : formatTimeRange(session.start_time, session.end_time);
+    return (
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted" title={sessionTooltip(session)} data-testid="student-session">
+            <span className="inline-flex items-center gap-1"><Calendar size={11} />{formatDateLongWithWeekday(session.date)}{days.length > 1 ? ` · ${days.length} days` : ''}</span>
+            {time && <span className="inline-flex items-center gap-1"><Clock size={11} />{time}</span>}
+            {session.location && <span className="inline-flex items-center gap-1 min-w-0"><MapPin size={11} className="shrink-0" /><span className="truncate">{session.location}</span></span>}
+        </span>
     );
 }

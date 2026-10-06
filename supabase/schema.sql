@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS invite_dates (
     invite_date DATE  NOT NULL,
     reminder_sent_at TIMESTAMPTZ,         -- attendance reminder sent (migration 70)
     reminder_tomorrow_sent_at TIMESTAMPTZ, -- day-before reminder sent (migration 76)
+    start_time  TIME,                     -- default time of every day (migration 79)
+    end_time    TIME,
+    location    TEXT,                     -- where the course takes place (migration 79)
+    days        JSONB,                    -- every day of a multi-day course: [{date, start?, end?}] (migration 79)
     created_at  TIMESTAMPTZ DEFAULT now(),
     UNIQUE (course_id, invite_date)
 );

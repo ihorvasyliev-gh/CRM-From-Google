@@ -78,6 +78,20 @@ describe('EnrollmentCard Component', () => {
         expect(screen.getByText('#3')).toBeInTheDocument();
     });
 
+    it('shows the days and time of the course date next to the course', () => {
+        const session = {
+            date: '2026-10-01', start_time: '10:00', end_time: '14:00', location: 'Heron House',
+            days: [{ date: '2026-10-01' }, { date: '2026-10-08' }, { date: '2026-10-12' }, { date: '2026-10-15' }],
+        };
+        render(<EnrollmentCard {...defaultProps} status="confirmed" enrollment={{ ...sampleEnrollment, status: 'confirmed', confirmed_date: '2026-10-01' }} session={session} />);
+        expect(screen.getByTestId('card-schedule')).toHaveTextContent('4 days · 10:00');
+    });
+
+    it('shows no schedule note without a schedule', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+        expect(screen.queryByTestId('card-schedule')).not.toBeInTheDocument();
+    });
+
     it('renders phone link directly for calling without duplicate phone button', () => {
         render(<EnrollmentCard {...defaultProps} />);
 

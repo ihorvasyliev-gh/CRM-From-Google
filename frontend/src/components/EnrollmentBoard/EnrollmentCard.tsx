@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
 import { useDraggable, type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
@@ -11,6 +11,7 @@ import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
 import { getInviteDeadline, formatTimeLeft, DEFAULT_RESPONSE_DAYS } from '../../lib/inviteDeadline';
 import { CustomTooltip } from '../ui/Tooltip';
+import { sessionShortNote, sessionTooltip, type CourseSession } from '../../lib/courseSessions';
 
 /** Statuses offered by the card's "move to" menu, in menu order. */
 const MOVE_TARGETS: readonly EnrollmentStatus[] = ['requested', 'invited', 'confirmed', 'completed', 'rejected', 'withdrawn'];
@@ -31,6 +32,8 @@ interface EnrollmentCardProps {
     isOverlay?: boolean;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
+    /** Time, place and days of the course date the student is invited to / confirmed for */
+    session?: CourseSession | null;
 }
 
 /** Props the thin draggable wrapper hands down to the (memoised) card body. */
@@ -83,6 +86,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     isOverlay,
     onShowDetail,
     onMoveStatus,
+    session,
     isMobile,
     isEditingNote,
     setIsEditingNote,
@@ -255,6 +259,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
         enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
     ].filter(Boolean).join('\n');
+
+    // "4 days · 10:00" next to the course; the whole schedule in the tooltip
+    const scheduleNote = sessionShortNote(session);
+    const scheduleTooltip = sessionTooltip(session);
 
     const flagTooltip = studentFlags.length > 0
         ? `⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`
@@ -433,6 +441,13 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     >
                         {getCoursePill(enrollment)}
                     </span>
+                    {scheduleTooltip && (
+                        <CustomTooltip content={scheduleTooltip}>
+                            <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-medium text-primary/55 whitespace-nowrap tabular-nums" data-testid="card-schedule">
+                                {scheduleNote ? <><Clock size={10} />{scheduleNote}</> : <MapPin size={10} aria-label="Place set" />}
+                            </span>
+                        </CustomTooltip>
+                    )}
                     {completedCourses.length > 0 && (
                         <button
                             type="button"
@@ -768,6 +783,7 @@ const sameCardData = (prev: EnrollmentCardProps, next: EnrollmentCardProps) =>
     prev.queuePosition === next.queuePosition &&
     prev.isOverlay === next.isOverlay &&
     prev.onUpdateNote === next.onUpdateNote &&
+    prev.session === next.session &&
     (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
     (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0);
 

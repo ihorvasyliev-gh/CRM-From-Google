@@ -5,6 +5,7 @@ import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { EnrollmentStatus, StudentFlag } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
+import { sessionForEnrollment, type CourseSession } from '../../lib/courseSessions';
 import { CustomTooltip } from '../ui/Tooltip';
 
 // Cards rendered at first, and added each time the list is scrolled near its end. A column shows
@@ -32,6 +33,8 @@ interface StatusColumnProps {
     totalCount?: number;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
+    /** Time, place and days of the course dates, keyed by courseDateKey */
+    sessions: ReadonlyMap<string, CourseSession>;
 }
 
 const StatusColumn = function StatusColumn({
@@ -53,6 +56,7 @@ const StatusColumn = function StatusColumn({
     totalCount: _totalCount = 0,
     onShowDetail,
     onMoveStatus,
+    sessions,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -217,6 +221,7 @@ const StatusColumn = function StatusColumn({
                             onFlagClick={onFlagClick}
                             onShowDetail={onShowDetail}
                             onMoveStatus={onMoveStatus}
+                            session={sessionForEnrollment(enrollment, sessions)}
                         />
                     ))}
                     {/* Sentinel for IntersectionObserver lazy load */}
@@ -250,6 +255,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.totalCount !== next.totalCount) return false;
     if (prev.onShowDetail !== next.onShowDetail) return false;
     if (prev.onMoveStatus !== next.onMoveStatus) return false;
+    if (prev.sessions !== next.sessions) return false;
 
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 

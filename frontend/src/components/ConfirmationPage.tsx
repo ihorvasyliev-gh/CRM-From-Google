@@ -18,10 +18,13 @@ import {
     Copy,
     Check,
     ShieldCheck,
-    Star
+    Star,
+    Clock,
+    MapPin
 } from 'lucide-react';
 import { suggestEmailCorrection } from '../lib/emailValidation';
-import { getGoogleCalendarUrl, downloadIcsFile } from '../lib/calendarUtils';
+import { getGoogleCalendarUrl, downloadIcsFile, type CalendarEventParams } from '../lib/calendarUtils';
+import { dayTime, formatTimeRange, hasDayOverrides, isMultiDay, sessionDays, sessionFromRow, sessionHasSchedule, weeklySummary, type CourseSession } from '../lib/courseSessions';
 import { fullName } from '../lib/types';
 
 type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline_confirm' | 'full';
@@ -43,6 +46,19 @@ interface MatchedStudent {
 
 const ORGANIZER_EMAIL = 'ivasyliev@partnershipcork.ie';
 
+function formatCourseDate(dateStr: string): string {
+    try {
+        return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
 export default function ConfirmationPage() {
     const [state, setState] = useState<PageState>('loading');
     const [courseName, setCourseName] = useState('');
@@ -62,6 +78,9 @@ export default function ConfirmationPage() {
     const [courseDates, setCourseDates] = useState<string[]>([]);
     const [dateCapacity, setDateCapacity] = useState<Record<string, CapacityInfo | null>>({});
     const isMultiDate = courseDates.length > 1;
+    // Time, place and days of each offered date (empty when none are set)
+    const [sessions, setSessions] = useState<Record<string, CourseSession>>({});
+    const anyMultiDay = Object.values(sessions).some(isMultiDay);
 
     // Guard against double-click race conditions
     const submittingRef = useRef(false);
@@ -85,7 +104,20 @@ export default function ConfirmationPage() {
         return byDate;
     }, []);
 
+    /** Schedule of the offered dates; informational, so a failure (e.g. migration 79 missing) just hides it. */
+    const loadSessions = useCallback(async (token: string) => {
+        try {
+            const { data, error } = await supabase.rpc('get_confirmation_sessions', { p_token: token });
+            if (error || !Array.isArray(data)) return;
+            const list = data.map(sessionFromRow).filter(sessionHasSchedule);
+            setSessions(Object.fromEntries(list.map(x => [x.date, x])));
+        } catch (err) {
+            console.warn('get_confirmation_sessions exception:', err);
+        }
+    }, []);
+
     const resolveToken = useCallback(async (token: string) => {
+        void loadSessions(token);
         try {
             const { data, error } = await supabase.rpc('resolve_confirmation_token', { p_token: token });
             if (error) {
@@ -117,7 +149,7 @@ export default function ConfirmationPage() {
             console.error('Token resolve exception:', err);
             setState('error');
         }
-    }, [fetchCapacity, fetchDateCapacities]);
+    }, [fetchCapacity, fetchDateCapacities, loadSessions]);
 
     const fetchCourseInfo = useCallback(async (id: string, date?: string) => {
         try {
@@ -231,6 +263,27 @@ export default function ConfirmationPage() {
         return courseDate ? formatCourseDate(courseDate) : 'the scheduled date';
     }
 
+    // One place for every offered option: shown once under the choices
+    const offeredPlaces = courseDates.map(d => sessions[d]?.location ?? '');
+    const sharedPlace = isMultiDate && offeredPlaces[0] && offeredPlaces.every(p => p === offeredPlaces[0]) ? offeredPlaces[0] : '';
+
+    // The confirmed date's schedule for the calendar buttons (one event per course day)
+    const confirmedSession = courseDate ? sessions[courseDate] : undefined;
+    const calendarDays = confirmedSession
+        ? sessionDays(confirmedSession).map(d => {
+            const t = dayTime(confirmedSession, d);
+            return { date: d.date, startTime: t.start ?? undefined, endTime: t.end ?? undefined };
+        })
+        : [];
+    const calendarParams: CalendarEventParams = {
+        courseName,
+        courseDate,
+        startTime: confirmedSession?.start_time ?? undefined,
+        endTime: confirmedSession?.end_time ?? undefined,
+        location: confirmedSession?.location ?? undefined,
+        days: calendarDays.length > 1 ? calendarDays : undefined,
+    };
+
     function handleRetry() {
         setState('loading');
         const info = urlInfoRef.current;
@@ -239,19 +292,6 @@ export default function ConfirmationPage() {
             resolveToken(info.value);
         } else {
             fetchCourseInfo(info.value, info.date);
-        }
-    }
-
-    function formatCourseDate(dateStr: string): string {
-        try {
-            return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-GB', {
-                weekday: 'short',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-        } catch {
-            return dateStr;
         }
     }
 
@@ -535,13 +575,16 @@ export default function ConfirmationPage() {
                                         {isMultiDate ? (
                                             <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
                                                 <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                <span>{courseDates.length} dates available — choose one below</span>
+                                                <span>{courseDates.length} {anyMultiDay ? 'options' : 'dates'} available — choose one below</span>
                                             </div>
                                         ) : courseDate && (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                <span>{formatCourseDate(courseDate)}</span>
-                                            </div>
+                                            <>
+                                                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
+                                                    <Calendar size={14} className="text-brand-400 shrink-0" />
+                                                    <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
+                                                </div>
+                                                {sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -553,10 +596,10 @@ export default function ConfirmationPage() {
                                 {isMultiDate && (
                                     <fieldset>
                                         <legend className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                            Choose Your Date
+                                            {anyMultiDay ? 'Choose Your Option' : 'Choose Your Date'}
                                         </legend>
                                         <div className="space-y-2" role="radiogroup" aria-label="Course date">
-                                            {courseDates.map(d => {
+                                            {courseDates.map((d, i) => {
                                                 const info = dateCapacity[d];
                                                 const isFull = Boolean(info?.isFull);
                                                 const isSelected = courseDate === d;
@@ -567,7 +610,7 @@ export default function ConfirmationPage() {
                                                     <label
                                                         key={d}
                                                         data-testid="date-option"
-                                                        className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all touch-manipulation ${
+                                                        className={`flex ${sessions[d] ? 'items-start' : 'items-center'} gap-3 p-3.5 rounded-xl border transition-all touch-manipulation ${
                                                             isFull
                                                                 ? 'border-border-subtle bg-surface/40 opacity-60 cursor-not-allowed'
                                                                 : isSelected
@@ -584,8 +627,13 @@ export default function ConfirmationPage() {
                                                             onChange={() => { setCourseDate(d); setInlineError(''); }}
                                                             className="w-4 h-4 border-border-strong bg-surface text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0"
                                                         />
-                                                        <span className={`flex-1 min-w-0 text-sm font-semibold ${isFull ? 'text-muted/80 line-through' : 'text-white'}`}>
-                                                            {formatCourseDate(d)}
+                                                        <span className="flex-1 min-w-0">
+                                                            <span className={`block text-sm font-semibold ${isFull ? 'text-muted/80 line-through' : 'text-white'}`}>
+                                                                {sessions[d] && isMultiDay(sessions[d]) ? `Option ${i + 1}` : (
+                                                                    <>{anyMultiDay && <span className="text-muted font-medium">Option {i + 1} · </span>}{formatCourseDate(d)}</>
+                                                                )}
+                                                            </span>
+                                                            {sessions[d] && <SessionDetails session={sessions[d]} showPlace={!sharedPlace} />}
                                                         </span>
                                                         {placesText && (
                                                             <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
@@ -602,6 +650,12 @@ export default function ConfirmationPage() {
                                                 );
                                             })}
                                         </div>
+                                        {sharedPlace && (
+                                            <p className="flex items-start gap-1.5 mt-2.5 text-xs sm:text-sm text-primary/85">
+                                                <MapPin size={14} className="text-brand-400 shrink-0 mt-0.5" />
+                                                <span className="wrap-break-word">{sharedPlace}</span>
+                                            </p>
+                                        )}
                                     </fieldset>
                                 )}
 
@@ -1056,9 +1110,10 @@ export default function ConfirmationPage() {
                                 {courseDate && (
                                     <div className="flex items-center gap-2 text-xs sm:text-sm text-brand-300 font-medium pt-1 border-t border-border-subtle/80">
                                         <Calendar size={15} className="text-brand-400 shrink-0" />
-                                        <span>{formatCourseDate(courseDate)}</span>
+                                        <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
                                     </div>
                                 )}
+                                {courseDate && sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
                             </div>
 
                             {/* ─── Add to Calendar Section ─── */}
@@ -1069,27 +1124,46 @@ export default function ConfirmationPage() {
                                         <span>Add to Calendar</span>
                                     </div>
                                     <p className="text-xs text-muted leading-normal">
-                                        Save the course date to your phone so you don't miss it:
+                                        {calendarDays.length > 1 ? 'Save all course days' : 'Save the course date'} to your phone so you don't miss {calendarDays.length > 1 ? 'any of them' : 'it'}:
                                     </p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                                        <a
-                                            href={getGoogleCalendarUrl({ courseName, courseDate })}
+                                        {calendarDays.length <= 1 && <a
+                                            href={getGoogleCalendarUrl(calendarParams)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center justify-center gap-2 py-3 px-3.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 text-brand-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs"
                                         >
                                             <ExternalLink size={14} className="text-brand-400 shrink-0" />
                                             <span>Google Calendar</span>
-                                        </a>
+                                        </a>}
                                         <button
                                             type="button"
-                                            onClick={() => downloadIcsFile({ courseName, courseDate })}
-                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs"
+                                            onClick={() => downloadIcsFile(calendarParams)}
+                                            className={`${calendarDays.length > 1 ? 'sm:col-span-2 ' : ''}flex items-center justify-center gap-2 py-3 px-3.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs`}
                                         >
                                             <Download size={14} className="text-emerald-400 shrink-0" />
-                                            <span>Apple / Outlook (.ics)</span>
+                                            <span>Apple / Outlook (.ics){calendarDays.length > 1 ? ` — all ${calendarDays.length} days` : ''}</span>
                                         </button>
                                     </div>
+                                    {calendarDays.length > 1 && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] text-muted">Google Calendar — add each day:</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {calendarDays.map((d, i) => (
+                                                    <a
+                                                        key={d.date}
+                                                        href={getGoogleCalendarUrl({ ...calendarParams, courseDate: d.date, startTime: d.startTime, endTime: d.endTime, titleSuffix: `Day ${i + 1} of ${calendarDays.length}` })}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-brand-600/15 hover:bg-brand-600/30 border border-brand-500/25 text-brand-200 hover:text-white rounded-lg text-[11px] font-semibold transition-all touch-manipulation"
+                                                    >
+                                                        <ExternalLink size={12} className="text-brand-400 shrink-0" />
+                                                        <span>Day {i + 1} · {formatCourseDate(d.date).replace(/ \d{4}$/, '')}</span>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -1191,6 +1265,60 @@ function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
                 <p className="text-[11px] text-amber-300/90 mt-1.5">
                     Places are filling up fast — confirm now to secure yours.
                 </p>
+            )}
+        </div>
+    );
+}
+
+// ─── Schedule of a course date ──────────────────────────────
+
+/** "Thu 1 October 2026", or "4 days · starts Thu 1 October 2026" for a multi-day course. */
+function courseDateLine(date: string, session: CourseSession | undefined): string {
+    const days = session ? sessionDays(session).length : 1;
+    return days > 1 ? `${days} days · starts ${formatCourseDate(date)}` : formatCourseDate(date);
+}
+
+/** Days, time and place of a course date (Day 1 highlighted; long weekly courses summed up). */
+function SessionDetails({ session, showPlace = true }: { session: CourseSession; showPlace?: boolean }) {
+    const days = sessionDays(session);
+    const multiDay = days.length > 1;
+    const weekly = weeklySummary(session);
+    const ownTimes = multiDay && hasDayOverrides(session);
+    const time = ownTimes ? '' : formatTimeRange(session.start_time, session.end_time);
+    const shortDate = (d: string) => formatCourseDate(d).replace(/ \d{4}$/, '');
+
+    return (
+        <div className="mt-2 space-y-1.5 text-xs sm:text-sm" data-testid="session-details">
+            {multiDay && (weekly ? (
+                <p className="text-primary/85">
+                    <span className="font-semibold text-white">Every {weekly.weekday} for {weekly.weeks} weeks</span>
+                    {' '}· {shortDate(weekly.first)} – {formatCourseDate(weekly.last)}
+                </p>
+            ) : (
+                <ol className="space-y-0.5">
+                    {days.map((d, i) => (
+                        <li key={d.date} className="flex items-baseline gap-2">
+                            <span className="w-11 shrink-0 text-[10px] font-bold text-muted uppercase tracking-wider">Day {i + 1}</span>
+                            <span className={i === 0 ? 'font-semibold text-white' : 'text-primary/85'}>{formatCourseDate(d.date)}</span>
+                            {ownTimes && <span className="text-[11px] text-muted tabular-nums">{formatTimeRange(dayTime(session, d).start, dayTime(session, d).end)}</span>}
+                        </li>
+                    ))}
+                </ol>
+            ))}
+            {time && (
+                <p className="flex items-center gap-1.5 text-primary/85">
+                    <Clock size={14} className="text-brand-400 shrink-0" />
+                    <span className="tabular-nums">{time}</span>
+                </p>
+            )}
+            {showPlace && session.location && (
+                <p className="flex items-start gap-1.5 text-primary/85">
+                    <MapPin size={14} className="text-brand-400 shrink-0 mt-0.5" />
+                    <span className="wrap-break-word">{session.location}</span>
+                </p>
+            )}
+            {multiDay && (
+                <p className="text-[11px] font-semibold text-amber-300">Attendance on all {days.length} days is required.</p>
             )}
         </div>
     );

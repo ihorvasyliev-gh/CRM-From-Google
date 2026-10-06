@@ -1,19 +1,23 @@
-import { Send, Mail, X, Plus, CalendarRange } from 'lucide-react';
+import { Send, Mail, X, Plus, CalendarRange, CalendarClock, AlertCircle } from 'lucide-react';
 import { formatDateLong, formatDayDateShort, todayISO } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
+import SessionScheduleEditor from './SessionScheduleEditor';
 
 interface InviteDateModalProps {
     inviteFlow: InviteFlow;
 }
 
-/** Invite dialog: one date or several (the student picks), response days, invite with or without the email. */
+/**
+ * Invite dialog: one date or several (the student picks), the time, place and days of each
+ * date, response days, invite with or without the email.
+ */
 export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
     if (!inviteFlow.inviteDateTarget) return null;
     return (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 backdrop-blur-xs animate-fadeIn" onClick={() => inviteFlow.setInviteDateTarget(null)}>
             <div
-                className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-md mx-4 animate-scaleIn"
+                className="bg-surface rounded-2xl shadow-float border border-border-subtle p-6 w-full max-w-lg mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scaleIn"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex items-center gap-3 mb-5">
@@ -181,6 +185,28 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                     </div>
                 )}
 
+                {inviteFlow.scheduleSupported ? inviteFlow.selectedDates.length > 0 && (
+                    <div className="mt-4">
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-primary mb-1.5">
+                            <CalendarClock size={15} className="text-blue-500" /> Time, place &amp; days
+                            <span className="text-xs font-normal text-muted">— optional, shown in the email</span>
+                        </div>
+                        <div className="space-y-2">
+                            {inviteFlow.selectedDates.map((d, i) => (
+                                <SessionScheduleEditor
+                                    key={d}
+                                    session={inviteFlow.sessionFor(d)}
+                                    onChange={patch => inviteFlow.updateSession(d, patch)}
+                                    title={inviteFlow.multiDate ? `Option ${i + 1}` : undefined}
+                                    locationSuggestions={inviteFlow.locationSuggestions}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <p className="mt-4 text-xs text-muted">Time, place and course days can be added once database migration 79 is applied.</p>
+                )}
+
                 <div className="mt-4">
                     <label className="block text-sm font-medium text-primary mb-1.5">
                         Response Deadline
@@ -202,6 +228,12 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                         The participant will see this deadline in the invitation email
                     </p>
                 </div>
+
+                {inviteFlow.scheduleError && (
+                    <p role="alert" className="flex items-center gap-1.5 mt-4 text-xs font-medium text-status-rejected">
+                        <AlertCircle size={14} className="shrink-0" /> {inviteFlow.scheduleError}
+                    </p>
+                )}
 
                 <div className="flex gap-3 mt-6">
                     <button

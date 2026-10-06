@@ -325,3 +325,79 @@ describe('ConfirmationPage multi-date invitation', () => {
         expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeDisabled();
     });
 });
+
+describe('ConfirmationPage course date schedule', () => {
+    const OCTOBER = { course_date: '2026-10-01', start_time: '10:00', end_time: '14:00', location: 'Heron House', days: [{ date: '2026-10-01' }, { date: '2026-10-08' }, { date: '2026-10-12' }, { date: '2026-10-15' }] };
+    const NOVEMBER = { course_date: '2026-10-29', start_time: '10:00', end_time: '14:00', location: 'Heron House', days: [{ date: '2026-10-29' }, { date: '2026-11-02' }, { date: '2026-11-05' }, { date: '2026-11-12' }] };
+
+    function mockToken(dates: string[], sessions: unknown[] | null) {
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
+            if (name === 'resolve_confirmation_token') {
+                return { data: [{ course_id: 'c-1', course_date: dates[0], course_name: 'Safe Pass', course_dates: dates }], error: null } as any;
+            }
+            if (name === 'get_confirmation_sessions') {
+                return sessions ? { data: sessions, error: null } as any : { data: null, error: { message: 'function does not exist' } } as any;
+            }
+            if (name === 'find_students_by_email') {
+                return { data: [{ student_id: 's1', first_name: 'A', last_name: 'B' }], error: null } as any;
+            }
+            if (name === 'public_confirm_enrollment') {
+                return { data: { success: true, message: 'Confirmed!' }, error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.history.pushState({}, 'Test', '/c/AbC1234');
+    });
+
+    it('shows every day, the time and the place of a multi-day course', async () => {
+        mockToken(['2026-10-01'], [OCTOBER]);
+        render(<ConfirmationPage />);
+
+        const details = await screen.findByTestId('session-details');
+        expect(details).toHaveTextContent(/Day 1\s*Thu,? 1 October 2026/);
+        expect(details).toHaveTextContent(/Day 4\s*Thu,? 15 October 2026/);
+        expect(details).toHaveTextContent('10:00 – 14:00');
+        expect(details).toHaveTextContent('Heron House');
+        expect(details).toHaveTextContent('Attendance on all 4 days is required.');
+        expect(supabase.rpc).toHaveBeenCalledWith('get_confirmation_sessions', { p_token: 'AbC1234' });
+    });
+
+    it('offers multi-day options with their days, and the shared place once', async () => {
+        mockToken(['2026-10-01', '2026-10-29'], [OCTOBER, NOVEMBER]);
+        render(<ConfirmationPage />);
+
+        const options = await screen.findAllByTestId('date-option');
+        await waitFor(() => expect(options[0]).toHaveTextContent('Option 1'));
+        expect(screen.getByText(/2 options available/)).toBeInTheDocument();
+        expect(options[1]).toHaveTextContent(/Option 2.*Day 4\s*Thu,? 12 November 2026/);
+        expect(screen.getAllByText('Heron House')).toHaveLength(1);
+    });
+
+    it('adds every course day to the calendar after confirming', async () => {
+        mockToken(['2026-10-01'], [OCTOBER]);
+        render(<ConfirmationPage />);
+        await screen.findByTestId('session-details');
+
+        fireEvent.change(screen.getByPlaceholderText(/enter registered email address/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /apple \/ outlook \(\.ics\) — all 4 days/i })).toBeInTheDocument();
+        const day2 = screen.getByRole('link', { name: /day 2/i });
+        const url = new URL(day2.getAttribute('href')!);
+        expect(url.searchParams.get('dates')).toBe('20261008T100000/20261008T140000');
+        expect(url.searchParams.get('location')).toBe('Heron House');
+        expect(url.searchParams.get('text')).toBe('Course: Safe Pass (Day 2 of 4)');
+    });
+
+    it('still works without a schedule (migration 79 not applied)', async () => {
+        mockToken(['2026-10-01'], null);
+        render(<ConfirmationPage />);
+        expect(await screen.findByText('Safe Pass')).toBeInTheDocument();
+        expect(screen.queryByTestId('session-details')).not.toBeInTheDocument();
+    });
+});

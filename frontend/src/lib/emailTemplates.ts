@@ -3,6 +3,8 @@
 // Outlook-safe form they are pasted as (inline styles, hex colours, <font> tags).
 import { DEFAULT_CONFIG, getConfig, type AppConfig, type InviteEmailKind } from './appConfig';
 import type { CourseEmailInfo } from './types';
+import { dayTime, formatTimeRange, hasDayOverrides, isMultiDay, sessionDays, weeklySummary, type CourseSession } from './courseSessions';
+import { formatDateLongWithWeekday } from './dateUtils';
 import { BASE_EMAIL_FONT, inlineEmailStyles, isLegacyDefaultFont, lineHeightPx, normalizeEmailStyle, QUILL_FONTS, QUILL_SIZES, quillColor, type EmailTextStyle } from './emailFormat';
 
 /**
@@ -237,6 +239,94 @@ function cardText(html: string | null | undefined, style: EmailTextStyle): strin
     return `<div style="font-size:14px;line-height:21px;color:#334155;margin-top:6px;font-family:${font};">${styled}</div>`;
 }
 
+const LABEL_CSS = 'font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;';
+const FIRST_DAY_CSS = 'font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;';
+const NEXT_DAY_CSS = 'font-size:14px;color:#0f172a;line-height:21px;';
+
+/** 🕙 time and 📍 place lines (empty parts left out). */
+function timePlaceHtml(time: string, location: string | null, font: string): string {
+    return [
+        time && `<div style="font-size:14px;color:#0f172a;line-height:21px;margin-top:4px;font-family:${font};">🕙 ${escapeHtml(time)}</div>`,
+        location && `<div style="font-size:14px;color:#0f172a;line-height:21px;margin-top:2px;font-family:${font};">📍 ${escapeHtml(location)}</div>`,
+    ].filter(Boolean).join('\n');
+}
+
+/** The days of one course date: Day 1 highlighted, the rest listed (or summed up for a long weekly course). */
+function sessionDaysHtml(s: CourseSession, font: string): string {
+    const days = sessionDays(s);
+    if (days.length === 1) {
+        return `<div style="${FIRST_DAY_CSS}margin-top:2px;font-family:${font};">🗓️ ${escapeHtml(formatDateLongWithWeekday(s.date))}</div>`;
+    }
+    const weekly = weeklySummary(s);
+    if (weekly) {
+        return `<div style="${FIRST_DAY_CSS}margin-top:2px;font-family:${font};">🗓️ Starts ${escapeHtml(formatDateLongWithWeekday(weekly.first))}</div>
+            <div style="${NEXT_DAY_CSS}margin-top:2px;font-family:${font};">Every ${escapeHtml(weekly.weekday)} for ${weekly.weeks} weeks, until ${escapeHtml(formatDateLongWithWeekday(weekly.last))}</div>`;
+    }
+    const ownTimes = hasDayOverrides(s);
+    const rows = days.map((d, i) => {
+        const css = i === 0 ? FIRST_DAY_CSS : NEXT_DAY_CSS;
+        const t = dayTime(s, d);
+        const time = ownTimes ? formatTimeRange(t.start, t.end) : '';
+        return `<tr>
+              <td style="padding:2px 12px 2px 0;vertical-align:top;white-space:nowrap;font-size:12px;line-height:21px;color:#64748b;font-weight:bold;font-family:${font};">Day ${i + 1}</td>
+              <td style="padding:2px 12px 2px 0;vertical-align:top;${css}font-family:${font};">${escapeHtml(formatDateLongWithWeekday(d.date))}</td>
+              <td style="padding:2px 0;vertical-align:top;font-size:13px;line-height:21px;color:#334155;white-space:nowrap;font-family:${font};">${escapeHtml(time)}</td>
+            </tr>`;
+    }).join('\n');
+    return `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:4px;">
+            ${rows}
+            </table>`;
+}
+
+/** "Attendance on all days is required" under a multi-day course. */
+function allDaysNoticeHtml(text: string, font: string): string {
+    return `<div style="font-size:13px;color:#b45309;font-weight:bold;line-height:19px;margin-top:8px;font-family:${font};">⚠️ ${escapeHtml(text)}</div>`;
+}
+
+/** Time and place of one course date, unless every day has its own time (then it is in the day list). */
+function sessionTimePlaceHtml(s: CourseSession, font: string, withTime = true, withPlace = true): string {
+    const time = withTime && !(isMultiDay(s) && hasDayOverrides(s)) ? formatTimeRange(s.start_time, s.end_time) : '';
+    return timePlaceHtml(time, withPlace ? s.location : null, font);
+}
+
+/**
+ * Date row of the course card from the course dates' schedules: one course date, or several to
+ * choose from (each may run over several days). Time and place shared by every option are
+ * written once below them.
+ */
+function sessionsDateRowHtml(sessions: CourseSession[], font: string): string {
+    if (sessions.length === 1) {
+        const s = sessions[0];
+        const days = sessionDays(s).length;
+        return `<div style="${LABEL_CSS}">Date &amp; Time</div>
+            ${sessionDaysHtml(s, font)}
+            ${sessionTimePlaceHtml(s, font)}
+            ${days > 1 ? allDaysNoticeHtml(`Attendance on all ${days} days is required.`, font) : ''}`;
+    }
+
+    const anyMultiDay = sessions.some(isMultiDay);
+    const listsOwnTimes = sessions.some(s => isMultiDay(s) && hasDayOverrides(s));
+    const sameTime = !listsOwnTimes && new Set(sessions.map(s => formatTimeRange(s.start_time, s.end_time))).size === 1;
+    const samePlace = new Set(sessions.map(s => s.location ?? '')).size === 1;
+    const shared = sessionTimePlaceHtml(sessions[0], font, sameTime, samePlace);
+
+    const options = sessions.map((s, i) => {
+        const own = sessionTimePlaceHtml(s, font, !sameTime, !samePlace);
+        return anyMultiDay
+            ? `<div style="font-size:13px;color:#0f172a;font-weight:bold;line-height:20px;margin-top:${i === 0 ? 6 : 12}px;font-family:${font};">Option ${i + 1}</div>
+            ${sessionDaysHtml(s, font)}
+            ${own}`
+            : `${sessionDaysHtml(s, font)}
+            ${own}`;
+    }).join('\n');
+
+    return `<div style="${LABEL_CSS}">${anyMultiDay ? 'Choose one of the options' : 'Choose one of the dates'}</div>
+            ${options}
+            ${shared ? `<div style="margin-top:6px;">${shared}</div>` : ''}
+            <div style="font-size:12px;color:#64748b;line-height:18px;margin-top:6px;">You will pick your preferred ${anyMultiDay ? 'option' : 'date'} on the confirmation page.</div>
+            ${anyMultiDay ? allDaysNoticeHtml('Attendance on all days of the option you choose is required.', font) : ''}`;
+}
+
 /** `<p …>{tag}</p>` → `{tag}`, so card/button tables aren't nested inside a paragraph. */
 function unwrapBlockPlaceholders(html: string, tags: string[]): string {
     return tags.reduce((out, tag) => out.replace(new RegExp(`<p(?:\\s[^>]*)?>\\s*\\{${tag}\\}\\s*</p>`, 'g'), `{${tag}}`), html);
@@ -253,19 +343,23 @@ export function buildEmailBodyHtml(
     requiresEnglish: boolean = false,
     kind: InviteEmailKind = 'invite',
     /** The course's own text shown in the course card */
-    courseInfo?: CourseEmailInfo | null
+    courseInfo?: CourseEmailInfo | null,
+    /** Time, place and days of the course date(s); when given they replace the plain `date` row */
+    sessions?: CourseSession[] | null
 ): string {
     const config = customConfig || getConfig();
     const emailStyle = normalizeEmailStyle(config.emailStyle);
     const font = emailFont(emailStyle);
     const linkStr = confirmationLink || '#';
     const dateList = Array.isArray(date) ? date.filter(Boolean) : [date];
-    const isMultiDate = dateList.length > 1;
+    const isMultiDate = sessions && sessions.length > 0 ? sessions.length > 1 : dateList.length > 1;
     const safeCourseTitle = escapeHtml(courseTitle);
     const buttonText = isMultiDate
         ? (requiresEnglish ? 'I Am Confident in English — Choose My Date' : 'Choose My Date &amp; Confirm')
         : (requiresEnglish ? 'I Am Confident in English — Confirm My Place' : 'Confirm My Place');
-    const dateRowHtml = isMultiDate
+    const dateRowHtml = sessions && sessions.length > 0
+        ? sessionsDateRowHtml(sessions, font)
+        : isMultiDate
         ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#64748b;font-weight:bold;line-height:16px;">Choose one of the dates</div>
 ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;margin-top:4px;">🗓️ ${escapeHtml(d)}</div>`).join('\n')}
             <div style="font-size:12px;color:#64748b;line-height:18px;margin-top:6px;">You will pick your preferred date on the confirmation page.</div>`

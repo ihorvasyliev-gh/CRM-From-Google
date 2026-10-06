@@ -11,6 +11,8 @@ import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../
 import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useBulkActions } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
+import { useCourseSessions } from '../hooks/useCourseSessions';
+import { sessionForEnrollment } from '../lib/courseSessions';
 import { useStudentFlags } from '../hooks/useStudentFlags';
 import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
@@ -59,6 +61,8 @@ export default function EnrollmentBoard({
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
     const queryClient = useQueryClient();
+    // Time, place and days of the course dates, shown on the cards
+    const courseSessions = useCourseSessions();
     const [detailStudent, setDetailStudent] = useState<Student | null>(null);
     const [enrollStudentId, setEnrollStudentId] = useState<string | undefined>();
 
@@ -782,6 +786,7 @@ export default function EnrollmentBoard({
                                 totalCount={totalPipelineCount}
                                 onShowDetail={handleShowDetail}
                                 onMoveStatus={handleCardMoveStatus}
+                                sessions={courseSessions}
                             />
                         </div>
                     ))}
@@ -807,6 +812,7 @@ export default function EnrollmentBoard({
                                 onFlagClick={openFlagModal}
                                 isOverlay
                                 onShowDetail={handleShowDetail}
+                                session={sessionForEnrollment(activeEnrollment, courseSessions)}
                             />
                         );
                     })() : null}
