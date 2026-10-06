@@ -99,27 +99,34 @@ jobs:
 
       - name: Upload to R2
         run: |
-          r2="aws --endpoint-url https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          $r2 s3 cp "$ARCHIVE" "s3://$R2_BUCKET/daily/$ARCHIVE" --only-show-errors
+          # Секреты часто вставляют с пробелом/переносом строки или целым URL: оставляем только ID
+          account=$(printf '%s' "$R2_ACCOUNT_ID" | tr -d '[:space:]')
+          account=${account#https://}; account=${account%%.*}
+          bucket=$(printf '%s' "$R2_BUCKET" | tr -d '[:space:]')
+          echo "R2_ENDPOINT=https://${account}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
+          echo "R2_BUCKET=$bucket" >> "$GITHUB_ENV"
+          r2() { aws --endpoint-url "https://${account}.r2.cloudflarestorage.com" "$@"; }
+          R2_BUCKET=$bucket
+          r2 s3 cp "$ARCHIVE" "s3://$R2_BUCKET/daily/$ARCHIVE" --only-show-errors
           # Первая удачная копия месяца дополнительно кладётся в monthly/
           month="crm-backup_$(date -u +%Y-%m)"
-          if [ -z "$($r2 s3 ls "s3://$R2_BUCKET/monthly/$month")" ]; then
-            $r2 s3 cp "s3://$R2_BUCKET/daily/$ARCHIVE" "s3://$R2_BUCKET/monthly/$ARCHIVE" --only-show-errors
+          if [ -z "$(r2 s3 ls "s3://$R2_BUCKET/monthly/$month")" ]; then
+            r2 s3 cp "s3://$R2_BUCKET/daily/$ARCHIVE" "s3://$R2_BUCKET/monthly/$ARCHIVE" --only-show-errors
             echo "Сохранена ежемесячная копия monthly/$ARCHIVE"
           fi
 
       # Удаляем только файлы crm-backup_ГГГГ-ММ-ДД_*.7z, дата берётся из имени
       - name: Delete old backups
         run: |
-          r2="aws --endpoint-url https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          r2() { aws --endpoint-url "$R2_ENDPOINT" "$@"; }
           prune() {
             local prefix=$1 cutoff
             cutoff=$(date -u -d "$2 days ago" +%Y-%m-%d)
-            $r2 s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$prefix" --query 'Contents[].Key' --output json \
+            r2 s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$prefix" --query 'Contents[].Key' --output json \
               | jq -r '.[]?' | while read -r key; do
                   if [[ "$key" =~ ^${prefix}crm-backup_([0-9]{4}-[0-9]{2}-[0-9]{2})_[0-9]{4}\.7z$ ]] \
                      && [[ "${BASH_REMATCH[1]}" < "$cutoff" ]]; then
-                    $r2 s3 rm "s3://$R2_BUCKET/$key" --only-show-errors
+                    r2 s3 rm "s3://$R2_BUCKET/$key" --only-show-errors
                     echo "Удалён $key"
                   fi
                 done
