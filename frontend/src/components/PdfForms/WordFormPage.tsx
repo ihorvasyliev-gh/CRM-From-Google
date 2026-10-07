@@ -1,10 +1,10 @@
-import { memo, type MouseEvent } from 'react';
+import { memo, type MouseEvent, type SyntheticEvent } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { Check, Link2, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { PdfPage } from './pdfView';
 import { rectStyle } from './pdfHooks';
-import { CRM_LABELS, type FieldDef, type FieldValues } from '../../lib/pdfToDocx/fields';
-import { DEFAULT_VALUE_SIZE, fitSize } from '../../lib/pdfToDocx/fill';
+import type { FieldDef, FieldValues } from '../../lib/pdfToDocx/fields';
+import { valueSize } from '../../lib/pdfToDocx/fill';
 
 interface WordFormPageProps {
     doc: PDFDocumentProxy;
@@ -22,10 +22,14 @@ interface WordFormPageProps {
     onRemove: (id: string) => void;
     /** A click on the page while editing, in PDF points (origin bottom-left) */
     onAddAt: (page: number, x: number, y: number) => void;
+    /** Where the cursor is in a blank, so a placeholder can go there */
+    onCursor: (id: string, start: number, end: number) => void;
 }
 
+const HAS_PLACEHOLDER = /\{[^{}]+\}/;
+
 /** One page of the converted form, with every field ready to type into or tick */
-function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, editing, onChange, onRemove, onAddAt }: WordFormPageProps) {
+function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, editing, onChange, onRemove, onAddAt, onCursor }: WordFormPageProps) {
     const onPageClick = (e: MouseEvent<HTMLDivElement>, scale: number) => {
         if (!editing || e.target !== e.currentTarget) return;
         const box = e.currentTarget.getBoundingClientRect();
@@ -47,7 +51,7 @@ function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, 
                 >
                     {fields.map(f => {
                         const style = rectStyle(f.rect, scale, size.h);
-                        const title = f.kind === 'text' && f.crm ? `${f.label} · from the CRM: ${CRM_LABELS[f.crm]}` : f.label;
+                        const title = f.label;
                         const remove = editing && (
                             <button
                                 type="button"
@@ -81,28 +85,39 @@ function WordFormPage({ doc, page, size, width, fields, values, mark, outlines, 
                             );
                         }
                         const value = typeof values[f.id] === 'string' ? (values[f.id] as string) : '';
-                        const fontSize = fitSize(value, f.rect.w, f.rect.h, f.multiline, DEFAULT_VALUE_SIZE) * scale;
+                        const fontSize = valueSize(value, f) * scale;
+                        const cursor = (e: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+                            onCursor(f.id, e.currentTarget.selectionStart ?? value.length, e.currentTarget.selectionEnd ?? value.length);
+                        // A filled-in date blank ("__/__/20__") is not printed under the date in the Word file
+                        const covers = !!f.blank && !!value.trim();
                         const common = {
                             value,
                             'aria-label': f.label || 'Answer',
                             title,
-                            placeholder: editing || outlines ? f.label : '',
-                            className: `absolute inset-0 w-full h-full bg-transparent text-[#0d0d1a] placeholder:text-brand-600/50 border-0 outline-none rounded-[2px] px-[1px] ${
+                            placeholder: editing || outlines ? (f.placeholder ? `${f.label} · {${f.placeholder}}` : f.label) : '',
+                            onFocus: cursor,
+                            onSelect: cursor,
+                            onKeyUp: cursor,
+                            onClick: cursor,
+                            className: `absolute inset-0 w-full h-full ${covers ? 'bg-white' : 'bg-transparent'} ${HAS_PLACEHOLDER.test(value) ? 'text-brand-700' : 'text-[#0d0d1a]'} placeholder:text-brand-600/50 border-0 outline-none rounded-[2px] px-[1px] ${
                                 f.align === 'center' ? 'text-center' : ''
-                            } ${outlines || editing ? 'bg-brand-500/8 ring-1 ring-brand-500/35' : 'hover:bg-brand-500/8'} focus:bg-white/80 focus:ring-2 focus:ring-brand-500`,
+                            } ${outlines || editing ? `${covers ? '' : 'bg-brand-500/8 '}ring-1 ring-brand-500/35` : 'hover:bg-brand-500/8'} focus:bg-white/80 focus:ring-2 focus:ring-brand-500`,
                             style: { fontSize, lineHeight: 1.15, fontFamily: 'Arial, Arimo, "Liberation Sans", sans-serif' },
                         };
                         return (
                             <div key={f.id} className="absolute" style={style}>
+                                {covers && f.blank && (
+                                    // The printed blank under a filled-in date is left out of the Word file: hide it here too
+                                    <div
+                                        aria-hidden
+                                        className="absolute bg-white pointer-events-none"
+                                        style={{ ...rectStyle(f.blank, scale, size.h), left: (f.blank.x - f.rect.x) * scale, top: (f.rect.y + f.rect.h - f.blank.y - f.blank.h) * scale }}
+                                    />
+                                )}
                                 {f.multiline ? (
                                     <textarea {...common} onChange={e => onChange(f.id, e.target.value)} className={`${common.className} resize-none leading-tight`} />
                                 ) : (
                                     <input type="text" {...common} onChange={e => onChange(f.id, e.target.value)} />
-                                )}
-                                {f.crm && (outlines || editing) && (
-                                    <span className="pointer-events-none absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full bg-brand-500 text-white flex items-center justify-center" aria-hidden>
-                                        <Link2 size={8} />
-                                    </span>
                                 )}
                                 {remove}
                             </div>

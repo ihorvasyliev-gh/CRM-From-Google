@@ -99,7 +99,9 @@ export function buildLines(glyphs: Glyph[], page: number, dividers: Divider[] = 
                 const gap = g.x - end;
                 const em = Math.max(prev.size, g.size);
                 const ruled = gap > em * 0.1 && dividers.some(d => d.x > end - 0.5 && d.x < g.x + 0.5 && d.y0 <= g.y + 1 && d.y1 >= g.y - 1);
-                if (gap > em * 0.9 || ruled) {
+                // Text padded apart with several spaces ("__/__/____    (dd/mm/yyyy)") is two pieces
+                const padded = !SPACE.test(g.ch) && seg.length >= 2 && SPACE.test(prev.ch) && SPACE.test(seg[seg.length - 2].ch);
+                if (gap > em * 0.9 || ruled || padded) {
                     const line = toLine(seg, page);
                     if (line) lines.push(line);
                     seg = [];

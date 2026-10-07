@@ -2,7 +2,8 @@
 
 import { buildDocx, type DocxOptions, type FieldOut } from './docx';
 import type { ConvertedPage } from './convert';
-import type { FieldDef, FieldValues } from './fields';
+import type { FieldDef, FieldValues, TextFieldDef } from './fields';
+import type { TextLine } from './lines';
 
 export const DEFAULT_VALUE_SIZE = 10;
 const MIN_VALUE_SIZE = 6;
@@ -58,6 +59,12 @@ export function fitSize(text: string, w: number, h: number, multiline: boolean, 
     return MIN_VALUE_SIZE;
 }
 
+/** Font size for an answer: a {placeholder}'s real value is not known yet, so only the box height counts */
+export function valueSize(value: string, f: Pick<TextFieldDef, 'rect' | 'multiline'>): number {
+    if (/\{[^{}]+\}/.test(value)) return Math.max(MIN_VALUE_SIZE, Math.min(DEFAULT_VALUE_SIZE, Math.floor((f.rect.h / LINE) * 2) / 2));
+    return fitSize(value, f.rect.w, f.rect.h, f.multiline);
+}
+
 /** The fields of one page, with their values, as the Word writer takes them */
 export function fieldsForPage(fields: FieldDef[], values: FieldValues, page: number): FieldOut[] {
     return fields
@@ -66,7 +73,7 @@ export function fieldsForPage(fields: FieldDef[], values: FieldValues, page: num
             if (f.kind === 'check') return { kind: 'check', name: f.label || 'Check box', rect: f.rect, checked: values[f.id] === true };
             const raw = typeof values[f.id] === 'string' ? (values[f.id] as string) : '';
             const value = f.multiline ? raw : raw.replace(/\s*\n\s*/g, ', ');
-            const fontSize = fitSize(value, f.rect.w, f.rect.h, f.multiline);
+            const fontSize = valueSize(value, f);
             // A box shorter than one line of text would hide it in Word: grow it, keeping its anchored edge
             const need = fontSize * LINE + 1;
             let rect = f.rect;
@@ -79,10 +86,35 @@ export function fieldsForPage(fields: FieldDef[], values: FieldValues, page: num
         });
 }
 
-/** The converted form with these values filled in, as a .docx file */
+const BLANK_TEXT = /^[_\u2014\u2013\-/.\s\d]+$/;
+
+/** Lines of a printed blank ("__/__/20__") that a filled-in field now writes over */
+function overwrittenBlank(line: TextLine, fields: FieldDef[], values: FieldValues): boolean {
+    const text = line.runs.map(r => r.text).join('');
+    if (!BLANK_TEXT.test(text)) return false;
+    return fields.some(f => {
+        const b = f.kind === 'text' ? f.blank : undefined;
+        const v = values[f.id];
+        if (!b || b.page !== line.page || typeof v !== 'string' || !v.trim()) return false;
+        // Starts inside the blank and ends about where it does (the blank's own width is estimated)
+        return line.baseline >= b.y && line.baseline <= b.y + b.h && line.x >= b.x - 3 && line.x < b.x + b.w && line.x + line.width <= b.x + b.w + 12;
+    });
+}
+
+/** Braces in the form's own text would read as placeholders: print look-alikes instead */
+function withoutBraces(line: TextLine): TextLine {
+    if (!line.runs.some(r => /[{}]/.test(r.text))) return line;
+    return { ...line, runs: line.runs.map(r => ({ ...r, text: r.text.replace(/\{/g, '\uFF5B').replace(/\}/g, '\uFF5D') })) };
+}
+
+/** The converted form with these values (answers or {placeholders}) filled in, as a .docx file */
 export function filledDocx(pages: ConvertedPage[], fields: FieldDef[], values: FieldValues, opts: DocxOptions = {}): Uint8Array {
     return buildDocx(
-        pages.map(p => ({ ...p.base, fields: fieldsForPage(fields, values, p.index) })),
+        pages.map(p => ({
+            ...p.base,
+            lines: p.base.lines.filter(l => !overwrittenBlank(l, fields, values)).map(withoutBraces),
+            fields: fieldsForPage(fields, values, p.index),
+        })),
         opts,
     );
 }

@@ -2,8 +2,9 @@
 // Every PDF page becomes a Word page of the same size. Nothing flows: each line
 // of text is a text box, each filled or outlined path a shape and each image a
 // picture, all anchored to the page at the PDF's own coordinates, in the PDF's
-// paint order. Form fields go on top: text in plain-text content controls, and
-// checkboxes as check box content controls, so they still work in Word.
+// paint order. Form fields go on top: answers (or {placeholders} for the Documents
+// generator) in text boxes of their own, and checkboxes as check box content
+// controls, so they still work in Word.
 
 import PizZip from 'pizzip';
 import type { TextLine, TextRun } from './lines';
@@ -262,18 +263,20 @@ class Writer {
 
         const size = Math.max(2, Math.round(f.fontSize * 2));
         const rPr = `<w:rPr><w:rFonts w:ascii="${VALUE_FONT}" w:hAnsi="${VALUE_FONT}" w:cs="${VALUE_FONT}" w:eastAsia="${VALUE_FONT}"/><w:color w:val="${VALUE_COLOR}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr>`;
-        const lines = f.value.replace(/\r\n?/g, '\n').split('\n');
-        const empty = !f.value.trim();
-        const content = empty
-            ? `<w:r><w:rPr><w:rStyle w:val="PlaceholderText"/><w:rFonts w:ascii="${VALUE_FONT}" w:hAnsi="${VALUE_FONT}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${'\u00A0'.repeat(3)}</w:t></w:r>`
-            : lines.map((l, i) => `${i > 0 ? `<w:r>${rPr}<w:br/></w:r>` : ''}<w:r>${rPr}<w:t xml:space="preserve">${xmlText(l)}</w:t></w:r>`).join('');
-        const sdt =
-            `<w:sdt><w:sdtPr>${rPr}<w:alias w:val="${xmlAttr(f.name.slice(0, 60))}"/><w:tag w:val="${xmlAttr(f.name.slice(0, 60))}"/><w:id w:val="${this.sdtId()}"/>` +
-            `${empty ? '<w:showingPlcHdr/>' : ''}<w:text${f.multiline ? ' w:multiLine="1"' : ''}/></w:sdtPr><w:sdtContent>${content}</w:sdtContent></w:sdt>`;
+        // Each line is one run, so a {placeholder} is never split across runs (docxtemplater needs it whole)
+        const runs = f.value.trim()
+            ? f.value
+                  .replace(/\r\n?/g, '\n')
+                  .split('\n')
+                  .map((l, i) => `${i > 0 ? `<w:r>${rPr}<w:br/></w:r>` : ''}<w:r>${rPr}<w:t xml:space="preserve">${xmlText(l)}</w:t></w:r>`)
+                  .join('')
+            : '';
         const jc = f.align === 'center' ? '<w:jc w:val="center"/>' : '';
-        const para = `<w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:left="0" w:right="0"/>${jc}</w:pPr>${sdt}</w:p>`;
+        // An empty box stays in the file, so the answer can still be typed in Word, in the right font
+        const para = `<w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:left="0" w:right="0"/>${jc}${rPr}</w:pPr>${runs}</w:p>`;
         const anchor = f.valign === 'top' ? 't' : f.valign === 'bottom' ? 'b' : 'ctr';
-        return this.textBox(box, z, para, { wrap: true, anchor }, f.name || 'Field');
+        // One-line answers don't wrap: a longer value runs on rather than disappearing below the box
+        return this.textBox(box, z, para, { wrap: f.multiline, anchor }, f.name || 'Field');
     }
 
     /** A check box content control: blank until ticked, the PDF's own box stays visible around it */
@@ -351,7 +354,7 @@ export function documentXml(pages: DocxPageIn[], writer: Writer): string {
 }
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:lang w:val="en-IE" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style><w:style w:type="character" w:styleId="PlaceholderText"><w:name w:val="Placeholder Text"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:semiHidden/><w:rPr><w:color w:val="808080"/></w:rPr></w:style></w:styles>`;
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:lang w:val="en-IE" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style></w:styles>`;
 
 const SETTINGS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:zoom w:percent="100"/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat></w:settings>`;

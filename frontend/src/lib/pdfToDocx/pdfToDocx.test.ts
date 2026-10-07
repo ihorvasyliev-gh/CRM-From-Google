@@ -4,8 +4,11 @@ import { parseFontName, wordLineMetrics } from './fonts';
 import { readOperators, type OpCodes } from './extract';
 import { buildLines } from './lines';
 import { buildDocx, xmlText, type DocxPageIn } from './docx';
-import { applyCrm, crmKeyForLabel, crmValue, detectFields, fieldAt, type FieldDef, type TextFieldDef } from './fields';
-import { fieldsForPage, fitSize, measureArial } from './fill';
+import { checkPlaceholders, detectFields, fieldAt, placeholderForLabel, suggestedValues, type FieldDef, type TextFieldDef } from './fields';
+import { filledDocx, fieldsForPage, fitSize, measureArial, valueSize } from './fill';
+import type { ConvertedPage } from './convert';
+import { checkTemplateBuffer, PLACEHOLDER_KEYS } from '../documentRender';
+import Docxtemplater from 'docxtemplater';
 import { dividersOf, layoutPage } from './convert';
 import { makeLayout } from '../pdfForms/testLayout';
 import type { FontFace, Glyph, VectorShape } from './types';
@@ -186,6 +189,12 @@ describe('buildLines', () => {
         expect(buildLines(tight, 0, [{ x: 32, y0: 690, y1: 710 }])).toHaveLength(2);
     });
 
+    it('splits text padded apart with several spaces', () => {
+        const lines = buildLines(glyphs('__/__/____    (dd/mm/yyyy)', 20, 700), 0);
+        expect(lines.map(l => l.runs.map(r => r.text).join(''))).toEqual(['__/__/____', '(dd/mm/yyyy)']);
+        expect(buildLines(glyphs('one two', 20, 700), 0)).toHaveLength(1);
+    });
+
     it('ignores spaces that other strings leave on top of words, and trims the ends', () => {
         const word = glyphs('Individual', 100, 700);
         const stray = glyphs(' ', 101, 700, { z: 5 });
@@ -263,11 +272,12 @@ describe('buildDocx', () => {
         expect(xml).toContain('<a:srgbClr val="CCECF9">');
     });
 
-    it('writes fields as content controls: text, placeholders and check boxes', () => {
+    it('writes answers in text boxes and check boxes as content controls', () => {
         const { xml } = open(buildDocx([page]));
-        expect(xml).toContain('<w:alias w:val="First Name"/>');
         expect(xml).toContain('>Siobhán</w:t>');
-        expect(xml).toMatch(/<w:alias w:val="Email"\/>.*?<w:showingPlcHdr\/>/);
+        expect(xml).toContain('name="First Name');
+        // Text answers are plain runs (no content control a generated value could break)
+        expect(xml).not.toContain('<w:text');
         expect(xml.match(/<w14:checkbox>/g)).toHaveLength(2);
         expect(xml).toContain('<w14:checked w14:val="1"/>');
         expect(xml).toContain('<w14:checked w14:val="0"/>');
@@ -281,29 +291,38 @@ describe('buildDocx', () => {
 });
 
 describe('fields', () => {
-    it('reads what CRM data a label asks for', () => {
-        expect(crmKeyForLabel('First Name', false)).toBe('firstName');
-        expect(crmKeyForLabel('Surname', false)).toBe('lastName');
-        expect(crmKeyForLabel('Mobile Number', false)).toBe('phone');
-        expect(crmKeyForLabel('Email Address', false)).toBe('email');
-        expect(crmKeyForLabel('Address', false)).toBe('address');
-        expect(crmKeyForLabel('CO Address', false)).toBeUndefined();
-        expect(crmKeyForLabel('No Official Address (in Section 1)', false)).toBeUndefined();
-        expect(crmKeyForLabel('Eircode', false)).toBe('eircode');
-        expect(crmKeyForLabel('Course Name', false)).toBe('courseName');
-        expect(crmKeyForLabel('Community Organisation Name', false)).toBeUndefined();
-        expect(crmKeyForLabel('LDC Staff Member', false)).toBe('staff');
-        expect(crmKeyForLabel('Date of Birth', true)).toBe('dob');
-        expect(crmKeyForLabel('Date of Registration', true)).toBe('today');
-        expect(crmKeyForLabel('Start Date', true)).toBe('courseDate');
-        expect(crmKeyForLabel('End Date', true)).toBeUndefined();
+    it('suggests the Documents placeholder a label asks for', () => {
+        expect(placeholderForLabel('First Name', false)).toBe('firstName');
+        expect(placeholderForLabel('Surname', false)).toBe('lastName');
+        expect(placeholderForLabel('Mobile Number', false)).toBe('mobileNumber');
+        expect(placeholderForLabel('Phone Number', false)).toBe('phone');
+        expect(placeholderForLabel('Email Address', false)).toBe('email');
+        expect(placeholderForLabel('Address', false)).toBe('address');
+        expect(placeholderForLabel('CO Address', false)).toBeUndefined();
+        expect(placeholderForLabel('No Official Address (in Section 1)', false)).toBeUndefined();
+        expect(placeholderForLabel('Eircode', false)).toBe('eircode');
+        expect(placeholderForLabel('Course Name', false)).toBe('courseTitle');
+        expect(placeholderForLabel('Community Organisation Name', false)).toBeUndefined();
+        expect(placeholderForLabel('LDC Staff Member', false)).toBeUndefined();
+        expect(placeholderForLabel('Date of Birth', true)).toBe('dateOfBirth');
+        expect(placeholderForLabel('Date of Registration', true)).toBe('registeredAt');
+        expect(placeholderForLabel('Start Date', true)).toBe('courseDate');
+        expect(placeholderForLabel('Date', true)).toBe('today');
+        expect(placeholderForLabel('End Date', true)).toBeUndefined();
+        // Every suggestion is a placeholder Documents knows
+        for (const label of ['First Name', 'Surname', 'Full name', 'Mobile', 'Phone', 'Email', 'Address', 'Eircode', 'Course title']) {
+            expect(PLACEHOLDER_KEYS.has(placeholderForLabel(label, false)!)).toBe(true);
+        }
+        for (const label of ['Date of Birth', 'Date of Registration', 'Start Date', 'Date of completion', 'Date']) {
+            expect(PLACEHOLDER_KEYS.has(placeholderForLabel(label, true)!)).toBe(true);
+        }
     });
 
-    it('finds empty answer cells and checkboxes, with their printed labels', () => {
+    it('finds empty answer cells and checkboxes, with their printed labels and placeholders', () => {
         const layout = makeLayout();
         const fields = detectFields({ layout, boxes: layout.checkboxes.map(c => ({ page: c.rect.page, rect: c.rect })), shapes: [[], []], images: [[], []] });
         const texts = fields.filter((f): f is TextFieldDef => f.kind === 'text');
-        expect(texts.map(f => [f.label, f.crm])).toEqual([
+        expect(texts.map(f => [f.label, f.placeholder])).toEqual([
             ['CO Name', undefined],
             ['First Name', 'firstName'],
             ['Last Name', 'lastName'],
@@ -313,6 +332,7 @@ describe('fields', () => {
         expect(first.rect.x + first.rect.w).toBeLessThan(296);
         const checks = fields.filter(f => f.kind === 'check');
         expect(checks.map(c => c.label)).toEqual(['Yes', 'No', 'People living in disadvantaged communities', 'Refugees', 'Travellers', 'Not applicable']);
+        expect(suggestedValues(fields)).toEqual({ [texts[1].id]: '{firstName}', [texts[2].id]: '{lastName}' });
     });
 
     it('adds a field where someone clicks: the whole cell, or a line-sized box in the margin', () => {
@@ -325,20 +345,11 @@ describe('fields', () => {
         expect(atEdge.rect.x + atEdge.rect.w).toBeLessThanOrEqual(585);
     });
 
-    it('fills CRM fields from a record, date parts included', () => {
-        const fields: FieldDef[] = [
-            { id: 'a', kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 100, h: 14 }, label: 'First Name', multiline: false, align: 'left', valign: 'middle', crm: 'firstName' },
-            { id: 'b', kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 100, h: 14 }, label: 'Address', multiline: true, align: 'left', valign: 'middle', crm: 'address' },
-            { id: 'd', kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 20, h: 14 }, label: 'Date of Birth', multiline: false, align: 'center', valign: 'bottom', crm: 'dob', part: 'dd' },
-            { id: 'y', kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 20, h: 14 }, label: 'Date of Registration', multiline: false, align: 'center', valign: 'bottom', crm: 'today', part: 'yy' },
-            { id: 'n', kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 100, h: 14 }, label: 'Nationality', multiline: false, align: 'left', valign: 'middle' },
-            { id: 'c', kind: 'check', page: 0, rect: { page: 0, x: 0, y: 0, w: 8, h: 10 }, label: 'Male' },
-        ];
-        const values = applyCrm(fields, { n: 'Irish', c: true }, { firstName: 'Anna', address: '1 Main St', eircode: 'T12 X345', dob: '1990-03-07', today: '2026-10-07' });
-        expect(values).toEqual({ a: 'Anna', b: '1 Main St, T12 X345', d: '07', y: '26', n: 'Irish', c: true });
-        // Eircode already in the address: not added twice
-        expect(applyCrm(fields, {}, { address: '1 Main St, T12X345', eircode: 'T12 X345' }).b).toBe('1 Main St, T12X345');
-        expect(crmValue({ ...(fields[2] as TextFieldDef), part: undefined }, { dob: '1990-03-07' })).toBe('07/03/1990');
+    it('flags placeholders Documents does not know and braces that do not pair up', () => {
+        const f = (id: string, label: string): FieldDef => ({ id, kind: 'text', page: 0, rect: { page: 0, x: 0, y: 0, w: 100, h: 14 }, label, multiline: false, align: 'left', valign: 'middle' });
+        const fields = [f('a', 'First Name'), f('b', 'Name'), f('c', 'Notes'), f('d', 'Empty'), f('e', 'Fixed')];
+        const values = { a: '{firstName}', b: '{fristName} {lastName}', c: '{lastName', d: '{}', e: 'Cork City' };
+        expect(checkPlaceholders(fields, values, PLACEHOLDER_KEYS)).toEqual({ unknown: ['fristName'], broken: ['Notes', 'Empty'] });
     });
 });
 
@@ -359,5 +370,58 @@ describe('fill', () => {
         expect(out.rect.y).toBe(100);
         expect(out.rect.h).toBeGreaterThan(11);
         expect(out.value).toBe('07');
+    });
+});
+
+describe('Word template for Documents', () => {
+    const rect = (x: number, y: number, w: number, h: number) => ({ page: 0, x, y, w, h });
+    /** A page with "First Name" and a printed date blank, as the converter reads them */
+    function form(): { pages: ConvertedPage[]; fields: FieldDef[] } {
+        const lines = [...buildLines(glyphs('First Name', 20, 700), 0), ...buildLines(glyphs('_____/_____/20____', 120, 650), 0), ...buildLines(glyphs('Price {in euro}', 20, 600), 0)];
+        const pages: ConvertedPage[] = [{ index: 0, w: 595, h: 842, base: { w: 595, h: 842, lines, shapes: [], pictures: [] }, boxes: [] }];
+        const fields: FieldDef[] = [
+            { id: 'f', kind: 'text', page: 0, rect: rect(120, 696, 150, 14), label: 'First Name', multiline: false, align: 'left', valign: 'middle', placeholder: 'firstName' },
+            { id: 'd', kind: 'text', page: 0, rect: rect(120, 650, 100, 11), label: 'Date of Birth', multiline: false, align: 'left', valign: 'bottom', placeholder: 'dateOfBirth', blank: rect(118, 643, 104, 18) },
+            { id: 'e', kind: 'text', page: 0, rect: rect(300, 696, 150, 14), label: 'Email', multiline: false, align: 'left', valign: 'middle' },
+            { id: 'c', kind: 'check', page: 0, rect: rect(300, 650, 8, 10), label: 'Yes' },
+        ];
+        return { pages, fields };
+    }
+    const docXml = (bytes: Uint8Array) => new PizZip(bytes).file('word/document.xml')!.asText();
+
+    it('passes the Documents template check and renders each student’s details', async () => {
+        const { pages, fields } = form();
+        const bytes = filledDocx(pages, fields, { ...suggestedValues(fields), c: true });
+        const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        expect(await checkTemplateBuffer(buffer, 'document')).toEqual({ unknownTags: [] });
+
+        const doc = new Docxtemplater(new PizZip(bytes), { paragraphLoop: true, linebreaks: true, delimiters: { start: '{', end: '}' } });
+        doc.render({ firstName: 'Siobhán', dateOfBirth: '07 Mar 1990' });
+        const xml = doc.getZip().file('word/document.xml')!.asText();
+        expect(xml).toContain('>Siobhán</w:t>');
+        expect(xml).toContain('>07 Mar 1990</w:t>');
+        expect(xml).not.toContain('{firstName}');
+        // The box ticked on the page stays ticked on every form
+        expect(xml).toContain('<w14:checked w14:val="1"/>');
+    });
+
+    it('leaves the printed date blank out under a filled date, and keeps it when the date is empty', () => {
+        const { pages, fields } = form();
+        expect(docXml(filledDocx(pages, fields, { d: '{dateOfBirth}' }))).not.toContain('_____/_____/20____');
+        expect(docXml(filledDocx(pages, fields, {}))).toContain('_____/_____/20____');
+    });
+
+    it('prints braces in the form’s own text as look-alikes, so they are not read as placeholders', () => {
+        const { pages, fields } = form();
+        const xml = docXml(filledDocx(pages, fields, {}));
+        expect(xml).toContain('Price \uFF5Bin euro\uFF5D');
+        expect(xml).not.toContain('{in euro}');
+    });
+
+    it('sizes a placeholder by its box, not by the length of its name', () => {
+        const box = { rect: rect(0, 0, 40, 14), multiline: false };
+        expect(valueSize('{courseRegistrationDate}', box)).toBe(10);
+        expect(valueSize('{firstName}', { ...box, rect: rect(0, 0, 40, 9) })).toBe(7.5);
+        expect(valueSize('A long fixed answer for a small box', box)).toBeLessThan(10);
     });
 });

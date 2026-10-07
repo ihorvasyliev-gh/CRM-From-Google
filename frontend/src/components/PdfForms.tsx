@@ -37,8 +37,8 @@ function readGuideHidden(): boolean {
 interface PdfFormsProps {
     /** Admins and "PDF Forms" users set up templates; everyone else fills forms from them */
     canManage: boolean;
-    /** Admins: PDF → Word can fill forms from students and courses in the CRM */
-    crm?: boolean;
+    /** Admins: PDF → Word also offers the custom variables of Documents */
+    admin?: boolean;
 }
 
 type Tab = 'sheet' | 'word';
@@ -47,7 +47,7 @@ type Tab = 'sheet' | 'word';
  * PDF Forms: fill flat PDF forms (e.g. SICAP registration forms) from a spreadsheet.
  * A template = the PDF + where each column goes. Filling happens in the browser.
  */
-export default function PdfForms({ canManage, crm = false }: PdfFormsProps) {
+export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
     const { data: templates = [], isLoading, error, refetch } = usePdfFormTemplates();
     const [view, setView] = useState<View>({ mode: 'list' });
     const [tab, setTab] = usePersistentState<Tab>('pdf_forms_tab', 'sheet', { validate: (v): v is Tab => v === 'sheet' || v === 'word' });
@@ -153,7 +153,7 @@ export default function PdfForms({ canManage, crm = false }: PdfFormsProps) {
             <SectionHeader
                 icon={FileInput}
                 title="PDF Forms"
-                description={tab === 'word' ? 'Turn a PDF form into a Word document, laid out exactly like the PDF, and fill it in.' : 'Fill PDF forms from an Excel or CSV file: one filled form per row.'}
+                description={tab === 'word' ? 'Turn a PDF form into a Word template for Documents: laid out exactly like the PDF, with placeholders in its blanks.' : 'Fill PDF forms from an Excel or CSV file: one filled form per row.'}
                 actions={
                     tab === 'sheet' ? (
                         <div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ export default function PdfForms({ canManage, crm = false }: PdfFormsProps) {
 
             {/* Both stay mounted, so a form being filled in survives a look at the other tab */}
             <div className={tab === 'word' ? '' : 'hidden'}>
-                <WordConverter crm={crm} />
+                <WordConverter admin={admin} />
             </div>
 
             <div className={tab === 'sheet' ? 'space-y-5' : 'hidden'}>

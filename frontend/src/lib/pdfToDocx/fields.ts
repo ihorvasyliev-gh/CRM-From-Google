@@ -1,29 +1,13 @@
 // ─── Where a converted form can be filled in ───────────────────
 // Every printed checkbox, every "__/__/20__" date blank, every other line of
 // underscores and every empty table cell becomes a field. Each field keeps the
-// printed label next to it, which also says what CRM data belongs in it.
+// printed label next to it, which also suggests the Documents placeholder
+// ({firstName}, {dateOfBirth}…) that belongs in it.
 
 import { cellAt, findDateBlanks, insetCell } from '../pdfForms/layout';
 import type { PdfLayout, Phrase, Rect } from '../pdfForms/types';
 import type { PrintedBox } from './convert';
 import type { ImagePlacement, VectorShape } from './types';
-
-/** CRM data a field can take */
-export type CrmKey =
-    | 'firstName'
-    | 'lastName'
-    | 'fullName'
-    | 'email'
-    | 'phone'
-    | 'address'
-    | 'eircode'
-    | 'dob'
-    | 'courseName'
-    | 'courseDate'
-    | 'staff'
-    | 'today';
-
-export type DatePart = 'dd' | 'mm' | 'yyyy' | 'yy';
 
 export interface TextFieldDef {
     id: string;
@@ -35,9 +19,10 @@ export interface TextFieldDef {
     multiline: boolean;
     align: 'left' | 'center';
     valign: 'top' | 'middle' | 'bottom';
-    /** Part of a printed date: which part */
-    part?: DatePart;
-    crm?: CrmKey;
+    /** The Documents placeholder the label asks for ("firstName"), if any */
+    placeholder?: string;
+    /** A printed blank ("__/__/20__") this field writes over: left out of the Word file once the field has text */
+    blank?: Rect;
 }
 
 export interface CheckFieldDef {
@@ -51,51 +36,38 @@ export interface CheckFieldDef {
 
 export type FieldDef = TextFieldDef | CheckFieldDef;
 
-export const CRM_LABELS: Record<CrmKey, string> = {
-    firstName: 'First name',
-    lastName: 'Last name',
-    fullName: 'Full name',
-    email: 'Email',
-    phone: 'Phone',
-    address: 'Address',
-    eircode: 'Eircode',
-    dob: 'Date of birth',
-    courseName: 'Course name',
-    courseDate: 'Course date',
-    staff: 'Your name',
-    today: "Today's date",
-};
-
 // ─── What a label asks for ─────────────────────────────────────
 
-const TEXT_KEYS: [CrmKey, RegExp][] = [
+const TEXT_TAGS: [string, RegExp][] = [
     ['firstName', /\bfirst\s*name\b|\bforename\b|\bgiven\s*name\b/i],
     ['lastName', /\b(last|family)\s*name\b|\bsurname\b/i],
     ['fullName', /^(full\s*)?name\b|\b(participant|learner|student|client|applicant|contact|person)('?s)?\s+name\b/i],
     ['email', /\be-?mail\b/i],
-    ['phone', /\bmobile\b|\bphone\b|\btel(ephone)?\b|\bcontact\s+number\b/i],
+    ['mobileNumber', /\bmobile\b/i],
+    ['phone', /\bphone\b|\btel(ephone)?\b|\bcontact\s+number\b/i],
     ['eircode', /\beir\s*code\b|\bpost\s*code\b/i],
     ['address', /\baddress\b/i],
-    ['courseName', /\bcourse\s*(name|title)\b|\bprogramme\s*name\b/i],
-    ['staff', /\bstaff\s*(member|name)\b|\bsupport\s*worker\b/i],
+    ['courseTitle', /\bcourse\s*(name|title)\b|\bprogramme\s*name\b/i],
 ];
 
-const DATE_KEYS: [CrmKey, RegExp][] = [
-    ['dob', /\bbirth\b|\bd\.?o\.?b\b/i],
+const DATE_TAGS: [string, RegExp][] = [
+    ['dateOfBirth', /\bbirth\b|\bd\.?o\.?b\b/i],
     ['courseDate', /\bstart\s*date\b|\bcourse\s*date\b|\bdate\s*of\s*(the\s*)?course\b/i],
-    ['today', /\bregistration\b|\bdate\s*of\s*(signing|completion)\b|^\s*date\s*:?\s*$|\bsigned\b|\btoday\b/i],
+    ['registeredAt', /\bregist(ration|ered)\b/i],
+    ['completedAt', /\bcomplet(ion|ed)\b/i],
+    ['today', /^\s*date\s*:?\s*$|\bsigned\b|\bsigning\b|\btoday\b/i],
 ];
 
-/** The CRM value a text field's label asks for, if any */
-export function crmKeyForLabel(label: string, isDate: boolean): CrmKey | undefined {
+/** The Documents placeholder a field's printed label asks for, if any */
+export function placeholderForLabel(label: string, isDate: boolean): string | undefined {
     const text = label.replace(/\s+/g, ' ').trim();
-    if (isDate) return DATE_KEYS.find(([, re]) => re.test(text))?.[0];
+    if (isDate) return DATE_TAGS.find(([, re]) => re.test(text))?.[0];
     // "Email address", "No Official Address" are not the postal address
     if (/\be-?mail\b/i.test(text)) return 'email';
     if (/\bofficial address\b|\bweb(site)?\s*address\b/i.test(text)) return undefined;
     // An organisation's address, name or contact details are not a student's
     if (/\b(co|organisation|organization|group|network|business|company|employer|venue)\b/i.test(text)) return undefined;
-    return TEXT_KEYS.find(([, re]) => re.test(text))?.[0];
+    return TEXT_TAGS.find(([, re]) => re.test(text))?.[0];
 }
 
 // ─── Finding the fields ────────────────────────────────────────
@@ -213,21 +185,16 @@ export function detectFields(src: FieldSources): FieldDef[] {
         taken.push({ page: b.page, ...b.rect });
     }
 
-    // 2. Printed dates: day, month and year
+    // 2. Printed dates ("__/__/20__"): one field over the whole blank, the date written in its place
     const datePhrases = new Set<Phrase>();
     for (const blank of findDateBlanks(layout)) {
         // The question in the cell to the left ("End Date"), not everything printed left of it on the line
         const label = shortLabel(labelFor(layout, { ...blank.day, x: blank.day.x - 2 }) || blank.label || 'Date');
-        const crm = crmKeyForLabel(label, true);
-        const parts: [DatePart, Rect][] = [
-            ['dd', blank.day],
-            ['mm', blank.month],
-            [blank.yearDigits === 2 ? 'yy' : 'yyyy', blank.year],
-        ];
-        for (const [part, rect] of parts) {
-            fields.push({ id: id('d'), kind: 'text', page: blank.page, rect, label, multiline: false, align: 'center', valign: 'bottom', part, crm });
-            taken.push(rect);
-        }
+        const right = blank.year.x + blank.year.w;
+        const rect: Rect = { page: blank.page, x: blank.day.x, y: blank.day.y, w: right - blank.day.x, h: blank.day.h };
+        const printed: Rect = { page: blank.page, x: blank.day.x - 2, y: blank.day.y - blank.day.h * 0.6, w: right - blank.day.x + 4, h: blank.day.h * 1.6 };
+        fields.push({ id: id('d'), kind: 'text', page: blank.page, rect, label, multiline: false, align: 'left', valign: 'bottom', placeholder: placeholderForLabel(label, true), blank: printed });
+        taken.push(rect);
         layout.phrases.filter(p => p.page === blank.page && Math.abs(p.y - blank.day.y) < p.h && p.x <= blank.day.x + 1 && p.x + p.w >= blank.year.x).forEach(p => datePhrases.add(p));
     }
 
@@ -246,7 +213,7 @@ export function detectFields(src: FieldSources): FieldDef[] {
             if (rect.w < 15 || taken.some(t => overlaps(t, rect, 1))) continue;
             const before = p.text.slice(0, m.index).replace(/[_\s:]+$/, '').trim();
             const label = shortLabel(before || labelFor(layout, rect) || 'Answer');
-            fields.push({ id: id('u'), kind: 'text', page: p.page, rect, label, multiline: false, align: 'left', valign: 'bottom', crm: crmKeyForLabel(label, false) });
+            fields.push({ id: id('u'), kind: 'text', page: p.page, rect, label, multiline: false, align: 'left', valign: 'bottom', placeholder: placeholderForLabel(label, false) });
             taken.push(rect);
         }
     }
@@ -271,14 +238,15 @@ export function detectFields(src: FieldSources): FieldDef[] {
             const label = shortLabel(labelFor(layout, cell) || 'Answer');
             // Room for two lines: the answer may wrap; a big box is written from its top
             const multiline = rect.h >= 26;
-            fields.push({ id: id('t'), kind: 'text', page, rect, label, multiline, align: 'left', valign: rect.h > 60 ? 'top' : 'middle', crm: crmKeyForLabel(label, false) });
+            fields.push({ id: id('t'), kind: 'text', page, rect, label, multiline, align: 'left', valign: rect.h > 60 ? 'top' : 'middle', placeholder: placeholderForLabel(label, false) });
         }
     });
 
-    // One phone number: it goes in "Mobile" when the form also asks for another phone
-    const phones = fields.filter((f): f is TextFieldDef => f.kind === 'text' && f.crm === 'phone');
-    const mobile = phones.find(f => /mobile/i.test(f.label)) ?? phones[0];
-    phones.filter(f => f !== mobile).forEach(f => delete f.crm);
+    // One phone number: {mobileNumber} in "Mobile" when the form has it, else {phone} in the first phone box
+    const texts = fields.filter((f): f is TextFieldDef => f.kind === 'text');
+    const phones = texts.filter(f => f.placeholder === 'mobileNumber' || f.placeholder === 'phone');
+    const keep = phones.find(f => f.placeholder === 'mobileNumber') ?? phones[0];
+    phones.filter(f => f !== keep).forEach(f => delete f.placeholder);
 
     return fields.sort((a, b) => a.page - b.page || Math.round(b.rect.y + b.rect.h) - Math.round(a.rect.y + a.rect.h) || a.rect.x - b.rect.x);
 }
@@ -295,89 +263,35 @@ export function fieldAt(layout: PdfLayout, page: number, x: number, y: number, i
             : { page, x: Math.max(10, Math.min(x, pageW - 10 - w)), y: y - 7, w, h: 14 };
     const label = shortLabel(labelFor(layout, cell ?? rect) || 'Added field');
     const multiline = rect.h >= 26;
-    return { id, kind: 'text', page, rect, label, multiline, align: 'left', valign: rect.h > 60 ? 'top' : 'middle', crm: crmKeyForLabel(label, false) };
+    return { id, kind: 'text', page, rect, label, multiline, align: 'left', valign: rect.h > 60 ? 'top' : 'middle', placeholder: placeholderForLabel(label, false) };
 }
 
 // ─── Values ────────────────────────────────────────────────────
 
 export type FieldValues = Record<string, string | boolean>;
 
-export interface CrmRecord {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    eircode?: string;
-    /** YYYY-MM-DD */
-    dob?: string | null;
-    courseName?: string;
-    /** YYYY-MM-DD */
-    courseDate?: string | null;
-    staff?: string;
-    /** YYYY-MM-DD */
-    today?: string;
+/** Each field with a suggested placeholder starts with it: {firstName} in "First Name" */
+export function suggestedValues(fields: FieldDef[]): FieldValues {
+    const values: FieldValues = {};
+    for (const f of fields) if (f.kind === 'text' && f.placeholder) values[f.id] = `{${f.placeholder}}`;
+    return values;
 }
 
-function datePart(iso: string | null | undefined, part: DatePart | undefined): string {
-    const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return '';
-    switch (part) {
-        case 'dd':
-            return m[3];
-        case 'mm':
-            return m[2];
-        case 'yy':
-            return m[1].slice(2);
-        case 'yyyy':
-            return m[1];
-        default:
-            return `${m[3]}/${m[2]}/${m[1]}`;
-    }
-}
-
-/** The text a field takes from a CRM record ('' when the record has nothing for it) */
-export function crmValue(f: TextFieldDef, r: CrmRecord): string {
-    switch (f.crm) {
-        case 'firstName':
-            return r.firstName ?? '';
-        case 'lastName':
-            return r.lastName ?? '';
-        case 'fullName':
-            return [r.firstName, r.lastName].filter(Boolean).join(' ');
-        case 'email':
-            return r.email ?? '';
-        case 'phone':
-            return r.phone ?? '';
-        case 'address':
-            return (r.address ?? '').trim();
-        case 'eircode':
-            return r.eircode ?? '';
-        case 'courseName':
-            return r.courseName ?? '';
-        case 'staff':
-            return r.staff ?? '';
-        case 'dob':
-        case 'courseDate':
-        case 'today':
-            return datePart(r[f.crm], f.part);
-        default:
-            return '';
-    }
-}
-
-/** Fill every CRM field from a record; other fields keep their values */
-export function applyCrm(fields: FieldDef[], values: FieldValues, r: CrmRecord, opts: { overwrite?: boolean } = {}): FieldValues {
-    const next: FieldValues = { ...values };
-    const hasEircodeBox = fields.some(f => f.kind === 'text' && f.crm === 'eircode');
+/** Text fields' placeholders that are not known, and fields whose braces don't pair up (docxtemplater rejects them) */
+export function checkPlaceholders(fields: FieldDef[], values: FieldValues, known: ReadonlySet<string>): { unknown: string[]; broken: string[] } {
+    const unknown = new Set<string>();
+    const broken: string[] = [];
     for (const f of fields) {
-        if (f.kind !== 'text' || !f.crm) continue;
-        let v = crmValue(f, r);
-        if (f.crm === 'address' && !hasEircodeBox && r.eircode && !v.toUpperCase().replace(/\s/g, '').includes(r.eircode.toUpperCase().replace(/\s/g, ''))) {
-            v = [v, r.eircode].filter(Boolean).join(', ');
+        const v = values[f.id];
+        if (f.kind !== 'text' || typeof v !== 'string' || !/[{}]/.test(v)) continue;
+        // Every { closes with a } before the next {, with a name in between
+        const tags = v.match(/\{[^{}]*\}/g) ?? [];
+        const rest = v.replace(/\{[^{}]*\}/g, '');
+        if (/[{}]/.test(rest) || tags.some(t => !t.slice(1, -1).trim())) broken.push(f.label || 'Field');
+        for (const t of tags) {
+            const name = t.slice(1, -1).trim();
+            if (name && !known.has(name)) unknown.add(name);
         }
-        if (opts.overwrite === false && typeof next[f.id] === 'string' && (next[f.id] as string).trim()) continue;
-        next[f.id] = v;
     }
-    return next;
+    return { unknown: [...unknown], broken };
 }
