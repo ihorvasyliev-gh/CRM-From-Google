@@ -14,7 +14,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { sessionForEnrollment } from '../lib/courseSessions';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, matchesVariant, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
+import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -196,7 +196,10 @@ export default function EnrollmentBoard({
 
         enrollments.forEach(item => {
             if (selectedCourse !== 'all' && item.course_id !== selectedCourse) return;
-            if (selectedVariant !== 'all' && !matchesVariant(item.courses?.name || '', item.course_variant, selectedVariant)) return;
+            if (selectedVariant !== 'all') {
+                const cleaned = cleanVariant(item.courses?.name || '', item.course_variant);
+                if (cleaned.toLowerCase() !== selectedVariant.toLowerCase()) return;
+            }
 
             // Only include today and future dates (ISO strings compare chronologically)
             const upcoming = courseDatesOf(item).filter(date => date >= today);
@@ -243,7 +246,9 @@ export default function EnrollmentBoard({
         const { course, variant, courseDate, search, dateFrom, dateTo, courseDateFrom, courseDateTo } = shownFilters;
         let result = enrollments;
         if (course !== 'all') result = result.filter(e => e.course_id === course);
-        if (variant !== 'all') result = result.filter(e => matchesVariant(e.courses?.name || '', e.course_variant, variant));
+        if (variant !== 'all') {
+            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === variant.toLowerCase());
+        }
         if (courseDate !== 'all') result = result.filter(e => courseDatesOf(e).includes(courseDate));
         if (search.trim()) {
             result = result.filter(e =>
@@ -327,13 +332,7 @@ export default function EnrollmentBoard({
         return map;
     }, [filteredEnrollments, shownFilters]);
 
-    // An "Any language" student's card shows their place in the language on screen
-    const queueCourse = shownFilters.course;
-    const queueLanguage = shownFilters.variant !== 'all' ? shownFilters.variant : null;
-    const { positions: queuePositions, details: queueDetails } = useMemo(
-        () => computeQueuePositions(enrollments, queueCourse, queueLanguage),
-        [enrollments, queueCourse, queueLanguage],
-    );
+    const { positions: queuePositions, details: queueDetails } = useMemo(() => computeQueuePositions(enrollments), [enrollments]);
 
     const uniqueCourses = useMemo(() => {
         const seen = new Map<string, string>();

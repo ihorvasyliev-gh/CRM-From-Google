@@ -1,7 +1,8 @@
-import { ANY_VARIANT, cleanVariant } from './types';
+import { cleanVariant } from './types';
 
 interface QueueEnrollment {
     id: string;
+    student_id: string;
     course_id: string;
     status: string;
     course_variant: string | null;
@@ -11,82 +12,57 @@ interface QueueEnrollment {
 }
 
 export interface QueuePositions {
-    /** Place in the queue shown on the card */
+    /** Place of each requested enrollment in the queue of its course and language */
     positions: Map<string, number>;
-    /** "English #10 · Ukrainian #100": where an "Any language" student stands in each language's queue */
+    /** "English #100 · Ukrainian #10" for a student queued in several languages of the course */
     details: Map<string, string>;
 }
 
 /**
  * Requested students queue per course and language: priority first, then the earliest registration.
- * An "Any language" student stands in the queue of every language of the course at once, with a
- * place in each; the card shows the place in the language on screen (shownLanguage of shownCourse),
- * otherwise the best one. get_enrollment_queue_position (migration 80) counts the same way.
+ * A student can queue in several languages of a course at once, one enrollment per language with
+ * its own registration date, so their places differ (e.g. #10 in Ukrainian, #100 in English).
  */
-export function computeQueuePositions(
-    enrollments: QueueEnrollment[],
-    shownCourse?: string,
-    shownLanguage?: string | null,
-): QueuePositions {
-    const anyKey = ANY_VARIANT.toLowerCase();
-    const languageOf = (e: QueueEnrollment) => cleanVariant(e.courses?.name || '', e.course_variant);
-
-    // The languages of each course, from every enrollment, so a language nobody waits for still has a queue
-    const courseLanguages = new Map<string, Map<string, string>>();
-    for (const e of enrollments) {
-        const language = languageOf(e);
-        const key = language.toLowerCase();
-        if (key === anyKey) continue;
-        let languages = courseLanguages.get(e.course_id);
-        if (!languages) courseLanguages.set(e.course_id, languages = new Map());
-        if (!languages.has(key)) languages.set(key, language);
-    }
-
-    const queues = new Map<string, { language: string; entries: QueueEnrollment[] }>();
-    const join = (e: QueueEnrollment, key: string, language: string) => {
-        const id = `${e.course_id}_${key}`;
-        let queue = queues.get(id);
-        if (!queue) queues.set(id, queue = { language, entries: [] });
-        queue.entries.push(e);
-    };
+export function computeQueuePositions(enrollments: QueueEnrollment[]): QueuePositions {
+    const queues = new Map<string, QueueEnrollment[]>();
+    const languageOf = new Map<string, string>();
     for (const e of enrollments) {
         if (e.status !== 'requested') continue;
-        const language = languageOf(e);
-        const key = language.toLowerCase();
-        const languages = courseLanguages.get(e.course_id);
-        if (key !== anyKey) join(e, key, language);
-        else if (languages?.size) languages.forEach((name, k) => join(e, k, name));
-        else join(e, anyKey, ANY_VARIANT);
+        const language = cleanVariant(e.courses?.name || '', e.course_variant);
+        languageOf.set(e.id, language);
+        const key = `${e.course_id}_${language.toLowerCase()}`;
+        const queue = queues.get(key);
+        if (queue) queue.push(e);
+        else queues.set(key, [e]);
     }
 
-    // enrollment id → its place in each queue it stands in
-    const places = new Map<string, Array<{ language: string; position: number }>>();
-    queues.forEach(({ language, entries }) => {
-        entries.sort((a, b) => {
+    const positions = new Map<string, number>();
+    queues.forEach(queue => {
+        queue.sort((a, b) => {
             if (!!a.is_priority !== !!b.is_priority) return a.is_priority ? -1 : 1;
             return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
-        entries.forEach((e, index) => {
-            const list = places.get(e.id) || [];
-            list.push({ language, position: index + 1 });
-            places.set(e.id, list);
-        });
+        queue.forEach((e, index) => positions.set(e.id, index + 1));
     });
 
-    const positions = new Map<string, number>();
+    // The same student's places across the languages of one course
+    const byStudentCourse = new Map<string, QueueEnrollment[]>();
+    for (const e of enrollments) {
+        if (!positions.has(e.id)) continue;
+        const key = `${e.student_id}_${e.course_id}`;
+        const list = byStudentCourse.get(key);
+        if (list) list.push(e);
+        else byStudentCourse.set(key, [e]);
+    }
     const details = new Map<string, string>();
-    const courseOf = new Map(enrollments.map(e => [e.id, e.course_id]));
-    places.forEach((list, id) => {
-        if (list.length === 1) {
-            positions.set(id, list[0].position);
-            return;
-        }
-        list.sort((a, b) => a.language.localeCompare(b.language));
-        const shown = courseOf.get(id) === shownCourse && shownLanguage
-            ? list.find(p => p.language.toLowerCase() === shownLanguage.toLowerCase())
-            : undefined;
-        positions.set(id, shown ? shown.position : Math.min(...list.map(p => p.position)));
-        details.set(id, list.map(p => `${p.language} #${p.position}`).join(' · '));
+    byStudentCourse.forEach(list => {
+        if (list.length < 2) return;
+        const text = list
+            .map(e => ({ language: languageOf.get(e.id)!, position: positions.get(e.id)! }))
+            .sort((a, b) => a.language.localeCompare(b.language))
+            .map(p => `${p.language} #${p.position}`)
+            .join(' · ');
+        list.forEach(e => details.set(e.id, text));
     });
     return { positions, details };
 }

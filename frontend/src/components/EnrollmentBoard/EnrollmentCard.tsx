@@ -24,7 +24,7 @@ interface EnrollmentCardProps {
     toggleSelect: (id: string) => void;
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
-    /** "English #10 · Ukrainian #100" for an "Any language" student, who queues in every language */
+    /** "English #100 · Ukrainian #10" for a student queued in several languages of the course */
     queueDetail?: string;
     openEditNote: (enrollment: EnrollmentRow) => void;
     onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;

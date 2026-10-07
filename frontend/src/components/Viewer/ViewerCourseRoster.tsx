@@ -6,7 +6,7 @@ import {
     GraduationCap, Layers, Loader2, Minus, Phone, RefreshCw, Square, Users, X, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { cleanVariant, matchesVariant, type ViewerCourseRosterItem } from '../../lib/types';
+import { cleanVariant, type ViewerCourseRosterItem } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { exportViewerRosterToExcel } from '../../lib/excelExport';
 import { toast } from '../../lib/toast';
@@ -112,7 +112,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
     }, [roster, courseName]);
 
     const inStream = useCallback((r: ViewerCourseRosterItem) =>
-        !stream || matchesVariant(courseName, r.course_variant, stream), [stream, courseName]);
+        !stream || cleanVariant(courseName, r.course_variant).toLowerCase() === stream.toLowerCase(), [stream, courseName]);
 
     const showDates = tab === 'all' || tab === 'confirmed' || tab === 'invited';
     const dates = useMemo(() => {

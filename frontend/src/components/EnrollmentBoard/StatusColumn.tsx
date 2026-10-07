@@ -25,7 +25,7 @@ interface StatusColumnProps {
     openEditNote: (enrollment: EnrollmentRow) => void;
     onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
     queuePositions: Map<string, number>;
-    /** Places of "Any language" students in each language's queue */
+    /** Places of students queued in several languages of a course */
     queueDetails: Map<string, string>;
     flagsByStudentId: Map<string, StudentFlag[]>;
     completedCoursesByStudentId: Map<string, Array<{id: string, name: string}>>;

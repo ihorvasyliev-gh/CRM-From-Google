@@ -446,22 +446,26 @@ function syncRowsRange(sheet, startRow, endRow) {
     }
   }
 
-  // Build Enrollments. A student who already has an active (not withdrawn/rejected)
-  // enrollment in a course doesn't get a second one from a repeat form submission.
+  // Build Enrollments: one per language ticked. A student can queue in several languages of a
+  // course at once, each enrollment with the date of the answer that asked for it; a language
+  // they already have an active (not withdrawn/rejected) enrollment in is left as it is, and a
+  // course they are already invited to or further along in gets nothing new.
   var batchStudentIds = {};
   for (var k in keyToIdMap) {
     if (keyToIdMap[k]) batchStudentIds[keyToIdMap[k]] = true;
   }
   batchStudentIds = Object.keys(batchStudentIds);
 
-  var activeEnrollment = {}; // "studentId_courseId" → true
+  var activeEnrollment = {}; // "studentId_courseId" → { movedOn: invited or further, variants: [...] }
   if (batchStudentIds.length > 0) {
-    var enrData = _fetch('enrollments?select=student_id,course_id,status&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
+    var enrData = _fetch('enrollments?select=student_id,course_id,status,course_variant&student_id=in.' + pgrstInList_(batchStudentIds), 'get') || [];
     for (var eIdx = 0; eIdx < enrData.length; eIdx++) {
       var enr = enrData[eIdx];
-      if (enr.status !== 'withdrawn' && enr.status !== 'rejected') {
-        activeEnrollment[enr.student_id + "_" + enr.course_id] = true;
-      }
+      if (enr.status === 'withdrawn' || enr.status === 'rejected') continue;
+      var activeKey = enr.student_id + "_" + enr.course_id;
+      var active = activeEnrollment[activeKey] || (activeEnrollment[activeKey] = { movedOn: false, variants: [] });
+      if (enr.status !== 'requested') active.movedOn = true;
+      active.variants.push(enr.course_variant);
     }
   }
 
@@ -483,33 +487,35 @@ function syncRowsRange(sheet, startRow, endRow) {
 
       var cId = getCourseId(courseName);
       if (!cId) continue;
-      if (activeEnrollment[sId + "_" + cId]) {
-        Logger.log('Student ' + sId + ' already has an active enrollment in course ' + cId + ', skipping.');
+      var activeInCourse = activeEnrollment[sId + "_" + cId];
+      if (activeInCourse && activeInCourse.movedOn) {
+        Logger.log('Student ' + sId + ' is already invited or further along in course ' + cId + ', skipping.');
         continue;
       }
+      var queuedLanguages = {};
+      if (activeInCourse) {
+        for (var a = 0; a < activeInCourse.variants.length; a++) {
+          queuedLanguages[cleanVariant_(courseName, activeInCourse.variants[a]).toLowerCase()] = true;
+        }
+      }
 
-      // Several languages ticked for one course make one "Any language" enrollment, which queues
-      // in every language (the database keeps one active enrollment per course, migration 71)
-      var chosen = {};
       var variants = strVal.split(',');
       for (var v = 0; v < variants.length; v++) {
         var varText = variants[v].trim();
-        if (varText) chosen[cleanVariant_(courseName, varText)] = true;
-      }
-      var chosenVariants = Object.keys(chosen);
-      if (chosenVariants.length === 0) continue;
-      var cleanedVariant = chosenVariants.length > 1 ? ANY_VARIANT_ : chosenVariants[0];
-
-      var uniqueKey = sId + "_" + cId + "_" + cleanedVariant;
-      if (!enrollmentKeys[uniqueKey]) {
-        enrollmentsToUpsert.push({
-          student_id: sId,
-          course_id: cId,
-          course_variant: cleanedVariant,
-          status: 'requested',
-          created_at: rowTimestampIso
-        });
-        enrollmentKeys[uniqueKey] = true;
+        if (!varText) continue;
+        var cleanedVariant = cleanVariant_(courseName, varText);
+        if (queuedLanguages[cleanedVariant.toLowerCase()]) continue;
+        var uniqueKey = sId + "_" + cId + "_" + cleanedVariant;
+        if (!enrollmentKeys[uniqueKey]) {
+          enrollmentsToUpsert.push({
+            student_id: sId,
+            course_id: cId,
+            course_variant: cleanedVariant,
+            status: 'requested',
+            created_at: rowTimestampIso
+          });
+          enrollmentKeys[uniqueKey] = true;
+        }
       }
     }
   }
@@ -594,9 +600,6 @@ function normalizeCourseName_(raw) {
     .replace(/ {2,}/g, ' ')
     .trim();
 }
-
-// Variant of a student who can take the course in either language (ANY_VARIANT in frontend/src/lib/types.ts)
-var ANY_VARIANT_ = 'Any language';
 
 /**
  * Normalizes course variant to match CRM frontend cleanVariant logic.
