@@ -1,10 +1,11 @@
 import { useState, type ChangeEvent } from 'react';
-import { CheckSquare, Download, FileInput, FileSpreadsheet, HelpCircle, Pencil, Plus, Trash2, Type, Wand2, X } from 'lucide-react';
+import { CheckSquare, Download, FileInput, FileSpreadsheet, FileText, HelpCircle, Pencil, Plus, Trash2, Type, Wand2, X } from 'lucide-react';
 import Card, { SectionHeader } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import Badge from './ui/Badge';
 import Modal from './ui/Modal';
 import FileDropzone from './ui/FileDropzone';
+import { Segmented } from './ui/Tabs';
 import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import ConfirmDialog from './ConfirmDialog';
 import { toast } from '../lib/toast';
@@ -18,6 +19,8 @@ import type { PdfFormTemplate } from '../lib/pdfForms/types';
 import FillView from './PdfForms/FillView';
 import SavedScreen from './PdfForms/SavedScreen';
 import TemplateEditor from './PdfForms/TemplateEditor';
+import WordConverter from './PdfForms/WordConverter';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 type View = { mode: 'list' } | { mode: 'fill'; id: string; workbook?: Workbook; sheetIndex?: number } | { mode: 'edit'; id: string | null } | { mode: 'saved'; id: string; first: boolean };
 
@@ -34,15 +37,20 @@ function readGuideHidden(): boolean {
 interface PdfFormsProps {
     /** Admins and "PDF Forms" users set up templates; everyone else fills forms from them */
     canManage: boolean;
+    /** Admins: PDF → Word can fill forms from students and courses in the CRM */
+    crm?: boolean;
 }
+
+type Tab = 'sheet' | 'word';
 
 /**
  * PDF Forms: fill flat PDF forms (e.g. SICAP registration forms) from a spreadsheet.
  * A template = the PDF + where each column goes. Filling happens in the browser.
  */
-export default function PdfForms({ canManage }: PdfFormsProps) {
+export default function PdfForms({ canManage, crm = false }: PdfFormsProps) {
     const { data: templates = [], isLoading, error, refetch } = usePdfFormTemplates();
     const [view, setView] = useState<View>({ mode: 'list' });
+    const [tab, setTab] = usePersistentState<Tab>('pdf_forms_tab', 'sheet', { validate: (v): v is Tab => v === 'sheet' || v === 'word' });
     const [confirmDelete, setConfirmDelete] = useState<PdfFormTemplate | null>(null);
     const [choice, setChoice] = useState<{ workbook: Workbook; fits: TemplateFit[] } | null>(null);
     const [reading, setReading] = useState(false);
@@ -145,23 +153,42 @@ export default function PdfForms({ canManage }: PdfFormsProps) {
             <SectionHeader
                 icon={FileInput}
                 title="PDF Forms"
-                description="Fill PDF forms from an Excel or CSV file: one filled form per row."
+                description={tab === 'word' ? 'Turn a PDF form into a Word document, laid out exactly like the PDF, and fill it in.' : 'Fill PDF forms from an Excel or CSV file: one filled form per row.'}
                 actions={
-                    <div className="flex items-center gap-2">
-                        {guideHidden && (
-                            <IconButton label="How it works" onClick={() => toggleGuide(false)}>
-                                <HelpCircle size={17} />
-                            </IconButton>
-                        )}
-                        {canManage && (
-                            <Button variant={templates.length ? 'secondary' : 'primary'} onClick={() => setView({ mode: 'edit', id: null })}>
-                                <Plus size={15} /> Add a new form
-                            </Button>
-                        )}
-                    </div>
+                    tab === 'sheet' ? (
+                        <div className="flex items-center gap-2">
+                            {guideHidden && (
+                                <IconButton label="How it works" onClick={() => toggleGuide(false)}>
+                                    <HelpCircle size={17} />
+                                </IconButton>
+                            )}
+                            {canManage && (
+                                <Button variant={templates.length ? 'secondary' : 'primary'} onClick={() => setView({ mode: 'edit', id: null })}>
+                                    <Plus size={15} /> Add a new form
+                                </Button>
+                            )}
+                        </div>
+                    ) : undefined
                 }
             />
 
+            <Segmented
+                ariaLabel="PDF Forms"
+                value={tab}
+                onChange={setTab}
+                className="w-fit"
+                options={[
+                    { value: 'sheet', label: 'Fill from a spreadsheet', icon: <FileSpreadsheet size={13} /> },
+                    { value: 'word', label: 'PDF → Word', icon: <FileText size={13} /> },
+                ]}
+            />
+
+            {/* Both stay mounted, so a form being filled in survives a look at the other tab */}
+            <div className={tab === 'word' ? '' : 'hidden'}>
+                <WordConverter crm={crm} />
+            </div>
+
+            <div className={tab === 'sheet' ? 'space-y-5' : 'hidden'}>
             {!guideHidden && (
                 <section aria-label="How it works" className="relative rounded-2xl border border-brand-500/20 bg-brand-500/5 p-4 pr-10">
                     <button type="button" onClick={() => toggleGuide(true)} aria-label="Hide these tips" title="Hide these tips" className="absolute top-2.5 right-2.5 p-1.5 text-muted hover:text-primary rounded-lg">
@@ -265,6 +292,7 @@ export default function PdfForms({ canManage }: PdfFormsProps) {
                     </div>
                 </>
             )}
+            </div>
 
             <Modal
                 open={!!choice}

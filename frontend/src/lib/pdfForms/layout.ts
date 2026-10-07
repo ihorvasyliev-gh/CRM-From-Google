@@ -33,12 +33,13 @@ const SYMBOL_BOXES = new Set(['', '', '', '', '']);
 const UNICODE_BOXES = new Set(['☐', '□', '❏', '❑']);
 const BULLETS = /^[\s•●▪◦-]*$/;
 
-function isBox(ch: string): boolean {
+/** A checkbox printed as a character (Wingdings / Symbol box, Unicode ballot box) */
+export function isBox(ch: string): boolean {
     return SYMBOL_BOXES.has(ch) || UNICODE_BOXES.has(ch);
 }
 
 /** The drawn square of a box glyph, measured on Word exports (Wingdings 0xFF: 0.5 × 0.62 em) */
-function boxRect(ch: string, page: number, x: number, y: number, size: number): Rect {
+export function boxRect(ch: string, page: number, x: number, y: number, size: number): Rect {
     if (SYMBOL_BOXES.has(ch)) return { page, x: x + 0.047 * size, y, w: 0.5 * size, h: 0.62 * size };
     return { page, x: x + 0.05 * size, y: y - 0.05 * size, w: 0.68 * size, h: 0.68 * size };
 }
@@ -162,7 +163,8 @@ function buildEdges(rects: RawRect[], pages: { w: number; h: number }[]): Edge[]
         const size = pages[r.page];
         // Skip page-sized paths (backgrounds, clips)
         if (size && r.w >= size.w * 0.95 && r.h >= size.h * 0.95) continue;
-        const thin = 2;
+        // Rules up to ~4 pt thick (heavy frames round a section) count as one border along their middle
+        const thin = 3.99;
         if (r.h <= thin && r.w >= 4) {
             edges.push({ page: r.page, dir: 'h', at: r.y + r.h / 2, a: r.x, b: r.x + r.w });
         } else if (r.w <= thin && r.h >= 4) {

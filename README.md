@@ -125,6 +125,13 @@ Google Forms in, a real-time Kanban board in the middle, invitations, certificat
 - **New revision of the PDF?** Fields follow the text around them onto the new layout; anything uncertain is flagged
 - A PDF per row (ZIP) and/or one combined file for printing; the spreadsheet never leaves the browser
 
+**PDF → Word** (second tab): drop a PDF form and get a Word document laid out exactly like it, filled in on the page
+- Every line of text, shaded cell, border and logo is placed in Word at the PDF's own coordinates (text keeps its font, size, colour and word spacing; one text box per line), so the `.docx` prints like the PDF and its text can still be edited
+- The form's blanks are found automatically (empty cells, `____` lines, `__/__/20__` dates, checkboxes) and can be typed into and ticked right on the page; blanks can be added with a click or removed
+- In Word the answers are plain-text content controls and the boxes are real check boxes, so the file can still be changed later
+- Admins can fill a form from the CRM: one student (name, phone, email, address, Eircode, date of birth, course name and date), or everyone confirmed / completed on a course date as a ZIP of Word files; today's date and the signed-in staff member go in by themselves
+- Converted in the browser with pdf.js; nothing is uploaded or stored
+
 </td>
 </tr>
 </table>

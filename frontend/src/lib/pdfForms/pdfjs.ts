@@ -12,7 +12,7 @@ type PdfJs = typeof import('pdfjs-dist');
 
 let pdfjsPromise: Promise<PdfJs> | null = null;
 
-function loadPdfJs(): Promise<PdfJs> {
+export function loadPdfJs(): Promise<PdfJs> {
     pdfjsPromise ??= loadChunk(() => Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs') as Promise<PdfJs>, import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]))
         .then(([lib, worker]) => {
             lib.GlobalWorkerOptions.workerSrc = worker.default;

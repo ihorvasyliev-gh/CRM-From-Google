@@ -505,7 +505,7 @@ function App() {
                                         <Route path="/outcomes" element={<OutcomesList />} />
                                         <Route path="/documents" element={<DocumentGenerator />} />
                                         <Route path="/analytics" element={<Analytics />} />
-                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} />} />
+                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} crm={role === 'admin'} />} />
                                         <Route path="/settings" element={<Settings density={density} onDensityChange={setDensity} />} />
                                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                                     </>
