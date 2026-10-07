@@ -66,6 +66,16 @@ describe('buildEmailBodyHtml with course date schedules', () => {
     it('escapes the place', () => {
         const html = build([session({ location: '<b>Room</b> & Hall' })]);
         expect(html).toContain('&lt;b&gt;Room&lt;/b&gt; &amp; Hall');
+        expect(html).not.toContain('<b>Room');
+    });
+
+    it('links the place to Google Maps, but not an online one', () => {
+        const html = build([session({ location: 'Heron House, Blackpool' })]);
+        expect(html).toContain('📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=Heron%20House%2C%20Blackpool%2C%20Cork%2C%20Ireland" target="_blank"');
+        expect(html).toMatch(/>Heron House, Blackpool<\/a>/);
+        const online = build([session({ location: 'Online' })]);
+        expect(online).toContain('📍 Online');
+        expect(online).not.toContain('google.com/maps');
     });
 
     it('keeps the old date row when no schedule is given', () => {

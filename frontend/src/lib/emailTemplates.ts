@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG, getConfig, type AppConfig, type InviteEmailKind } from 
 import type { CourseEmailInfo } from './types';
 import { dayTime, formatTimeRange, hasDayOverrides, isMultiDay, sessionDays, weeklySummary, type CourseSession } from './courseSessions';
 import { formatDateLongWithWeekday } from './dateUtils';
+import { placeHref } from './maps';
 import { BASE_EMAIL_FONT, inlineEmailStyles, isLegacyDefaultFont, lineHeightPx, normalizeEmailStyle, QUILL_FONTS, QUILL_SIZES, quillColor, type EmailTextStyle } from './emailFormat';
 
 /**
@@ -243,11 +244,18 @@ const LABEL_CSS = 'font-size:11px;text-transform:uppercase;letter-spacing:1px;co
 const FIRST_DAY_CSS = 'font-size:15px;color:#0369a1;font-weight:bold;line-height:22px;';
 const NEXT_DAY_CSS = 'font-size:14px;color:#0f172a;line-height:21px;';
 
+/** The place, linked to Google Maps (or to its own link) so a tap shows the way there. */
+function placeHtml(location: string, font: string): string {
+    const href = placeHref(location);
+    if (!href) return escapeHtml(location);
+    return `<a href="${escapeHtml(href)}" target="_blank" style="color:#0369a1;text-decoration:underline;font-family:${font};">${escapeHtml(location)}</a>`;
+}
+
 /** 🕙 time and 📍 place lines (empty parts left out). */
 function timePlaceHtml(time: string, location: string | null, font: string): string {
     return [
         time && `<div style="font-size:14px;color:#0f172a;line-height:21px;margin-top:4px;font-family:${font};">🕙 ${escapeHtml(time)}</div>`,
-        location && `<div style="font-size:14px;color:#0f172a;line-height:21px;margin-top:2px;font-family:${font};">📍 ${escapeHtml(location)}</div>`,
+        location && `<div style="font-size:14px;color:#0f172a;line-height:21px;margin-top:2px;font-family:${font};">📍 ${placeHtml(location, font)}</div>`,
     ].filter(Boolean).join('\n');
 }
 
