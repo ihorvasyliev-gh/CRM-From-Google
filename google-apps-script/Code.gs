@@ -488,22 +488,28 @@ function syncRowsRange(sheet, startRow, endRow) {
         continue;
       }
 
+      // Several languages ticked for one course make one "Any language" enrollment, which queues
+      // in every language (the database keeps one active enrollment per course, migration 71)
+      var chosen = {};
       var variants = strVal.split(',');
       for (var v = 0; v < variants.length; v++) {
         var varText = variants[v].trim();
-        if (!varText) continue;
-        var cleanedVariant = cleanVariant_(courseName, varText);
-        var uniqueKey = sId + "_" + cId + "_" + cleanedVariant;
-        if (!enrollmentKeys[uniqueKey]) {
-          enrollmentsToUpsert.push({
-            student_id: sId,
-            course_id: cId,
-            course_variant: cleanedVariant,
-            status: 'requested',
-            created_at: rowTimestampIso
-          });
-          enrollmentKeys[uniqueKey] = true;
-        }
+        if (varText) chosen[cleanVariant_(courseName, varText)] = true;
+      }
+      var chosenVariants = Object.keys(chosen);
+      if (chosenVariants.length === 0) continue;
+      var cleanedVariant = chosenVariants.length > 1 ? ANY_VARIANT_ : chosenVariants[0];
+
+      var uniqueKey = sId + "_" + cId + "_" + cleanedVariant;
+      if (!enrollmentKeys[uniqueKey]) {
+        enrollmentsToUpsert.push({
+          student_id: sId,
+          course_id: cId,
+          course_variant: cleanedVariant,
+          status: 'requested',
+          created_at: rowTimestampIso
+        });
+        enrollmentKeys[uniqueKey] = true;
       }
     }
   }
@@ -588,6 +594,9 @@ function normalizeCourseName_(raw) {
     .replace(/ {2,}/g, ' ')
     .trim();
 }
+
+// Variant of a student who can take the course in either language (ANY_VARIANT in frontend/src/lib/types.ts)
+var ANY_VARIANT_ = 'Any language';
 
 /**
  * Normalizes course variant to match CRM frontend cleanVariant logic.
