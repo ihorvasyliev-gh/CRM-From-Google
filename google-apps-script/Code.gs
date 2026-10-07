@@ -44,6 +44,9 @@ function onOpen() {
     .addItem('⬆️ Upload the last 20 to Supabase', 'syncAllRecent')
     .addItem('⬆️ Export ALL answers to Supabase', 'startFullSync')
     .addSeparator()
+    .addItem('🌐 Find missing languages (preview)', 'previewMissingLanguages')
+    .addItem('🌐 Add missing languages', 'addMissingLanguages')
+    .addSeparator()
     .addItem('🛠 Settings: Triggers (Automation)', 'setupTriggers')
     .addToUi();
 }
@@ -1243,4 +1246,184 @@ function syncMissingPhoneNumbers() {
   var summary = '✅ Done! Updated ' + updatedCount + ' phone numbers.';
   if (alreadySetCount > 0) summary += ' (' + alreadySetCount + ' already set)';
   ss.toast(summary, 'Phone Sync Complete');
+}
+
+// ==========================================
+// MISSING LANGUAGES (one-off catch-up)
+// ==========================================
+// Before migration 81 a student got one enrollment per course: a second language ticked in the
+// form, or asked for in a later answer, was dropped. These add those languages for students who
+// are still only queued in the course (every enrollment "requested"), each with the date of the
+// earliest answer that asked for it, so the place in that language's queue is the fair one.
+// Students invited, confirmed, finished, withdrawn or rejected in the course are left alone.
+
+var MISSING_LANGUAGES_SHEET_NAME = 'Missing languages';
+
+/** Lists the languages that would be added, on the "Missing languages" sheet. Changes nothing. */
+function previewMissingLanguages() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var found = findMissingLanguages_();
+  if (!found) return;
+  writeMissingLanguagesSheet_(found);
+  ss.toast(found.length + ' language(s) to add — see the "' + MISSING_LANGUAGES_SHEET_NAME + '" sheet.', 'Missing languages');
+}
+
+/** Adds the languages previewMissingLanguages() lists, after a confirmation. */
+function addMissingLanguages() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+  var found = findMissingLanguages_();
+  if (!found) return;
+  writeMissingLanguagesSheet_(found);
+  if (found.length === 0) {
+    ss.toast('Nothing to add: every language asked for is already in the CRM.', 'Missing languages');
+    return;
+  }
+
+  var answer = ui.alert('Add missing languages',
+    'Add ' + found.length + ' enrollment(s) as Requested, each with the date of the form answer that asked for it?\n' +
+    'The list is on the "' + MISSING_LANGUAGES_SHEET_NAME + '" sheet.', ui.ButtonSet.YES_NO);
+  if (answer !== ui.Button.YES) return;
+
+  var rows = found.map(function (m) {
+    return { student_id: m.studentId, course_id: m.courseId, course_variant: m.language, status: 'requested', created_at: m.registered };
+  });
+  for (var i = 0; i < rows.length; i += BATCH_SIZE) {
+    _fetch('enrollments?on_conflict=student_id,course_id,course_variant', 'post', rows.slice(i, i + BATCH_SIZE), {
+      'Prefer': 'resolution=ignore-duplicates'
+    });
+  }
+
+  // What the database let in: before migration 81 its duplicate check skips every second language
+  var left = findMissingLanguages_();
+  if (!left) return;
+  writeMissingLanguagesSheet_(left);
+  var added = found.length - left.length;
+  log_('Missing languages: added ' + added + ' of ' + found.length, 'INFO');
+  if (added === 0) {
+    ui.alert('Nothing was added. Run supabase/81_language_queues.sql in Supabase first: without it the database skips a second language on a course.');
+  } else {
+    ss.toast('✅ Added ' + added + ' language(s)' + (left.length ? ', ' + left.length + ' not added (still on the sheet)' : '') + '.', 'Missing languages');
+  }
+}
+
+/**
+ * The languages students asked for in the form but don't queue in, for courses where they are only
+ * queued: [{ studentId, name, email, courseId, courseName, language, registered, queued }].
+ * Returns null (after a toast) if Supabase could not be read.
+ */
+function findMissingLanguages_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SOURCE_SHEET_NAME);
+  if (!sheet) {
+    ss.toast('Sheet "' + SOURCE_SHEET_NAME + '" not found.', 'Error');
+    return null;
+  }
+  var lastRow = sheet.getLastRow();
+  var numCols = sheet.getLastColumn();
+  if (lastRow < 2 || numCols < 3) return [];
+
+  warmUpCourseCache();
+  var students = _fetchAll('students', 'select=id,first_name,last_name,email');
+  var enrollments = _fetchAll('enrollments', 'select=id,student_id,course_id,status,course_variant');
+  if (!students || !enrollments) {
+    ss.toast('Could not read students or enrollments from Supabase.', 'Error');
+    return null;
+  }
+
+  var studentsByEmail = {};
+  students.forEach(function (st) {
+    var email = String(st.email || '').trim().toLowerCase();
+    if (!email) return;
+    (studentsByEmail[email] = studentsByEmail[email] || []).push(st);
+  });
+  var enrollmentsByStudentCourse = {};
+  enrollments.forEach(function (e) {
+    var key = e.student_id + '_' + e.course_id;
+    (enrollmentsByStudentCourse[key] = enrollmentsByStudentCourse[key] || []).push(e);
+  });
+  // Course columns by name, without creating courses the CRM doesn't have
+  var courseIdByLowerName = {};
+  for (var name in COURSE_CACHE) courseIdByLowerName[name.toLowerCase()] = COURSE_CACHE[name];
+
+  var headers = sheet.getRange(1, 1, 1, numCols).getValues()[0].map(String);
+  var headerMap = getSourceHeaderMap_(headers);
+  var values = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+
+  // Every language each student asked for per course, with the earliest answer that asked for it
+  var asked = {};
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var email = getRowEmail_(row, headerMap);
+    if (!email) continue;
+    var fName = headerMap.firstName !== -1 ? String(row[headerMap.firstName] || '').trim() : '';
+    var lName = headerMap.lastName !== -1 ? String(row[headerMap.lastName] || '').trim() : '';
+    var student = null;
+    var candidates = studentsByEmail[email] || [];
+    for (var c = 0; c < candidates.length && !student; c++) {
+      var cand = candidates[c];
+      var sameName = String(cand.first_name || '').toLowerCase() === fName.toLowerCase() &&
+        String(cand.last_name || '').toLowerCase() === lName.toLowerCase();
+      if (sameName || areNamesSimilar_(fName, lName, cand.first_name, cand.last_name)) student = cand;
+    }
+    if (!student) continue;
+    var registered = formatIsoDateTime(headerMap.timestamp !== -1 ? row[headerMap.timestamp] : '');
+
+    for (var ci = 0; ci < headerMap.courseIndices.length; ci++) {
+      var col = headerMap.courseIndices[ci];
+      var courseName = headers[col];
+      var strVal = String(row[col] || '').trim();
+      if (!strVal || strVal.indexOf('@') !== -1) continue;
+      var courseId = courseIdByLowerName[normalizeCourseName_(courseName).toLowerCase()];
+      if (!courseId) continue;
+      var parts = strVal.split(',');
+      for (var p = 0; p < parts.length; p++) {
+        if (!parts[p].trim()) continue;
+        var language = cleanVariant_(courseName, parts[p].trim());
+        var key = student.id + '_' + courseId + '_' + language.toLowerCase();
+        if (asked[key] && asked[key].registered <= registered) continue;
+        asked[key] = {
+          studentId: student.id,
+          name: (String(student.first_name || '') + ' ' + String(student.last_name || '')).trim(),
+          email: email,
+          courseId: courseId,
+          courseName: normalizeCourseName_(courseName),
+          language: language,
+          registered: registered
+        };
+      }
+    }
+  }
+
+  var missing = [];
+  for (var k in asked) {
+    var m = asked[k];
+    var current = enrollmentsByStudentCourse[m.studentId + '_' + m.courseId] || [];
+    // Only students who are still just queued in the course
+    if (current.length === 0) continue;
+    if (current.some(function (e) { return e.status !== 'requested'; })) continue;
+    var queued = current.map(function (e) { return cleanVariant_(m.courseName, e.course_variant); });
+    var hasIt = queued.some(function (q) { return q.toLowerCase() === m.language.toLowerCase(); });
+    if (hasIt) continue;
+    m.queued = queued.join(', ');
+    missing.push(m);
+  }
+  missing.sort(function (a, b) {
+    return a.courseName.localeCompare(b.courseName) || a.name.localeCompare(b.name) || a.language.localeCompare(b.language);
+  });
+  return missing;
+}
+
+function writeMissingLanguagesSheet_(missing) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(MISSING_LANGUAGES_SHEET_NAME) || ss.insertSheet(MISSING_LANGUAGES_SHEET_NAME);
+  sheet.clear();
+  var rows = [['Student', 'Email', 'Course', 'Add language', 'Registered (form)', 'Already queued for']];
+  missing.forEach(function (m) {
+    rows.push([m.name, m.email, m.courseName, m.language, new Date(m.registered), m.queued]);
+  });
+  sheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  if (missing.length) sheet.getRange(2, 5, missing.length, 1).setNumberFormat('dd/MM/yyyy HH:mm');
 }
