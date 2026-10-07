@@ -1,11 +1,12 @@
 import { useState, useEffect, FormEvent, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Loader2, Search, UserPlus, AlertTriangle } from 'lucide-react';
-import { getAvatarGradient, cleanVariant } from '../lib/types';
+import { X, Loader2, Search, UserPlus, AlertTriangle, Globe } from 'lucide-react';
+import { getAvatarGradient, cleanVariant, ANY_VARIANT, isAnyVariant } from '../lib/types';
 import { buildStudentSearchFilters } from '../lib/searchUtils';
 import { useDebounce } from '../hooks/useDebounce';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import { notify } from '../lib/toast';
 import type { EnrollmentRow } from '../hooks/useEnrollments';
 
 interface Student {
@@ -120,14 +121,15 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     const selectedCourseName = courses.find(c => c.id === selectedCourseId)?.name || '';
 
     const variantSuggestions = useMemo(() => {
-        if (!selectedCourseId || !cachedEnrollments) return [];
+        if (!selectedCourseId) return [];
         const seen = new Map<string, string>();
-        for (const e of cachedEnrollments) {
+        for (const e of cachedEnrollments || []) {
             if (e.course_id !== selectedCourseId) continue;
             const v = cleanVariant(selectedCourseName, e.course_variant);
             if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
         }
-        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+        seen.delete(ANY_VARIANT.toLowerCase());
+        return [...Array.from(seen.values()).sort((a, b) => a.localeCompare(b)), ANY_VARIANT];
     }, [cachedEnrollments, selectedCourseId, selectedCourseName]);
 
     const existingEnrollment = useMemo(() => {
@@ -186,6 +188,28 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     useEffect(() => {
         listRef.current?.querySelector(`[data-index="${highlightIndex}"]`)?.scrollIntoView?.({ block: 'nearest' });
     }, [highlightIndex]);
+
+    // The student already has an active enrollment in this course: mark it as fine in either
+    // language rather than adding a second one (the database allows one active enrollment per course)
+    async function markAnyLanguage() {
+        if (!existingEnrollment || saving) return;
+        setError('');
+        setSaving(true);
+        try {
+            const { error: dbError } = await supabase
+                .from('enrollments')
+                .update({ course_variant: ANY_VARIANT })
+                .eq('id', existingEnrollment.id);
+            if (dbError) throw new Error(dbError.message);
+            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            notify({ message: `Marked as ${ANY_VARIANT}`, type: 'success' });
+            onClose();
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to update enrollment');
+        } finally {
+            setSaving(false);
+        }
+    }
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -392,11 +416,27 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             ))}
                         </select>
                         {existingEnrollment && (
-                            <p className="mt-1.5 text-xs text-status-requested flex items-center gap-1.5">
-                                <AlertTriangle size={12} className="shrink-0" />
-                                Already enrolled in this course ({existingEnrollment.status}
-                                {existingEnrollment.course_variant ? `, ${cleanVariant(selectedCourseName, existingEnrollment.course_variant)}` : ''})
-                            </p>
+                            <div className="mt-1.5 space-y-1.5">
+                                <p className="text-xs text-status-requested flex items-center gap-1.5">
+                                    <AlertTriangle size={12} className="shrink-0" />
+                                    Already enrolled in this course ({existingEnrollment.status}
+                                    {existingEnrollment.course_variant ? `, ${cleanVariant(selectedCourseName, existingEnrollment.course_variant)}` : ''})
+                                </p>
+                                {!isAnyVariant(selectedCourseName, existingEnrollment.course_variant) && (
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                                        <span>Fine with either language?</span>
+                                        <button
+                                            type="button"
+                                            onClick={markAnyLanguage}
+                                            disabled={saving}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-brand-500 bg-brand-500/10 hover:bg-brand-500/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <Globe size={12} className="shrink-0" />
+                                            Mark as {ANY_VARIANT}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -411,7 +451,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             list="enroll-variant-suggestions"
                             value={variant}
                             onChange={e => setVariant(e.target.value)}
-                            placeholder="e.g. English, Ukrainian"
+                            placeholder={`e.g. English, Ukrainian, ${ANY_VARIANT}`}
                             className={FIELD_CLASS}
                         />
                         <datalist id="enroll-variant-suggestions">

@@ -25,6 +25,8 @@ interface StatusColumnProps {
     openEditNote: (enrollment: EnrollmentRow) => void;
     onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
     queuePositions: Map<string, number>;
+    /** Places of "Any language" students in each language's queue */
+    queueDetails: Map<string, string>;
     flagsByStudentId: Map<string, StudentFlag[]>;
     completedCoursesByStudentId: Map<string, Array<{id: string, name: string}>>;
     onFlagClick: (enrollment: EnrollmentRow) => void;
@@ -48,6 +50,7 @@ const StatusColumn = function StatusColumn({
     openEditNote,
     onUpdateNote,
     queuePositions,
+    queueDetails,
     flagsByStudentId,
     completedCoursesByStudentId,
     onFlagClick,
@@ -216,6 +219,7 @@ const StatusColumn = function StatusColumn({
                             openEditNote={openEditNote}
                             onUpdateNote={onUpdateNote}
                             queuePosition={queuePositions.get(enrollment.id)}
+                            queueDetail={queueDetails.get(enrollment.id)}
                             studentFlags={flagsByStudentId.get(enrollment.student_id) || emptyFlags}
                             completedCourses={completedCoursesByStudentId.get(enrollment.student_id) || emptyCompletedCourses}
                             onFlagClick={onFlagClick}
@@ -260,6 +264,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 
         prev.queuePositions === next.queuePositions && 
+        prev.queueDetails === next.queueDetails &&
         prev.flagsByStudentId === next.flagsByStudentId &&
         prev.completedCoursesByStudentId === next.completedCoursesByStudentId) {
         return true;
@@ -281,6 +286,7 @@ export default memo(StatusColumn, (prev, next) => {
 
     for (const item of prev.items) {
         if (prev.queuePositions.get(item.id) !== next.queuePositions.get(item.id)) return false;
+        if (prev.queueDetails.get(item.id) !== next.queueDetails.get(item.id)) return false;
     }
 
     // Compare flags and completed courses count for students in this column

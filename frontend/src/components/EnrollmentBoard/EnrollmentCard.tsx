@@ -24,6 +24,8 @@ interface EnrollmentCardProps {
     toggleSelect: (id: string) => void;
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
+    /** "English #10 · Ukrainian #100" for an "Any language" student, who queues in every language */
+    queueDetail?: string;
     openEditNote: (enrollment: EnrollmentRow) => void;
     onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
     studentFlags?: StudentFlag[];
@@ -78,6 +80,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     toggleSelect,
     togglePriority,
     queuePosition,
+    queueDetail,
     openEditNote,
     onUpdateNote,
     studentFlags = [],
@@ -338,7 +341,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 )}
                 {status === 'requested' && queuePosition !== undefined && (
                     <span
-                        title="Position in queue for this course"
+                        title={queueDetail ? `Position in queue: ${queueDetail}` : 'Position in queue for this course'}
                         className="card-pill absolute -bottom-1.5 -right-2 px-1 min-w-[18px] h-[15px] inline-flex items-center justify-center text-[9.5px] leading-none font-extrabold font-mono rounded-md border-2 border-surface bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                     >
                         #{queuePosition}
@@ -781,6 +784,7 @@ const sameCardData = (prev: EnrollmentCardProps, next: EnrollmentCardProps) =>
     prev.status === next.status &&
     prev.isSelected === next.isSelected &&
     prev.queuePosition === next.queuePosition &&
+    prev.queueDetail === next.queueDetail &&
     prev.isOverlay === next.isOverlay &&
     prev.onUpdateNote === next.onUpdateNote &&
     prev.session === next.session &&

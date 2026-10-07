@@ -299,3 +299,16 @@ export function cleanVariant(courseName: string, variant: string | null | undefi
     // Capitalize first letter
     return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
 }
+
+/** Variant of a student who can take the course in either language (one enrollment, not one per language). */
+export const ANY_VARIANT = 'Any language';
+
+export function isAnyVariant(courseName: string, variant: string | null | undefined): boolean {
+    return cleanVariant(courseName, variant).toLowerCase() === ANY_VARIANT.toLowerCase();
+}
+
+/** Whether an enrollment belongs under a language filter: "Any language" students show under every language. */
+export function matchesVariant(courseName: string, variant: string | null | undefined, filter: string): boolean {
+    const cleaned = cleanVariant(courseName, variant).toLowerCase();
+    return cleaned === filter.toLowerCase() || cleaned === ANY_VARIANT.toLowerCase();
+}

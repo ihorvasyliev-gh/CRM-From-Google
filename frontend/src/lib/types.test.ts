@@ -5,7 +5,7 @@
  *   - cleanVariant: extracts the meaningful variant label from raw values
  */
 import { describe, it, expect } from 'vitest';
-import { cleanVariant, fullName } from './types';
+import { ANY_VARIANT, cleanVariant, fullName, isAnyVariant, matchesVariant } from './types';
 
 describe('cleanVariant', () => {
     it('returns the variant as-is when it does not match the course name', () => {
@@ -71,5 +71,27 @@ describe('fullName', () => {
         expect(fullName(null)).toBe('');
         expect(fullName(undefined)).toBe('');
         expect(fullName({})).toBe('');
+    });
+});
+
+describe('Any language variant', () => {
+    it('reads back unchanged through cleanVariant', () => {
+        expect(cleanVariant('SafePass', ANY_VARIANT)).toBe(ANY_VARIANT);
+        expect(isAnyVariant('SafePass', 'any language')).toBe(true);
+        expect(isAnyVariant('SafePass', 'English')).toBe(false);
+        expect(isAnyVariant('SafePass', null)).toBe(false);
+    });
+
+    it('matches its own variant under a language filter', () => {
+        expect(matchesVariant('SafePass', 'Ukrainian', 'ukrainian')).toBe(true);
+        expect(matchesVariant('SafePass', null, 'English')).toBe(true);
+        expect(matchesVariant('SafePass', 'Ukrainian', 'English')).toBe(false);
+    });
+
+    it('shows "Any language" students under every language, and only them under "Any language"', () => {
+        expect(matchesVariant('SafePass', ANY_VARIANT, 'English')).toBe(true);
+        expect(matchesVariant('SafePass', ANY_VARIANT, 'Ukrainian')).toBe(true);
+        expect(matchesVariant('SafePass', ANY_VARIANT, ANY_VARIANT)).toBe(true);
+        expect(matchesVariant('SafePass', 'English', ANY_VARIANT)).toBe(false);
     });
 });
