@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X, type LucideIcon } from 'lucide-react';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
+import { usePresence } from '../../hooks/usePresence';
+import Freeze from './Freeze';
 import { toneChipCls, type Tone } from './styles';
 
 const WIDTHS = {
@@ -38,7 +40,8 @@ export interface ModalProps {
 
 /**
  * Shared dialog shell: blurred overlay, rounded-2xl panel, header with icon chip,
- * scrollable body and a footer for actions. Escape + focus restore via useModalBehavior.
+ * scrollable body and a footer for actions. Escape + focus restore via useModalBehavior;
+ * on close it animates out with its last content (usePresence + Freeze).
  */
 export default function Modal({
     open,
@@ -58,30 +61,43 @@ export default function Modal({
     sheetOnMobile = false,
 }: ModalProps) {
     useModalBehavior(open, onClose, { closeOnEscape: dismissible });
-    if (!open) return null;
-    // Portal to <body> so the overlay covers the whole app (page content sits in its own stacking context)
+    const { mounted, closing, ref } = usePresence(open);
+    if (!mounted) return null;
+    const panelAnimation = closing
+        ? (sheetOnMobile ? 'animate-sheetSlideDown sm:animate-scaleOut' : 'animate-scaleOut')
+        : (sheetOnMobile ? 'animate-sheetSlideUp sm:animate-scaleIn' : 'animate-scaleIn');
+    // Portal to <body> so the overlay covers the whole app (page content sits in its own stacking context).
+    // While closing it is inert and lets clicks through to the page.
     return createPortal(
-        <div className={`fixed inset-0 ${zIndex} flex ${sheetOnMobile ? 'items-end sm:items-center' : 'items-center'} justify-center ${sheetOnMobile ? 'sm:p-4' : 'p-4'} animate-fadeIn`}>
+        <div
+            ref={ref}
+            inert={closing}
+            className={`fixed inset-0 ${zIndex} flex ${sheetOnMobile ? 'items-end sm:items-center' : 'items-center'} justify-center ${sheetOnMobile ? 'sm:p-4' : 'p-4'} ${
+                closing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'
+            }`}
+        >
             <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={dismissible ? onClose : undefined} />
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={labelId}
                 className={`relative w-full ${WIDTHS[size]} max-h-[90dvh] flex flex-col bg-surface border border-border-subtle shadow-float ${
-                    sheetOnMobile ? 'rounded-t-2xl sm:rounded-2xl animate-sheetSlideUp sm:animate-scaleIn' : 'rounded-2xl animate-scaleIn'
-                } overflow-hidden`}
+                    sheetOnMobile ? 'rounded-t-2xl sm:rounded-2xl' : 'rounded-2xl'
+                } ${panelAnimation} overflow-hidden`}
             >
-                <ModalHeader
-                    title={title}
-                    subtitle={subtitle}
-                    icon={Icon}
-                    tone={tone}
-                    onClose={dismissible ? onClose : undefined}
-                    action={headerAction}
-                    labelId={labelId}
-                />
-                <div className={`flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-5 ${bodyClassName}`}>{children}</div>
-                {footer && <ModalFooter>{footer}</ModalFooter>}
+                <Freeze frozen={closing}>
+                    <ModalHeader
+                        title={title}
+                        subtitle={subtitle}
+                        icon={Icon}
+                        tone={tone}
+                        onClose={dismissible ? onClose : undefined}
+                        action={headerAction}
+                        labelId={labelId}
+                    />
+                    <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 py-5 ${bodyClassName}`}>{children}</div>
+                    {footer && <ModalFooter>{footer}</ModalFooter>}
+                </Freeze>
             </div>
         </div>,
         document.body
