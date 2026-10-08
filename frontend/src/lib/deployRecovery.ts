@@ -49,7 +49,7 @@ function notifyStaleAssets(url?: string): void {
 }
 
 /**
- * Load an on-demand library (ExcelJS, pdf.js…). If its file is gone because a new version was
+ * Load an on-demand library (the Excel writer, pdf.js…). If its file is gone because a new version was
  * deployed, offer the reload and fail with a message people understand.
  */
 export async function loadChunk<T>(load: () => Promise<T>): Promise<T> {

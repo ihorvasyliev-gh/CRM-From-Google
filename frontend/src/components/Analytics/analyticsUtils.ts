@@ -1,9 +1,8 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant, type EmploymentStatusRow } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
-import { downloadBlob } from '../../lib/download';
+import { darkHeader, downloadXlsx, valueCells, type Row, type XlsxSheet } from '../../lib/excelExport';
 import { levenshteinDistance } from '../../lib/similarity';
-import { loadChunk } from '../../lib/deployRecovery';
 
 // ─── Location & Geographic Intelligence Types ─────────────────
 
@@ -745,45 +744,13 @@ export function exportCustomCSV(enrollments: EnrollmentWithRelations[], filename
     URL.revokeObjectURL(url);
 }
 
-// ─── Excel Report Builders (exceljs) ─────────────────────────
+// ─── Excel Report Builders ───────────────────────────────────
 
 export async function exportExecutiveExcelReport(
     enrollments: EnrollmentWithRelations[],
     employmentStatuses: EmploymentStatusRow[],
     filterLabel = 'All Time'
 ) {
-    const ExcelJSModule = await loadChunk(() => import('exceljs'));
-    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'CRM System';
-    workbook.created = new Date();
-
-    // ── Sheet 1: Executive KPI Overview ──────────────────────────
-    const summarySheet = workbook.addWorksheet('Executive Summary');
-    
-    const applySectionHeader = (rowNum: number, title: string) => {
-        const row = summarySheet.getRow(rowNum);
-        row.getCell(1).value = title;
-        row.getCell(1).font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
-        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
-        summarySheet.mergeCells(rowNum, 1, rowNum, 4);
-        row.height = 24;
-    };
-
-    summarySheet.columns = [
-        { width: 32 },
-        { width: 22 },
-        { width: 22 },
-        { width: 35 }
-    ];
-
-    // Title
-    summarySheet.getCell('A1').value = 'CRM Executive Analytics & Performance Report';
-    summarySheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FF0F172A' } };
-    summarySheet.getCell('A2').value = `Generated: ${new Date().toLocaleString('en-IE')} | Period: ${filterLabel}`;
-    summarySheet.getCell('A2').font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
-
     // KPI Metrics calculation
     const totalEnrollments = enrollments.length;
     const requestedCount = enrollments.filter(e => e.status === 'requested').length;
@@ -791,71 +758,43 @@ export async function exportExecutiveExcelReport(
     const confirmedCount = enrollments.filter(e => e.status === 'confirmed').length;
     const completedCount = enrollments.filter(e => e.status === 'completed').length;
     const successRate = totalEnrollments > 0 ? Math.round((completedCount / totalEnrollments) * 100) : 0;
-    
+
     const speed = calculateSpeedMetrics(enrollments);
     const funnel = calculateFunnelAnalysis(enrollments);
     const geoFunnel = calculateGeographicFunnel(enrollments);
 
-    applySectionHeader(4, '1. Core Pipeline Key Performance Indicators');
-    summarySheet.addRow(['Metric Name', 'Count / Value', 'Benchmark / Target', 'Notes']);
-    summarySheet.getRow(5).font = { bold: true, color: { argb: 'FF334155' } };
-    summarySheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    // ── Sheet 1: Executive KPI Overview ──────────────────────────
+    const sectionHeader = (title: string): Row => [
+        { value: title, fontWeight: 'bold', fontSize: 13, textColor: '#FFFFFF', backgroundColor: '#1E293B', alignVertical: 'center', height: 24, columnSpan: 4 },
+        null, null, null,
+    ];
+    const tableHeader = (headers: string[]): Row => valueCells(headers, { fontWeight: 'bold', textColor: '#334155', backgroundColor: '#F1F5F9' });
 
-    summarySheet.addRow(['Total Pipeline Applications', totalEnrollments, '-', 'Total candidate registrations in scope']);
-    summarySheet.addRow(['Waiting Queue (Requested)', requestedCount, '-', 'Candidates awaiting invitation']);
-    summarySheet.addRow(['Invited Stage', invitedCount, '-', 'Candidates currently in invitation window']);
-    summarySheet.addRow(['Confirmed Students', confirmedCount, '-', 'Confirmed attendees awaiting course start']);
-    summarySheet.addRow(['Graduated / Completed', completedCount, '-', 'Successfully finished course']);
-    summarySheet.addRow(['Pipeline Completion Rate', `${successRate}%`, '> 60%', 'Completed vs Total registered']);
-
-    applySectionHeader(13, '2. Conversion Funnel & Cycle Velocity');
-    summarySheet.addRow(['Stage Transition', 'Conversion Rate', 'Avg Processing Speed', 'Description']);
-    summarySheet.getRow(14).font = { bold: true, color: { argb: 'FF334155' } };
-    summarySheet.getRow(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-
-    summarySheet.addRow(['Requested → Invited', `${funnel.requestedToInvited}%`, `${speed.avgDaysToInvite} days`, 'Application to invitation email']);
-    summarySheet.addRow(['Invited → Confirmed', `${funnel.invitedToConfirmed}%`, `${speed.avgDaysToConfirm} days`, 'Invitation email to student acceptance']);
-    summarySheet.addRow(['Confirmed → Completed', `${funnel.confirmedToCompleted}%`, `${speed.avgDaysToComplete} days`, 'Course confirmation to graduation']);
-    summarySheet.addRow(['Overall End-to-End Cycle', `${funnel.overallSuccessRate}%`, `${speed.avgTotalCycleDays} days`, 'Total time from application to graduate']);
+    const summaryRows: Row[] = [
+        [{ value: 'CRM Executive Analytics & Performance Report', fontWeight: 'bold', fontSize: 16, textColor: '#0F172A' }],
+        [{ value: `Generated: ${new Date().toLocaleString('en-IE')} | Period: ${filterLabel}`, fontStyle: 'italic', fontSize: 10, textColor: '#64748B' }],
+        [],
+        sectionHeader('1. Core Pipeline Key Performance Indicators'),
+        tableHeader(['Metric Name', 'Count / Value', 'Benchmark / Target', 'Notes']),
+        valueCells(['Total Pipeline Applications', totalEnrollments, '-', 'Total candidate registrations in scope']),
+        valueCells(['Waiting Queue (Requested)', requestedCount, '-', 'Candidates awaiting invitation']),
+        valueCells(['Invited Stage', invitedCount, '-', 'Candidates currently in invitation window']),
+        valueCells(['Confirmed Students', confirmedCount, '-', 'Confirmed attendees awaiting course start']),
+        valueCells(['Graduated / Completed', completedCount, '-', 'Successfully finished course']),
+        valueCells(['Pipeline Completion Rate', `${successRate}%`, '> 60%', 'Completed vs Total registered']),
+        [],
+        sectionHeader('2. Conversion Funnel & Cycle Velocity'),
+        tableHeader(['Stage Transition', 'Conversion Rate', 'Avg Processing Speed', 'Description']),
+        valueCells(['Requested → Invited', `${funnel.requestedToInvited}%`, `${speed.avgDaysToInvite} days`, 'Application to invitation email']),
+        valueCells(['Invited → Confirmed', `${funnel.invitedToConfirmed}%`, `${speed.avgDaysToConfirm} days`, 'Invitation email to student acceptance']),
+        valueCells(['Confirmed → Completed', `${funnel.confirmedToCompleted}%`, `${speed.avgDaysToComplete} days`, 'Course confirmation to graduation']),
+        valueCells(['Overall End-to-End Cycle', `${funnel.overallSuccessRate}%`, `${speed.avgTotalCycleDays} days`, 'Total time from application to graduate']),
+    ];
 
     // ── Sheet 2: Geographic & Address Funnel ─────────────────────
-    const geoSheet = workbook.addWorksheet('Geographic Funnel');
-    geoSheet.columns = [
-        { header: 'District / Town', key: 'district', width: 30 },
-        { header: 'Macro Region', key: 'macro', width: 22 },
-        { header: 'Applications', key: 'total', width: 16 },
-        { header: 'Confirmed', key: 'confirmed', width: 14 },
-        { header: 'Graduates', key: 'completed', width: 14 },
-        { header: 'Completion %', key: 'rate', width: 16 }
-    ];
-
-    geoFunnel.microDistricts.forEach(m => {
-        geoSheet.addRow({
-            district: m.name,
-            macro: m.macroRegion || '-',
-            total: m.total,
-            confirmed: m.confirmed,
-            completed: m.completed,
-            rate: `${m.completionRate}%`
-        });
-    });
-
-    geoSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    geoSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    geoSheet.getRow(1).height = 24;
+    const geoRows = geoFunnel.microDistricts.map(m => valueCells([m.name, m.macroRegion || '-', m.total, m.confirmed, m.completed, `${m.completionRate}%`]));
 
     // ── Sheet 3: Course Performance ──────────────────────────────
-    const courseSheet = workbook.addWorksheet('Course Performance');
-    courseSheet.columns = [
-        { header: 'Course Name', key: 'course', width: 35 },
-        { header: 'Total Applicants', key: 'total', width: 18 },
-        { header: 'Invited', key: 'invited', width: 14 },
-        { header: 'Confirmed', key: 'confirmed', width: 14 },
-        { header: 'Completed', key: 'completed', width: 14 },
-        { header: 'Completion %', key: 'completionRate', width: 16 },
-        { header: 'Drop-off %', key: 'dropOffRate', width: 14 }
-    ];
-
     const courseStats: Record<string, { total: number, invited: number, confirmed: number, completed: number }> = {};
     enrollments.forEach(e => {
         const cName = e.courses?.name || 'Unknown Course';
@@ -867,102 +806,61 @@ export async function exportExecutiveExcelReport(
         if (e.status === 'confirmed') courseStats[cName].confirmed++;
         if (e.status === 'completed') courseStats[cName].completed++;
     });
-
-    Object.entries(courseStats)
+    const courseRows = Object.entries(courseStats)
         .sort((a, b) => b[1].total - a[1].total)
-        .forEach(([cName, data]) => {
+        .map(([cName, data]) => {
             const compRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
-            const dropRate = 100 - compRate;
-            courseSheet.addRow({
-                course: cName,
-                total: data.total,
-                invited: data.invited,
-                confirmed: data.confirmed,
-                completed: data.completed,
-                completionRate: `${compRate}%`,
-                dropOffRate: `${dropRate}%`
-            });
+            return valueCells([cName, data.total, data.invited, data.confirmed, data.completed, `${compRate}%`, `${100 - compRate}%`]);
         });
-
-    courseSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    courseSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    courseSheet.getRow(1).height = 24;
 
     // ── Sheet 4: Graduate Outcomes ───────────────────────────────
-    const outcomesSheet = workbook.addWorksheet('Graduate Outcomes');
-    outcomesSheet.columns = [
-        { header: 'Student Name', key: 'name', width: 25 },
-        { header: 'Email', key: 'email', width: 30 },
-        { header: 'Completed Course', key: 'course', width: 30 },
-        { header: 'Completion Date', key: 'compDate', width: 16 },
-        { header: 'Survey Status', key: 'surveyStatus', width: 16 },
-        { header: 'Employed?', key: 'isWorking', width: 14 },
-        { header: 'Employment Type', key: 'type', width: 18 },
-        { header: 'Field / Industry', key: 'field', width: 25 },
-        { header: 'Started Work', key: 'started', width: 16 }
-    ];
-
-    const completedEnrollments = enrollments.filter(e => e.status === 'completed');
-    completedEnrollments.forEach(e => {
+    const outcomeRows = enrollments.filter(e => e.status === 'completed').map(e => {
         const s = e.students;
         const emp = employmentStatuses.find(es => es.student_id === s?.id);
-        outcomesSheet.addRow({
-            name: `${s?.first_name || ''} ${s?.last_name || ''}`,
-            email: s?.email || '',
-            course: e.courses?.name || '',
-            compDate: e.completed_date ? formatDateDMY(e.completed_date) : (e.confirmed_date ? formatDateDMY(e.confirmed_date) : ''),
-            surveyStatus: emp ? emp.status : 'not_contacted',
-            isWorking: emp?.is_working === true ? 'Yes' : (emp?.is_working === false ? 'No' : 'Unreported'),
-            type: emp?.employment_type || '-',
-            field: emp?.field_of_work || '-',
-            started: emp?.started_month || '-'
-        });
+        return valueCells([
+            `${s?.first_name || ''} ${s?.last_name || ''}`,
+            s?.email || '',
+            e.courses?.name || '',
+            e.completed_date ? formatDateDMY(e.completed_date) : (e.confirmed_date ? formatDateDMY(e.confirmed_date) : ''),
+            emp ? emp.status : 'not_contacted',
+            emp?.is_working === true ? 'Yes' : (emp?.is_working === false ? 'No' : 'Unreported'),
+            emp?.employment_type || '-',
+            emp?.field_of_work || '-',
+            emp?.started_month || '-',
+        ]);
     });
-
-    outcomesSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    outcomesSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    outcomesSheet.getRow(1).height = 24;
 
     // ── Sheet 5: Full Participants Roster ─────────────────────────
-    const rosterSheet = workbook.addWorksheet('Full Participants Roster');
-    rosterSheet.columns = [
-        { header: 'First Name', key: 'first', width: 18 },
-        { header: 'Last Name', key: 'last', width: 18 },
-        { header: 'Email', key: 'email', width: 28 },
-        { header: 'Phone', key: 'phone', width: 18 },
-        { header: 'Normalized District', key: 'district', width: 22 },
-        { header: 'Macro Region', key: 'macro', width: 20 },
-        { header: 'Course', key: 'course', width: 25 },
-        { header: 'Variant', key: 'variant', width: 18 },
-        { header: 'Status', key: 'status', width: 14 },
-        { header: 'Priority', key: 'priority', width: 10 },
-        { header: 'Registered Date', key: 'created', width: 16 }
-    ];
-
-    enrollments.forEach(e => {
+    const rosterRows = enrollments.map(e => {
         const s = e.students;
         const norm = normalizeCorkAddress(s?.address || null, s?.eircode || null);
-        rosterSheet.addRow({
-            first: s?.first_name || '',
-            last: s?.last_name || '',
-            email: s?.email || '',
-            phone: s?.phone || '',
-            district: norm.microDistrict,
-            macro: norm.macroRegion,
-            course: e.courses?.name || '',
-            variant: cleanVariant(e.courses?.name || '', e.course_variant),
-            status: e.status,
-            priority: e.is_priority ? 'Yes' : 'No',
-            created: formatDateDMY(e.created_at)
-        });
+        return valueCells([
+            s?.first_name || '',
+            s?.last_name || '',
+            s?.email || '',
+            s?.phone || '',
+            norm.microDistrict,
+            norm.macroRegion,
+            e.courses?.name || '',
+            cleanVariant(e.courses?.name || '', e.course_variant),
+            e.status,
+            e.is_priority ? 'Yes' : 'No',
+            formatDateDMY(e.created_at),
+        ]);
     });
 
-    rosterSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    rosterSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    rosterSheet.getRow(1).height = 24;
+    /** A sheet with a dark header row and fixed column widths */
+    const table = (name: string, columns: [header: string, width: number][], rows: Row[]): XlsxSheet => ({
+        name,
+        rows: [darkHeader(columns.map(([header]) => header)), ...rows],
+        widths: columns.map(([, width]) => width),
+    });
 
-    // Save Workbook
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    downloadBlob(blob, `Executive_CRM_Analytics_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    await downloadXlsx([
+        { name: 'Executive Summary', rows: summaryRows, widths: [32, 22, 22, 35] },
+        table('Geographic Funnel', [['District / Town', 30], ['Macro Region', 22], ['Applications', 16], ['Confirmed', 14], ['Graduates', 14], ['Completion %', 16]], geoRows),
+        table('Course Performance', [['Course Name', 35], ['Total Applicants', 18], ['Invited', 14], ['Confirmed', 14], ['Completed', 14], ['Completion %', 16], ['Drop-off %', 14]], courseRows),
+        table('Graduate Outcomes', [['Student Name', 25], ['Email', 30], ['Completed Course', 30], ['Completion Date', 16], ['Survey Status', 16], ['Employed?', 14], ['Employment Type', 18], ['Field / Industry', 25], ['Started Work', 16]], outcomeRows),
+        table('Full Participants Roster', [['First Name', 18], ['Last Name', 18], ['Email', 28], ['Phone', 18], ['Normalized District', 22], ['Macro Region', 20], ['Course', 25], ['Variant', 18], ['Status', 14], ['Priority', 10], ['Registered Date', 16]], rosterRows),
+    ], `Executive_CRM_Analytics_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

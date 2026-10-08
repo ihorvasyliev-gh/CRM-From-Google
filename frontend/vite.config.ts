@@ -7,8 +7,10 @@ const chunkGroups: Record<string, string[]> = {
     vendor: ['react', 'react-dom', 'scheduler', 'lucide-react', 'react-router', 'react-router-dom', '@tanstack/react-query'],
     charts: ['recharts'],
     dnd: ['@dnd-kit/core'],
-    'excel-export': ['exceljs'],
-    'docx-gen': ['docxtemplater', 'pizzip'],
+    'excel-export': ['write-excel-file', 'fflate'],
+    'docx-gen': ['docxtemplater'],
+    // Shared by Word documents and the .xlsx reader
+    zip: ['pizzip'],
 }
 
 /** Email template editor: TipTap and the ProseMirror packages under it. */

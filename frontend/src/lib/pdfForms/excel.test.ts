@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import ExcelJS from 'exceljs';
-import { readXlsxLite, withoutHeavyParts } from './xlsxLite';
+import { readXlsxLite } from './xlsxLite';
 import { bestSheet, decodeText, findHeaderRow, readSheetFile, readWorkbook, sheetFrom, tableToSheet } from './excel';
 
-/** A messy real-world workbook, built with exceljs */
+/** A messy real-world workbook, built with exceljs (a dev dependency, for fixtures only) */
 async function messyWorkbook(): Promise<File> {
     const wb = new ExcelJS.Workbook();
     const notes = wb.addWorksheet('Read me');
@@ -195,26 +195,24 @@ describe('sheets without column names', () => {
     });
 });
 
-describe('files exceljs cannot open but Excel can', () => {
+describe('files a strict reader rejects but Excel opens', () => {
     async function brokenStyles(): Promise<Uint8Array> {
         const PizZip = (await import('pizzip')).default;
         const zip = new PizZip(await irisWorkbook());
-        // Damaged styles: Excel repairs this silently, exceljs throws
+        // Damaged styles: Excel repairs this silently (exceljs used to throw on it)
         zip.file('xl/styles.xml', '<styleSheet><cellXfs><xf numFmtId="14"></cellXfs>');
         return zip.generate({ type: 'uint8array' });
     }
 
-    it('falls back to the small reader and gets every sheet', async () => {
-        const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    it('reads every sheet despite damaged styles', async () => {
         const book = await readWorkbook(asFile(await brokenStyles()));
-        errors.mockRestore();
         expect(book.sheets.map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
         expect(sheetFrom(book, 2).headers).toEqual(IRIS_HEADERS);
         expect(sheetFrom(book, 2).rows[1][4]).toBe('Douglas Matters');
         expect(sheetFrom(book, 0).rows).toHaveLength(3);
     });
 
-    it('reads tables, data-validation messages and dates like the main reader', async () => {
+    it('reads tables, data-validation messages and dates', async () => {
         const bytes = await irisWorkbook(wb => {
             const ws = wb.getWorksheet('Active LDC LCGs')!;
             for (let r = 3; r <= 7; r++) {
@@ -226,8 +224,8 @@ describe('files exceljs cannot open but Excel can', () => {
         expect(iris.table[0]).toEqual(IRIS_HEADERS);
         expect(iris.table[2][7]).toBe('28/03/2018');
         expect(iris.table[2][3]).toBe('66892');
-        const main = await readWorkbook(asFile(bytes));
-        expect(main.sheets[2].table.slice(0, 3)).toEqual(iris.table.slice(0, 3));
+        const book = await readWorkbook(asFile(bytes));
+        expect(book.sheets[2].table.slice(0, 3)).toEqual(iris.table.slice(0, 3));
     });
 
     it('reads a sheet that is formatted to the very last row without hanging', async () => {
@@ -261,19 +259,6 @@ describe('a workbook like the IRIS export: validations down to the last row', ()
         return zip.generate({ type: 'uint8array' });
     }
 
-    it('cuts the validations out, and only those', async () => {
-        const PizZip = (await import('pizzip')).default;
-        const bytes = await withWholeColumnValidations();
-        const cleaned = withoutHeavyParts(bytes) as Uint8Array;
-        const sheet = (b: Uint8Array) => new PizZip(b).file('xl/worksheets/sheet3.xml')!.asText();
-        expect(sheet(bytes)).toContain('dataValidations');
-        expect(sheet(cleaned)).not.toContain('dataValidation');
-        expect(sheet(cleaned)).toContain('<sheetData>');
-        // Nothing to cut: the very same bytes come back
-        const plain = await irisWorkbook();
-        expect(withoutHeavyParts(plain)).toBe(plain);
-    });
-
     it('opens the file at once, with every sheet, and leaves out the very hidden one', async () => {
         const started = Date.now();
         const book = await readWorkbook(asFile(await withWholeColumnValidations()));
@@ -281,7 +266,5 @@ describe('a workbook like the IRIS export: validations down to the last row', ()
         expect(book.sheets.map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
         expect(sheetFrom(book, 2).rows).toHaveLength(5);
         expect(sheetFrom(book, 0).headers[4]).toBe('LCG Name');
-        // The small reader agrees
-        expect(readXlsxLite(await withWholeColumnValidations()).map(s => s.name)).toEqual(['Michelle Keane', 'Veronica Byrne', 'Active LDC LCGs']);
     });
 });

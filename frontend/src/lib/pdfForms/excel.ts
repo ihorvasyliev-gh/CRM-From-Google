@@ -8,16 +8,12 @@
 // instance): their names are borrowed from the sheet of the same workbook they came from.
 
 import { parseDelimitedText } from '../contactImport';
-import { formatDate } from './source';
 import { normalizeText, similarity } from './text';
 import type { NamesFrom, SheetData } from './types';
-import { readXlsxLite, withoutHeavyParts } from './xlsxLite';
-import { loadChunk } from '../deployRecovery';
+import { readXlsxLite } from './xlsxLite';
 
 /** How many rows from the top to look at for the column names */
 const HEADER_SCAN_ROWS = 30;
-/** Columns beyond this are formatting, not data */
-const MAX_COLUMNS = 2000;
 /** Excel error values: an empty answer as far as a form is concerned */
 const EXCEL_ERRORS = new Set(['#N/A', '#REF!', '#VALUE!', '#DIV/0!', '#NAME?', '#NULL!', '#NUM!', '#SPILL!', '#CALC!']);
 
@@ -265,71 +261,18 @@ function namesOfSheet(raw: RawSheet, hint: string[] = []): string[] {
     return row < 0 ? [] : raw.table[row];
 }
 
-/** The part of an exceljs cell that is used here */
-interface XlCell {
-    value: unknown;
-    text?: string;
-}
-
-function cellText(cell: XlCell): string {
+/** Every sheet of an .xlsx; Excel's error values (#N/A, #REF!…) read as empty cells */
+function readXlsx(data: ArrayBuffer): RawSheet[] {
     try {
-        const v = cell.value;
-        // Dates as the forms print them; exceljs keeps them in UTC
-        const text = v instanceof Date ? formatDate(new Date(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate())) : cell.text ?? '';
-        return EXCEL_ERRORS.has(text.trim()) ? '' : text;
-    } catch {
-        return '';
-    }
-}
-
-/** Only the rows and cells that exist: a sheet "formatted down to row 1,048,576" stays small */
-async function readWithExcelJs(data: ArrayBuffer): Promise<RawSheet[]> {
-    const ExcelJSModule = await loadChunk(() => import('exceljs'));
-    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const workbook = new ExcelJS.Workbook();
-    const light = withoutHeavyParts(data);
-    await workbook.xlsx.load((light instanceof Uint8Array ? light.buffer.slice(light.byteOffset, light.byteOffset + light.byteLength) : light) as ArrayBuffer);
-
-    return workbook.worksheets.filter(sheet => sheet.state !== 'veryHidden').map(sheet => {
-        const grid = new Map<number, string[]>();
-        const hiddenRows: number[] = [];
-        let width = 0;
-        let last = 0;
-        sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-            const cells: string[] = [];
-            row.eachCell({ includeEmpty: false }, (cell, col) => {
-                if (col > MAX_COLUMNS) return;
-                const text = cellText(cell);
-                if (!text) return;
-                cells[col - 1] = text;
-                width = Math.max(width, col);
-            });
-            if (cells.length === 0) return;
-            if (row.hidden) hiddenRows.push(rowNumber - 1);
-            grid.set(rowNumber - 1, cells);
-            last = Math.max(last, rowNumber);
-        });
-        const table = Array.from({ length: last }, (_, r) => {
-            const cells = grid.get(r) ?? [];
-            return Array.from({ length: width }, (_, c) => cells[c] ?? '');
-        });
-        return { name: sheet.name, hidden: sheet.state !== 'visible', table, hiddenRows };
-    });
-}
-
-/** exceljs first (formatted values); when it gives up on a file Excel opens, the small reader */
-async function readXlsx(data: ArrayBuffer): Promise<RawSheet[]> {
-    try {
-        return await readWithExcelJs(data);
-    } catch (first) {
-        try {
-            return readXlsxLite(data);
-        } catch (second) {
-            console.error('Could not read the spreadsheet', first, second);
-            const error = new Error('This spreadsheet could not be opened. Open it in Excel, choose File → Save As → “Excel Workbook (.xlsx)”, and choose the new file.');
-            Object.assign(error, { cause: second });
-            throw error;
-        }
+        return readXlsxLite(data).map(sheet => ({
+            ...sheet,
+            table: sheet.table.map(row => row.map(cell => (EXCEL_ERRORS.has(cell.trim()) ? '' : cell))),
+        }));
+    } catch (error) {
+        console.error('Could not read the spreadsheet', error);
+        const failure = new Error('This spreadsheet could not be opened. Open it in Excel, choose File → Save As → “Excel Workbook (.xlsx)”, and choose the new file.');
+        Object.assign(failure, { cause: error });
+        throw failure;
     }
 }
 
@@ -355,7 +298,7 @@ export async function readWorkbook(file: File): Promise<Workbook> {
         if (isOleFile(bytes)) {
             throw new Error('This spreadsheet has a password. Open it in Excel, remove the password (File → Info → Protect Workbook → Encrypt with Password, then clear it), save it and choose it again.');
         }
-        sheets = await readXlsx(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+        sheets = readXlsx(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     } else if (name.endsWith('.csv') || name.endsWith('.tsv') || name.endsWith('.txt')) {
         sheets = [{ name: file.name, hidden: false, table: parseDelimitedText(decodeText(bytes)), hiddenRows: [] }];
     } else if (name.endsWith('.xls') || name.endsWith('.ods')) {

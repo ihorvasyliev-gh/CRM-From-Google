@@ -1,8 +1,8 @@
 // ─── A small, forgiving .xlsx reader ───────────────────────────
-// exceljs reads everything in a workbook (styles, tables, validations, drawings…) and gives up
-// on the whole file when any of that is slightly off, even though Excel opens it happily.
-// This reader looks only at what a form needs: sheet names, which are hidden, the cell values
-// and the hidden rows. It is the second try when exceljs fails.
+// Full spreadsheet libraries read everything in a workbook (styles, tables, validations,
+// drawings…) and give up on the whole file when any of that is slightly off, even though Excel
+// opens it happily; some hang on validations that run down to row 1,048,576. This reader looks
+// only at what the app needs: sheet names, which are hidden, the cell values and the hidden rows.
 
 import PizZip from 'pizzip';
 import { formatDate } from './source';
@@ -229,50 +229,4 @@ export function readXlsxLite(data: ArrayBuffer | Uint8Array): LiteSheet[] {
         sheets.push({ name: f.name, hidden: f.hidden, table, hiddenRows });
     }
     return sheets;
-}
-
-// ─── Keeping exceljs away from what makes it hang ──────────────
-
-/** A merged range above this many cells is formatting, not a title */
-const MAX_MERGE_CELLS = 50_000;
-
-function rangeCells(ref: string): number {
-    const [a, b = a] = ref.split(':');
-    const cell = (r: string) => {
-        const m = /^\$?([A-Za-z]+)\$?(\d+)$/.exec(r.trim());
-        return m ? { col: columnIndex(m[1]), row: Number(m[2]) } : null;
-    };
-    const from = cell(a);
-    const to = cell(b);
-    if (!from || !to) return 0;
-    return (Math.abs(to.col - from.col) + 1) * (Math.abs(to.row - from.row) + 1);
-}
-
-/**
- * exceljs writes every cell of every data-validation range into memory. Excel files often have
- * validations for a whole column ("C3:C1048576": a million cells per range), and then exceljs
- * hangs the page or runs out of memory, without any error. Validations and huge merged ranges
- * say nothing about the values, so they are cut out before exceljs sees the file.
- * Returns the same bytes when there is nothing to cut.
- */
-export function withoutHeavyParts(data: ArrayBuffer | Uint8Array): ArrayBuffer | Uint8Array {
-    let zip: PizZip;
-    try {
-        zip = new PizZip(data);
-    } catch {
-        return data; // not a zip: let the reader say so
-    }
-    let changed = false;
-    for (const file of zip.file(/^xl\/worksheets\/[^/]+\.xml$/)) {
-        const xml = file.asText();
-        const cleaned = xml
-            .replace(/<(?:\w+:)?dataValidations\b[\s\S]*?<\/(?:\w+:)?dataValidations>/g, '')
-            .replace(/<(?:\w+:)?dataValidations\b[^>]*\/>/g, '')
-            .replace(/<mergeCell\s[^>]*?ref="([^"]+)"[^>]*\/>/g, (whole, ref: string) => (rangeCells(ref) > MAX_MERGE_CELLS ? '' : whole));
-        if (cleaned !== xml) {
-            zip.file(file.name, cleaned);
-            changed = true;
-        }
-    }
-    return changed ? zip.generate({ type: 'uint8array', compression: 'STORE' }) : data;
 }

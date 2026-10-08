@@ -7,13 +7,12 @@ import { formatDateSpaces, todayISO } from './dateUtils';
 import { getConfig, setConfig, type ExcelColumn } from './appConfig';
 import { downloadBlob } from './download';
 import { errorMessage } from './errors';
-import { sanitizeExcelValue, styleWorksheet } from './excelExport';
+import { styledTable, xlsxBlob } from './excelExport';
 import { runRenderJob } from './documentJob';
 import {
     abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, parseDateRule,
     type DateVariable, type EnrollmentWithRelations, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
 } from './documentRender';
-import { loadChunk } from './deployRecovery';
 
 export * from './documentRender';
 
@@ -279,20 +278,12 @@ async function buildParticipantsWorkbook(
     dateVariables: DateVariable[],
     today: string,
 ): Promise<ArrayBuffer> {
-    const ExcelJSModule = await loadChunk(() => import('exceljs'));
-    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Participants');
-
-    worksheet.columns = columns.map((col, i) => ({ header: col.header, key: `c${i}` }));
-    worksheet.addRows(enrollments.map(enrollment => {
+    const rows = enrollments.map(enrollment => {
         const data = { ...buildPlaceholderData(enrollment, today), ...customVariables, ...dateVariableValues(dateVariables, enrollment, today) };
-        // Names and addresses come from a public form: never let one start a formula
-        return Object.fromEntries(columns.map((col, i) => [`c${i}`, sanitizeExcelValue(data[col.placeholder])]));
-    }));
-    styleWorksheet(worksheet, { filter: true });
-
-    return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>;
+        return columns.map(col => data[col.placeholder]);
+    });
+    const sheet = styledTable('Participants', columns.map(col => col.header), rows, { filter: true });
+    return (await xlsxBlob([sheet])).arrayBuffer();
 }
 
 // ─── Archive ────────────────────────────────────────────────

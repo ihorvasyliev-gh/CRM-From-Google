@@ -2,8 +2,7 @@ import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant, Student } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { normalizeCorkAddress } from './analyticsUtils';
-import { downloadBlob } from '../../lib/download';
-import { loadChunk } from '../../lib/deployRecovery';
+import { darkHeader, downloadXlsx, valueCells, type Row } from '../../lib/excelExport';
 
 export interface AvailableCourseSummary {
     id: string;
@@ -233,128 +232,66 @@ export async function exportMultiCourseExcelReport(
     selectedCourses: { id: string; name: string }[],
     matchMode: 'all' | 'any'
 ) {
-    const ExcelJSModule = await loadChunk(() => import('exceljs'));
-    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'CRM System';
-    workbook.created = new Date();
-
-    const sheet = workbook.addWorksheet('Multi-Course Graduates');
-
-    // Title & Context block
-    sheet.getCell('A1').value = 'CRM Cross-Course Graduates Report';
-    sheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FF0F172A' } };
-
-    const courseNamesStr = selectedCourses.length > 0 
+    const courseNamesStr = selectedCourses.length > 0
         ? selectedCourses.map(c => c.name).join(matchMode === 'all' ? ' + ' : ' / ')
         : 'All Students with >= 2 Completed Courses';
-
     const modeLabel = matchMode === 'all' ? 'Completed ALL Selected (AND)' : 'Completed ANY Selected (OR)';
-    sheet.getCell('A2').value = `Criteria: ${courseNamesStr} [${modeLabel}]`;
-    sheet.getCell('A2').font = { bold: true, size: 11, color: { argb: 'FF2563EB' } };
 
-    sheet.getCell('A3').value = `Generated: ${new Date().toLocaleString('en-IE')} | Total Matching Graduates: ${profiles.length}`;
-    sheet.getCell('A3').font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
-
-    // Column definitions
-    const baseColumns = [
-        { header: 'First Name', key: 'firstName', width: 16 },
-        { header: 'Last Name', key: 'lastName', width: 16 },
-        { header: 'Email', key: 'email', width: 28 },
-        { header: 'Phone', key: 'phone', width: 18 },
-        { header: 'District', key: 'district', width: 22 },
-        { header: 'Macro Region', key: 'macroRegion', width: 20 },
-        { header: 'Address', key: 'address', width: 30 },
-        { header: 'Eircode', key: 'eircode', width: 12 },
-        { header: 'Total Completed', key: 'totalCompleted', width: 16 }
+    // Column definitions: the base columns, one per selected course, then all courses
+    const columns: [header: string, width: number][] = [
+        ['First Name', 16],
+        ['Last Name', 16],
+        ['Email', 28],
+        ['Phone', 18],
+        ['District', 22],
+        ['Macro Region', 20],
+        ['Address', 30],
+        ['Eircode', 12],
+        ['Total Completed', 16],
+        ...selectedCourses.map((c): [string, number] => [`${c.name} (Date & Variant)`, 24]),
+        ['All Completed Courses', 40],
     ];
 
-    // Add specific columns for each selected course
-    const courseColumns = selectedCourses.map(c => ({
-        header: `${c.name} (Date)`,
-        key: `course_${c.id}`,
-        width: 24
-    }));
-
-    const allCoursesCol = { header: 'All Completed Courses', key: 'allCourses', width: 40 };
-
-    sheet.columns = [...baseColumns, ...courseColumns, allCoursesCol];
-
-    // Shift header row down to row 5 to leave room for the title block
-    const headerRowNumber = 5;
-    const headerRow = sheet.getRow(headerRowNumber);
-    const headersList = [
-        'First Name',
-        'Last Name',
-        'Email',
-        'Phone',
-        'District',
-        'Macro Region',
-        'Address',
-        'Eircode',
-        'Total Completed',
-        ...selectedCourses.map(c => `${c.name} (Date & Variant)`),
-        'All Completed Courses'
-    ];
-
-    headersList.forEach((h, idx) => {
-        const cell = headerRow.getCell(idx + 1);
-        cell.value = h;
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
-    });
-    headerRow.height = 25;
-
-    // Populate data rows
-    profiles.forEach((profile, idx) => {
-        const rowData: Record<string, string | number | null | undefined> = {
-            firstName: profile.firstName,
-            lastName: profile.lastName,
-            email: profile.email,
-            phone: profile.phone,
-            district: profile.district,
-            macroRegion: profile.macroRegion,
-            address: profile.address,
-            eircode: profile.eircode,
-            totalCompleted: profile.completedCount
-        };
-
-        selectedCourses.forEach(c => {
+    const dataRows: Row[] = profiles.map((profile, idx) => {
+        const courseCells = selectedCourses.map(c => {
             const rec = profile.completedCourses.get(c.id);
-            if (rec) {
-                const dateStr = rec.completedDate ? formatDateDMY(rec.completedDate) : 'Completed';
-                rowData[`course_${c.id}`] = rec.variant && rec.variant !== 'Default' 
-                    ? `${dateStr} (${rec.variant})` 
-                    : dateStr;
-            } else {
-                rowData[`course_${c.id}`] = '—';
-            }
+            if (!rec) return '—';
+            const dateStr = rec.completedDate ? formatDateDMY(rec.completedDate) : 'Completed';
+            return rec.variant && rec.variant !== 'Default' ? `${dateStr} (${rec.variant})` : dateStr;
         });
-
-        rowData.allCourses = Array.from(profile.completedCourses.values())
-            .map(c => c.courseName)
-            .join(', ');
-
-        const addedRow = sheet.addRow(rowData);
-        
+        const values = [
+            profile.firstName,
+            profile.lastName,
+            profile.email,
+            profile.phone,
+            profile.district,
+            profile.macroRegion,
+            profile.address,
+            profile.eircode,
+            profile.completedCount,
+            ...courseCells,
+            Array.from(profile.completedCourses.values()).map(c => c.courseName).join(', '),
+        ];
         // Subtle zebra striping
-        if (idx % 2 === 1) {
-            addedRow.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF8FAFC' }
-            };
-        }
+        return valueCells(values, idx % 2 === 1 ? { backgroundColor: '#F8FAFC' } : {});
     });
 
-    // Save & trigger download
+    // Title & context block above the header row (row 5)
+    const rows: Row[] = [
+        [{ value: 'CRM Cross-Course Graduates Report', fontWeight: 'bold', fontSize: 16, textColor: '#0F172A' }],
+        [{ value: `Criteria: ${courseNamesStr} [${modeLabel}]`, fontWeight: 'bold', textColor: '#2563EB' }],
+        [{ value: `Generated: ${new Date().toLocaleString('en-IE')} | Total Matching Graduates: ${profiles.length}`, fontStyle: 'italic', fontSize: 9, textColor: '#64748B' }],
+        [],
+        darkHeader(columns.map(([header]) => header), 25),
+        ...dataRows,
+    ];
+
     const safeFilenamePrefix = selectedCourses.length > 0
         ? selectedCourses.map(c => c.name.replace(/[^a-zA-Z0-9]/g, '_')).slice(0, 3).join('_AND_')
         : 'multi_course_graduates';
 
-    const filename = `CRM_Graduates_${safeFilenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    downloadBlob(blob, filename);
+    await downloadXlsx(
+        [{ name: 'Multi-Course Graduates', rows, widths: columns.map(([, width]) => width) }],
+        `CRM_Graduates_${safeFilenamePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
 }

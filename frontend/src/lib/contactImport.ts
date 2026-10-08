@@ -173,24 +173,8 @@ export function parseDelimitedText(text: string): string[][] {
 
 /** Read the first non-empty worksheet of an .xlsx file as text cells. */
 export async function readXlsxTable(data: ArrayBuffer): Promise<string[][]> {
-    const ExcelJSModule = await loadChunk(() => import('exceljs'));
-    const ExcelJS = ExcelJSModule.default || ExcelJSModule;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(data);
-
-    const sheet = workbook.worksheets.find(ws => ws.rowCount > 0);
-    if (!sheet) return [];
-
-    const table: string[][] = [];
-    for (let r = 1; r <= sheet.rowCount; r++) {
-        const row = sheet.getRow(r);
-        const cells: string[] = [];
-        for (let c = 1; c <= sheet.columnCount; c++) {
-            cells.push(row.getCell(c).text ?? '');
-        }
-        table.push(cells);
-    }
-    return table;
+    const { readXlsxLite } = await loadChunk(() => import('./pdfForms/xlsxLite'));
+    return readXlsxLite(data).find(sheet => sheet.table.some(row => row.some(cell => cell !== '')))?.table ?? [];
 }
 
 export async function parseContactsFile(file: File): Promise<ParsedContacts> {

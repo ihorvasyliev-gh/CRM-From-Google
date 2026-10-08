@@ -529,9 +529,14 @@ describe('Participants.xlsx', () => {
         });
         expect(result.extras).toEqual([{ label: 'Participants.xlsx', ok: true, files: 1 }]);
         const xlsx = new PizZip(new PizZip(await blob.arrayBuffer()).file('Participants.xlsx')!.asArrayBuffer());
-        const strings = (xlsx.file('xl/sharedStrings.xml')?.asText() ?? xlsx.file('xl/worksheets/sheet1.xml')!.asText()).replace(/&apos;/g, "'");
-        expect(strings).toContain(`'=HYPERLINK`);
-        expect(xlsx.file('xl/worksheets/sheet1.xml')!.asText()).not.toContain('<f>');
+        const sheet = xlsx.file('xl/worksheets/sheet1.xml')!.asText();
+        // Text, not a formula, and in Excel's Text format so editing the cell doesn't run it either
+        expect(xlsx.file('xl/sharedStrings.xml')!.asText()).toContain('=HYPERLINK');
+        expect(sheet).not.toContain('<f>');
+        const styles = xlsx.file('xl/styles.xml')!.asText();
+        const xfs = [...styles.slice(styles.indexOf('<cellXfs')).matchAll(/<xf [^>]*>/g)].map(m => /numFmtId="(\d+)"/.exec(m[0])?.[1]);
+        const style = Number(/<c r="A2"[^>]* s="(\d+)"/.exec(sheet)?.[1]);
+        expect(styles).toContain(`<numFmt numFmtId="${xfs[style]}" formatCode="@"/>`);
     });
 });
 
