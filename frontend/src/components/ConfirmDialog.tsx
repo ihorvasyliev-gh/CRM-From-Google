@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
-import { useModalBehavior } from '../hooks/useModalBehavior';
-import { usePresence } from '../hooks/usePresence';
-import Freeze from './ui/Freeze';
+import DialogLayer from './ui/DialogLayer';
 
 interface Props {
     open: boolean;
@@ -29,11 +26,6 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
         }
     }, [open]);
 
-    useModalBehavior(open, onCancel, { closeOnEscape: !busy });
-    const { mounted, closing, ref } = usePresence(open);
-
-    if (!mounted) return null;
-
     const isDanger = variant === 'danger';
 
     const handleConfirm = async () => {
@@ -49,57 +41,48 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
         }
     };
 
-    // Portal to <body> so the dialog layers above the sidebar / drawers regardless of where it's rendered.
-    // On close it animates out with the title and message it had (the parent often clears them).
-    return createPortal(
-        <div
-            ref={ref}
-            inert={closing}
-            className={`fixed inset-0 z-70 flex items-center justify-center p-4 ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
+    return (
+        <DialogLayer
+            open={open}
+            onClose={onCancel}
+            dismissible={!busy}
+            role="alertdialog"
+            labelledBy="confirm-dialog-title"
+            describedBy="confirm-dialog-message"
+            className="z-70 flex items-center justify-center p-4"
+            panelClassName="w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden"
         >
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={busy ? undefined : onCancel} />
-            <div
-                role="alertdialog"
-                aria-modal="true"
-                aria-labelledby="confirm-dialog-title"
-                aria-describedby="confirm-dialog-message"
-                className={`relative w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden ${closing ? 'animate-scaleOut' : 'animate-scaleIn'}`}
-            >
-                <Freeze frozen={closing}>
-                    <div className="p-6 flex items-start gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isDanger ? 'bg-danger/10 text-status-rejected' : 'bg-warning/15 text-status-requested'}`}>
-                            {isDanger ? <AlertTriangle size={20} /> : <AlertCircle size={20} />}
-                        </div>
-                        <div className="min-w-0 pt-0.5">
-                            <h3 id="confirm-dialog-title" className="text-base font-semibold text-primary mb-1">{title}</h3>
-                            <p id="confirm-dialog-message" className="text-sm text-muted leading-relaxed">{message}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40">
-                        <button
-                            ref={cancelRef}
-                            onClick={onCancel}
-                            disabled={busy}
-                            className="h-9 px-3.5 text-xs font-semibold text-primary bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-colors disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleConfirm}
-                            disabled={busy}
-                            className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-xs disabled:opacity-70 disabled:cursor-wait ${isDanger
-                                ? 'bg-red-600 hover:bg-red-700'
-                                : 'bg-amber-500 hover:bg-amber-600'
-                                }`}
-                        >
-                            {busy && <Loader2 size={15} className="animate-spin" />}
-                            {confirmLabel}
-                        </button>
-                    </div>
-                </Freeze>
+            <div className="p-6 flex items-start gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isDanger ? 'bg-danger/10 text-status-rejected' : 'bg-warning/15 text-status-requested'}`}>
+                    {isDanger ? <AlertTriangle size={20} /> : <AlertCircle size={20} />}
+                </div>
+                <div className="min-w-0 pt-0.5">
+                    <h3 id="confirm-dialog-title" className="text-base font-semibold text-primary mb-1">{title}</h3>
+                    <p id="confirm-dialog-message" className="text-sm text-muted leading-relaxed">{message}</p>
+                </div>
             </div>
-        </div>,
-        document.body
+
+            <div className="flex justify-end gap-2 px-6 py-3.5 border-t border-border-subtle bg-surface-elevated/40">
+                <button
+                    ref={cancelRef}
+                    onClick={onCancel}
+                    disabled={busy}
+                    className="h-9 px-3.5 text-xs font-semibold text-primary bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl transition-colors disabled:opacity-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleConfirm}
+                    disabled={busy}
+                    className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-xs disabled:opacity-70 disabled:cursor-wait ${isDanger
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
+                >
+                    {busy && <Loader2 size={15} className="animate-spin" />}
+                    {confirmLabel}
+                </button>
+            </div>
+        </DialogLayer>
     );
 }
