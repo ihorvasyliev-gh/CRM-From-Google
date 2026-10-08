@@ -355,14 +355,15 @@ export default function Dashboard({
             <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
             {kpis}
 
-            {/* Only one layout is mounted to avoid rendering everything twice */}
+            {/* Only one layout is mounted to avoid rendering everything twice. The registration
+                form link goes near the top, as on the viewer home: below the activity feed nobody saw it. */}
             {isMobile ? (
                 <div className="space-y-4">
+                    <RegistrationLinkCard variant="compact" />
                     {expired}
                     {cohorts}
                     {activity}
                     {statusBreakdown}
-                    <RegistrationLinkCard variant="compact" />
                 </div>
             ) : (
                 <div className="grid grid-cols-12 gap-6 items-start">
@@ -371,9 +372,9 @@ export default function Dashboard({
                         {activity}
                     </div>
                     <div className="col-span-4 space-y-6 min-w-0">
+                        <RegistrationLinkCard variant="card" />
                         {expired}
                         {statusBreakdown}
-                        <RegistrationLinkCard variant="card" />
                     </div>
                 </div>
             )}

@@ -590,14 +590,11 @@ function App() {
                 activeTab={activeTab}
                 onNavigate={navigate}
                 isViewer={isViewer}
-                pendingApprovalsCount={pendingApprovalsCount}
                 darkMode={darkMode}
                 toggleDarkMode={toggleDarkMode}
                 density={density}
                 toggleDensity={toggleDensity}
                 onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-                onOpenShortcuts={() => setShortcutsModalOpen(true)}
-                onOpenApprovals={() => setApprovalsModalOpen(true)}
                 onSignOut={signOut}
                 userEmail={user.email}
             />

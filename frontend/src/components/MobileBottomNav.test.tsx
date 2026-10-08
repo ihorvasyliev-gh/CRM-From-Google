@@ -8,7 +8,6 @@ describe('MobileBottomNav Component', () => {
         const handleToggleDark = vi.fn();
         const handleToggleDensity = vi.fn();
         const handleCommandPalette = vi.fn();
-        const handleShortcuts = vi.fn();
         const handleSignOut = vi.fn();
 
         render(
@@ -16,13 +15,11 @@ describe('MobileBottomNav Component', () => {
                 activeTab="dashboard"
                 onNavigate={handleNavigate}
                 isViewer={false}
-                pendingApprovalsCount={3}
                 darkMode={true}
                 toggleDarkMode={handleToggleDark}
                 density="comfortable"
                 toggleDensity={handleToggleDensity}
                 onOpenCommandPalette={handleCommandPalette}
-                onOpenShortcuts={handleShortcuts}
                 onSignOut={handleSignOut}
                 userEmail="admin@example.com"
             />
@@ -33,7 +30,8 @@ describe('MobileBottomNav Component', () => {
         expect(screen.getByText('Board')).toBeInTheDocument();
         expect(screen.getByText('Students')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
-        expect(screen.getByText('More')).toBeInTheDocument();
+        // No "More": the burger menu has every other section and tool
+        expect(screen.queryByText('More')).not.toBeInTheDocument();
 
         // Click Board tab
         fireEvent.click(screen.getByText('Board'));
@@ -46,19 +44,6 @@ describe('MobileBottomNav Component', () => {
         // Click Courses tab
         fireEvent.click(screen.getByText('Courses'));
         expect(handleNavigate).toHaveBeenCalledWith('courses');
-
-        // Click More tab to open drawer
-        fireEvent.click(screen.getByText('More'));
-        expect(screen.getByText('All Sections & Tools')).toBeInTheDocument();
-        expect(screen.getByText('Analytics')).toBeInTheDocument();
-        expect(screen.getByText('Outcomes')).toBeInTheDocument();
-        expect(screen.getByText('Documents')).toBeInTheDocument();
-        expect(screen.getByText('Settings')).toBeInTheDocument();
-        expect(screen.getByText(/3 Course Completions Pending/i)).toBeInTheDocument();
-
-        // Click Analytics from drawer
-        fireEvent.click(screen.getByText('Analytics'));
-        expect(handleNavigate).toHaveBeenCalledWith('analytics');
     });
 
     it('renders viewer mode navigation with Home, Students, Courses, Search, and More', () => {
@@ -66,7 +51,6 @@ describe('MobileBottomNav Component', () => {
         const handleCommandPalette = vi.fn();
         const handleToggleDark = vi.fn();
         const handleToggleDensity = vi.fn();
-        const handleShortcuts = vi.fn();
         const handleSignOut = vi.fn();
 
         const { rerender } = render(
@@ -79,7 +63,6 @@ describe('MobileBottomNav Component', () => {
                 density="comfortable"
                 toggleDensity={handleToggleDensity}
                 onOpenCommandPalette={handleCommandPalette}
-                onOpenShortcuts={handleShortcuts}
                 onSignOut={handleSignOut}
                 userEmail="viewer@example.com"
             />
@@ -118,7 +101,6 @@ describe('MobileBottomNav Component', () => {
                 density="comfortable"
                 toggleDensity={handleToggleDensity}
                 onOpenCommandPalette={handleCommandPalette}
-                onOpenShortcuts={handleShortcuts}
                 onSignOut={handleSignOut}
                 userEmail="viewer@example.com"
             />
