@@ -99,7 +99,7 @@ Everyone on the team sees the same board, live. Nothing is copied between spread
 - Per-course presets, custom variables (fixed text, or dates such as `{expire}` = course date + 2 years) and shared Excel columns
 - Rendered in a Web Worker: the page stays smooth and a run can be cancelled
 - A one-person trial run, a progress bar and a report of what was made
-- Styled Excel exports
+- Styled Excel exports (header filters, frozen header, zebra rows)
 
 </td>
 </tr>
@@ -171,7 +171,7 @@ The spreadsheet and the PDF never leave the browser.
 </tr>
 </table>
 
-**And everywhere:** <kbd>Ctrl</kbd> <kbd>K</kbd> command palette · keyboard shortcuts (<kbd>?</kbd>) · light and dark themes · compact density · smooth dialogs and page transitions (reduced motion respected) · mobile bottom navigation · offline / sync indicator · web push for new confirmations.
+**And everywhere:** <kbd>Ctrl</kbd> <kbd>K</kbd> command palette · keyboard shortcuts (<kbd>?</kbd>) · light and dark themes · compact density · pages that stay as you left them · smooth page transitions, dialogs that animate in and out and keep keyboard focus, lists that glide instead of jumping (reduced motion respected) · stacked, swipeable notifications · mobile bottom navigation · offline / sync indicator · web push for new confirmations.
 
 ---
 
@@ -251,16 +251,18 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 
 | Layer | Choice |
 | :-- | :-- |
-| **UI** | React 19, TypeScript 6, Tailwind CSS 4 (+ `tw-animate-css`), Lucide icons, Radix Tooltip, self-hosted Inter & JetBrains Mono |
+| **UI** | React 19 (`<ViewTransition>` between pages, `<Activity>` keeps visited pages alive), TypeScript 6, Tailwind CSS 4 (+ `tw-animate-css`), Lucide icons, Radix Tooltip, self-hosted Inter & JetBrains Mono |
+| **Motion** | One dialog layer for every modal, sheet and drawer (focus trap, exit animations), `sonner` toasts, `@formkit/auto-animate` lists |
 | **Routing & data** | React Router 7, TanStack Query 5 (cache, prefetch on hover, realtime patches) |
 | **Board** | `@dnd-kit/core` |
 | **Email editor** | TipTap 3 (ProseMirror), Outlook-safe HTML output |
 | **Charts** | Recharts 3 |
-| **Documents** | `docxtemplater` + `pizzip` in a Web Worker, `exceljs` |
+| **Documents** | `docxtemplater` + `pizzip` in a Web Worker |
+| **Spreadsheets** | `write-excel-file` for exports; a small built-in `.xlsx` reader for imports |
 | **PDF forms** | `pdf-lib` (+ `@pdf-lib/fontkit`, Arimo font), `pdfjs-dist` |
 | **Backend** | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, an Edge Function for web push |
 | **Automation** | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
-| **Quality** | Vitest 5 + Testing Library, ESLint 10 (zero warnings), `tsc` strict |
+| **Quality** | Vitest 5 + Testing Library (VM pool, ~20 s), ESLint 10 (zero warnings), `tsc` strict, GitHub Actions CI on every pull request |
 | **Build & hosting** | Vite 8 (Rolldown, long-lived vendor chunks), Cloudflare Pages with strict security headers and a CSP |
 | **Backups** | Nightly encrypted Supabase backup to Cloudflare R2 (GitHub Actions) |
 
@@ -313,6 +315,23 @@ Large backfills run in batches and resume on their own, so they stay under Apps 
 </details>
 
 <details>
+<summary><b>🧬 Database types (optional)</b></summary>
+
+<br/>
+
+The Supabase CLI can write TypeScript types for every table, view and RPC of the live database, so queries are checked by `tsc`. With a [personal access token](https://supabase.com/dashboard/account/tokens) and the project ref (the `xxxx` in `xxxx.supabase.co`):
+
+```bash
+cd frontend
+npx supabase login
+npx supabase gen types typescript --project-id <project-ref> --schema public > src/lib/database.types.ts
+```
+
+Then pass the `Database` type to `createClient<Database>(…)` in [`src/lib/supabase.ts`](frontend/src/lib/supabase.ts). Run it again after each migration.
+
+</details>
+
+<details>
 <summary><b>🧪 Checks</b></summary>
 
 <br/>
@@ -322,6 +341,8 @@ npm run test:run   # unit & component tests (Vitest)
 npm run lint       # ESLint, zero warnings allowed
 npm run build      # tsc + production build
 ```
+
+The same three run on GitHub for every pull request and push to `main` ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 </details>
 
@@ -390,7 +411,7 @@ CRM-From-Google/
 │   ├── Code.gs                    registration form ⇄ Supabase ⇄ CRM Mirror
 │   └── EmploymentFormSync.gs      employment survey → Supabase
 ├── backups/                       backup scripts and guide
-└── .github/workflows/             nightly Supabase backup to Cloudflare R2
+└── .github/workflows/             CI (lint, tests, build) and the nightly backup to Cloudflare R2
 ```
 
 ---
