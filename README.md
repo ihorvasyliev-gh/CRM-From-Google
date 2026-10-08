@@ -376,6 +376,7 @@ Security headers, the CSP and cache rules ship from [`frontend/public/_headers`]
 | Apps Script timeout | A very large backfill | Use **Export ALL answers**; it batches and resumes on its own |
 | Template placeholders left empty | A misspelled tag | Upload and generation list unknown placeholders; use a name from **Documents → Available variables** (e.g. `{firstName}`, `{courseTitle}`, `{courseDate}`) or add a custom variable |
 | Student missing from a bulk email | They unsubscribed | See **Settings → Unsubscribed emails** |
+| Browser console on the live site shows nothing | Production keeps the console silent ([`quietConsole.ts`](frontend/src/lib/quietConsole.ts)) | Run `localStorage.setItem('crm:debug', '1')` in the console and reload to see warnings and errors; `localStorage.removeItem('crm:debug')` turns it off |
 | Stuck on **Loading Portal…**, or *"A new version is available"* | A deploy replaced the code while the page was open | The app re-downloads and reloads on its own (`public/boot-recovery.js`); open tabs show a **Reload** bar. If it still hangs, press **Try again** on the loading screen |
 
 ---

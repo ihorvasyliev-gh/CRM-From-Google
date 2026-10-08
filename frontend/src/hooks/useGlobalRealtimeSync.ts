@@ -81,13 +81,16 @@ export function useGlobalRealtimeSync() {
     const subscribeChannel = useCallback(() => {
         if (!user) return;
 
-        if (activeChannelRef.current) {
+        const old = activeChannelRef.current;
+        // Cleared before removing: a channel removed before it has joined reports "CLOSED" right
+        // away, and that must not be taken for a dropped connection (error log + a resubscribe)
+        activeChannelRef.current = null;
+        if (old) {
             try {
-                supabase.removeChannel(activeChannelRef.current);
+                supabase.removeChannel(old);
             } catch (e) {
                 console.warn('[useGlobalRealtimeSync] Error removing channel:', e);
             }
-            activeChannelRef.current = null;
         }
 
         const channel = supabase
@@ -234,10 +237,9 @@ export function useGlobalRealtimeSync() {
             pendingKeys.clear();
             pendingEnrollmentIdsRef.current = new Set();
             burstStartRef.current = 0;
-            if (activeChannelRef.current) {
-                supabase.removeChannel(activeChannelRef.current);
-                activeChannelRef.current = null;
-            }
+            const channel = activeChannelRef.current;
+            activeChannelRef.current = null; // before removing, as in subscribeChannel
+            if (channel) supabase.removeChannel(channel);
         };
     }, [queryClient, user, subscribeChannel]);
 }

@@ -1,3 +1,5 @@
+// First: silences the console in production before any other module runs
+import './lib/quietConsole'
 import React, { Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'

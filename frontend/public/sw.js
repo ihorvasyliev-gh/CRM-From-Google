@@ -2,10 +2,7 @@
 // Served at the root path (/sw.js) to allow scoping across the whole app.
 
 self.addEventListener('push', function (event) {
-    if (!event.data) {
-        console.warn('[Service Worker] Push event received but no payload data.');
-        return;
-    }
+    if (!event.data) return; // nothing to show
 
     let payload = {};
     try {
@@ -37,8 +34,6 @@ self.addEventListener('push', function (event) {
 });
 
 self.addEventListener('notificationclick', function (event) {
-    console.log('[Service Worker] Notification click Received.');
-
     event.notification.close();
 
     const targetUrl = event.notification.data?.url || '/';

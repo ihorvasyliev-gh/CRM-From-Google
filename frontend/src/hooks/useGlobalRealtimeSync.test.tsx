@@ -3,9 +3,12 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { useGlobalRealtimeSync } from './useGlobalRealtimeSync';
+import { supabase } from '../lib/supabase';
 
 type Handler = (payload: unknown) => void;
 const handlers: Record<string, Handler> = {};
+// The channel's subscribe callback (status changes)
+const channelStatus: { cb?: (status: string, err?: unknown) => void } = {};
 
 vi.mock('../lib/supabase', () => {
     const channel = {
@@ -13,12 +16,16 @@ vi.mock('../lib/supabase', () => {
             handlers[filter.table] = cb;
             return channel;
         }),
-        subscribe: vi.fn(() => channel),
+        subscribe: vi.fn((cb: (status: string, err?: unknown) => void) => {
+            channelStatus.cb = cb;
+            return channel;
+        }),
     };
     return {
         supabase: {
             channel: vi.fn(() => channel),
-            removeChannel: vi.fn(),
+            // Like a channel that hasn't joined yet: phoenix reports "CLOSED" before removal returns
+            removeChannel: vi.fn(() => channelStatus.cb?.('CLOSED')),
         },
     };
 });
@@ -43,9 +50,9 @@ function setup() {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    renderHook(() => useGlobalRealtimeSync(), { wrapper });
+    const { unmount } = renderHook(() => useGlobalRealtimeSync(), { wrapper });
     const invalidatedKeys = () => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: string[] }).queryKey[0]);
-    return { invalidate, invalidatedKeys };
+    return { invalidate, invalidatedKeys, unmount };
 }
 
 describe('useGlobalRealtimeSync', () => {
@@ -136,5 +143,19 @@ describe('useGlobalRealtimeSync', () => {
         act(() => { handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-2' } }); });
         await act(async () => { vi.advanceTimersByTime(250); });
         expect(patchCachedEnrollments).toHaveBeenCalledWith(expect.anything(), ['e-2']);
+    });
+
+    it('does not take its own removal of the channel for a dropped connection', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const { unmount } = setup();
+        vi.mocked(supabase.channel).mockClear();
+
+        unmount();
+        act(() => { vi.advanceTimersByTime(10_000); });
+
+        expect(supabase.removeChannel).toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+        expect(supabase.channel).not.toHaveBeenCalled(); // no resubscribe
+        error.mockRestore();
     });
 });

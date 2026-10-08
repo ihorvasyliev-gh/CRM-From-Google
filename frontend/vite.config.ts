@@ -34,6 +34,9 @@ export default defineConfig({
                 },
                 codeSplitting: {
                     groups: [
+                        // Its own chunk, so the entry imports it before the shared chunks (supabase…)
+                        // instead of running it after them in its own body
+                        { name: 'quiet-console', test: /[\\/]src[\\/]lib[\\/]quietConsole\.ts$/ },
                         ...Object.entries(chunkGroups).map(([name, pkgs]) => ({
                             name,
                             test: new RegExp(`[\\\\/]node_modules[\\\\/](${pkgs.map(escapeRegExp).join('|')})[\\\\/]`),
