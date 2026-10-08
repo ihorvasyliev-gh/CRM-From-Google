@@ -1,46 +1,44 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import Toast from './Toast';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { toast as sonner } from 'sonner';
+import { GlobalToaster } from './Toast';
+import { toast } from '../lib/toast';
 
-describe('Toast Component', () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-    });
-
+describe('GlobalToaster', () => {
     afterEach(() => {
+        act(() => { sonner.dismiss(); });
         vi.restoreAllMocks();
-        vi.useRealTimers();
     });
 
-    it('renders toast message and handles dismissal', () => {
-        const mockDismiss = vi.fn();
-        render(<Toast toast={{ message: 'Enrollment saved', type: 'success' }} onDismiss={mockDismiss} />);
-
-        expect(screen.getByText('Enrollment saved')).toBeInTheDocument();
+    it('shows toasts from the app-wide bus', async () => {
+        render(<GlobalToaster />);
+        act(() => toast.success('Enrollment saved'));
+        expect(await screen.findByText('Enrollment saved')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
     });
 
-    it('renders action button and triggers onClick when clicked', () => {
-        const mockDismiss = vi.fn();
-        const mockUndo = vi.fn();
+    it('runs the action (Undo) when its button is clicked', async () => {
+        const undo = vi.fn();
+        render(<GlobalToaster />);
+        act(() => toast.info('Student moved to Rejected', { action: { label: 'Undo', onClick: undo } }));
 
-        render(
-            <Toast
-                toast={{
-                    message: 'Student moved to Rejected',
-                    type: 'info',
-                    action: {
-                        label: 'Undo',
-                        onClick: mockUndo,
-                    },
-                }}
-                onDismiss={mockDismiss}
-            />
-        );
+        fireEvent.click(await screen.findByRole('button', { name: /undo/i }));
+        expect(undo).toHaveBeenCalledTimes(1);
+    });
 
-        const undoBtn = screen.getByRole('button', { name: /undo/i });
-        expect(undoBtn).toBeInTheDocument();
-
-        fireEvent.click(undoBtn);
-        expect(mockUndo).toHaveBeenCalledTimes(1);
+    it('keeps errors and toasts with an action on screen longer', () => {
+        const spy = vi.spyOn(sonner, 'error');
+        const info = vi.spyOn(sonner, 'info');
+        const success = vi.spyOn(sonner, 'success');
+        render(<GlobalToaster />);
+        act(() => {
+            toast.error('Could not save');
+            toast.info('Moved', { action: { label: 'Undo', onClick: () => {} } });
+            toast.success('Saved');
+            toast.success('Exported', { duration: 8000 });
+        });
+        expect(spy.mock.calls[0][1]?.duration).toBe(5000);
+        expect(info.mock.calls[0][1]?.duration).toBe(5000);
+        expect(success.mock.calls.map(c => c[1]?.duration)).toEqual([3000, 8000]);
     });
 });

@@ -1,172 +1,82 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { Toaster, toast as sonner } from 'sonner';
 import { CheckCircle, XCircle, AlertCircle, X, RotateCcw } from 'lucide-react';
 import { subscribeToasts, type ToastData } from '../lib/toast';
 
 export type { ToastData };
 
-interface Props {
-    toast: ToastData | null;
-    onDismiss: () => void;
+/** Errors and toasts with an action (Undo) stay a bit longer, so they can be read and used */
+function toastDuration(t: ToastData): number {
+    return t.duration || (t.action || t.type === 'error' ? 5000 : 3000);
 }
 
-const STYLES = {
-    success: {
-        icon: <CheckCircle size={16} />,
-        chip: 'bg-success/15 text-status-confirmed',
-        actionBtn: 'bg-success/10 text-status-confirmed hover:bg-success/20 border-success/30',
-        bar: 'bg-success',
-    },
-    error: {
-        icon: <XCircle size={16} />,
-        chip: 'bg-danger/15 text-status-rejected',
-        actionBtn: 'bg-danger/10 text-status-rejected hover:bg-danger/20 border-danger/30',
-        bar: 'bg-danger',
-    },
-    info: {
-        icon: <AlertCircle size={16} />,
-        chip: 'bg-brand-500/10 text-brand-600 dark:text-brand-400',
-        actionBtn: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-500/20 border-brand-500/30',
-        bar: 'bg-brand-500',
-    },
+function show(t: ToastData) {
+    sonner[t.type](t.message, {
+        duration: toastDuration(t),
+        // The action closes the toast after running (sonner's default)
+        action: t.action && {
+            label: <><RotateCcw size={12} />{t.action.label}</>,
+            onClick: t.action.onClick,
+        },
+    });
+}
+
+/** The app's theme is a class on <html> (useTheme), not the system preference */
+function subscribeTheme(onChange: () => void) {
+    const observer = new MutationObserver(onChange);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+}
+const isDark = () => document.documentElement.classList.contains('dark');
+
+const chip = (cls: string, icon: ReactNode) => (
+    <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${cls}`}>{icon}</span>
+);
+
+const ICONS = {
+    success: chip('bg-success/15 text-status-confirmed', <CheckCircle size={16} />),
+    error: chip('bg-danger/15 text-status-rejected', <XCircle size={16} />),
+    info: chip('bg-brand-500/10 text-brand-600 dark:text-brand-400', <AlertCircle size={16} />),
+    close: <X size={14} />,
 };
 
-const toastKeys = new WeakMap<ToastData, number>();
-let toastSeq = 0;
-function toastKey(t: ToastData): number {
-    let key = toastKeys.get(t);
-    if (key === undefined) {
-        key = ++toastSeq;
-        toastKeys.set(t, key);
-    }
-    return key;
-}
-
-export default function Toast({ toast, onDismiss }: Props) {
-    const [visible, setVisible] = useState(false);
-    const [paused, setPaused] = useState(false);
-
-    // Parents usually pass an inline `() => setToast(null)`; keep it in a ref so
-    // unrelated parent re-renders don't restart the auto-dismiss timer.
-    const onDismissRef = useRef(onDismiss);
-    useEffect(() => {
-        onDismissRef.current = onDismiss;
-    });
-
-    // Errors stay a bit longer so they can actually be read
-    const duration = toast?.duration || (toast?.action ? 5000 : toast?.type === 'error' ? 5000 : 3000);
-
-    // New key per toast object so the progress bar animation restarts even for repeated messages
-    const barKey = toast ? toastKey(toast) : 0;
-
-    const remainingRef = useRef(duration);
-    const startedAtRef = useRef(0);
-    const hideTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-    const dismissTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    const clearTimers = useCallback(() => {
-        clearTimeout(hideTimerRef.current);
-        clearTimeout(dismissTimerRef.current);
-    }, []);
-
-    const close = useCallback((delay = 200) => {
-        clearTimers();
-        setVisible(false);
-        dismissTimerRef.current = setTimeout(() => onDismissRef.current(), delay);
-    }, [clearTimers]);
-
-    const startHideTimer = useCallback((ms: number) => {
-        clearTimeout(hideTimerRef.current);
-        startedAtRef.current = Date.now();
-        hideTimerRef.current = setTimeout(() => close(300), ms);
-    }, [close]);
-
-    useEffect(() => {
-        if (!toast) return;
-        remainingRef.current = duration;
-        setPaused(false);
-        const initTimer = setTimeout(() => setVisible(true), 10);
-        startHideTimer(duration);
-        return () => {
-            clearTimeout(initTimer);
-            clearTimers();
-        };
-    }, [toast, duration, startHideTimer, clearTimers]);
-
-    if (!toast) return null;
-
-    const s = STYLES[toast.type];
-
-    const handleMouseEnter = () => {
-        if (paused) return;
-        clearTimeout(hideTimerRef.current);
-        remainingRef.current = Math.max(1000, remainingRef.current - (Date.now() - startedAtRef.current));
-        setPaused(true);
-    };
-
-    const handleMouseLeave = () => {
-        if (!paused) return;
-        setPaused(false);
-        startHideTimer(remainingRef.current);
-    };
-
-    const handleActionClick = () => {
-        toast.action?.onClick();
-        close();
-    };
-
-    return (
-        <div
-            role={toast.type === 'error' ? 'alert' : 'status'}
-            aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            className={`fixed top-4 right-4 left-4 sm:left-auto z-120 sm:max-w-sm sm:w-full transition-all duration-300 ${
-                visible ? 'animate-slideInRight opacity-100 translate-x-0' : 'opacity-0 translate-x-5'
-            }`}
-        >
-            <div className="bg-surface border border-border-subtle rounded-xl shadow-float overflow-hidden">
-                <div className="flex items-center gap-3 pl-3 pr-2.5 py-2.5">
-                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${s.chip}`}>{s.icon}</div>
-                    <span className="text-sm font-medium text-primary flex-1 leading-snug wrap-break-word">
-                        {toast.message}
-                    </span>
-
-                    {toast.action && (
-                        <button
-                            onClick={handleActionClick}
-                            className={`flex items-center gap-1 h-7 px-2.5 text-xs font-semibold rounded-lg border transition-all active:scale-95 shrink-0 ${s.actionBtn}`}
-                        >
-                            <RotateCcw size={12} />
-                            {toast.action.label}
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => close()}
-                        aria-label="Dismiss notification"
-                        className="text-muted hover:text-primary p-1.5 rounded-lg hover:bg-surface-elevated transition-colors shrink-0"
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-                {/* Auto-dismiss progress bar (keyed so it restarts for every new toast, paused on hover) */}
-                <div
-                    key={barKey}
-                    className={`h-0.5 ${s.bar} opacity-70 progress-bar`}
-                    style={{ animationDuration: `${duration}ms`, animationPlayState: paused ? 'paused' : 'running' }}
-                />
-            </div>
-        </div>
-    );
-}
+// Unstyled sonner toasts: sonner stacks, swipes and animates them, the classes below draw them
+const CLASS_NAMES = {
+    toast: 'flex items-center gap-3 w-full pl-3 pr-2.5 py-2.5 bg-surface text-primary border border-border-subtle rounded-xl shadow-float font-sans',
+    icon: 'shrink-0',
+    content: 'flex-1 min-w-0',
+    title: 'text-sm font-medium leading-snug wrap-break-word',
+    actionButton: [
+        'shrink-0 flex items-center gap-1 h-7 px-2.5 text-xs font-semibold rounded-lg border cursor-pointer transition active:scale-95',
+        'bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-500/20 border-brand-500/30',
+        'in-data-[type=success]:bg-success/10 in-data-[type=success]:text-status-confirmed in-data-[type=success]:hover:bg-success/20 in-data-[type=success]:border-success/30',
+        'in-data-[type=error]:bg-danger/10 in-data-[type=error]:text-status-rejected in-data-[type=error]:hover:bg-danger/20 in-data-[type=error]:border-danger/30',
+    ].join(' '),
+    // Sonner puts the close button first: show it last, on the right. Its dark theme paints the
+    // button black even when unstyled, hence the important colours.
+    closeButton: 'order-last shrink-0 p-1.5 rounded-lg border-0! bg-transparent! text-muted! hover:text-primary! hover:bg-surface-elevated! cursor-pointer transition-colors',
+};
 
 /**
- * App-level toaster driven by the `toast` bus in lib/toast.ts.
+ * App-level toaster driven by the `toast` bus in lib/toast.ts: stacked toasts that pause on
+ * hover and can be swiped away.
  */
 export function GlobalToaster() {
-    const [current, setCurrent] = useState<ToastData | null>(null);
+    const dark = useSyncExternalStore(subscribeTheme, isDark, () => false);
 
-    useEffect(() => subscribeToasts(t => setCurrent({ ...t })), []);
+    useEffect(() => subscribeToasts(show), []);
 
-    return <Toast toast={current} onDismiss={() => setCurrent(null)} />;
+    return (
+        <Toaster
+            theme={dark ? 'dark' : 'light'}
+            position="top-right"
+            offset={16}
+            mobileOffset={12}
+            visibleToasts={4}
+            closeButton
+            icons={ICONS}
+            toastOptions={{ unstyled: true, classNames: CLASS_NAMES }}
+            containerAriaLabel="Notifications"
+        />
+    );
 }
