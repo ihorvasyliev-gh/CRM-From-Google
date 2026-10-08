@@ -414,7 +414,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     }, []);
 
     const chipCls = (present: boolean) =>
-        `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-mono border transition-colors active:scale-95 ${
+        `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-mono border transition active:scale-95 ${
             present
                 ? 'bg-success/10 text-status-confirmed border-success/25 hover:bg-success/15'
                 : 'bg-surface text-primary border-border-subtle hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400'

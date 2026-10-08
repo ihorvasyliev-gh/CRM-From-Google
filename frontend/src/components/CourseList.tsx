@@ -338,7 +338,7 @@ export default function CourseList() {
                                         type="button"
                                         onClick={(e) => handleToggleEnglish(course, e)}
                                         title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
-                                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition-colors active:scale-95 ${
+                                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
                                             course.requires_english
                                                 ? 'bg-info/10 border-info/30 text-status-invited hover:bg-info/15'
                                                 : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
@@ -351,7 +351,7 @@ export default function CourseList() {
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                         title={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}
-                                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition-colors active:scale-95"
+                                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition active:scale-95"
                                     >
                                         <Users size={12} />
                                         <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
@@ -368,7 +368,7 @@ export default function CourseList() {
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
                                                 title={title}
-                                                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition-colors active:scale-95 ${
+                                                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
                                                     off ? 'bg-warning/10 border-warning/30 text-status-requested' : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
                                                 }`}
                                             >

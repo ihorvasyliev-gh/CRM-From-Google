@@ -966,7 +966,7 @@ export default function ConfirmationPage() {
                                 <button
                                     type="button"
                                     onClick={handleCopyCoordinatorEmail}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-primary/85 hover:text-white bg-surface-elevated hover:bg-border-strong rounded-lg transition-colors active:scale-95 touch-manipulation cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-primary/85 hover:text-white bg-surface-elevated hover:bg-border-strong rounded-lg transition active:scale-95 touch-manipulation cursor-pointer"
                                 >
                                     {copiedCoordinatorEmail ? (
                                         <>
