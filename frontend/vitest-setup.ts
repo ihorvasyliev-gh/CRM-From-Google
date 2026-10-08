@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
+import { ReadableStream as NodeReadableStream } from 'node:stream/web'
+
+// The vmThreads pool gives each file a context without some of Node's web globals; pdf.js
+// streams the text it reads back from generated PDFs
+if (typeof globalThis.ReadableStream === 'undefined') {
+    Object.assign(globalThis, { ReadableStream: NodeReadableStream })
+}
 
 vi.mock('@supabase/supabase-js', () => {
     return {
