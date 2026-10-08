@@ -1,4 +1,5 @@
 import type { JSX } from 'react';
+import AnimatedList from '../ui/AnimatedList';
 import { AlarmClock, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import { ExpiredInviteItem } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
@@ -59,7 +60,7 @@ export default function ExpiredInvitesCard({
                 </div>
             }
         >
-            <ul className="divide-y divide-border-subtle -mx-2">
+            <AnimatedList className="divide-y divide-border-subtle -mx-2">
                 {items.slice(0, MAX_VISIBLE).map(item => (
                     <li key={item.id} className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-surface-elevated transition-colors">
                         <StudentAvatar name={item.studentName} seed={item.studentId} size="sm" />
@@ -99,7 +100,7 @@ export default function ExpiredInvitesCard({
                         </button>
                     </li>
                 ))}
-            </ul>
+            </AnimatedList>
 
             {items.length > MAX_VISIBLE && (
                 <button

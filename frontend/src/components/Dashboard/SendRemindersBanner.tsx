@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BellRing, Check, ChevronDown, Mail } from 'lucide-react';
 import { ReminderItem, untilLabel } from './dashboardUtils';
 import { formatDateLongWithWeekday } from '../../lib/dateUtils';
+import AnimatedList from '../ui/AnimatedList';
 
 export interface SendRemindersBannerProps {
     /** Course dates within a week whose reminder isn't marked as sent (tomorrow's wait for the day-before one) */
@@ -33,7 +34,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                     <p className="text-[11px] text-muted hidden sm:block">Remind confirmed people to come, then mark it as sent</p>
                 </div>
             </div>
-            <ul className="space-y-1.5">
+            <AnimatedList className="space-y-1.5">
                 {shown.map(item => (
                     <li
                         key={`${item.courseId}|${item.date}`}
@@ -64,7 +65,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                         </div>
                     </li>
                 ))}
-            </ul>
+            </AnimatedList>
             {collapsible && (
                 <button
                     type="button"

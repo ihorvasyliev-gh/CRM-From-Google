@@ -7,12 +7,15 @@ import { STATUS_CONFIG } from '../../lib/statusConfig';
 import EnrollmentCard from './EnrollmentCard';
 import { sessionForEnrollment, type CourseSession } from '../../lib/courseSessions';
 import { CustomTooltip } from '../ui/Tooltip';
+import { useCardsAnimation } from '../../hooks/useListAnimation';
 
 // Cards rendered at first, and added each time the list is scrolled near its end. A column shows
 // about six cards at a time; rendering 50 in each of the four columns at once (some 11,000 DOM
 // nodes) blocked a phone for well over a second when the board opened.
 const INITIAL_CARDS = 16;
 const MORE_CARDS = 32;
+/** Cards slide into place while at most this many are rendered in the column */
+const ANIMATED_CARDS_MAX = 48;
 
 interface StatusColumnProps {
     status: string;
@@ -70,6 +73,13 @@ const StatusColumn = function StatusColumn({
     const [visibleCount, setVisibleCount] = useState(INITIAL_CARDS);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+    // Cards slide into place when others leave or arrive; above a few dozen rendered cards
+    // measuring them all on every change would cost more than it shows
+    const animateCards = useCardsAnimation<HTMLDivElement>(Math.min(items.length, visibleCount) <= ANIMATED_CARDS_MAX);
+    const cardsRef = useCallback((node: HTMLDivElement | null) => {
+        scrollContainerRef.current = node;
+        animateCards(node);
+    }, [animateCards]);
 
     // Intersection Observer for reliable infinite scroll
     useEffect(() => {
@@ -189,7 +199,7 @@ const StatusColumn = function StatusColumn({
 
             <div className="flex-1 min-h-0 relative" style={{ minHeight: 0 }}>
                 <div 
-                    ref={scrollContainerRef}
+                    ref={cardsRef}
                     className="status-column-cards p-2 overflow-y-auto space-y-1.5 bg-transparent md:bg-surface overscroll-y-contain touch-pan-y"
                     style={{ height: '100%' }}
                     onScroll={handleScroll}

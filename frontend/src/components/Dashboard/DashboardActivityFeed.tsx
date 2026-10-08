@@ -4,6 +4,8 @@ import DashboardCard from '../ui/Card';
 import StudentAvatar from './StudentAvatar';
 import { relativeDayLabel, type ActivityGroup, type ActivityStatusFilter } from './dashboardUtils';
 import type { NavigateFn } from '../../lib/navigation';
+import AnimatedList from '../ui/AnimatedList';
+import { useListAnimation } from '../../hooks/useListAnimation';
 
 export type ActivityFilter = ActivityStatusFilter;
 export type GroupedActivity = ActivityGroup;
@@ -179,6 +181,8 @@ export default function DashboardActivityFeed({
     totalGroups,
     onShowMore,
 }: DashboardActivityFeedProps): JSX.Element {
+    // Days come and go as activity arrives and filters change
+    const sectionsRef = useListAnimation<HTMLDivElement>();
     const total = totalGroups ?? groupedActivity.length;
     const hasMore = !!onShowMore && total > groupedActivity.length;
 
@@ -291,7 +295,7 @@ export default function DashboardActivityFeed({
                     )}
                 </div>
             ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto -mx-2 px-0 lg:max-h-[720px]">
+                <div ref={sectionsRef} className="flex-1 min-h-0 overflow-y-auto -mx-2 px-0 lg:max-h-[720px]">
                     {sections.map(section => (
                         <div key={section.date}>
                             <div className="sticky top-0 z-10 flex items-center gap-2 px-2 pt-2 pb-1 bg-surface">
@@ -303,7 +307,7 @@ export default function DashboardActivityFeed({
                                     {section.groups.length} {section.groups.length === 1 ? 'student' : 'students'}
                                 </span>
                             </div>
-                            <ul>
+                            <AnimatedList>
                                 {section.groups.map((group, i) => (
                                     <ActivityRow
                                         key={group.key || `${group.studentId}-${group.date}-${i}`}
@@ -312,7 +316,7 @@ export default function DashboardActivityFeed({
                                         onOpenStudentDetail={onOpenStudentDetail}
                                     />
                                 ))}
-                            </ul>
+                            </AnimatedList>
                         </div>
                     ))}
 
