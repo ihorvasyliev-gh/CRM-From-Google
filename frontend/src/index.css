@@ -71,9 +71,6 @@
   --animate-slideUpCenter: slideUpCenter 0.35s cubic-bezier(0.16, 1, 0.3, 1)
     both;
   --animate-slideDown: slideDown 0.25s ease-out;
-  /* Page content on a tab switch. Opacity only: a transform would make the page the
-   * containing block of its position: fixed bars while it plays. */
-  --animate-pageIn: pageIn 0.2s ease-out;
   /* Exits (usePresence): short and accelerating, held at the end until the layer unmounts */
   --animate-fadeOut: fadeOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
   --animate-scaleOut: scaleOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
@@ -166,11 +163,6 @@
     to {
       opacity: 1;
       transform: translateY(0);
-    }
-  }
-  @keyframes pageIn {
-    from {
-      opacity: 0;
     }
   }
   @keyframes fadeOut {
@@ -469,6 +461,24 @@
 
   ::view-transition-new(root) {
     animation-name: fade-in;
+  }
+
+  /* Tab switch (App.tsx, <ViewTransition> around each page): the old page fades out quickly,
+   * the new one fades in rising a little. These run on snapshots, so the transform can't
+   * disturb the page's own position: fixed bars. */
+  ::view-transition-old(.page-exit) {
+    animation: 120ms cubic-bezier(0.4, 0, 1, 1) both fade-out;
+  }
+
+  ::view-transition-new(.page-enter) {
+    animation: 260ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both page-enter;
+  }
+
+  @keyframes page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
 
   @keyframes fade-out {

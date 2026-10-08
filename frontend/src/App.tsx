@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense, useTransition } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, Suspense, useTransition, Activity, ViewTransition, type ReactNode } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -74,6 +74,36 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
 ];
 const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
+/**
+ * Admin pages kept alive once visited (React <Activity>): coming back shows them at once, with
+ * their filters, search, drafts and scroll position. Pages that take their start from the
+ * navigation (the board's course filter…) or the URL are mounted fresh each time instead.
+ */
+const KEPT_PAGES = new Set(['dashboard', 'students', 'analytics', 'documents', 'settings']);
+
+const PAGE_SPINNER = (
+    <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
+    </div>
+);
+
+/**
+ * One page of the shell. A tab switch runs as a view transition: the old page fades out and the
+ * new one fades in, rising a little (index.css, .page-exit / .page-enter). A page that crashes
+ * shows its error here; the sidebar and other tabs keep working.
+ */
+function PageView({ children }: { children: ReactNode }) {
+    return (
+        <ViewTransition default="none" enter="page-enter" exit="page-exit">
+            <div className="flex-1 w-full min-h-0 flex flex-col">
+                <ErrorBoundary inline>
+                    <Suspense fallback={PAGE_SPINNER}>{children}</Suspense>
+                </ErrorBoundary>
+            </div>
+        </ViewTransition>
+    );
+}
+
 function App() {
     const { user, loading, signOut } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -135,6 +165,26 @@ function App() {
     const viewerDrawerMount = useDialogMount(!!viewerDrawer.currentId);
     const shownStudentDetail = useLastPresent(globalStudentDetail);
     const { mounted: overlayMounted, closing: overlayClosing, ref: overlayRef } = usePresence(sidebarOpen && !isViewer);
+
+    // Kept pages: mounted on the first visit, then hidden and shown
+    const keptPage = !isViewer && KEPT_PAGES.has(activeTab);
+    const [visitedPages, setVisitedPages] = useState<string[]>([]);
+    if (keptPage && !visitedPages.includes(activeTab)) setVisitedPages([...visitedPages, activeTab]);
+
+    // Every page scrolls in the same column: a kept page comes back where it was left, any
+    // other page starts at the top
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollPositions = useRef(new Map<string, number>());
+    const scrolledTab = useRef(activeTab);
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (!el || scrolledTab.current === activeTab) return;
+        scrolledTab.current = activeTab;
+        el.scrollTop = keptPage ? scrollPositions.current.get(activeTab) ?? 0 : 0;
+    }, [activeTab, keptPage]);
+    const rememberScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        scrollPositions.current.set(scrolledTab.current, e.currentTarget.scrollTop);
+    }, []);
 
     const { darkMode, toggleDarkMode } = useTheme();
     // Owned here; Settings gets it as props
@@ -199,6 +249,39 @@ function App() {
             </NetworkStatusProvider>
         );
     }
+
+    // Routes of the pages mounted per visit, and the redirects ("/", unknown paths). Kept pages
+    // render above (KEPT_PAGES), so their routes are empty here.
+    const routes = (
+        <Routes>
+            {isViewer ? (
+                <>
+                    <Route path="/home" element={<ViewerHome onOpenSearch={() => setCommandPaletteOpen(true)} />} />
+                    <Route path="/students" element={<ViewerStudentsDirectory />} />
+                    <Route path="/courses" element={<ViewerCourses />} />
+                    <Route path="/courses/:courseId" element={<ViewerCourses />} />
+                    <Route path="/external-lists" element={<OutreachLists />} />
+                    <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} />} />
+                    <Route path="/lookup" element={<Navigate to="/students" replace />} />
+                    <Route path="*" element={<Navigate to="/home" replace />} />
+                </>
+            ) : (
+                <>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={null} />
+                    <Route path="/students" element={null} />
+                    <Route path="/courses" element={<CourseList />} />
+                    <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} initialStatus={navState?.status} />} />
+                    <Route path="/outcomes" element={<OutcomesList />} />
+                    <Route path="/documents" element={null} />
+                    <Route path="/analytics" element={null} />
+                    <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
+                    <Route path="/settings" element={null} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </>
+            )}
+        </Routes>
+    );
 
     return (
         <NetworkStatusProvider>
@@ -341,7 +424,7 @@ function App() {
                 {/* Only the board manages its own (per-column) scrolling; every other page scrolls here.
                     (The dashboard used to be overflow-hidden on desktop, cutting off everything below the fold.) */}
                 {/* No z-index on this column: page-level dialogs and drawers must layer above the sidebar */}
-                <div className={`flex-1 flex flex-col h-screen relative min-w-0 ${
+                <div ref={scrollRef} onScroll={rememberScroll} className={`flex-1 flex flex-col h-screen relative min-w-0 ${
                     activeTab === 'enrollments' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* Notification Permission Banner */}
@@ -477,58 +560,27 @@ function App() {
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
                             : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'
                     }`}>
-                        {/* A page that crashes shows its error here; the sidebar and other tabs keep working */}
-                        <ErrorBoundary inline key={activeTab}>
-                        <Suspense fallback={
-                            <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
-                                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
-                            </div>
-                        }>
-                            {/* Fades the page in on a tab switch (remounted with the ErrorBoundary above) */}
-                            <div className="flex-1 w-full min-h-0 flex flex-col animate-pageIn">
-                            <Routes>
-                                {isViewer ? (
-                                    <>
-                                        <Route path="/home" element={<ViewerHome onOpenSearch={() => setCommandPaletteOpen(true)} />} />
-                                        <Route path="/students" element={<ViewerStudentsDirectory />} />
-                                        <Route path="/courses" element={<ViewerCourses />} />
-                                        <Route path="/courses/:courseId" element={<ViewerCourses />} />
-                                        <Route path="/external-lists" element={<OutreachLists />} />
-                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} />} />
-                                        <Route path="/lookup" element={<Navigate to="/students" replace />} />
-                                        <Route path="*" element={<Navigate to="/home" replace />} />
-                                    </>
-                                ) : (
-                                    <>
-                                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                                        <Route
-                                            path="/dashboard"
-                                            element={
-                                                <Dashboard
-                                                    onNavigate={navigate}
-                                                    onOpenStudentDetail={handleOpenStudentDetail}
-                                                    pendingApprovalsCount={pendingApprovalsCount}
-                                                    onOpenApprovals={() => setApprovalsModalOpen(true)}
-                                                    onAddStudent={() => setGlobalAddStudentOpen(true)}
-                                                    onAddEnrollment={() => setGlobalEnrollModalOpen(true)}
-                                                />
-                                            }
+                        {!isViewer && visitedPages.map(tab => (
+                            <Activity key={tab} mode={tab === activeTab ? 'visible' : 'hidden'}>
+                                <PageView>
+                                    {tab === 'dashboard' && (
+                                        <Dashboard
+                                            onNavigate={navigate}
+                                            onOpenStudentDetail={handleOpenStudentDetail}
+                                            pendingApprovalsCount={pendingApprovalsCount}
+                                            onOpenApprovals={() => setApprovalsModalOpen(true)}
+                                            onAddStudent={() => setGlobalAddStudentOpen(true)}
+                                            onAddEnrollment={() => setGlobalEnrollModalOpen(true)}
                                         />
-                                        <Route path="/students" element={<StudentList onNavigate={navigate} />} />
-                                        <Route path="/courses" element={<CourseList />} />
-                                        <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} initialStatus={navState?.status} />} />
-                                        <Route path="/outcomes" element={<OutcomesList />} />
-                                        <Route path="/documents" element={<DocumentGenerator />} />
-                                        <Route path="/analytics" element={<Analytics />} />
-                                        <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
-                                        <Route path="/settings" element={<Settings density={density} onDensityChange={setDensity} />} />
-                                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                                    </>
-                                )}
-                            </Routes>
-                            </div>
-                        </Suspense>
-                        </ErrorBoundary>
+                                    )}
+                                    {tab === 'students' && <StudentList onNavigate={navigate} />}
+                                    {tab === 'analytics' && <Analytics />}
+                                    {tab === 'documents' && <DocumentGenerator />}
+                                    {tab === 'settings' && <Settings density={density} onDensityChange={setDensity} />}
+                                </PageView>
+                            </Activity>
+                        ))}
+                        {keptPage ? routes : <PageView key={activeTab}>{routes}</PageView>}
                     </main>
                 </div>
             </div>
