@@ -10,7 +10,7 @@ import { formatDateDMY, formatDateLongWithWeekday, todayISO } from '../lib/dateU
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
 import { STATUS_CONFIG } from '../lib/statusConfig';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
 import MergeModal from './MergeModal';
 import { CalendarPanel } from './ui/DatePicker';
 import { notify } from '../lib/toast';
@@ -40,6 +40,8 @@ interface Enrollment {
 }
 
 interface Props {
+    /** False while it animates out (the parent keeps it mounted with the last student) */
+    open?: boolean;
     student: Student;
     onClose: () => void;
     onEdit?: () => void;
@@ -233,14 +235,12 @@ function InlineEditField({
 }
 
 
-export default function StudentDetail({ student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
+export default function StudentDetail({ open = true, student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const queryClient = useQueryClient();
     const courseSessions = useCourseSessions();
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
     const [busyEnrollmentId, setBusyEnrollmentId] = useState<string | null>(null);
-
-    useModalBehavior(true, onClose);
 
     // Keyed under ['enrollments', …] so every global enrollments invalidation (realtime sync,
     // board actions, new enrollment modal) refreshes this drawer automatically.
@@ -385,9 +385,16 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-end overflow-hidden animate-fadeIn">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={onClose} />
-            <div className="relative w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-float overflow-y-auto sm:mr-4 animate-slideUp sm:animate-slideInRight pb-[max(env(safe-area-inset-bottom),1rem)]">
+        <>
+            <DialogLayer
+                open={open}
+                onClose={onClose}
+                label={`Student ${fullName(student)}`}
+                className="z-50 flex items-end sm:items-center sm:justify-end overflow-hidden"
+                panelClassName="w-full sm:w-96 max-h-[92vh] sm:max-h-[85vh] h-auto bg-surface border border-border-subtle rounded-t-2xl sm:rounded-2xl shadow-float overflow-y-auto overscroll-contain sm:mr-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+                enter="animate-slideUp sm:animate-slideInRight"
+                exit="animate-sheetSlideDown sm:animate-slideOutRight"
+            >
                 {/* Mobile pull handle */}
                 <div className="w-10 h-1 bg-border-strong rounded-full mx-auto my-2.5 sm:hidden" />
 
@@ -707,14 +714,14 @@ export default function StudentDetail({ student, onClose, onEdit, onDelete, onEn
                         )}
                     </div>
                 </div>
-            </div>
+            </DialogLayer>
             <MergeModal
                 open={mergeModalOpen}
                 student={student}
                 onClose={() => setMergeModalOpen(false)}
                 onSuccess={onClose}
             />
-        </div>
+        </>
     );
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
 import { 
     LayoutDashboard, 
     GraduationCap, 
@@ -55,7 +55,7 @@ export default function MobileBottomNav({
     userEmail
 }: MobileBottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
-    useModalBehavior(moreOpen, () => setMoreOpen(false));
+    const closeMore = () => setMoreOpen(false);
 
     if (isViewer) {
         return (
@@ -112,68 +112,70 @@ export default function MobileBottomNav({
                 </nav>
 
                 {/* More Drawer for Viewer */}
-                {moreOpen && (
-                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fadeIn lg:hidden" onClick={() => setMoreOpen(false)}>
-                        <div 
-                            className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float animate-slideUp"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="w-10 h-1 bg-border-strong rounded-full mx-auto mb-4" />
-                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-border-subtle">
-                                <div className="min-w-0">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-muted">Viewer Portal</p>
-                                    <p className="text-sm font-semibold text-primary truncate">{userEmail}</p>
-                                </div>
-                                <button onClick={() => setMoreOpen(false)} className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors">
-                                    <X size={18} />
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('external-lists'); }}
-                                aria-current={activeTab === 'external-lists' ? 'page' : undefined}
-                                className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
-                            >
-                                <ListChecks size={16} className="text-emerald-500" />
-                                <span>External Lists</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
-                                aria-current={activeTab === 'pdf-forms' ? 'page' : undefined}
-                                className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
-                            >
-                                <FileInput size={16} className="text-violet-500" />
-                                <span>PDF Forms</span>
-                            </button>
-
-                            <div className="grid grid-cols-2 gap-2 mb-4">
-                                <button
-                                    onClick={toggleDarkMode}
-                                    className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all"
-                                >
-                                    {darkMode ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-brand-500" />}
-                                    <span>Theme: {darkMode ? 'Dark' : 'Light'}</span>
-                                </button>
-                                <button
-                                    onClick={toggleDensity}
-                                    className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all capitalize"
-                                >
-                                    <Rows3 size={16} className="text-brand-500" />
-                                    <span>{density} View</span>
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={onSignOut}
-                                className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all"
-                            >
-                                <LogOut size={16} />
-                                <span>Sign Out</span>
-                            </button>
+                <DialogLayer
+                    open={moreOpen}
+                    onClose={closeMore}
+                    label="More"
+                    className="z-50 flex items-end justify-center lg:hidden"
+                    backdropClassName="bg-black/50"
+                    panelClassName="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float"
+                    enter="animate-slideUp"
+                    exit="animate-sheetSlideDown"
+                >
+                    <div className="w-10 h-1 bg-border-strong rounded-full mx-auto mb-4" />
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border-subtle">
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-wider text-muted">Viewer Portal</p>
+                            <p className="text-sm font-semibold text-primary truncate">{userEmail}</p>
                         </div>
+                        <button onClick={closeMore} className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors">
+                            <X size={18} />
+                        </button>
                     </div>
-                )}
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('external-lists'); }}
+                        aria-current={activeTab === 'external-lists' ? 'page' : undefined}
+                        className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
+                    >
+                        <ListChecks size={16} className="text-emerald-500" />
+                        <span>External Lists</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
+                        aria-current={activeTab === 'pdf-forms' ? 'page' : undefined}
+                        className="w-full flex items-center gap-2 p-3 mb-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-primary transition-all"
+                    >
+                        <FileInput size={16} className="text-violet-500" />
+                        <span>PDF Forms</span>
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <button
+                            onClick={toggleDarkMode}
+                            className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all"
+                        >
+                            {darkMode ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-brand-500" />}
+                            <span>Theme: {darkMode ? 'Dark' : 'Light'}</span>
+                        </button>
+                        <button
+                            onClick={toggleDensity}
+                            className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all capitalize"
+                        >
+                            <Rows3 size={16} className="text-brand-500" />
+                            <span>{density} View</span>
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={onSignOut}
+                        className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all"
+                    >
+                        <LogOut size={16} />
+                        <span>Sign Out</span>
+                    </button>
+                </DialogLayer>
             </>
         );
     }
@@ -263,161 +265,160 @@ export default function MobileBottomNav({
             </nav>
 
             {/* More Drawer Sheet */}
-            {moreOpen && (
-                <div 
-                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-fadeIn lg:hidden"
-                    onClick={() => setMoreOpen(false)}
-                >
-                    <div 
-                        className="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float animate-slideUp max-h-[85vh] overflow-y-auto"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Pull handle */}
-                        <div className="w-10 h-1 bg-border-strong rounded-full mx-auto mb-3" />
+            <DialogLayer
+                open={moreOpen}
+                onClose={closeMore}
+                label="All Sections & Tools"
+                className="z-50 flex items-end justify-center lg:hidden"
+                backdropClassName="bg-black/50"
+                panelClassName="w-full max-w-lg bg-surface border-t border-border-subtle rounded-t-2xl p-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] shadow-float max-h-[85vh] overflow-y-auto overscroll-contain"
+                enter="animate-slideUp"
+                exit="animate-sheetSlideDown"
+            >
+                {/* Pull handle */}
+                <div className="w-10 h-1 bg-border-strong rounded-full mx-auto mb-3" />
 
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border-subtle">
-                            <div>
-                                <h3 className="font-bold text-sm text-primary">All Sections & Tools</h3>
-                                <p className="text-[11px] text-muted">{userEmail}</p>
-                            </div>
-                            <button 
-                                onClick={() => setMoreOpen(false)} 
-                                className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Pending Approvals Notice if any */}
-                        {pendingApprovalsCount > 0 && (
-                            <button
-                                onClick={() => {
-                                    setMoreOpen(false);
-                                    onOpenApprovals?.();
-                                }}
-                                className="w-full mb-3 flex items-center justify-between p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-status-requested transition-all active:scale-[0.99] shadow-2xs"
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <Clock size={16} className="text-status-requested animate-spin-slow" />
-                                    <span className="text-xs font-bold">
-                                        {pendingApprovalsCount} Course Completion{pendingApprovalsCount > 1 ? 's' : ''} Pending
-                                    </span>
-                                </div>
-                                <span className="text-[11px] font-bold underline">Review</span>
-                            </button>
-                        )}
-
-                        {/* Navigation Grid */}
-                        <div className="grid grid-cols-2 gap-2 mb-4">
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('analytics'); }}
-                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                                    activeTab === 'analytics'
-                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
-                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
-                                }`}
-                            >
-                                <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-500">
-                                    <PieChart size={15} />
-                                </div>
-                                <span>Analytics</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('outcomes'); }}
-                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                                    activeTab === 'outcomes'
-                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
-                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
-                                }`}
-                            >
-                                <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-500">
-                                    <Briefcase size={15} />
-                                </div>
-                                <span>Outcomes</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('documents'); }}
-                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                                    activeTab === 'documents'
-                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
-                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
-                                }`}
-                            >
-                                <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                                    <FileText size={15} />
-                                </div>
-                                <span>Documents</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
-                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                                    activeTab === 'pdf-forms'
-                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
-                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
-                                }`}
-                            >
-                                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
-                                    <FileInput size={15} />
-                                </div>
-                                <span>PDF Forms</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onNavigate('settings'); }}
-                                className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
-                                    activeTab === 'settings'
-                                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
-                                        : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
-                                }`}
-                            >
-                                <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
-                                    <SettingsIcon size={15} />
-                                </div>
-                                <span>Settings</span>
-                            </button>
-                        </div>
-
-                        {/* Quick Preferences & Utilities */}
-                        <div className="grid grid-cols-3 gap-2 mb-4 pt-3 border-t border-border-subtle">
-                            <button
-                                onClick={toggleDarkMode}
-                                className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all"
-                            >
-                                {darkMode ? <Sun size={16} className="text-amber-400 mb-1" /> : <Moon size={16} className="text-brand-500 mb-1" />}
-                                <span>{darkMode ? 'Dark' : 'Light'}</span>
-                            </button>
-
-                            <button
-                                onClick={toggleDensity}
-                                className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all capitalize"
-                            >
-                                <Rows3 size={16} className="text-brand-500 mb-1" />
-                                <span>{density}</span>
-                            </button>
-
-                            <button
-                                onClick={() => { setMoreOpen(false); onOpenShortcuts(); }}
-                                className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all"
-                            >
-                                <HelpCircle size={16} className="text-blue-400 mb-1" />
-                                <span>Shortcuts</span>
-                            </button>
-                        </div>
-
-                        {/* Sign Out */}
-                        <button
-                            onClick={onSignOut}
-                            className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all active:scale-[0.99]"
-                        >
-                            <LogOut size={16} />
-                            <span>Sign Out</span>
-                        </button>
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-border-subtle">
+                    <div>
+                        <h3 className="font-bold text-sm text-primary">All Sections & Tools</h3>
+                        <p className="text-[11px] text-muted">{userEmail}</p>
                     </div>
+                    <button 
+                        onClick={closeMore} 
+                        className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
                 </div>
-            )}
+
+                {/* Pending Approvals Notice if any */}
+                {pendingApprovalsCount > 0 && (
+                    <button
+                        onClick={() => {
+                            setMoreOpen(false);
+                            onOpenApprovals?.();
+                        }}
+                        className="w-full mb-3 flex items-center justify-between p-3 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-status-requested transition-all active:scale-[0.99] shadow-2xs"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <Clock size={16} className="text-status-requested animate-spin-slow" />
+                            <span className="text-xs font-bold">
+                                {pendingApprovalsCount} Course Completion{pendingApprovalsCount > 1 ? 's' : ''} Pending
+                            </span>
+                        </div>
+                        <span className="text-[11px] font-bold underline">Review</span>
+                    </button>
+                )}
+
+                {/* Navigation Grid */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('analytics'); }}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                            activeTab === 'analytics'
+                                ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                        }`}
+                    >
+                        <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-500">
+                            <PieChart size={15} />
+                        </div>
+                        <span>Analytics</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('outcomes'); }}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                            activeTab === 'outcomes'
+                                ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                        }`}
+                    >
+                        <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-500">
+                            <Briefcase size={15} />
+                        </div>
+                        <span>Outcomes</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('documents'); }}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                            activeTab === 'documents'
+                                ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                        }`}
+                    >
+                        <div className="p-1.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                            <FileText size={15} />
+                        </div>
+                        <span>Documents</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('pdf-forms'); }}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                            activeTab === 'pdf-forms'
+                                ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                        }`}
+                    >
+                        <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                            <FileInput size={15} />
+                        </div>
+                        <span>PDF Forms</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onNavigate('settings'); }}
+                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold transition-all ${
+                            activeTab === 'settings'
+                                ? 'bg-brand-500/10 border-brand-500/40 text-brand-600 dark:text-brand-400'
+                                : 'bg-surface hover:bg-surface-elevated border-border-subtle text-primary'
+                        }`}
+                    >
+                        <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
+                            <SettingsIcon size={15} />
+                        </div>
+                        <span>Settings</span>
+                    </button>
+                </div>
+
+                {/* Quick Preferences & Utilities */}
+                <div className="grid grid-cols-3 gap-2 mb-4 pt-3 border-t border-border-subtle">
+                    <button
+                        onClick={toggleDarkMode}
+                        className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all"
+                    >
+                        {darkMode ? <Sun size={16} className="text-amber-400 mb-1" /> : <Moon size={16} className="text-brand-500 mb-1" />}
+                        <span>{darkMode ? 'Dark' : 'Light'}</span>
+                    </button>
+
+                    <button
+                        onClick={toggleDensity}
+                        className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all capitalize"
+                    >
+                        <Rows3 size={16} className="text-brand-500 mb-1" />
+                        <span>{density}</span>
+                    </button>
+
+                    <button
+                        onClick={() => { setMoreOpen(false); onOpenShortcuts(); }}
+                        className="flex flex-col items-center justify-center p-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-[11px] font-medium text-primary transition-all"
+                    >
+                        <HelpCircle size={16} className="text-blue-400 mb-1" />
+                        <span>Shortcuts</span>
+                    </button>
+                </div>
+
+                {/* Sign Out */}
+                <button
+                    onClick={onSignOut}
+                    className="w-full flex items-center justify-center gap-2 p-3 bg-danger/10 hover:bg-danger/20 text-status-rejected font-bold rounded-xl text-xs transition-all active:scale-[0.99]"
+                >
+                    <LogOut size={16} />
+                    <span>Sign Out</span>
+                </button>
+            </DialogLayer>
         </>
     );
 }

@@ -6,7 +6,7 @@ import { fetchCourses } from '../lib/queries';
 import { useDebounce } from '../hooks/useDebounce';
 import { useViewerCourses } from './Viewer/useViewerData';
 import { matchesSearch, buildStudentSearchFilters } from '../lib/searchUtils';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
 import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
     Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
@@ -99,8 +99,6 @@ export default function CommandPalette({
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
-
-    useModalBehavior(open, onClose);
 
     // Reset query & focus input on open
     useEffect(() => {
@@ -362,146 +360,140 @@ export default function CommandPalette({
         }
     }, [selectedIndex]);
 
-    if (!open) return null;
-
     // Group items by category
     const categories = ['Navigation', 'Actions', 'Courses', 'Students'] as const;
 
     return (
-        <div
-            className="fixed inset-0 z-100 flex items-start justify-center pt-[10vh] px-4 animate-fadeIn"
+        <DialogLayer
+            open={open}
+            onClose={onClose}
+            label="Command palette"
             onKeyDown={handleKeyDown}
+            className="z-100 flex items-start justify-center pt-[10vh] px-4"
+            backdropClassName="bg-background/70 backdrop-blur-md"
+            panelClassName="w-full max-w-xl bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden flex flex-col max-h-[75vh]"
         >
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-background/70 backdrop-blur-md transition-opacity"
-                onClick={onClose}
-            />
+            {/* Search Input Bar */}
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle bg-surface/50">
+                <Search size={19} className="text-muted shrink-0" />
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Search students, courses, navigation, or actions..."
+                    className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-hidden focus-visible:shadow-none"
+                />
+                {loadingData && (
+                    <Loader2 size={16} className="animate-spin text-brand-500 shrink-0" />
+                )}
+                {query && (
+                    <button
+                        onClick={() => setQuery('')}
+                        className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors"
+                    >
+                        <X size={15} />
+                    </button>
+                )}
+                <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-semibold text-muted bg-surface border border-border-subtle rounded-md">
+                    ESC
+                </kbd>
+            </div>
 
-            {/* Modal Dialog */}
-            <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden flex flex-col max-h-[75vh] animate-scaleIn">
-                {/* Search Input Bar */}
-                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-subtle bg-surface/50">
-                    <Search size={19} className="text-muted shrink-0" />
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        placeholder="Search students, courses, navigation, or actions..."
-                        className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-hidden focus-visible:shadow-none"
-                    />
-                    {loadingData && (
-                        <Loader2 size={16} className="animate-spin text-brand-500 shrink-0" />
-                    )}
-                    {query && (
-                        <button
-                            onClick={() => setQuery('')}
-                            className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors"
-                        >
-                            <X size={15} />
-                        </button>
-                    )}
-                    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-semibold text-muted bg-surface border border-border-subtle rounded-md">
-                        ESC
-                    </kbd>
-                </div>
+            {/* List of Results */}
+            <div ref={listRef} className="overflow-y-auto flex-1 p-2 space-y-3 divide-y divide-border-subtle/50">
+                {items.length === 0 ? (
+                    <div className="py-12 text-center text-muted">
+                        <Sparkles size={28} className="mx-auto mb-2.5 opacity-40 text-brand-500" />
+                        <p className="text-sm font-medium text-primary">No results found</p>
+                        <p className="text-xs text-muted mt-1">Try searching by student name, email, course, or action.</p>
+                    </div>
+                ) : (
+                    categories.map(cat => {
+                        const catItems = items.filter(item => item.category === cat);
+                        if (catItems.length === 0) return null;
 
-                {/* List of Results */}
-                <div ref={listRef} className="overflow-y-auto flex-1 p-2 space-y-3 divide-y divide-border-subtle/50">
-                    {items.length === 0 ? (
-                        <div className="py-12 text-center text-muted">
-                            <Sparkles size={28} className="mx-auto mb-2.5 opacity-40 text-brand-500" />
-                            <p className="text-sm font-medium text-primary">No results found</p>
-                            <p className="text-xs text-muted mt-1">Try searching by student name, email, course, or action.</p>
-                        </div>
-                    ) : (
-                        categories.map(cat => {
-                            const catItems = items.filter(item => item.category === cat);
-                            if (catItems.length === 0) return null;
+                        return (
+                            <div key={cat} className="pt-2 first:pt-0">
+                                <div className="px-3 py-1.5 text-[11px] font-bold text-muted uppercase tracking-wider">
+                                    {cat}
+                                </div>
+                                <div className="space-y-0.5">
+                                    {catItems.map(item => {
+                                        const globalIndex = items.findIndex(i => i.id === item.id);
+                                        const isSelected = globalIndex === selectedIndex;
 
-                            return (
-                                <div key={cat} className="pt-2 first:pt-0">
-                                    <div className="px-3 py-1.5 text-[11px] font-bold text-muted uppercase tracking-wider">
-                                        {cat}
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        {catItems.map(item => {
-                                            const globalIndex = items.findIndex(i => i.id === item.id);
-                                            const isSelected = globalIndex === selectedIndex;
-
-                                            return (
-                                                <div
-                                                    key={item.id}
-                                                    data-index={globalIndex}
-                                                    onClick={() => item.onSelect()}
-                                                    onMouseEnter={() => setSelectedIndex(globalIndex)}
-                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm cursor-pointer transition-all ${
-                                                        isSelected
-                                                            ? 'bg-brand-500/10 text-brand-500 font-medium'
-                                                            : 'hover:bg-surface/80 text-primary'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-3 min-w-0 pr-2">
-                                                        <span className={`shrink-0 ${isSelected ? 'text-brand-500' : 'text-muted'}`}>
-                                                            {item.icon}
-                                                        </span>
-                                                        <div className="min-w-0">
-                                                            <div className="text-sm font-semibold truncate flex items-center gap-2">
-                                                                <span className={isSelected ? 'text-brand-500' : 'text-primary'}>
-                                                                    {item.title}
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                data-index={globalIndex}
+                                                onClick={() => item.onSelect()}
+                                                onMouseEnter={() => setSelectedIndex(globalIndex)}
+                                                className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm cursor-pointer transition-all ${
+                                                    isSelected
+                                                        ? 'bg-brand-500/10 text-brand-500 font-medium'
+                                                        : 'hover:bg-surface/80 text-primary'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0 pr-2">
+                                                    <span className={`shrink-0 ${isSelected ? 'text-brand-500' : 'text-muted'}`}>
+                                                        {item.icon}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <div className="text-sm font-semibold truncate flex items-center gap-2">
+                                                            <span className={isSelected ? 'text-brand-500' : 'text-primary'}>
+                                                                {item.title}
+                                                            </span>
+                                                            {item.badge && (
+                                                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-brand-500 text-white leading-tight">
+                                                                    {item.badge}
                                                                 </span>
-                                                                {item.badge && (
-                                                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-brand-500 text-white leading-tight">
-                                                                        {item.badge}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {item.subtitle && (
-                                                                <p className="text-xs text-muted truncate">
-                                                                    {item.subtitle}
-                                                                </p>
                                                             )}
                                                         </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                        {item.shortcut && (
-                                                            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md">
-                                                                {item.shortcut}
-                                                            </kbd>
-                                                        )}
-                                                        {isSelected && (
-                                                            <CornerDownLeft size={14} className="text-brand-500" />
+                                                        {item.subtitle && (
+                                                            <p className="text-xs text-muted truncate">
+                                                                {item.subtitle}
+                                                            </p>
                                                         )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
 
-                {/* Footer Tips */}
-                <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-[11px] text-muted">
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                            <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↑</kbd>
-                            <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↓</kbd> Navigate
-                        </span>
-                        <span className="flex items-center gap-1">
-                            <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↵</kbd> Select
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span>Quick search</span>
-                        <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
-                    </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {item.shortcut && (
+                                                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted bg-surface border border-border-subtle rounded-md">
+                                                            {item.shortcut}
+                                                        </kbd>
+                                                    )}
+                                                    {isSelected && (
+                                                        <CornerDownLeft size={14} className="text-brand-500" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Footer Tips */}
+            <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-[11px] text-muted">
+                <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                        <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↑</kbd>
+                        <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↓</kbd> Navigate
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↵</kbd> Select
+                    </span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <span>Quick search</span>
+                    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
                 </div>
             </div>
-        </div>
+        </DialogLayer>
     );
 }

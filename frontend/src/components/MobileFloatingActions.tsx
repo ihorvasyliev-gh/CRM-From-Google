@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useModalBehavior } from '../hooks/useModalBehavior';
+import { usePresence } from '../hooks/usePresence';
 import { Plus, UserPlus, Search, GraduationCap, X } from 'lucide-react';
 
 interface MobileFloatingActionsProps {
@@ -17,6 +18,8 @@ export default function MobileFloatingActions({
 }: MobileFloatingActionsProps) {
     const [open, setOpen] = useState(false);
     useModalBehavior(open, () => setOpen(false));
+    // The menu and its backdrop fade out instead of vanishing
+    const { mounted, closing, ref } = usePresence(open);
 
     // Viewers have Search in the bottom dock; a FAB would only cover list rows and the bulk action bar
     if (isViewer) return null;
@@ -24,17 +27,18 @@ export default function MobileFloatingActions({
     return (
         <div className="lg:hidden fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-30">
             {/* Speed Dial Backdrop */}
-            {open && (
+            {mounted && (
                 <div
-                    className="fixed inset-0 bg-black/40 z-10 animate-fadeIn"
+                    ref={ref}
+                    className={`fixed inset-0 bg-black/40 z-10 ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                     onClick={() => setOpen(false)}
                 />
             )}
 
             <div className="relative z-20 flex flex-col items-end gap-2.5">
                 {/* Speed Dial Menu Items */}
-                {open && (
-                    <div className="flex flex-col items-end gap-2 mb-1 animate-slideUp">
+                {mounted && (
+                    <div inert={closing} className={`flex flex-col items-end gap-2 mb-1 ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-slideUp'}`}>
                         <button
                             onClick={() => {
                                 setOpen(false);

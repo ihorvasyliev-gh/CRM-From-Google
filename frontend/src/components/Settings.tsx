@@ -5,6 +5,7 @@ import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type S
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import UserRolesSection from './UserRolesSection';
 import EmailOptOutSection from './EmailOptOutSection';
 import Card from './ui/Card';
@@ -165,6 +166,9 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     const [selectedStudentForMerge, setSelectedStudentForMerge] = useState<Student | null>(null);
     const [targetStudentForMerge, setTargetStudentForMerge] = useState<Student | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
+    // Kept while it animates out; each opening starts fresh
+    const mergeMount = useDialogMount(mergeModalOpen && !!selectedStudentForMerge);
+    const mergeStudent = useLastPresent(selectedStudentForMerge);
     const [hasScanned, setHasScanned] = useState(false);
     const [markingNonDuplicates, setMarkingNonDuplicates] = useState<string | null>(null);
 
@@ -924,10 +928,11 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             </div>
                         )}
 
-                        {mergeModalOpen && selectedStudentForMerge && (
+                        {mergeMount.mounted && mergeStudent && (
                             <MergeModal
-                                open={mergeModalOpen}
-                                student={selectedStudentForMerge}
+                                key={mergeMount.key}
+                                open={mergeModalOpen && !!selectedStudentForMerge}
+                                student={mergeStudent}
                                 initialTargetStudent={targetStudentForMerge}
                                 onClose={() => {
                                     setMergeModalOpen(false);

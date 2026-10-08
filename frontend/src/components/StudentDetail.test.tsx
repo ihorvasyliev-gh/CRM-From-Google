@@ -89,15 +89,15 @@ describe('StudentDetail Component', () => {
     });
 
     it('renders close button and responds to click', () => {
-        const { container } = renderWithQueryClient(
+        renderWithQueryClient(
             <StudentDetail
                 student={mockStudent}
                 onClose={mockOnClose}
             />
         );
 
-        // Backdrop click closes
-        const backdropBg = container.querySelector('.bg-black\\/40');
+        // Backdrop click closes (the panel is portaled to <body>, the backdrop just before it)
+        const backdropBg = screen.getByRole('dialog').previousElementSibling;
         expect(backdropBg).not.toBeNull();
         fireEvent.click(backdropBg!);
         expect(mockOnClose).toHaveBeenCalled();

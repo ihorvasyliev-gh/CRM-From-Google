@@ -234,7 +234,7 @@ describe('StudentDetailDrawer Component', () => {
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
         await screen.findByText('Jane Doe');
 
-        fireEvent.click(screen.getByTestId('drawer-backdrop'));
+        fireEvent.click(screen.getByRole('dialog').previousElementSibling!);
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 

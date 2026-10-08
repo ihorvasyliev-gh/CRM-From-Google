@@ -15,6 +15,7 @@ import { useNextSessionByCourse, useViewerCourses, useViewerUpcoming } from './u
 import { useUrlParams, useUrlSearchInput } from './useUrlParams';
 import { usePublishStudentList, useStudentDrawer } from './studentDrawer';
 import CompletionRequestModal, { type CompletionTarget } from './CompletionRequestModal';
+import { useDialogMount, useLastPresent } from '../../hooks/usePresence';
 import {
     Avatar, Button, CopyText, EmptyState, ErrorState, FilterChip, PriorityStar, SearchField,
     Segmented, SelectField, SkeletonRows, StatusBadge, StatusDistributionBar, type SegmentOption,
@@ -197,6 +198,8 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
 
     // ── Actions ──────────────────────────────────────────────
     const [completionTargets, setCompletionTargets] = useState<CompletionTarget[] | null>(null);
+    const completionMount = useDialogMount(!!completionTargets);
+    const shownTargets = useLastPresent(completionTargets);
     const [exporting, setExporting] = useState(false);
 
     const toTarget = (r: ViewerCourseRosterItem): CompletionTarget => ({ enrollmentId: r.enrollment_id, name: fullName(r), sessionDate: sessionDate(r) });
@@ -461,9 +464,11 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
                 </div>
             )}
 
-            {completionTargets && (
+            {completionMount.mounted && shownTargets && (
                 <CompletionRequestModal
-                    targets={completionTargets}
+                    key={completionMount.key}
+                    open={!!completionTargets}
+                    targets={shownTargets}
                     context={courseName}
                     onClose={() => setCompletionTargets(null)}
                     onSubmitted={clearSelection}

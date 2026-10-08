@@ -10,6 +10,7 @@ import { Button, IconButton } from './ui/Button';
 import { EmptyState } from './ui/States';
 import { Course, CourseEmailInfo, getAvatarGradient } from '../lib/types';
 import CourseModal from './CourseModal';
+import { useDialogMount } from '../hooks/usePresence';
 import ConfirmDialog from './ConfirmDialog';
 import { notify } from '../lib/toast';
 import { useDebounce } from '../hooks/useDebounce';
@@ -140,6 +141,8 @@ export default function CourseList() {
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
     const [modalOpen, setModalOpen] = useState(false);
+    // Kept while it animates out; each opening starts fresh
+    const courseModalMount = useDialogMount(modalOpen);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
 
@@ -387,9 +390,10 @@ export default function CourseList() {
                 </div>
             )}
 
-            {modalOpen && (
+            {courseModalMount.mounted && (
                 <CourseModal
-                    open={true}
+                    key={courseModalMount.key}
+                    open={modalOpen}
                     course={editingCourse}
                     templates={activeTemplates}
                     onSave={handleSave}

@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, type KeyboardEventHandler, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useModalBehavior } from '../../hooks/useModalBehavior';
 import { usePresence } from '../../hooks/usePresence';
@@ -21,6 +21,8 @@ export interface DialogLayerProps {
     label?: string;
     labelledBy?: string;
     describedBy?: string;
+    /** Keys pressed inside the dialog (list navigation…) */
+    onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
     children: ReactNode;
 }
 
@@ -46,12 +48,15 @@ export default function DialogLayer({
     label,
     labelledBy,
     describedBy,
+    onKeyDown,
     children,
 }: DialogLayerProps) {
     const panelRef = useRef<HTMLDivElement>(null);
     useModalBehavior(open, onClose, { closeOnEscape: dismissible, trapFocus: panelRef });
     const { mounted, closing, ref } = usePresence(open);
     if (!mounted) return null;
+    // Above the backdrop: positioned, unless the panel places itself (a drawer pinned to an edge)
+    const position = /\b(absolute|fixed)\b/.test(panelClassName) ? '' : 'relative';
 
     return createPortal(
         <div ref={ref} inert={closing} className={`fixed inset-0 ${className} ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}>
@@ -64,7 +69,8 @@ export default function DialogLayer({
                 aria-labelledby={labelledBy}
                 aria-describedby={describedBy}
                 tabIndex={-1}
-                className={`relative outline-none ${panelClassName} ${closing ? exit : enter}`}
+                onKeyDown={onKeyDown}
+                className={`${position} outline-none ${panelClassName} ${closing ? exit : enter}`}
             >
                 <Freeze frozen={closing}>{children}</Freeze>
             </div>

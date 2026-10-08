@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQueryClient, keepPreviousData, type InfiniteData }
 import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import EnrollmentModal from './EnrollmentModal';
 import ConfirmDialog from './ConfirmDialog';
 import { notify } from '../lib/toast';
@@ -85,7 +86,11 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const [studentModalOpen, setStudentModalOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<StudentFormData | null>(null);
     const [detailStudent, setDetailStudent] = useState<Student | null>(null);
+    // Dialogs stay mounted while they animate out; each opening starts fresh
+    const shownDetail = useLastPresent(detailStudent);
+    const studentModalMount = useDialogMount(studentModalOpen);
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
+    const enrollModalMount = useDialogMount(enrollModalOpen);
     const [enrollStudentId, setEnrollStudentId] = useState<string | undefined>();
     const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
 
@@ -428,29 +433,32 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 </div>
             </div>
 
-            {detailStudent && (
+            {shownDetail && (
                 <StudentDetail
-                    student={detailStudent}
+                    open={!!detailStudent}
+                    student={shownDetail}
                     onClose={() => setDetailStudent(null)}
-                    onEdit={() => openEdit(detailStudent)}
-                    onDelete={() => setDeleteTarget(detailStudent)}
+                    onEdit={() => openEdit(shownDetail)}
+                    onDelete={() => setDeleteTarget(shownDetail)}
                     onEnroll={openEnrollFromDetail}
                     onStudentUpdated={updateStudentInCache}
                     onNavigate={onNavigate}
                 />
             )}
 
-            {studentModalOpen && (
+            {studentModalMount.mounted && (
                 <StudentModal
-                    open={true}
+                    key={studentModalMount.key}
+                    open={studentModalOpen}
                     student={editingStudent}
                     onSave={handleSaveStudent}
                     onClose={() => setStudentModalOpen(false)}
                 />
             )}
-            {enrollModalOpen && (
+            {enrollModalMount.mounted && (
                 <EnrollmentModal
-                    open={true}
+                    key={enrollModalMount.key}
+                    open={enrollModalOpen}
                     preselectedStudentId={enrollStudentId}
                     onSave={() => {
                         notify({ message: 'Enrollment created', type: 'success' });

@@ -40,3 +40,29 @@ export function usePresence<T extends HTMLElement = HTMLDivElement>(open: boolea
 
     return { mounted: open || shown, closing: !open && shown, ref };
 }
+
+/**
+ * For a dialog its parent mounts only while it is open (`{open && <Dialog open />}`, often lazy):
+ * keeps it mounted after the first opening so it can animate out, and gives every opening a new
+ * `key`, so it still starts fresh each time.
+ */
+export function useDialogMount(open: boolean): { mounted: boolean; key: number } {
+    const [openings, setOpenings] = useState(open ? 1 : 0);
+    const [wasOpen, setWasOpen] = useState(open);
+    if (open !== wasOpen) {
+        setWasOpen(open);
+        if (open) setOpenings(n => n + 1);
+    }
+    return { mounted: openings > 0, key: openings };
+}
+
+/**
+ * The value, or while it is empty the last one it had: what a closing dialog keeps showing when
+ * its parent clears the data together with `open`. Pass state or props, not an object built
+ * during render.
+ */
+export function useLastPresent<T>(value: T | null | undefined): T | null | undefined {
+    const [last, setLast] = useState(value);
+    if (value != null && value !== last) setLast(value);
+    return value ?? last;
+}

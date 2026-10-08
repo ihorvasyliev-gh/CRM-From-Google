@@ -8,7 +8,8 @@ import { usePersistentState } from '../hooks/usePersistentState';
 
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
 import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
-import { useModalBehavior, isAnyModalOpen } from '../hooks/useModalBehavior';
+import { isAnyModalOpen } from '../hooks/useModalBehavior';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { useBulkActions } from '../hooks/useBulkActions';
 import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useCourseSessions } from '../hooks/useCourseSessions';
@@ -455,12 +456,14 @@ export default function EnrollmentBoard({
         }
     }
 
-    // Escape / focus handling for the board's inline modals
-    const closeInviteModal = useCallback(() => inviteFlow.setInviteDateTarget(null), [inviteFlow]);
-    useModalBehavior(!!inviteFlow.inviteDateTarget, closeInviteModal);
-    useModalBehavior(!!confirmDateTarget, () => { if (!confirmingDate) setConfirmDateTarget(null); });
-    useModalBehavior(!!editNoteTarget, () => setEditNoteTarget(null));
-    useModalBehavior(!!flagModalTarget, () => setFlagModalTarget(null));
+    // The flag dialog is mounted per opening (fresh form) and kept while it animates out
+    const flagMount = useDialogMount(!!flagModalTarget);
+    const flagTarget = useLastPresent(flagModalTarget);
+    // The others keep what they showed while they animate out
+    const enrollModalMount = useDialogMount(enrollModalOpen);
+    const shownDetail = useLastPresent(detailStudent);
+    const shownMove = useLastPresent(confirmMoveTarget);
+    const shownBulkMove = useLastPresent(bulkConfirmMoveTarget);
 
     // Escape clears the bulk selection when nothing else is open
     const hasSelection = bulkActions.selectedIds.size > 0;
@@ -928,9 +931,10 @@ export default function EnrollmentBoard({
 
             <ConfirmDateModal target={confirmDateTarget} date={confirmDate} onDateChange={setConfirmDate} busy={confirmingDate} onConfirm={handleConfirmWithDate} onClose={() => setConfirmDateTarget(null)} savedDates={inviteFlow.savedInviteDates} getDateStats={inviteFlow.getDateStats} />
 
-            {enrollModalOpen && (
+            {enrollModalMount.mounted && (
                 <EnrollmentModal
-                    open={true}
+                    key={enrollModalMount.key}
+                    open={enrollModalOpen}
                     preselectedStudentId={enrollStudentId}
                     onSave={() => {
                         enrollmentsHook.fetchEnrollments();
@@ -970,13 +974,13 @@ export default function EnrollmentBoard({
                 onCancel={() => setBulkDeleteOpen(false)}
             />
 
-            {confirmMoveTarget && (() => {
-                const enrollment = enrollments.find(e => e.id === confirmMoveTarget.enrollmentId);
+            {shownMove && (() => {
+                const enrollment = enrollments.find(e => e.id === shownMove.enrollmentId);
                 const name = fullName(enrollment?.students) || 'this student';
-                const targetLabel = STATUS_CONFIG[confirmMoveTarget.newStatus]?.label || confirmMoveTarget.newStatus;
+                const targetLabel = STATUS_CONFIG[shownMove.newStatus]?.label || shownMove.newStatus;
                 return (
                     <ConfirmDialog
-                        open={true}
+                        open={!!confirmMoveTarget}
                         title="Move from Confirmed"
                         message={`Are you sure you want to move ${name} from Confirmed to ${targetLabel}?`}
                         confirmLabel="Move"
@@ -987,15 +991,15 @@ export default function EnrollmentBoard({
                 );
             })()}
 
-            {bulkConfirmMoveTarget && (() => {
-                const targetLabel = STATUS_CONFIG[bulkConfirmMoveTarget.newStatus]?.label || bulkConfirmMoveTarget.newStatus;
-                const isAllConfirmed = bulkConfirmMoveTarget.confirmedCount === bulkConfirmMoveTarget.totalCount;
+            {shownBulkMove && (() => {
+                const targetLabel = STATUS_CONFIG[shownBulkMove.newStatus]?.label || shownBulkMove.newStatus;
+                const isAllConfirmed = shownBulkMove.confirmedCount === shownBulkMove.totalCount;
                 const message = isAllConfirmed
-                    ? `Are you sure you want to move ${bulkConfirmMoveTarget.totalCount} confirmed enrollment(s) to ${targetLabel}?`
-                    : `Are you sure you want to move ${bulkConfirmMoveTarget.totalCount} enrollment(s) (${bulkConfirmMoveTarget.confirmedCount} currently confirmed) to ${targetLabel}?`;
+                    ? `Are you sure you want to move ${shownBulkMove.totalCount} confirmed enrollment(s) to ${targetLabel}?`
+                    : `Are you sure you want to move ${shownBulkMove.totalCount} enrollment(s) (${shownBulkMove.confirmedCount} currently confirmed) to ${targetLabel}?`;
                 return (
                     <ConfirmDialog
-                        open={true}
+                        open={!!bulkConfirmMoveTarget}
                         title="Move Confirmed Enrollments"
                         message={message}
                         confirmLabel="Move"
@@ -1009,14 +1013,15 @@ export default function EnrollmentBoard({
             <EditNoteModal open={!!editNoteTarget} text={editNoteText} onTextChange={setEditNoteText} onSave={handleSaveNote} onClose={() => setEditNoteTarget(null)} />
 
             {/* Student Flag Modal */}
-            {flagModalTarget && (
-                <StudentFlagModal target={flagModalTarget} flags={studentFlagsHook.flagsByStudentId.get(flagModalTarget.studentId) ?? EMPTY_FLAGS} courses={uniqueCourses} onAddFlag={(courseId, comment) => studentFlagsHook.addFlag(flagModalTarget.studentId, courseId, comment)} onRemoveFlag={studentFlagsHook.removeFlag} onClose={() => setFlagModalTarget(null)} />
+            {flagMount.mounted && flagTarget && (
+                <StudentFlagModal key={flagMount.key} open={!!flagModalTarget} target={flagTarget} flags={studentFlagsHook.flagsByStudentId.get(flagTarget.studentId) ?? EMPTY_FLAGS} courses={uniqueCourses} onAddFlag={(courseId, comment) => studentFlagsHook.addFlag(flagTarget.studentId, courseId, comment)} onRemoveFlag={studentFlagsHook.removeFlag} onClose={() => setFlagModalTarget(null)} />
             )}
 
             {/* Student Detail Drawer */}
-            {detailStudent && (
+            {shownDetail && (
                 <StudentDetail
-                    student={detailStudent}
+                    open={!!detailStudent}
+                    student={shownDetail}
                     onClose={() => setDetailStudent(null)}
                     onEnroll={openEnrollFromDetail}
                     onStudentUpdated={(updatedStudent) => {

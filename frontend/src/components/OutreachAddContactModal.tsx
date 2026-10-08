@@ -9,6 +9,7 @@ import { errorMessage } from '../lib/errors';
 import { fullName } from '../lib/types';
 
 interface OutreachAddContactModalProps {
+    open: boolean;
     listId: string;
     listName: string;
     /** Lower-cased emails already on the list */
@@ -20,7 +21,7 @@ interface OutreachAddContactModalProps {
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', external_ref: '' };
 
 /** Add one person to an external list by hand (same RPC as the file import, so no duplicates). */
-export default function OutreachAddContactModal({ listId, listName, existingEmails, onClose, onAdded }: OutreachAddContactModalProps) {
+export default function OutreachAddContactModal({ open, listId, listName, existingEmails, onClose, onAdded }: OutreachAddContactModalProps) {
     const [form, setForm] = useState(EMPTY);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -57,7 +58,7 @@ export default function OutreachAddContactModal({ listId, listName, existingEmai
 
     return (
         <Modal
-            open
+            open={open}
             onClose={onClose}
             dismissible={!saving}
             title="Add person"

@@ -22,6 +22,7 @@ import { NetworkStatusProvider } from './contexts/NetworkStatusContext';
 import { GlobalToaster } from './components/Toast';
 import { toast } from './lib/toast';
 import { useModalBehavior } from './hooks/useModalBehavior';
+import { useDialogMount, useLastPresent, usePresence } from './hooks/usePresence';
 import { useTheme } from './hooks/useTheme';
 import { useDensity } from './hooks/useDensity';
 import { useTabPrefetch } from './hooks/useTabPrefetch';
@@ -124,6 +125,17 @@ function App() {
     const viewerDrawer = useStudentDrawer();
     const viewerListIds = useVisibleStudentIds();
 
+    // Dialogs (lazy chunks) mount on their first opening and stay while they animate out;
+    // the key gives each opening a fresh dialog
+    const approvalsMount = useDialogMount(approvalsModalOpen);
+    const paletteMount = useDialogMount(commandPaletteOpen);
+    const shortcutsMount = useDialogMount(shortcutsModalOpen);
+    const addStudentMount = useDialogMount(globalAddStudentOpen);
+    const enrollMount = useDialogMount(globalEnrollModalOpen);
+    const viewerDrawerMount = useDialogMount(!!viewerDrawer.currentId);
+    const shownStudentDetail = useLastPresent(globalStudentDetail);
+    const { mounted: overlayMounted, closing: overlayClosing, ref: overlayRef } = usePresence(sidebarOpen && !isViewer);
+
     const { darkMode, toggleDarkMode } = useTheme();
     // Owned here; Settings gets it as props
     const { density, setDensity, toggleDensity } = useDensity();
@@ -200,9 +212,10 @@ function App() {
                 )}
 
                 {/* Mobile overlay */}
-                {sidebarOpen && !isViewer && (
+                {overlayMounted && (
                     <div
-                        className="fixed inset-0 bg-black/40 dark:bg-black/60 z-35 lg:hidden animate-fadeIn"
+                        ref={overlayRef}
+                        className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-35 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
@@ -546,10 +559,11 @@ function App() {
             />
 
             {/* Admin Approvals Modal (lazy chunk — only mounted when opened so it never suspends the whole app) */}
-            {approvalsModalOpen && (
+            {approvalsMount.mounted && (
                 <Suspense fallback={null}>
                     <PendingApprovalsModal
-                        open={true}
+                        key={approvalsMount.key}
+                        open={approvalsModalOpen}
                         onClose={() => setApprovalsModalOpen(false)}
                     />
                 </Suspense>
@@ -558,10 +572,11 @@ function App() {
             <GlobalToaster />
 
             {/* Global Command Palette */}
-            {commandPaletteOpen && (
+            {paletteMount.mounted && (
                 <Suspense fallback={null}>
                     <CommandPalette
-                        open={true}
+                        key={paletteMount.key}
+                        open={commandPaletteOpen}
                         onClose={() => setCommandPaletteOpen(false)}
                         onNavigate={navigate}
                         onOpenStudentDetail={student => {
@@ -585,10 +600,11 @@ function App() {
             )}
 
             {/* Global Keyboard Shortcuts Modal */}
-            {shortcutsModalOpen && (
+            {shortcutsMount.mounted && (
                 <Suspense fallback={null}>
                     <KeyboardShortcutsModal
-                        open={true}
+                        key={shortcutsMount.key}
+                        open={shortcutsModalOpen}
                         onClose={() => setShortcutsModalOpen(false)}
                         isViewer={isViewer}
                     />
@@ -596,10 +612,11 @@ function App() {
             )}
 
             {/* Global Add Student Modal */}
-            {globalAddStudentOpen && (
+            {addStudentMount.mounted && (
                 <Suspense fallback={null}>
                     <StudentModal
-                        open={true}
+                        key={addStudentMount.key}
+                        open={globalAddStudentOpen}
                         student={null}
                         onSave={handleSaveNewStudent}
                         onClose={() => setGlobalAddStudentOpen(false)}
@@ -608,10 +625,11 @@ function App() {
             )}
 
             {/* Global New Enrollment Modal */}
-            {globalEnrollModalOpen && (
+            {enrollMount.mounted && (
                 <Suspense fallback={null}>
                     <EnrollmentModal
-                        open={true}
+                        key={enrollMount.key}
+                        open={globalEnrollModalOpen}
                         onSave={() => {
                             queryClient.invalidateQueries({ queryKey: ['enrollments'] });
                             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
@@ -628,13 +646,14 @@ function App() {
             )}
 
             {/* Viewer Student Detail Drawer (URL driven: ?student=<id>) */}
-            {isViewer && viewerDrawer.currentId && (() => {
-                const idx = viewerListIds.indexOf(viewerDrawer.currentId);
+            {isViewer && viewerDrawerMount.mounted && (() => {
+                const idx = viewerDrawer.currentId ? viewerListIds.indexOf(viewerDrawer.currentId) : -1;
                 const prevId = idx > 0 ? viewerListIds[idx - 1] : undefined;
                 const nextId = idx >= 0 && idx < viewerListIds.length - 1 ? viewerListIds[idx + 1] : undefined;
                 return (
                     <Suspense fallback={null}>
                         <StudentDetailDrawer
+                            key={viewerDrawerMount.key}
                             studentId={viewerDrawer.currentId}
                             onClose={viewerDrawer.close}
                             onPrev={prevId ? () => viewerDrawer.open(prevId) : undefined}
@@ -647,15 +666,16 @@ function App() {
             })()}
 
             {/* Global Student Detail Modal */}
-            {!isViewer && globalStudentDetail && (
+            {!isViewer && shownStudentDetail && (
                 <Suspense fallback={null}>
                     <StudentDetail
-                        student={globalStudentDetail}
+                        open={!!globalStudentDetail}
+                        student={shownStudentDetail}
                         onClose={() => setGlobalStudentDetail(null)}
                         onNavigate={navigate}
                         onStudentUpdated={setGlobalStudentDetail}
                         onEnroll={() => {
-                            setGlobalEnrollStudentId(globalStudentDetail.id);
+                            setGlobalEnrollStudentId(shownStudentDetail.id);
                             setGlobalEnrollModalOpen(true);
                         }}
                     />

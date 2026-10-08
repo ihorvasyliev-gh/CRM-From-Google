@@ -13,6 +13,7 @@ import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { useDebounce } from '../hooks/useDebounce';
 import SearchInput from './ui/SearchInput';
 import { ErrorState } from './ui/States';
@@ -62,6 +63,9 @@ function GraduateOutcomes() {
     const [sending, setSending] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
+    // Kept while the editor animates out; a fresh editor for every opening
+    const editMount = useDialogMount(!!editingGrad);
+    const shownGrad = useLastPresent(editingGrad);
 
 
 
@@ -472,11 +476,12 @@ function GraduateOutcomes() {
                 </div>
             )}
 
-            {editingGrad && (
+            {editMount.mounted && shownGrad && (
                 <OutcomeEditModal
-                    isOpen={true}
-                    person={editingGrad}
-                    onSave={values => saveGraduateOutcome(editingGrad, values)}
+                    key={editMount.key}
+                    isOpen={!!editingGrad}
+                    person={shownGrad}
+                    onSave={values => saveGraduateOutcome(shownGrad, values)}
                     onClose={() => setEditingGrad(null)}
                     onSaved={() => {
                         fetchGraduates();

@@ -78,6 +78,7 @@
   --animate-fadeOut: fadeOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
   --animate-scaleOut: scaleOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
   --animate-sheetSlideDown: sheetSlideDown 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-slideOutRight: slideOutRight 0.2s cubic-bezier(0.4, 0, 1, 1) both;
 
   /* Every transition-* utility moves like the rest of the app (Tailwind's default is 150ms ease) */
   --default-transition-duration: 200ms;
@@ -186,6 +187,11 @@
   @keyframes sheetSlideDown {
     to {
       transform: translateY(100%);
+    }
+  }
+  @keyframes slideOutRight {
+    to {
+      transform: translateX(100%);
     }
   }
 }

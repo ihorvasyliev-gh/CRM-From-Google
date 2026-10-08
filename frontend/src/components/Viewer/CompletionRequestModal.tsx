@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, Loader2, AlertTriangle, X } from 'lucide-react';
-import { useModalBehavior } from '../../hooks/useModalBehavior';
+import DialogLayer from '../ui/DialogLayer';
 import { useRequestCompletion } from '../../hooks/useApprovals';
 import { todayISO } from '../../lib/dateUtils';
 import { toast } from '../../lib/toast';
@@ -20,11 +20,13 @@ export interface CompletionTarget {
  * Quick picks cover the common cases (session date, today, yesterday).
  */
 export default function CompletionRequestModal({
+    open,
     targets,
     context,
     onClose,
     onSubmitted,
 }: {
+    open: boolean;
     targets: CompletionTarget[];
     /** e.g. the course name */
     context?: string;
@@ -32,7 +34,6 @@ export default function CompletionRequestModal({
     onSubmitted?: () => void;
 }) {
     const mutation = useRequestCompletion();
-    useModalBehavior(true, onClose, { closeOnEscape: !mutation.isPending });
 
     const sessionDates = useMemo(() => {
         const set = new Set(targets.map(t => t.sessionDate).filter((d): d is string => !!d));
@@ -74,15 +75,18 @@ export default function CompletionRequestModal({
     const rest = targets.length - shown.length;
 
     return (
-        <div className="fixed inset-0 z-70 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" onClick={() => !mutation.isPending && onClose()} />
-            <form
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="completion-title"
-                onSubmit={e => { e.preventDefault(); submit(); }}
-                className="relative w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-2xl border border-border-subtle shadow-2xl p-5 sm:p-6 space-y-4 animate-sheetSlideUp sm:animate-scaleIn pb-[max(env(safe-area-inset-bottom),1.25rem)]"
-            >
+        <DialogLayer
+            open={open}
+            onClose={onClose}
+            dismissible={!mutation.isPending}
+            labelledBy="completion-title"
+            className="z-70 flex items-end sm:items-center justify-center sm:p-4"
+            backdropClassName="bg-black/50 backdrop-blur-xs"
+            panelClassName="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-2xl border border-border-subtle shadow-2xl p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
+            enter="animate-sheetSlideUp sm:animate-scaleIn"
+            exit="animate-sheetSlideDown sm:animate-scaleOut"
+        >
+            <form onSubmit={e => { e.preventDefault(); submit(); }} className="space-y-4">
                 <div className="flex items-start gap-3">
                     <div className="p-2.5 bg-emerald-500/10 text-status-confirmed rounded-xl shrink-0">
                         <GraduationCap size={22} />
@@ -150,6 +154,6 @@ export default function CompletionRequestModal({
                     </Button>
                 </div>
             </form>
-        </div>
+        </DialogLayer>
     );
 }

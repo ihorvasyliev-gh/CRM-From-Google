@@ -5,7 +5,8 @@ import {
     MessageCircle, ChevronUp, ChevronDown, GraduationCap, ArrowRight, Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { toast } from '../lib/toast';
 import { cleanVariant } from '../lib/types';
 import { formatDateDMY } from '../lib/dateUtils';
@@ -159,8 +160,9 @@ function Timeline({ en }: { en: EnrollmentDetail }) {
 export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext, position, onOpenCourse }: StudentDetailDrawerProps) {
     const [completionTarget, setCompletionTarget] = useState<{ targets: CompletionTarget[]; course: string } | null>(null);
 
-    // Registers in the shared modal stack: Escape closes only the top-most layer (the completion modal first)
-    useModalBehavior(!!studentId, onClose);
+    // The completion dialog starts fresh on every opening and is kept while it animates out
+    const completionMount = useDialogMount(!!completionTarget);
+    const shownCompletion = useLastPresent(completionTarget);
 
     const { data: student, isLoading, error, refetch } = useQuery<StudentDetailData | null>({
         queryKey: ['restricted_student_detail', studentId],
@@ -192,8 +194,6 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
         [student]
     );
 
-    if (!studentId) return null;
-
     const name = student ? fullName(student) : '';
     const call = formatPhoneForCall(student?.phone);
     const whatsapp = formatPhoneForWhatsApp(student?.phone);
@@ -208,14 +208,17 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-hidden">
-            <div data-testid="drawer-backdrop" className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-fadeIn" onClick={onClose} />
-
-            <aside
-                role="dialog"
-                aria-modal="true"
-                aria-label={name ? `Student ${name}` : 'Student details'}
-                className="absolute inset-y-0 right-0 w-full sm:max-w-[480px] bg-surface border-l border-border-subtle shadow-2xl flex flex-col animate-slideInRight"
+        <>
+            {/* Escape closes only the top-most layer: the completion dialog first */}
+            <DialogLayer
+                open={!!studentId}
+                onClose={onClose}
+                label={name ? `Student ${name}` : 'Student details'}
+                className="z-50 overflow-hidden"
+                backdropClassName="bg-black/40 backdrop-blur-[2px]"
+                panelClassName="absolute inset-y-0 right-0 w-full sm:max-w-[480px] bg-surface border-l border-border-subtle shadow-2xl flex flex-col"
+                enter="animate-slideInRight"
+                exit="animate-slideOutRight"
             >
                 {/* Header */}
                 <header className="px-4 sm:px-5 pt-4 pb-3 border-b border-border-subtle space-y-3 shrink-0">
@@ -413,16 +416,18 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                         </>
                     )}
                 </div>
-            </aside>
+            </DialogLayer>
 
-            {completionTarget && (
+            {completionMount.mounted && shownCompletion && (
                 <CompletionRequestModal
-                    targets={completionTarget.targets}
-                    context={completionTarget.course}
+                    key={completionMount.key}
+                    open={!!completionTarget}
+                    targets={shownCompletion.targets}
+                    context={shownCompletion.course}
                     onClose={() => setCompletionTarget(null)}
                     onSubmitted={() => refetch()}
                 />
             )}
-        </div>
+        </>
     );
 }

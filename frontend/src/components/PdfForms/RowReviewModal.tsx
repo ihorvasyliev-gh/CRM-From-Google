@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLastPresent } from '../../hooks/usePresence';
 import { AlertTriangle, Eye, PencilLine, RotateCcw } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -19,13 +20,16 @@ interface RowReviewModalProps {
 }
 
 /** Check and correct what one form will contain before it is made */
-export default function RowReviewModal({ plan, original, fields, overrides = {}, onChange, onClose, onPreview }: RowReviewModalProps) {
+export default function RowReviewModal({ plan: livePlan, original: liveOriginal, fields, overrides = {}, onChange, onClose, onPreview }: RowReviewModalProps) {
     const [draft, setDraft] = useState<RowValues>(overrides);
-    const [forRow, setForRow] = useState<number | null>(plan?.index ?? null);
-    if ((plan?.index ?? null) !== forRow) {
-        setForRow(plan?.index ?? null);
+    const [forRow, setForRow] = useState<number | null>(livePlan?.index ?? null);
+    if ((livePlan?.index ?? null) !== forRow) {
+        setForRow(livePlan?.index ?? null);
         setDraft(overrides);
     }
+    // While it animates out, the dialog keeps showing the row it was for
+    const plan = useLastPresent(livePlan);
+    const original = useLastPresent(liveOriginal);
     if (!plan || !original) return null;
 
     const valueOf = (f: FormField): FieldValue => draft[f.id] ?? original.values[f.id];
@@ -35,7 +39,7 @@ export default function RowReviewModal({ plan, original, fields, overrides = {},
 
     return (
         <Modal
-            open
+            open={!!livePlan && !!liveOriginal}
             onClose={() => { commit(); onClose(); }}
             title={plan.title}
             subtitle={`Row ${plan.rowNumber} · ${plan.fileName}`}

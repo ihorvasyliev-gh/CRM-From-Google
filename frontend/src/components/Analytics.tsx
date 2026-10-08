@@ -23,6 +23,7 @@ import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EmploymentStatusRow, Student } from '../lib/types';
 import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
+import { useLastPresent } from '../hooks/usePresence';
 import StatTile from './ui/StatTile';
 import { Button } from './ui/Button';
 import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
@@ -77,6 +78,7 @@ export default function Analytics() {
     });
 
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const shownStudent = useLastPresent(selectedStudent);
     const [isExportingExcel, setIsExportingExcel] = useState(false);
 
     // 4. TanStack Data Queries
@@ -386,9 +388,10 @@ export default function Analytics() {
             />
 
             {/* Student Detail Slide-Over Drawer */}
-            {selectedStudent && (
+            {shownStudent && (
                 <StudentDetail
-                    student={selectedStudent}
+                    open={!!selectedStudent}
+                    student={shownStudent}
                     onClose={() => setSelectedStudent(null)}
                     onStudentUpdated={setSelectedStudent}
                 />

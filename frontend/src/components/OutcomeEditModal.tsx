@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { MonthPicker } from './ui/DatePicker';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
 import { errorMessage } from '../lib/errors';
 
 /** Survey answer as stored for a graduate or an outreach list contact. */
@@ -46,9 +46,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
         }
     }, [graduate, isOpen]);
 
-    useModalBehavior(isOpen && !!graduate, onClose, { closeOnEscape: !saving });
-
-    if (!isOpen || !graduate) return null;
+    if (!graduate) return null;
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
@@ -92,207 +90,208 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
     }
 
     return (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
-            <div 
-                className="absolute inset-0 bg-background/80 backdrop-blur-xs transition-opacity"
-                onClick={!saving ? onClose : undefined}
-            />
-            
-            <div className="bg-surface rounded-2xl shadow-float border border-border-subtle w-full max-w-lg relative z-10 animate-scaleIn overflow-hidden flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-border-subtle shrink-0">
-                    <div>
-                        <h2 className="text-lg font-bold text-primary">Edit Employment Status</h2>
-                        <p className="text-xs text-muted mt-1">
-                            Updating records for <span className="font-semibold text-brand-400">{graduate.first_name} {graduate.last_name}</span>
-                        </p>
-                    </div>
-                    <button 
-                        onClick={onClose}
-                        disabled={saving}
-                        className="text-muted hover:text-primary transition-colors p-2 rounded-xl hover:bg-surface disabled:opacity-50"
-                    >
-                        <X size={20} />
-                    </button>
+        <DialogLayer
+            open={isOpen}
+            onClose={onClose}
+            dismissible={!saving}
+            labelledBy="outcome-edit-title"
+            className="z-100 flex items-center justify-center p-4"
+            backdropClassName="bg-background/80 backdrop-blur-xs"
+            panelClassName="bg-surface rounded-2xl shadow-float border border-border-subtle w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-border-subtle shrink-0">
+                <div>
+                    <h2 id="outcome-edit-title" className="text-lg font-bold text-primary">Edit Employment Status</h2>
+                    <p className="text-xs text-muted mt-1">
+                        Updating records for <span className="font-semibold text-brand-400">{graduate.first_name} {graduate.last_name}</span>
+                    </p>
                 </div>
+                <button 
+                    onClick={onClose}
+                    disabled={saving}
+                    className="text-muted hover:text-primary transition-colors p-2 rounded-xl hover:bg-surface disabled:opacity-50"
+                >
+                    <X size={20} />
+                </button>
+            </div>
 
-                {/* Form Body */}
-                <div className="p-5 overflow-y-auto custom-scrollbar">
-                    <form id="edit-outcome-form" onSubmit={handleSave} className="space-y-5">
-                        {/* Tracking Status */}
-                        <div>
-                            <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
-                                Tracking Status
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setTrackingStatus('not_contacted')}
-                                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                                        trackingStatus === 'not_contacted'
-                                            ? 'bg-muted/15 text-primary border-border-strong shadow-xs'
-                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
-                                    }`}
-                                >
-                                    Not Contacted
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setTrackingStatus('pending')}
-                                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                                        trackingStatus === 'pending'
-                                            ? 'bg-info/15 text-status-invited border-info/40 shadow-xs'
-                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
-                                    }`}
-                                >
-                                    Pending
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setTrackingStatus('responded')}
-                                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                                        trackingStatus === 'responded'
-                                            ? 'bg-success/15 text-status-confirmed border-success/40 shadow-xs'
-                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
-                                    }`}
-                                >
-                                    Responded
-                                </button>
-                            </div>
+            {/* Form Body */}
+            <div className="p-5 overflow-y-auto custom-scrollbar">
+                <form id="edit-outcome-form" onSubmit={handleSave} className="space-y-5">
+                    {/* Tracking Status */}
+                    <div>
+                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                            Tracking Status
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setTrackingStatus('not_contacted')}
+                                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                                    trackingStatus === 'not_contacted'
+                                        ? 'bg-muted/15 text-primary border-border-strong shadow-xs'
+                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                }`}
+                            >
+                                Not Contacted
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTrackingStatus('pending')}
+                                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                                    trackingStatus === 'pending'
+                                        ? 'bg-info/15 text-status-invited border-info/40 shadow-xs'
+                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                }`}
+                            >
+                                Pending
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTrackingStatus('responded')}
+                                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                                    trackingStatus === 'responded'
+                                        ? 'bg-success/15 text-status-confirmed border-success/40 shadow-xs'
+                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                }`}
+                            >
+                                Responded
+                            </button>
                         </div>
+                    </div>
 
-                        {/* Employment Details if Responded */}
-                        {trackingStatus === 'responded' && (
-                            <div className="space-y-4 pt-4 border-t border-border-subtle animate-fadeIn">
-                                <div>
-                                    <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
-                                        Is the person working?
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsWorking(true)}
-                                            className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                isWorking === true
-                                                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
-                                                    : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                    }`}
-                                        >
-                                            Yes
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsWorking(false)}
-                                            className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                isWorking === false
-                                                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-xs'
-                                                    : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                    }`}
-                                        >
-                                            No
-                                        </button>
+                    {/* Employment Details if Responded */}
+                    {trackingStatus === 'responded' && (
+                        <div className="space-y-4 pt-4 border-t border-border-subtle animate-fadeIn">
+                            <div>
+                                <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
+                                    Is the person working?
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsWorking(true)}
+                                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                            isWorking === true
+                                                ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
+                                                : 'bg-background text-muted border-border-strong hover:border-border-subtle'
+                                }`}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsWorking(false)}
+                                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                            isWorking === false
+                                                ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-xs'
+                                                : 'bg-background text-muted border-border-strong hover:border-border-subtle'
+                                }`}
+                                    >
+                                        No
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isWorking === true && (
+                                <div className="space-y-4 animate-fadeIn">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                            Started Month
+                                        </label>
+                                        <MonthPicker label="Started month" value={startedMonth} onChange={setStartedMonth} />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                            Field / Sector
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={fieldOfWork}
+                                            onChange={(e) => setFieldOfWork(e.target.value)}
+                                            placeholder="e.g. IT, Hospitality, Healthcare..."
+                                            className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
+                                            Employment Type
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEmploymentType('full_time')}
+                                                className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                                    employmentType === 'full_time'
+                                                        ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
+                                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle'
+                                                }`}
+                                            >
+                                                Full-time
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEmploymentType('part_time')}
+                                                className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                                    employmentType === 'part_time'
+                                                        ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
+                                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle'
+                                                }`}
+                                            >
+                                                Part-time
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-
-                                {isWorking === true && (
-                                    <div className="space-y-4 animate-fadeIn">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
-                                                Started Month
-                                            </label>
-                                            <MonthPicker label="Started month" value={startedMonth} onChange={setStartedMonth} />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
-                                                Field / Sector
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={fieldOfWork}
-                                                onChange={(e) => setFieldOfWork(e.target.value)}
-                                                placeholder="e.g. IT, Hospitality, Healthcare..."
-                                                className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
-                                                Employment Type
-                                            </label>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEmploymentType('full_time')}
-                                                    className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                        employmentType === 'full_time'
-                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
-                                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                                    }`}
-                                                >
-                                                    Full-time
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEmploymentType('part_time')}
-                                                    className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                        employmentType === 'part_time'
-                                                            ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
-                                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                                    }`}
-                                                >
-                                                    Part-time
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
-                                <AlertCircle size={16} className="shrink-0" />
-                                <p>{error}</p>
-                            </div>
-                        )}
-                    </form>
-                </div>
-
-                {/* Footer */}
-                <div className="px-5 py-3.5 border-t border-border-subtle bg-surface-elevated/40 flex justify-end gap-2 shrink-0">
-                    {onDelete && (
-                        <button
-                            type="button"
-                            onClick={handleDelete}
-                            disabled={saving}
-                            className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-status-rejected hover:bg-danger/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
-                        >
-                            <Trash2 size={15} /> {deleteLabel}
-                        </button>
+                            )}
+                        </div>
                     )}
+
+                    {error && (
+                        <div className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">
+                            <AlertCircle size={16} className="shrink-0" />
+                            <p>{error}</p>
+                        </div>
+                    )}
+                </form>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-border-subtle bg-surface-elevated/40 flex justify-end gap-2 shrink-0">
+                {onDelete && (
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={handleDelete}
                         disabled={saving}
-                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-muted hover:text-primary hover:bg-surface border border-transparent transition-all disabled:opacity-50"
+                        className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-status-rejected hover:bg-danger/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
                     >
-                        Cancel
+                        <Trash2 size={15} /> {deleteLabel}
                     </button>
-                    <button
-                        type="submit"
-                        form="edit-outcome-form"
-                        disabled={saving || (trackingStatus === 'responded' && isWorking === null)}
-                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-xs shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {saving ? (
-                            <><Loader2 size={16} className="animate-spin" /> Saving...</>
-                        ) : (
-                            <><Save size={16} /> Save Changes</>
-                        )}
-                    </button>
-                </div>
+                )}
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={saving}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-muted hover:text-primary hover:bg-surface border border-transparent transition-all disabled:opacity-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    form="edit-outcome-form"
+                    disabled={saving || (trackingStatus === 'responded' && isWorking === null)}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 active:bg-brand-700 shadow-xs shadow-brand-500/20 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {saving ? (
+                        <><Loader2 size={16} className="animate-spin" /> Saving...</>
+                    ) : (
+                        <><Save size={16} /> Save Changes</>
+                    )}
+                </button>
             </div>
-        </div>
+        </DialogLayer>
     );
 }

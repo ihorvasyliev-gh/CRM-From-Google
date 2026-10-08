@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
 import { notify } from '../lib/toast';
-import { useModalBehavior } from '../hooks/useModalBehavior';
+import DialogLayer from './ui/DialogLayer';
 import { formatDateDMY } from '../lib/dateUtils';
 import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
@@ -39,11 +39,6 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [rejectionTargetId, setRejectionTargetId] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState<string>('');
-
-    useModalBehavior(open, onClose);
-    useModalBehavior(!!rejectionTargetId, () => setRejectionTargetId(null));
-
-    if (!open) return null;
 
     const isAllSelected = pendingList.length > 0 && pendingList.every(p => selectedIds.has(p.enrollment_id));
 
@@ -125,11 +120,15 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
     };
 
     return (
-        <div
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
-            onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-        >
-            <div className="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scaleIn">
+        <>
+            <DialogLayer
+                open={open}
+                onClose={onClose}
+                label="Pending approvals"
+                className="z-50 flex items-center justify-center p-3 sm:p-6"
+                backdropClassName="bg-background/80 backdrop-blur-xs"
+                panelClassName="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+            >
                 {/* Header */}
                 <div className="p-5 border-b border-border-subtle flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
@@ -307,49 +306,49 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                         Close
                     </button>
                 </div>
-            </div>
+            </DialogLayer>
 
             {/* Rejection Prompt Modal */}
-            {rejectionTargetId && (
-                <div
-                    className="fixed inset-0 z-60 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
-                    onClick={e => { if (e.target === e.currentTarget) setRejectionTargetId(null); }}
-                >
-                    <div className="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3 animate-scaleIn">
-                        <div className="flex items-center gap-2.5 text-red-500">
-                            <AlertCircle size={20} />
-                            <h3 className="font-bold text-sm text-primary">Reject Completion Request</h3>
-                        </div>
-                        <p className="text-xs text-muted">
-                            Provide an optional reason for rejecting this request. The requester will see this note.
-                        </p>
-                        <textarea
-                            autoFocus
-                            placeholder="Reason (optional, e.g. Student missed final test)..."
-                            value={rejectionReason}
-                            onChange={e => setRejectionReason(e.target.value)}
-                            rows={3}
-                            className="w-full p-2.5 bg-surface-elevated border border-border-strong rounded-xl text-xs text-primary focus:outline-hidden focus:ring-2 focus:ring-red-500/50"
-                        />
-                        <div className="flex items-center justify-end gap-2 pt-1">
-                            <button
-                                onClick={() => setRejectionTargetId(null)}
-                                className="px-3 py-1.5 text-xs text-muted hover:text-primary rounded-xl"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleRejectSingle}
-                                disabled={rejectMutation.isPending}
-                                className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all flex items-center gap-1 shadow-xs"
-                            >
-                                {rejectMutation.isPending && <Loader2 size={12} className="animate-spin" />}
-                                <span>Confirm Rejection</span>
-                            </button>
-                        </div>
-                    </div>
+            <DialogLayer
+                open={!!rejectionTargetId}
+                onClose={() => setRejectionTargetId(null)}
+                label="Reject Completion Request"
+                className="z-60 flex items-center justify-center p-4"
+                backdropClassName="bg-background/80 backdrop-blur-xs"
+                panelClassName="bg-surface rounded-2xl border border-border-subtle shadow-card max-w-sm w-full p-5 space-y-3"
+            >
+                <div className="flex items-center gap-2.5 text-red-500">
+                    <AlertCircle size={20} />
+                    <h3 className="font-bold text-sm text-primary">Reject Completion Request</h3>
                 </div>
-            )}
-        </div>
+                <p className="text-xs text-muted">
+                    Provide an optional reason for rejecting this request. The requester will see this note.
+                </p>
+                <textarea
+                    autoFocus
+                    placeholder="Reason (optional, e.g. Student missed final test)..."
+                    value={rejectionReason}
+                    onChange={e => setRejectionReason(e.target.value)}
+                    rows={3}
+                    className="w-full p-2.5 bg-surface-elevated border border-border-strong rounded-xl text-xs text-primary focus:outline-hidden focus:ring-2 focus:ring-red-500/50"
+                />
+                <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                        onClick={() => setRejectionTargetId(null)}
+                        className="px-3 py-1.5 text-xs text-muted hover:text-primary rounded-xl"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleRejectSingle}
+                        disabled={rejectMutation.isPending}
+                        className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all flex items-center gap-1 shadow-xs"
+                    >
+                        {rejectMutation.isPending && <Loader2 size={12} className="animate-spin" />}
+                        <span>Confirm Rejection</span>
+                    </button>
+                </div>
+            </DialogLayer>
+        </>
     );
 }

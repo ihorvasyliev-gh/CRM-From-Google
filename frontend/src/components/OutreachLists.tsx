@@ -11,6 +11,7 @@ import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import OutreachImportModal from './OutreachImportModal';
 import OutreachAddContactModal from './OutreachAddContactModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -80,6 +81,13 @@ export default function OutreachLists() {
 
     // Stable object so the edit modal doesn't reset its form on every re-render
     const editingPerson = useMemo(() => editing ? { ...editing, tracking_status: editing.status } : null, [editing]);
+    // Dialogs are kept while they animate out, and start fresh on every opening
+    const editMount = useDialogMount(!!editing);
+    const shownEditing = useLastPresent(editing);
+    const shownPerson = useLastPresent(editingPerson);
+    const importMount = useDialogMount(showImport && !!activeList);
+    const shownList = useLastPresent(activeList);
+    const addContactMount = useDialogMount(showAddContact && !!activeList);
 
     const existingEmails = useMemo(() => new Set(contacts.map(c => c.email.trim().toLowerCase())), [contacts]);
 
@@ -573,12 +581,13 @@ export default function OutreachLists() {
                 </div>
             )}
 
-            {editing && (
+            {editMount.mounted && shownEditing && (
                 <OutcomeEditModal
-                    isOpen={true}
-                    person={editingPerson}
-                    onSave={values => saveContactOutcome(editing, values)}
-                    onDelete={() => deleteContact(editing)}
+                    key={editMount.key}
+                    isOpen={!!editing}
+                    person={shownPerson ?? null}
+                    onSave={values => saveContactOutcome(shownEditing, values)}
+                    onDelete={() => deleteContact(shownEditing)}
                     deleteLabel="Remove from list"
                     onClose={() => setEditing(null)}
                     onSaved={() => {
@@ -588,10 +597,12 @@ export default function OutreachLists() {
                 />
             )}
 
-            {showImport && activeList && (
+            {importMount.mounted && shownList && (
                 <OutreachImportModal
-                    listId={activeList.id}
-                    listName={activeList.name}
+                    key={importMount.key}
+                    open={showImport && !!activeList}
+                    listId={shownList.id}
+                    listName={shownList.name}
                     existingEmails={existingEmails}
                     onClose={() => setShowImport(false)}
                     onImported={({ inserted, updated }) => {
@@ -601,10 +612,12 @@ export default function OutreachLists() {
                 />
             )}
 
-            {showAddContact && activeList && (
+            {addContactMount.mounted && shownList && (
                 <OutreachAddContactModal
-                    listId={activeList.id}
-                    listName={activeList.name}
+                    key={addContactMount.key}
+                    open={showAddContact && !!activeList}
+                    listId={shownList.id}
+                    listName={shownList.name}
                     existingEmails={existingEmails}
                     onClose={() => setShowAddContact(false)}
                     onAdded={({ name, alreadyOnList }) => {
