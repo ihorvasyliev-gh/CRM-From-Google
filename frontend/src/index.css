@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+/* Enter / exit utilities (animate-in, fade-in-0, zoom-in-95, data-[state=closed]:animate-out…)
+ * used by the Radix tooltip; Radix waits for the exit animation before unmounting. */
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
