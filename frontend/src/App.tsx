@@ -471,6 +471,8 @@ function App() {
                                 <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
                             </div>
                         }>
+                            {/* Fades the page in on a tab switch (remounted with the ErrorBoundary above) */}
+                            <div className="flex-1 w-full min-h-0 flex flex-col animate-pageIn">
                             <Routes>
                                 {isViewer ? (
                                     <>
@@ -511,6 +513,7 @@ function App() {
                                     </>
                                 )}
                             </Routes>
+                            </div>
                         </Suspense>
                         </ErrorBoundary>
                     </main>

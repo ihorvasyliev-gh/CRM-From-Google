@@ -103,7 +103,7 @@ export default function ViewerStudentsDirectory() {
     };
 
     return (
-        <div ref={topRef} className="max-w-7xl mx-auto w-full min-w-0 space-y-4 animate-fadeIn scroll-mt-20">
+        <div ref={topRef} className="max-w-7xl mx-auto w-full min-w-0 space-y-4 scroll-mt-20">
             <PageHeader
                 title="Students"
                 subtitle={

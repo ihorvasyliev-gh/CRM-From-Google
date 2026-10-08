@@ -240,7 +240,7 @@ export default function Analytics() {
     );
 
     return (
-        <div className="flex-1 flex flex-col gap-5 sm:gap-6 pb-12 animate-fadeIn max-w-[1600px] mx-auto w-full">
+        <div className="flex-1 flex flex-col gap-5 sm:gap-6 pb-12 max-w-[1600px] mx-auto w-full">
             {/* Filters + exports */}
             <GlobalFilterBar
                 filters={filters}

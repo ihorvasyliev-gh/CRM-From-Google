@@ -447,7 +447,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     };
 
     return (
-        <div className="w-full pb-8 animate-fadeIn">
+        <div className="w-full pb-8">
             <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-5 lg:gap-8 items-start">
                 {/* Section navigation */}
                 <aside className="lg:sticky lg:top-6 min-w-0">

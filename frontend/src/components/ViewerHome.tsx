@@ -67,7 +67,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
     const loading = loadingCourses || loadingUpcoming;
 
     return (
-        <div className="max-w-7xl mx-auto w-full space-y-6 animate-fadeIn">
+        <div className="max-w-7xl mx-auto w-full space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                 <div>
                     <p className="text-xs font-semibold text-muted">{formatDateLong(todayISO())}</p>
