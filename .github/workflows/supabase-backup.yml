@@ -25,7 +25,9 @@ env:
 
 jobs:
   backup:
-    runs-on: ubuntu-latest
+    # Фиксированный образ: бэкап опирается на его 7z, aws и jq, а ubuntu-latest
+    # время от времени переезжает на новую Ubuntu
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -54,13 +56,13 @@ jobs:
           done
           exit $missing
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
