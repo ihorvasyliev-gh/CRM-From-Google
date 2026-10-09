@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import { memo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -40,6 +40,8 @@ interface StatusColumnProps {
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
     /** Time, place and days of the course dates, keyed by courseDateKey */
     sessions: ReadonlyMap<string, CourseSession>;
+    /** The board's filters and search: when they change, the column shows its new cards at once */
+    filters: object;
 }
 
 const StatusColumn = function StatusColumn({
@@ -63,6 +65,7 @@ const StatusColumn = function StatusColumn({
     onShowDetail,
     onMoveStatus,
     sessions,
+    filters,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -75,7 +78,14 @@ const StatusColumn = function StatusColumn({
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     // Cards slide into place when others leave or arrive; above a few dozen rendered cards
     // measuring them all on every change would cost more than it shows
-    const animateCards = useCardsAnimation<HTMLDivElement>(Math.min(items.length, visibleCount) <= ANIMATED_CARDS_MAX);
+    const animateCards = useCardsAnimation<HTMLDivElement>(Math.min(items.length, visibleCount) <= ANIMATED_CARDS_MAX, filters);
+    // Cards brought in by other filters or a new search don't drop in either: only the ones that
+    // arrive (moved here, new) do
+    const [cardsFilters, setCardsFilters] = useState(filters);
+    const refiltered = cardsFilters !== filters;
+    useLayoutEffect(() => {
+        if (refiltered) setCardsFilters(filters);
+    }, [refiltered, filters]);
     const cardsRef = useCallback((node: HTMLDivElement | null) => {
         scrollContainerRef.current = node;
         animateCards(node);
@@ -236,6 +246,7 @@ const StatusColumn = function StatusColumn({
                             onShowDetail={onShowDetail}
                             onMoveStatus={onMoveStatus}
                             session={sessionForEnrollment(enrollment, sessions)}
+                            dropIn={!refiltered}
                         />
                     ))}
                     {/* Sentinel for IntersectionObserver lazy load */}
@@ -270,6 +281,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.onShowDetail !== next.onShowDetail) return false;
     if (prev.onMoveStatus !== next.onMoveStatus) return false;
     if (prev.sessions !== next.sessions) return false;
+    if (prev.filters !== next.filters) return false;
 
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 

@@ -1,6 +1,6 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
-import type { AutoAnimationPlugin } from '@formkit/auto-animate';
+import autoAnimate, { type AnimationController, type AutoAnimationPlugin } from '@formkit/auto-animate';
 
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
@@ -33,8 +33,13 @@ const boardCardMotion: AutoAnimationPlugin = (el, action, oldCoords, newCoords) 
     return new KeyframeEffect(el, keyframes, { duration: action === 'remove' ? 150 : 220, easing: EASE_OUT });
 };
 
-/** useListAnimation for a board column, with the board's own card motion; none while `enabled` is false */
-export function useCardsAnimation<T extends HTMLElement>(enabled: boolean) {
+/**
+ * useListAnimation for a board column, with the board's own card motion; none while `enabled` is
+ * false. A new `resetKey` (other filters, a new search) swaps the cards at once instead: a filter
+ * is not a move, and measuring every card for it (auto-animate does, even with the motion off)
+ * plus the old cards fading out over the new ones made each search result arrive with a stall.
+ */
+export function useCardsAnimation<T extends HTMLElement>(enabled: boolean, resetKey?: unknown) {
     // Cards fading out. Turning the motion off cancels their fade, and a card whose fade was
     // cancelled is never taken out: it stayed in the column over the others, at full opacity.
     const [{ motion, leaving }] = useState(() => {
@@ -48,15 +53,33 @@ export function useCardsAnimation<T extends HTMLElement>(enabled: boolean) {
         };
         return { motion, leaving };
     });
-    const [ref, setEnabled] = useAutoAnimate<T>(motion);
-    // A layout effect runs before auto-animate sees the rendered changes, so the cards a render
-    // removes while turning the motion off go at once; the ones still fading go here
+    const [list, setList] = useState<T | null>(null);
+    const controller = useRef<AnimationController | null>(null);
+    // Layout effects run before auto-animate hears of the rendered changes (a microtask later).
+    // On a new resetKey it is detached first, which drops the changes unseen, and attached again
+    // for the moves that follow.
     useLayoutEffect(() => {
-        setEnabled(enabled);
-        if (!enabled) {
+        if (!list) return;
+        const ctl = autoAnimate(list, motion);
+        controller.current = ctl;
+        return () => {
+            ctl.destroy?.();
+            controller.current = null;
+            leaving.forEach(card => card.remove());
+            leaving.clear();
+        };
+    }, [list, motion, leaving, resetKey]);
+    // The cards a render removes while turning the motion off go at once; the ones still fading go here
+    useLayoutEffect(() => {
+        const ctl = controller.current;
+        if (!ctl) return;
+        if (enabled) {
+            ctl.enable();
+        } else {
+            ctl.disable();
             leaving.forEach(card => card.remove());
             leaving.clear();
         }
-    }, [enabled, setEnabled, leaving]);
-    return ref;
+    }, [enabled, list, leaving, resetKey]);
+    return setList;
 }

@@ -3,7 +3,6 @@ import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw } from 'lucide-r
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useDebounce } from '../hooks/useDebounce';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
@@ -100,8 +99,8 @@ export default function EnrollmentBoard({
     const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => initialCourseFilter || 'all', { validate: isString });
     const [selectedVariant, setSelectedVariant] = usePersistentState<string>('board.variant', 'all', { validate: isString });
     const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
+    // Set by the search field once typing pauses
     const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
-    const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [inviteFilter, setInviteFilter] = useState<InviteFilter>(initialInviteFilter || 'all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -233,12 +232,12 @@ export default function EnrollmentBoard({
     }, [availableCourseDates, selectedCourseDate, enrollments.length, setSelectedCourseDate]);
 
     // The columns follow filter changes in the background: the clicked chip or the typed text shows
-    // at once and the board catches up a moment later (dimmed meanwhile). Data changes, such as a
-    // moved card, still show immediately.
+    // at once and the board catches up a moment later (dimmed if that takes a while). Data changes,
+    // such as a moved card, still show immediately.
     const filters = useMemo(() => ({
-        course: selectedCourse, variant: selectedVariant, courseDate: selectedCourseDate, search: debouncedSearchQuery,
+        course: selectedCourse, variant: selectedVariant, courseDate: selectedCourseDate, search: searchQuery,
         dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder,
-    }), [selectedCourse, selectedVariant, selectedCourseDate, debouncedSearchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder]);
+    }), [selectedCourse, selectedVariant, selectedCourseDate, searchQuery, dateFrom, dateTo, courseDateFrom, courseDateTo, inviteFilter, sortOrder]);
     const shownFilters = useDeferredValue(filters);
     const filtersPending = shownFilters !== filters;
 
@@ -740,7 +739,7 @@ export default function EnrollmentBoard({
                 <div 
                     ref={boardContainerRef}
                     aria-busy={filtersPending || undefined}
-                    className={`flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2 overscroll-x-contain touch-pan-x touch-pan-y transition-opacity duration-150 ${filtersPending ? 'opacity-60' : ''}`}
+                    className={`flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden md:overflow-hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-2 md:gap-4 snap-x snap-mandatory scrollbar-none pb-2 overscroll-x-contain touch-pan-x touch-pan-y transition-opacity duration-150 ${filtersPending ? 'opacity-60 delay-150' : ''}`}
                     style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                     {PIPELINE_STATUSES.map(status => (
@@ -770,6 +769,7 @@ export default function EnrollmentBoard({
                                 onShowDetail={handleShowDetail}
                                 onMoveStatus={handleCardMoveStatus}
                                 sessions={courseSessions}
+                                filters={shownFilters}
                             />
                         </div>
                     ))}

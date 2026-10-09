@@ -38,6 +38,8 @@ interface EnrollmentCardProps {
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
     /** Time, place and days of the course date the student is invited to / confirmed for */
     session?: CourseSession | null;
+    /** Drop in when it appears (default); read once, when the card mounts */
+    dropIn?: boolean;
 }
 
 /** Props the thin draggable wrapper hands down to the (memoised) card body. */
@@ -92,6 +94,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     onShowDetail,
     onMoveStatus,
     session,
+    dropIn = true,
     isMobile,
     isEditingNote,
     setIsEditingNote,
@@ -102,6 +105,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 }: EnrollmentCardBodyProps) {
     const now = useNowMinute(status === 'invited');
     const isSmallScreen = useIsSmallScreen();
+    const [playDropIn] = useState(dropIn);
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
@@ -324,7 +328,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 : isDragging
                     ? 'border-border-subtle bg-surface/50'
                     : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
-            } ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging ? '' : 'animate-card-drop-in'}`}
+            } ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging || !playDropIn ? '' : 'animate-card-drop-in'}`}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { useState, type ComponentProps } from 'react';
 import FilterBar from './FilterBar';
 
 describe('FilterBar Component - Date Filter', () => {
@@ -191,5 +192,94 @@ describe('FilterBar Component - Date Filter', () => {
         render(<FilterBar {...defaultProps} inviteFilter="expired" inviteCounts={{ expired: 3, soon: 2 }} />);
         fireEvent.click(screen.getByRole('button', { name: /^Expired\s*3/ }));
         expect(mockSetInviteFilter).toHaveBeenCalledWith('all');
+    });
+});
+
+describe('FilterBar search', () => {
+    const noop = () => {};
+    const baseProps: Omit<ComponentProps<typeof FilterBar>, 'searchQuery' | 'setSearchQuery'> = {
+        enrollments: [], enrollmentCount: 10, filteredCount: 10, setEnrollModalOpen: noop,
+        selectedCourse: 'all', setSelectedCourse: noop, uniqueCourses: [], selectedVariant: 'all', setSelectedVariant: noop,
+        uniqueVariants: [], selectedCourseDate: 'all', setSelectedCourseDate: noop, availableCourseDates: [],
+        dateFrom: '', setDateFrom: noop, dateTo: '', setDateTo: noop, courseDateFrom: '', setCourseDateFrom: noop,
+        courseDateTo: '', setCourseDateTo: noop, sortOrder: 'date-asc', setSortOrder: noop,
+        inviteFilter: 'all', setInviteFilter: noop, inviteCounts: { expired: 0, soon: 0 },
+    };
+
+    /** The board's side: holds the search and can reset it, like "Reset filters" */
+    function Board({ onSearch, initial = '' }: { onSearch: (q: string) => void; initial?: string }) {
+        const [searchQuery, setSearchQuery] = useState(initial);
+        return (
+            <>
+                <FilterBar {...baseProps} searchQuery={searchQuery} setSearchQuery={q => { onSearch(q); setSearchQuery(q); }} />
+                <button onClick={() => setSearchQuery('')}>Reset filters</button>
+                <output data-testid="board-search">{searchQuery}</output>
+            </>
+        );
+    }
+
+    const field = () => screen.getByPlaceholderText(/Name, email or phone/) as HTMLInputElement;
+    const type = (text: string) => fireEvent.change(field(), { target: { value: text } });
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('shows typing at once and hands the board the search once typing pauses', () => {
+        const onSearch = vi.fn();
+        render(<Board onSearch={onSearch} />);
+
+        type('a');
+        act(() => { vi.advanceTimersByTime(100); });
+        type('al');
+        act(() => { vi.advanceTimersByTime(100); });
+        type('ali');
+        expect(field().value).toBe('ali');
+        expect(onSearch).not.toHaveBeenCalled();
+
+        act(() => { vi.advanceTimersByTime(200); });
+        expect(onSearch).toHaveBeenCalledTimes(1);
+        expect(onSearch).toHaveBeenCalledWith('ali');
+        expect(screen.getByTestId('board-search')).toHaveTextContent('ali');
+        expect(field().value).toBe('ali');
+    });
+
+    it('keeps typing that goes on after the board took the search', () => {
+        const onSearch = vi.fn();
+        render(<Board onSearch={onSearch} />);
+
+        type('ali');
+        act(() => { vi.advanceTimersByTime(200); });
+        type('alice');
+        expect(field().value).toBe('alice');
+        act(() => { vi.advanceTimersByTime(200); });
+        expect(onSearch).toHaveBeenLastCalledWith('alice');
+        expect(field().value).toBe('alice');
+    });
+
+    it('clears at once with × or Escape', () => {
+        const onSearch = vi.fn();
+        render(<Board onSearch={onSearch} initial="bob" />);
+        expect(field().value).toBe('bob');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(field().value).toBe('');
+        expect(onSearch).toHaveBeenLastCalledWith('');
+
+        type('carl');
+        fireEvent.keyDown(field(), { key: 'Escape' });
+        expect(field().value).toBe('');
+        act(() => { vi.advanceTimersByTime(500); });
+        expect(onSearch).not.toHaveBeenCalledWith('carl');
+        expect(screen.getByTestId('board-search')).toBeEmptyDOMElement();
+    });
+
+    it('shows a search the board resets', () => {
+        render(<Board onSearch={vi.fn()} initial="dan" />);
+        fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+        expect(field().value).toBe('');
+
+        type('eve');
+        act(() => { vi.advanceTimersByTime(200); });
+        expect(screen.getByTestId('board-search')).toHaveTextContent('eve');
     });
 });

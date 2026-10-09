@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, CalendarRange, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
@@ -105,6 +105,77 @@ function GroupLabel({ icon, children, className = '' }: { icon: ReactNode; child
             {icon}
             {children}
         </span>
+    );
+}
+
+/** Pause in typing after which the board filters by the search text */
+const SEARCH_DELAY_MS = 200;
+
+/**
+ * The search box keeps what is typed to itself and hands it to the board once typing pauses, so a
+ * key press repaints only the field, not the whole board. Clearing (× or Escape) applies at once.
+ */
+function SearchField({ value, onChange }: { value: string; onChange: (q: string) => void }) {
+    const [text, setText] = useState(value);
+    // The search the board was last given; when its own differs, it was set elsewhere (Reset filters)
+    const [sent, setSent] = useState(value);
+    if (value !== sent) {
+        setSent(value);
+        setText(value);
+    }
+
+    useEffect(() => {
+        if (text === sent) return;
+        const timer = setTimeout(() => {
+            setSent(text);
+            onChange(text);
+        }, SEARCH_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [text, sent, onChange]);
+
+    const clear = () => {
+        setText('');
+        setSent('');
+        onChange('');
+    };
+
+    return (
+        <div className="relative flex-1 md:flex-none md:w-56 xl:w-80">
+            <Search
+                className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${text ? 'text-brand-500' : 'text-muted'}`}
+                size={16}
+            />
+            <input
+                type="search"
+                id="search-query"
+                name="searchQuery"
+                data-page-search=""
+                autoComplete="off"
+                enterKeyHint="search"
+                placeholder="Name, email or phone…"
+                onKeyDown={e => {
+                    if (e.key === 'Escape' && text) {
+                        e.preventDefault();
+                        clear();
+                    }
+                }}
+                className={`w-full h-9 pl-9 pr-8 bg-surface-elevated border rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary [&::-webkit-search-cancel-button]:hidden ${
+                    text ? 'border-brand-400' : 'border-border-strong'
+                }`}
+                value={text}
+                onChange={e => setText(e.target.value)}
+            />
+            {text && (
+                <button
+                    type="button"
+                    onClick={clear}
+                    aria-label="Clear search"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-primary transition-colors"
+                >
+                    <X size={14} />
+                </button>
+            )}
+        </div>
     );
 }
 
@@ -303,42 +374,7 @@ export default function FilterBar({
         <div className="filter-bar-container shrink-0 bg-transparent md:bg-surface rounded-none md:rounded-2xl shadow-none md:shadow-card border-0 md:border border-border-subtle p-0 md:p-3 space-y-1.5 md:space-y-2.5">
             {/* Row 1: search + controls + Add */}
             <div className="flex items-center gap-1.5 md:gap-2">
-                <div className="relative flex-1 md:flex-none md:w-56 xl:w-80">
-                    <Search
-                        className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchQuery ? 'text-brand-500' : 'text-muted'}`}
-                        size={16}
-                    />
-                    <input
-                        type="search"
-                        id="search-query"
-                        name="searchQuery"
-                        data-page-search=""
-                        autoComplete="off"
-                        enterKeyHint="search"
-                        placeholder="Name, email or phone…"
-                        onKeyDown={e => {
-                            if (e.key === 'Escape' && searchQuery) {
-                                e.preventDefault();
-                                setSearchQuery('');
-                            }
-                        }}
-                        className={`w-full h-9 pl-9 pr-8 bg-surface-elevated border rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-background transition-all placeholder:text-muted/60 text-primary [&::-webkit-search-cancel-button]:hidden ${
-                            searchQuery ? 'border-brand-400' : 'border-border-strong'
-                        }`}
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery('')}
-                            aria-label="Clear search"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-muted hover:text-primary transition-colors"
-                        >
-                            <X size={14} />
-                        </button>
-                    )}
-                </div>
+                <SearchField value={searchQuery} onChange={setSearchQuery} />
 
                 {/* Mobile: every filter lives in one bottom sheet */}
                 <button
