@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, within } from '@testing-library/react';
 import { Route } from 'react-router-dom';
 import ViewerHome from './ViewerHome';
 import { supabase } from '../lib/supabase';
@@ -14,6 +14,9 @@ vi.mock('../lib/supabase', () => ({
 const TODAY = isoFromToday(0);
 const TOMORROW = isoFromToday(1);
 const LATER = isoFromToday(30);
+
+/** The KPI tile with this label: the session dates on the page can show the same numbers (the 10th, the 13th…) */
+const tile = (label: string) => screen.getByText(label).closest('.shadow-card') as HTMLElement;
 
 const courses = [
     { id: 'c-1', name: 'Manual Handling', created_at: '2026-01-01', total_count: 20, requested_count: 5, invited_count: 3, confirmed_count: 7, completed_count: 5, rejected_count: 0, pending_approval_count: 2 },
@@ -51,8 +54,8 @@ describe('ViewerHome', () => {
         expect(await screen.findByText('Sessions · next 14 days')).toBeInTheDocument();
         // 2 sessions within 14 days, 10 confirmed (+1 awaiting reply), 13 in queues, 2 awaiting approval
         expect(await screen.findByText('+1 awaiting reply')).toBeInTheDocument();
-        expect(screen.getByText('10')).toBeInTheDocument();
-        expect(screen.getByText('13')).toBeInTheDocument();
+        expect(within(tile('Confirmed attendees')).getByText('10')).toBeInTheDocument();
+        expect(within(tile('Waiting in queues')).getByText('13')).toBeInTheDocument();
     });
 
     it('groups upcoming sessions by day and opens the roster for that date', async () => {
