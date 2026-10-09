@@ -28,6 +28,8 @@ export function setupSleepAndWakeListener(
     // 1. Visibility change listener
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible' && !isCleanedUp) {
+            // The return is reported here; the slow ticks of the hidden time are no sleep (see 4.)
+            lastTick = Date.now();
             onWake('visibility');
         }
     };
@@ -46,13 +48,16 @@ export function setupSleepAndWakeListener(
         }
     };
 
-    // 4. Timer freeze / sleep gap detector
+    // 4. Timer freeze / sleep gap detector. Only while the page is shown: browsers run the timers
+    // of a hidden tab as rarely as once a minute (Chrome, after 5 minutes hidden), which looked
+    // like a sleep every minute and reloaded everything all day long in a tab left in the background
     const intervalId = setInterval(() => {
         if (isCleanedUp) return;
         const now = Date.now();
         const delta = now - lastTick;
         lastTick = now;
 
+        if (document.visibilityState === 'hidden') return;
         if (delta > sleepThresholdMs) {
             console.log(`[realtimeSync] System sleep / suspension detected (gap: ${Math.round(delta / 1000)}s). Triggering wake recovery.`);
             onWake('sleep_gap');

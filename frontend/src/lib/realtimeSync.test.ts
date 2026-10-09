@@ -78,6 +78,7 @@ describe('realtimeSync', () => {
         });
 
         it('triggers onWake when a sleep gap is detected', () => {
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
             const onWake = vi.fn();
             const cleanup = setupSleepAndWakeListener(onWake, { sleepThresholdMs: 5000, checkIntervalMs: 1000 });
 
@@ -86,6 +87,35 @@ describe('realtimeSync', () => {
             vi.advanceTimersByTime(1000);
 
             expect(onWake).toHaveBeenCalledWith('sleep_gap');
+            cleanup();
+        });
+
+        it('does not take the slowed-down timers of a hidden tab for a sleep', () => {
+            Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+            const onWake = vi.fn();
+            const cleanup = setupSleepAndWakeListener(onWake, { sleepThresholdMs: 5000, checkIntervalMs: 1000 });
+
+            // A background tab's timer runs once a minute
+            for (let i = 0; i < 5; i++) {
+                vi.setSystemTime(Date.now() + 60_000);
+                vi.advanceTimersByTime(1000);
+            }
+
+            expect(onWake).not.toHaveBeenCalled();
+            cleanup();
+        });
+
+        it('reports the return to a long-hidden tab once, as visibility', () => {
+            Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+            const onWake = vi.fn();
+            const cleanup = setupSleepAndWakeListener(onWake, { sleepThresholdMs: 5000, checkIntervalMs: 1000 });
+            vi.setSystemTime(Date.now() + 60_000);
+
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+            vi.advanceTimersByTime(1000);
+
+            expect(onWake.mock.calls).toEqual([['visibility']]);
             cleanup();
         });
 

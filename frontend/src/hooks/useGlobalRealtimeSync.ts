@@ -14,13 +14,21 @@ import { ENROLLMENTS_KEY, patchCachedEnrollments } from '../lib/enrollmentCache'
  * so that every page stays in sync without needing a manual refresh. Changed enrollments are
  * re-read one by one into the cached list rather than reloading all of them.
  *
- * Includes automatic wake-from-sleep detection, channel error recovery,
- * and cache invalidation on resume so data stays fresh.
+ * A dropped channel is rebuilt, and once it is live again everything is reloaded: changes made
+ * while it was down are never sent. Waking from sleep and coming back online rebuild it the same
+ * way. A return to the tab only reloads when something was missed (or, as a safety net, when the
+ * last reload is old): reloading every enrollment on each switch back from Outlook made the app
+ * slow to come back to.
  *
  * Mount this hook **once** at the App level.
  */
 // Viewer portal caches that depend on enrollment rows
 const VIEWER_ENROLLMENT_KEYS = ['viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail'];
+
+/** A return to the tab with a live channel reloads everything at most this often (safety net). */
+const SOFT_RESYNC_MIN_INTERVAL_MS = 10 * 60_000;
+/** A rebuilt channel that isn't live by then: reload anyway (realtime down, the API may be up). */
+const REJOIN_RESYNC_FALLBACK_MS = 5_000;
 
 /** The changed row's id: `new` for inserts and updates, `old` for deletes. */
 function changedRowId(payload: unknown): string | undefined {
@@ -37,6 +45,10 @@ export function useGlobalRealtimeSync() {
     const subscribeChannelRef = useRef<() => void>(() => {});
     const lastResyncRef = useRef<number>(0);
     const pendingResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Changes may have been missed (the channel dropped, or is being rebuilt): reload everything
+    // once it is live again
+    const needsResyncRef = useRef(false);
+    const fallbackResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Realtime events arrive in bursts (a bulk action on 30 enrollments = 30 events). Each
     // invalidation cancels the in-flight refetch and starts a new full-table fetch, so without
@@ -59,6 +71,8 @@ export function useGlobalRealtimeSync() {
         // otherwise show its old data when opened again within its staleTime
         keys.forEach(key => {
             if (key === ENROLLMENTS_KEY[0] && enrollmentIds) {
+                // An open student card's own list, kept under the same prefix, is small: reloaded
+                queryClient.invalidateQueries({ queryKey: [...ENROLLMENTS_KEY, 'by_student'] });
                 void patchCachedEnrollments(queryClient, Array.from(enrollmentIds)).then(patched => {
                     if (!patched) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY });
                 });
@@ -77,6 +91,18 @@ export function useGlobalRealtimeSync() {
         const wait = now - burstStartRef.current >= 1000 ? 0 : 250;
         flushTimerRef.current = setTimeout(flushInvalidations, wait);
     }, [flushInvalidations]);
+
+    // Open pages reload now, the rest when opened
+    const resyncAll = useCallback((source: string) => {
+        needsResyncRef.current = false;
+        if (fallbackResyncRef.current) {
+            clearTimeout(fallbackResyncRef.current);
+            fallbackResyncRef.current = null;
+        }
+        lastResyncRef.current = Date.now();
+        console.log(`[useGlobalRealtimeSync] Resyncing active queries (source: ${source})`);
+        queryClient.invalidateQueries();
+    }, [queryClient]);
 
     const subscribeChannel = useCallback(() => {
         if (!user) return;
@@ -103,7 +129,7 @@ export function useGlobalRealtimeSync() {
                     const id = changedRowId(payload);
                     if (id) pendingEnrollmentIdsRef.current?.add(id);
                     else pendingEnrollmentIdsRef.current = null;
-                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', ...VIEWER_ENROLLMENT_KEYS]);
+                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', 'pending_completions', ...VIEWER_ENROLLMENT_KEYS]);
                 }
             )
             // ─── Students ───────────────────────────────────
@@ -162,7 +188,12 @@ export function useGlobalRealtimeSync() {
                         clearTimeout(retryTimeoutRef.current);
                         retryTimeoutRef.current = null;
                     }
+                    // Live again after a drop: reload now that no further change can be missed.
+                    // A hidden tab waits until it is shown (handleResync, 'visibility').
+                    if (needsResyncRef.current && document.visibilityState !== 'hidden') resyncAll('channel back');
                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    // Changes made while the channel is down are never sent
+                    needsResyncRef.current = true;
                     console.error(`global_sync channel status ${status}:`, err);
                     if (!retryTimeoutRef.current) {
                         retryTimeoutRef.current = setTimeout(() => {
@@ -176,7 +207,7 @@ export function useGlobalRealtimeSync() {
             });
 
         activeChannelRef.current = channel;
-    }, [user, queueInvalidation]);
+    }, [user, queueInvalidation, resyncAll]);
 
     useEffect(() => {
         subscribeChannelRef.current = subscribeChannel;
@@ -187,30 +218,39 @@ export function useGlobalRealtimeSync() {
 
         // Data was just fetched on mount — don't resync again on the very next focus event
         lastResyncRef.current = Date.now();
+        needsResyncRef.current = false;
         subscribeChannel();
         const pendingKeys = pendingKeysRef.current;
 
-        // Listen for sleep/wake and custom reconnect events to resync data & channels.
-        // Focus/visibility fire very often (every alt-tab), so they only trigger a resync when the
-        // data is reasonably old; sleep gaps, network recovery and explicit reconnects always resync.
-        // Bursts (focus + visibilitychange fire together) are coalesced into a single refetch.
-        const SOFT_RESYNC_MIN_INTERVAL_MS = 60_000;
+        // Joined, over a socket that is still open (after a sleep the socket can be gone before
+        // the channel hears of it)
+        const isChannelLive = () => activeChannelRef.current?.state === 'joined' && supabase.realtime?.isConnected() !== false;
+
+        // Sleep/wake, network and explicit reconnect events. Focus/visibility fire on every alt-tab:
+        // with a live channel nothing was missed, so they only reload after a drop, or when the
+        // last reload is old. Sleep gaps, network recovery and explicit reconnects rebuild the
+        // channel. Bursts (focus + visibilitychange fire together) are coalesced.
         const handleResync = (reason?: string) => {
             const isSoft = reason === 'focus' || reason === 'visibility';
-            if (isSoft && Date.now() - lastResyncRef.current < SOFT_RESYNC_MIN_INTERVAL_MS) return;
+            if (isSoft && !needsResyncRef.current && isChannelLive()
+                && Date.now() - lastResyncRef.current < SOFT_RESYNC_MIN_INTERVAL_MS) return;
             if (pendingResyncRef.current) return;
 
             pendingResyncRef.current = setTimeout(() => {
                 pendingResyncRef.current = null;
-                lastResyncRef.current = Date.now();
-                console.log(`[useGlobalRealtimeSync] Resyncing active queries (source: ${reason || 'unknown'})`);
-                // Everything may have changed while asleep; open pages reload now, the rest when opened
-                queryClient.invalidateQueries();
-
-                const channelState = activeChannelRef.current?.state;
-                if (!isSoft || channelState !== 'joined') {
-                    subscribeChannelRef.current?.();
+                const source = reason || 'unknown';
+                if (isSoft && isChannelLive()) {
+                    resyncAll(source);
+                    return;
                 }
+                // Rebuilt, then reloaded once live (subscribeChannel), so nothing changed in between is missed
+                needsResyncRef.current = true;
+                subscribeChannelRef.current?.();
+                if (fallbackResyncRef.current) clearTimeout(fallbackResyncRef.current);
+                fallbackResyncRef.current = setTimeout(() => {
+                    fallbackResyncRef.current = null;
+                    if (needsResyncRef.current && document.visibilityState !== 'hidden') resyncAll(`${source}, realtime not back`);
+                }, REJOIN_RESYNC_FALLBACK_MS);
             }, 300);
         };
 
@@ -225,6 +265,10 @@ export function useGlobalRealtimeSync() {
             if (pendingResyncRef.current) {
                 clearTimeout(pendingResyncRef.current);
                 pendingResyncRef.current = null;
+            }
+            if (fallbackResyncRef.current) {
+                clearTimeout(fallbackResyncRef.current);
+                fallbackResyncRef.current = null;
             }
             if (retryTimeoutRef.current) {
                 clearTimeout(retryTimeoutRef.current);
@@ -241,5 +285,5 @@ export function useGlobalRealtimeSync() {
             activeChannelRef.current = null; // before removing, as in subscribeChannel
             if (channel) supabase.removeChannel(channel);
         };
-    }, [queryClient, user, subscribeChannel]);
+    }, [queryClient, user, subscribeChannel, resyncAll]);
 }

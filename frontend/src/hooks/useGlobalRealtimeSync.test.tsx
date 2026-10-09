@@ -7,8 +7,10 @@ import { supabase } from '../lib/supabase';
 
 type Handler = (payload: unknown) => void;
 const handlers: Record<string, Handler> = {};
-// The channel's subscribe callback (status changes)
-const channelStatus: { cb?: (status: string, err?: unknown) => void } = {};
+// The channel's subscribe callback (status changes) and its phoenix state
+const channelStatus: { cb?: (status: string, err?: unknown) => void; state?: string } = {};
+// The sleep/wake listener's callback
+const wake: { cb?: (reason: string) => void } = {};
 
 vi.mock('../lib/supabase', () => {
     const channel = {
@@ -20,6 +22,9 @@ vi.mock('../lib/supabase', () => {
             channelStatus.cb = cb;
             return channel;
         }),
+        get state() {
+            return channelStatus.state;
+        },
     };
     return {
         supabase: {
@@ -35,7 +40,10 @@ vi.mock('../contexts/AuthContext', () => ({
 }));
 
 vi.mock('../lib/realtimeSync', () => ({
-    setupSleepAndWakeListener: () => () => {},
+    setupSleepAndWakeListener: (cb: (reason: string) => void) => {
+        wake.cb = cb;
+        return () => {};
+    },
 }));
 
 const patchCachedEnrollments = vi.fn<(client: unknown, ids: string[]) => Promise<boolean>>();
@@ -51,14 +59,20 @@ function setup() {
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
     const { unmount } = renderHook(() => useGlobalRealtimeSync(), { wrapper });
-    const invalidatedKeys = () => invalidate.mock.calls.map(([filters]) => (filters as { queryKey: string[] }).queryKey[0]);
-    return { invalidate, invalidatedKeys, unmount };
+    const invalidatedKeys = () => invalidate.mock.calls
+        .filter(([filters]) => filters)
+        .map(([filters]) => (filters as { queryKey: string[] }).queryKey[0]);
+    // invalidateQueries() without filters: every query reloads
+    const fullReloads = () => invalidate.mock.calls.filter(([filters]) => !filters).length;
+    return { invalidate, invalidatedKeys, fullReloads, unmount };
 }
 
 describe('useGlobalRealtimeSync', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         patchCachedEnrollments.mockReset().mockResolvedValue(true);
+        channelStatus.state = 'joined';
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     });
 
     afterEach(() => {
@@ -78,7 +92,7 @@ describe('useGlobalRealtimeSync', () => {
 
         expect(invalidatedKeys().sort()).toEqual(
             [
-                'course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'students',
+                'course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'pending_completions', 'students',
                 'viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail',
             ].sort()
         );
@@ -99,7 +113,7 @@ describe('useGlobalRealtimeSync', () => {
     });
 
     it('re-reads only the changed enrollments instead of reloading the list', async () => {
-        const { invalidatedKeys } = setup();
+        const { invalidate, invalidatedKeys } = setup();
 
         act(() => {
             handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-1' }, old: { id: 'e-1' } });
@@ -111,7 +125,9 @@ describe('useGlobalRealtimeSync', () => {
 
         expect(patchCachedEnrollments).toHaveBeenCalledTimes(1);
         expect(patchCachedEnrollments.mock.calls[0][1].sort()).toEqual(['e-1', 'e-2', 'e-3']);
-        expect(invalidatedKeys()).not.toContain('enrollments');
+        expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['enrollments'] });
+        // An open student card's own enrollments reload
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: ['enrollments', 'by_student'] });
         // The counts that depend on enrollments are still refreshed
         expect(invalidatedKeys()).toContain('dashboard_stats');
     });
@@ -157,5 +173,96 @@ describe('useGlobalRealtimeSync', () => {
         expect(error).not.toHaveBeenCalled();
         expect(supabase.channel).not.toHaveBeenCalled(); // no resubscribe
         error.mockRestore();
+    });
+    it('does not reload everything on each return to the tab while the channel is live', () => {
+        const { fullReloads } = setup();
+        vi.mocked(supabase.channel).mockClear();
+
+        act(() => {
+            vi.advanceTimersByTime(2 * 60_000);
+            wake.cb?.('visibility');
+            wake.cb?.('focus');
+            vi.advanceTimersByTime(1000);
+        });
+
+        expect(fullReloads()).toBe(0);
+        expect(supabase.channel).not.toHaveBeenCalled(); // the channel is kept
+
+        // A long time away: the safety-net reload, once
+        act(() => {
+            vi.advanceTimersByTime(10 * 60_000);
+            wake.cb?.('visibility');
+            wake.cb?.('focus');
+            vi.advanceTimersByTime(1000);
+        });
+        expect(fullReloads()).toBe(1);
+    });
+
+    it('reloads everything once the channel is back after a drop', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const { fullReloads } = setup();
+
+        act(() => { channelStatus.cb?.('CHANNEL_ERROR'); });
+        act(() => { vi.advanceTimersByTime(5000); }); // the retry rebuilds the channel
+        expect(fullReloads()).toBe(0);
+
+        act(() => { channelStatus.cb?.('SUBSCRIBED'); });
+        expect(fullReloads()).toBe(1);
+
+        // Further joins (nothing missed) don't reload again
+        act(() => { channelStatus.cb?.('SUBSCRIBED'); });
+        expect(fullReloads()).toBe(1);
+        error.mockRestore();
+    });
+
+    it('leaves the reload of a hidden tab for when it is shown again', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const { fullReloads } = setup();
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+        act(() => { channelStatus.cb?.('CHANNEL_ERROR'); });
+        act(() => { vi.advanceTimersByTime(5000); });
+        act(() => { channelStatus.cb?.('SUBSCRIBED'); });
+        expect(fullReloads()).toBe(0);
+
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        act(() => {
+            wake.cb?.('visibility');
+            vi.advanceTimersByTime(300);
+        });
+        expect(fullReloads()).toBe(1);
+        error.mockRestore();
+    });
+
+    it('rebuilds the channel after a sleep and reloads once it is live', () => {
+        const { fullReloads } = setup();
+        vi.mocked(supabase.channel).mockClear();
+
+        act(() => {
+            wake.cb?.('sleep_gap');
+            vi.advanceTimersByTime(300);
+        });
+        expect(supabase.channel).toHaveBeenCalledTimes(1);
+        expect(fullReloads()).toBe(0);
+
+        act(() => { channelStatus.cb?.('SUBSCRIBED'); });
+        expect(fullReloads()).toBe(1);
+
+        // No second reload from the fallback
+        act(() => { vi.advanceTimersByTime(10_000); });
+        expect(fullReloads()).toBe(1);
+    });
+
+    it('reloads anyway when the rebuilt channel does not come back', () => {
+        const { fullReloads } = setup();
+
+        act(() => {
+            wake.cb?.('online');
+            vi.advanceTimersByTime(300);
+        });
+        expect(fullReloads()).toBe(0);
+
+        act(() => { vi.advanceTimersByTime(5000); });
+        expect(fullReloads()).toBe(1);
     });
 });

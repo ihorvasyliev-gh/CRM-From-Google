@@ -17,7 +17,9 @@ export function usePendingApprovalsList(enabled: boolean = true) {
             return (data || []) as PendingCompletionRequest[];
         },
         enabled,
-        refetchInterval: 30_000,
+        // Requests are enrollment columns: realtime refreshes the list as they come
+        // (useGlobalRealtimeSync); this is only a fallback
+        refetchInterval: 5 * 60_000,
     });
 }
 
