@@ -79,3 +79,44 @@ describe('patchCachedEnrollments', () => {
         expect(client.getQueryData(['enrollments'])).toBe(cached);
     });
 });
+
+describe('patchCachedEnrollments while the list is loading', () => {
+    beforeEach(() => {
+        fetchEnrollmentsByIds.mockReset();
+    });
+
+    const before = [row('a', '2026-03-03T10:00:00Z'), row('b', '2026-03-02T10:00:00Z')];
+
+    it('lets a running full load finish instead of restarting it, then re-reads the changed rows', async () => {
+        const client = new QueryClient();
+        client.setQueryData(['enrollments'], before);
+        let finishLoad: (rows: EnrollmentWithRelations[]) => void = () => {};
+        const loadAll = vi.fn(() => new Promise<EnrollmentWithRelations[]>(resolve => { finishLoad = resolve; }));
+        const load = client.fetchQuery({ queryKey: ['enrollments'], queryFn: loadAll });
+        fetchEnrollmentsByIds.mockResolvedValue([row('b', before[1].created_at, 'confirmed')]);
+
+        const patch = patchCachedEnrollments(client, ['b']);
+        await Promise.resolve();
+        expect(fetchEnrollmentsByIds).not.toHaveBeenCalled(); // waits for the load
+
+        // The load read 'b' before it changed
+        finishLoad([...before]);
+        await load;
+        expect(await patch).toBe(true);
+
+        expect(loadAll).toHaveBeenCalledTimes(1); // not restarted
+        expect(fetchEnrollmentsByIds).toHaveBeenCalledWith(['b']);
+        const data = client.getQueryData<EnrollmentWithRelations[]>(['enrollments'])!;
+        expect(data.map(r => r.status)).toEqual(['requested', 'confirmed']);
+    });
+
+    it("is not held up by a student's own enrollments loading", async () => {
+        const client = new QueryClient();
+        client.setQueryData(['enrollments'], before);
+        void client.fetchQuery({ queryKey: ['enrollments', 'by_student', 's-1'], queryFn: () => new Promise(() => {}) });
+        fetchEnrollmentsByIds.mockResolvedValue([row('b', before[1].created_at, 'confirmed')]);
+
+        expect(await patchCachedEnrollments(client, ['b'])).toBe(true);
+        expect(client.getQueryData<EnrollmentWithRelations[]>(['enrollments'])!.map(r => r.status)).toEqual(['requested', 'confirmed']);
+    });
+});

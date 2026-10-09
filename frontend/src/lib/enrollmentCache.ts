@@ -45,16 +45,29 @@ export function mergeEnrollmentRows(
 }
 
 /**
+ * The full load of the list running now, if any. Only the list itself: the per-student lists kept
+ * under the same key prefix (['enrollments', 'by_student', id]) don't count.
+ */
+function runningFullLoad(queryClient: QueryClient): Promise<unknown> | undefined {
+    const query = queryClient.getQueryCache().find({ queryKey: ENROLLMENTS_KEY, exact: true });
+    return query?.state.fetchStatus === 'fetching' ? query.promise : undefined;
+}
+
+/**
  * Applies the realtime changes to these enrollment ids to the cached list. Returns false when the
- * list has to be reloaded instead: nothing cached yet, too many changes, a full load already
- * running, or the rows could not be read.
+ * list has to be reloaded instead: nothing cached yet, too many changes, or the rows could not be
+ * read.
  */
 export async function patchCachedEnrollments(queryClient: QueryClient, ids: string[]): Promise<boolean> {
     if (ids.length === 0) return true;
     if (ids.length > MAX_PATCHED_ENROLLMENTS) return false;
     if (!queryClient.getQueryData(ENROLLMENTS_KEY)) return false;
-    // A full load that is already running may have started before the change; reload after it
-    if (queryClient.isFetching({ queryKey: ENROLLMENTS_KEY }) > 0) return false;
+    // A full load already running may have read these rows before they changed. It isn't restarted
+    // (that threw away the pages it had read and downloaded every enrollment again, after nearly
+    // every save in this tab, which starts such a load): it finishes, then the changed rows are
+    // re-read on top of it.
+    const running = runningFullLoad(queryClient);
+    if (running) await running.catch(() => { /* failed or cancelled: the cached rows stay */ });
 
     let fresh: EnrollmentWithRelations[];
     try {
@@ -64,7 +77,7 @@ export async function patchCachedEnrollments(queryClient: QueryClient, ids: stri
         return false;
     }
     // A full load started meanwhile reads the same (or newer) rows; let it win
-    if (queryClient.isFetching({ queryKey: ENROLLMENTS_KEY }) > 0) return true;
+    if (runningFullLoad(queryClient)) return true;
 
     const changed = new Set(ids);
     queryClient.setQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY, old => old && mergeEnrollmentRows(old, changed, fresh));
