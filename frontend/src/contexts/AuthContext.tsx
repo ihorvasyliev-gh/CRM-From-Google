@@ -3,6 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { AlertCircle } from 'lucide-react';
 import { clearStoredConfig, getConfig, storeServerConfig } from '../lib/appConfig';
+import { sameSession, sameUser } from '../lib/authIdentity';
 
 interface AuthContextType {
     session: Session | null;
@@ -32,6 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const syncedUsers = new Set<string>();
+
+        // Keeps the current objects when an event only repeats the session already known (each
+        // return to the tab does): a new user object would rejoin every realtime channel
+        const applySession = (next: Session | null) => {
+            setSession(prev => (sameSession(prev, next) ? prev : next));
+            setUser(prev => (sameUser(prev, next?.user ?? null) ? prev : next?.user ?? null));
+        };
 
         const syncUserSettings = async (userId: string) => {
             if (syncedUsers.has(userId)) return;
@@ -75,8 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     console.error("Auth Session Error:", error);
                     setSetupError({ kind: 'connection', message: error.message || 'Failed to connect. Invalid or expired token.' });
                 } else {
-                    setSession(session);
-                    setUser(session?.user ?? null);
+                    applySession(session);
                     if (session?.user) {
                         syncUserSettings(session.user.id);
                     }
@@ -92,8 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (event, session) => {
-                setSession(session);
-                setUser(session?.user ?? null);
+                applySession(session);
                 
                 if (session?.user) {
                     syncUserSettings(session.user.id);
