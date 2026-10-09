@@ -90,7 +90,8 @@ export default function Analytics() {
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],
         queryFn: fetchEmploymentStatuses,
-        staleTime: 60_000,
+        // Realtime sync refreshes it on changes; the page stays mounted between visits, and a
+        // short staleTime re-read every status on each return
     });
 
     // 5. Apply Global Filters

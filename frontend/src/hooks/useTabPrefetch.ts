@@ -33,9 +33,11 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
 
     const prefetchTabData = useCallback((tab: string) => {
         const { queries = [] } = TAB_PREFETCH[tab] ?? {};
-        queries.forEach(q => queryClient.prefetchQuery({ ...q, staleTime: 30_000 }));
+        // With the default staleTime: these caches are kept live by realtime sync, and with 30s a
+        // cursor passing over the sidebar downloaded every enrollment again twice a minute
+        queries.forEach(q => queryClient.prefetchQuery(q));
         if (tab === 'students') {
-            queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0, staleTime: 30_000 });
+            queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0 });
         }
     }, [queryClient]);
 

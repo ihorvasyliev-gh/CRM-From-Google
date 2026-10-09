@@ -76,6 +76,34 @@ function updatedLabel(updatedAt: number, now: number): string {
     return `Updated ${Math.floor(mins / 60)}h ago`;
 }
 
+/**
+ * The greeting, today's date and "Updated x ago": the parts that follow the clock. The 30-second
+ * tick re-renders just this, not every card and the activity feed of the page.
+ */
+function DashboardHeading({ updatedAt, refreshing, children }: { updatedAt: number; refreshing: boolean; children: ReactNode }) {
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNow(Date.now()), 30_000);
+        return () => clearInterval(id);
+    }, []);
+    const today = new Date(now);
+    return (
+        <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight">{greeting(today.getHours())}</h2>
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+                <span>{today.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                {updatedAt > 0 && (
+                    <>
+                        <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
+                        <span>{refreshing ? 'Refreshing…' : updatedLabel(updatedAt, now)}</span>
+                    </>
+                )}
+                {children}
+            </div>
+        </div>
+    );
+}
+
 interface QuickAction {
     key: string;
     label: string;
@@ -140,13 +168,6 @@ export default function Dashboard({
         setActivityLimit(ACTIVITY_PAGE_SIZE);
     }, [activityFilter, deferredSearch]);
 
-    // Re-render every 30s so the "Updated x ago" label stays fresh
-    const [now, setNow] = useState(() => Date.now());
-    useEffect(() => {
-        const id = setInterval(() => setNow(Date.now()), 30_000);
-        return () => clearInterval(id);
-    }, []);
-
     const handleAddStudent = () => (onAddStudent ? onAddStudent() : onNavigate?.('students'));
     const handleAddEnrollment = () => (onAddEnrollment ? onAddEnrollment() : onNavigate?.('enrollments'));
 
@@ -161,7 +182,9 @@ export default function Dashboard({
         staleTime: 30_000,
     });
 
-    // Reuse the global ['enrollments'] cache (staleTime 30_000)
+    // Reuse the global ['enrollments'] cache, kept live by realtime sync (so the default
+    // staleTime). The dashboard stays mounted between visits and checks its data on every return:
+    // with 30s, each return after half a minute downloaded every enrollment again.
     const {
         data: allEnrollments = [],
         isLoading: enrollmentsLoading,
@@ -170,7 +193,6 @@ export default function Dashboard({
     } = useQuery({
         queryKey: ['enrollments'],
         queryFn: fetchAllEnrollments,
-        staleTime: 30_000,
     });
 
     const loading = statsLoading || enrollmentsLoading;
@@ -268,31 +290,20 @@ export default function Dashboard({
         { key: 'board', label: 'Board', icon: KanbanSquare, onClick: () => onNavigate?.('enrollments') },
     ];
 
-    const today = new Date(now);
     const header = (
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
-            <div className="min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight">{greeting(today.getHours())}</h2>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                    <span>{today.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-                    {dataUpdatedAt > 0 && (
-                        <>
-                            <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
-                            <span>{refreshing ? 'Refreshing…' : updatedLabel(dataUpdatedAt, now)}</span>
-                        </>
-                    )}
-                    <button
-                        type="button"
-                        onClick={handleRefresh}
-                        disabled={loading || refreshing}
-                        aria-label="Refresh dashboard"
-                        title="Refresh"
-                        className="p-1 rounded-md text-muted hover:text-brand-500 hover:bg-brand-500/10 disabled:opacity-50 transition-colors cursor-pointer"
-                    >
-                        <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-                    </button>
-                </div>
-            </div>
+            <DashboardHeading updatedAt={dataUpdatedAt} refreshing={refreshing}>
+                <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={loading || refreshing}
+                    aria-label="Refresh dashboard"
+                    title="Refresh"
+                    className="p-1 rounded-md text-muted hover:text-brand-500 hover:bg-brand-500/10 disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                    <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                </button>
+            </DashboardHeading>
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 pb-0.5">
                 {quickActions.map(a => (
                     <QuickActionButton key={a.key} action={a} compact={isMobile} />
