@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     courseDateKey, formatTimeRange, normalizeSession, normalizeTime, sessionDays, sessionForEnrollment, sessionFromRow,
-    sessionHasSchedule, sessionShortNote, sessionToRow, subjectDateLabel, weeklyDates, weeklySummary, type CourseSession,
+    sessionHasSchedule, sessionShortNote, sessionToRow, shareSessionMap, subjectDateLabel, weeklyDates, weeklySummary, type CourseSession,
 } from './courseSessions';
 
 const session = (patch: Partial<CourseSession> = {}): CourseSession => ({
@@ -146,5 +146,40 @@ describe('sessionForEnrollment', () => {
     it('has none while a multi-date invite is open, or for another course', () => {
         expect(sessionForEnrollment({ ...base, status: 'invited', confirmed_date: null, invited_dates: ['2026-10-01', '2026-10-29'] }, sessions)).toBeNull();
         expect(sessionForEnrollment({ ...base, course_id: 'c-2' }, sessions)).toBeNull();
+    });
+});
+
+describe('shareSessionMap', () => {
+    const a = session({ date: '2026-10-01', start_time: '10:00' });
+    const b = session({ date: '2026-10-08', location: 'Room 1' });
+    const copy = (s: CourseSession): CourseSession => JSON.parse(JSON.stringify(s));
+
+    it('keeps the old map when the refetch brought nothing new', () => {
+        const prev = new Map([['c|2026-10-01', a], ['c|2026-10-08', b]]);
+        const next = new Map([['c|2026-10-01', copy(a)], ['c|2026-10-08', copy(b)]]);
+        expect(shareSessionMap(prev, next)).toBe(prev);
+    });
+
+    it('keeps the unchanged sessions when one changed or was added', () => {
+        const prev = new Map([['c|2026-10-01', a], ['c|2026-10-08', b]]);
+        const moved = session({ ...b, location: 'Room 2' });
+        const added = session({ date: '2026-10-15' });
+        const shared = shareSessionMap(prev, new Map([['c|2026-10-01', copy(a)], ['c|2026-10-08', moved], ['c|2026-10-15', added]]));
+        expect(shared).not.toBe(prev);
+        expect(shared.get('c|2026-10-01')).toBe(a);
+        expect(shared.get('c|2026-10-08')).toBe(moved);
+        expect(shared.get('c|2026-10-15')).toBe(added);
+    });
+
+    it('sees a removed session', () => {
+        const prev = new Map([['c|2026-10-01', a], ['c|2026-10-08', b]]);
+        const shared = shareSessionMap(prev, new Map([['c|2026-10-01', copy(a)]]));
+        expect([...shared.keys()]).toEqual(['c|2026-10-01']);
+        expect(shared.get('c|2026-10-01')).toBe(a);
+    });
+
+    it('takes the first load as it is', () => {
+        const next = new Map([['c|2026-10-01', a]]);
+        expect(shareSessionMap(undefined, next)).toBe(next);
     });
 });

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { courseDateKey, SESSION_COLUMNS, sessionFromRow, type CourseSession } from '../lib/courseSessions';
+import { courseDateKey, SESSION_COLUMNS, sessionFromRow, shareSessionMap, type CourseSession } from '../lib/courseSessions';
 
 export const COURSE_SESSIONS_QUERY_KEY = ['course_sessions'] as const;
 
@@ -31,6 +31,8 @@ export function useCourseSessions(enabled = true): ReadonlyMap<string, CourseSes
         queryFn: fetchCourseSessions,
         staleTime: 60_000,
         enabled,
+        // React Query only shares plain objects and arrays between fetches, not a Map
+        structuralSharing: (prev, next) => shareSessionMap(prev as ReadonlyMap<string, CourseSession> | undefined, next as ReadonlyMap<string, CourseSession>),
     });
     return data ?? EMPTY;
 }

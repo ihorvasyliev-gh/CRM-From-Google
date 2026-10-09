@@ -227,3 +227,27 @@ export function sessionForEnrollment(
     const dates = courseDatesOf(e);
     return dates.length === 1 ? sessions.get(courseDateKey(e.course_id, dates[0])) ?? null : null;
 }
+
+/**
+ * `next` with the sessions that did not change taken from `prev` (the whole of `prev` if nothing
+ * changed). Cards and board columns compare sessions by identity, and the query refetches them
+ * after every invitation: new but equal objects re-rendered the whole board each time.
+ */
+export function shareSessionMap(
+    prev: ReadonlyMap<string, CourseSession> | undefined,
+    next: ReadonlyMap<string, CourseSession>,
+): ReadonlyMap<string, CourseSession> {
+    if (!prev) return next;
+    let changed = prev.size !== next.size;
+    const shared = new Map<string, CourseSession>();
+    next.forEach((session, key) => {
+        const old = prev.get(key);
+        if (old && JSON.stringify(old) === JSON.stringify(session)) {
+            shared.set(key, old);
+        } else {
+            shared.set(key, session);
+            changed = true;
+        }
+    });
+    return changed ? shared : prev;
+}

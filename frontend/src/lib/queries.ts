@@ -58,6 +58,7 @@ export async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWi
 
 export interface StudentsPage {
     data: Student[];
+    /** Every student matching the search; counted on the first page only (0 on the others) */
     count: number;
     nextPage: number | undefined;
 }
@@ -67,8 +68,10 @@ export async function fetchStudentsPage({ pageParam = 0, queryKey }: { pageParam
     const search = queryKey[1] as string;
     const from = pageParam * STUDENTS_PAGE_SIZE;
 
-    // id breaks created_at ties, so infinite scroll never repeats or skips a student between pages
-    let query = supabase.from('students').select('*', { count: 'exact' }).order('created_at', { ascending: false }).order('id');
+    // id breaks created_at ties, so infinite scroll never repeats or skips a student between pages.
+    // Only the first page is counted (the total shown comes from it): an exact count runs the whole
+    // search again, and did so for every page scrolled in.
+    let query = supabase.from('students').select('*', pageParam === 0 ? { count: 'exact' } : undefined).order('created_at', { ascending: false }).order('id');
     if (search) {
         buildStudentSearchFilters(search).forEach(filter => {
             query = query.or(filter);

@@ -40,7 +40,8 @@ export function computeQueuePositions(enrollments: QueueEnrollment[]): QueuePosi
     queues.forEach(queue => {
         queue.sort((a, b) => {
             if (!!a.is_priority !== !!b.is_priority) return a.is_priority ? -1 : 1;
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            // ISO timestamps from Postgres: string order is time order, without two Dates per comparison
+            return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
         });
         queue.forEach((e, index) => positions.set(e.id, index + 1));
     });

@@ -1,5 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAllPages } from './queries';
+import { fetchAllPages, fetchStudentsPage } from './queries';
+import { supabase } from './supabase';
+
+vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }));
+
+/** A students query that records its select() options and answers with `rows`. */
+function studentsQuery(rows: unknown[], count: number | null) {
+    const query: Record<string, unknown> = {};
+    for (const method of ['order', 'or']) query[method] = vi.fn(() => query);
+    query.select = vi.fn(() => query);
+    query.range = vi.fn(() => Promise.resolve({ data: rows, count, error: null }));
+    vi.mocked(supabase.from).mockReturnValue(query as never);
+    return query as { select: ReturnType<typeof vi.fn> };
+}
 
 const rows = (n: number, start = 0) => Array.from({ length: n }, (_, i) => ({ id: start + i }));
 
@@ -56,5 +69,19 @@ describe('fetchAllPages', () => {
             .mockResolvedValueOnce({ data: null, error: { message: 'timeout' } })
             .mockResolvedValue({ data: [], error: null });
         await expect(fetchAllPages(page)).rejects.toEqual({ message: 'timeout' });
+    });
+});
+
+describe('fetchStudentsPage', () => {
+    it('counts the matching students on the first page only', async () => {
+        const first = studentsQuery(rows(30), 95);
+        const page0 = await fetchStudentsPage({ pageParam: 0, queryKey: ['students', 'ann'] });
+        expect(first.select).toHaveBeenCalledWith('*', { count: 'exact' });
+        expect(page0).toMatchObject({ count: 95, nextPage: 1 });
+
+        const next = studentsQuery(rows(30, 30), null);
+        const page1 = await fetchStudentsPage({ pageParam: 1, queryKey: ['students', 'ann'] });
+        expect(next.select).toHaveBeenCalledWith('*', undefined);
+        expect(page1).toMatchObject({ count: 0, nextPage: 2 });
     });
 });
