@@ -119,6 +119,7 @@ Everyone on the team sees the same board, live. Nothing is copied between spread
 - Courses & cohorts · Graduate outcomes
 - Data explorer with drill-down · Multi-course completers
 - Copy emails and export CSV / Excel from every view
+- **One-page report** for any period: people registered and people who completed, by course and by month, on one A4 page to print or save as PDF
 
 </td>
 </tr>

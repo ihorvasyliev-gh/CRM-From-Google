@@ -1074,3 +1074,33 @@ a:focus-visible,
 .email-editor-content p.is-editor-empty:first-child::before {
     content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: #94a3b8;
 }
+
+/* ── One-page report (Analytics → Report) ─────────────────────────────────
+   A sheet of A4 paper: white in either theme, since it is printed or saved as a PDF.
+   Series colours are the validated categorical pair (blue / orange). */
+.report-sheet {
+    --rs-paper: #ffffff;
+    --rs-ink: #0b0b0b;
+    --rs-ink-2: #52514e;
+    --rs-muted: #7a7974;
+    --rs-rule: #e4e3df;
+    --rs-rule-soft: #f0efec;
+    --rs-axis: #c9c8c2;
+    --rs-panel: #f5f5f3;
+    --rs-registered: #2a78d6;
+    --rs-completed: #eb6834;
+    color-scheme: light;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    padding: 12mm 15mm 10mm;
+    overflow: hidden;
+    background: var(--rs-paper);
+    color: var(--rs-ink);
+    font-size: 9pt;
+    line-height: 1.35;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}

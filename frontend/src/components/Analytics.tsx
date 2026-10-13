@@ -15,7 +15,8 @@ import {
     MapPin, 
     BookOpen, 
     Search,
-    Award
+    Award,
+    FileText
 } from 'lucide-react';
 
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
@@ -37,6 +38,7 @@ const CourseMatrixTab = memo(lazyWithRetry(() => import('./Analytics/CourseMatri
 const OutcomesTab = memo(lazyWithRetry(() => import('./Analytics/OutcomesTab')));
 const DataExplorerTab = memo(lazyWithRetry(() => import('./Analytics/DataExplorerTab')));
 const MultiCourseCompletersTab = memo(lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab')));
+const SummaryReportModal = lazyWithRetry(() => import('./Analytics/SummaryReportModal'));
 
 const EMPTY_ENROLLMENTS: EnrollmentWithRelations[] = [];
 const EMPTY_STATUSES: EmploymentStatusRow[] = [];
@@ -80,6 +82,9 @@ export default function Analytics() {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const shownStudent = useLastPresent(selectedStudent);
     const [isExportingExcel, setIsExportingExcel] = useState(false);
+    // The report dialog's chunk loads on first open and stays mounted after, so it can animate out
+    const [reportOpen, setReportOpen] = useState(false);
+    const [reportLoaded, setReportLoaded] = useState(false);
 
     // 4. TanStack Data Queries
     const { data: allEnrollments = EMPTY_ENROLLMENTS, isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
@@ -252,6 +257,16 @@ export default function Analytics() {
                 filteredEnrollments={filteredEnrollments}
                 actions={
                     <>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => { setReportLoaded(true); setReportOpen(true); }}
+                            disabled={allEnrollments.length === 0}
+                            title="One-page A4 report for a period: registrations and completions by course"
+                        >
+                            <FileText size={14} />
+                            Report
+                        </Button>
                         <Button variant="secondary" size="sm" onClick={handleExportActiveCSV} disabled={filteredEnrollments.length === 0} title="Export the current scope as CSV">
                             <Download size={14} />
                             CSV
@@ -378,6 +393,12 @@ export default function Analytics() {
                     </Suspense>
                 )}
             </div>
+
+            {reportLoaded && (
+                <Suspense fallback={null}>
+                    <SummaryReportModal open={reportOpen} onClose={() => setReportOpen(false)} enrollments={allEnrollments} />
+                </Suspense>
+            )}
 
             {/* Universal Drill-down Modal */}
             <DrillDownModal
