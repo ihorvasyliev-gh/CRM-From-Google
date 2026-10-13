@@ -115,3 +115,18 @@ export async function fetchEmploymentStatuses(): Promise<EmploymentStatusRow[]> 
         supabase.from('employment_status').select('*').order('id').range(from, to)
     ) as Promise<EmploymentStatusRow[]>;
 }
+
+/**
+ * Leaves enrollments out of (or counts them again in) Analytics and the one-page report
+ * (a course run marked "Ignore in reports", migration 82).
+ */
+export async function setExcludedFromReports(ids: string[], exclude: boolean): Promise<void> {
+    const CHUNK = 150; // keeps the id=in.(…) URL well under server limits
+    for (let i = 0; i < ids.length; i += CHUNK) {
+        const { error } = await supabase
+            .from('enrollments')
+            .update({ exclude_from_reports: exclude })
+            .in('id', ids.slice(i, i + CHUNK));
+        if (error) throw error;
+    }
+}

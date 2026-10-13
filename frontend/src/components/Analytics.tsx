@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useDeferredValue, startTransition, memo, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchEmploymentStatuses } from '../lib/queries';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchEmploymentStatuses, setExcludedFromReports } from '../lib/queries';
+import { toast } from '../lib/toast';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { 
@@ -43,6 +44,7 @@ const SummaryReportModal = lazyWithRetry(() => import('./Analytics/SummaryReport
 const EMPTY_ENROLLMENTS: EnrollmentWithRelations[] = [];
 const EMPTY_STATUSES: EmploymentStatusRow[] = [];
 import DrillDownModal from './Analytics/DrillDownModal';
+import { courseRunKey, isReportable } from './Analytics/courseRuns';
 import { 
     calculateSpeedMetrics, 
     calculateFunnelAnalysis, 
@@ -51,6 +53,59 @@ import {
 } from './Analytics/analyticsUtils';
 
 export type AnalyticsTabId = 'pipeline' | 'geography' | 'courses' | 'outcomes' | 'explorer' | 'multi-course';
+
+function applyFilters(enrollments: EnrollmentWithRelations[], filters: AnalyticsFilterState): EnrollmentWithRelations[] {
+    let result = enrollments;
+
+    // Date Filter
+    if (filters.datePreset !== 'all') {
+        const now = new Date();
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
+
+        if (filters.datePreset === '30') {
+            startDate = new Date(now.getTime() - 30 * 86400000);
+        } else if (filters.datePreset === '90') {
+            startDate = new Date(now.getTime() - 90 * 86400000);
+        } else if (filters.datePreset === '180') {
+            startDate = new Date(now.getTime() - 180 * 86400000);
+        } else if (filters.datePreset === '365') {
+            startDate = new Date(now.getTime() - 365 * 86400000);
+        } else if (filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate) {
+            // Parse as local dates (plain YYYY-MM-DD would be UTC midnight and shift a day west of GMT)
+            startDate = new Date(`${filters.customStartDate}T00:00:00`);
+            endDate = new Date(`${filters.customEndDate}T00:00:00`);
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        if (startDate) {
+            result = result.filter(e => {
+                const d = new Date(e.created_at);
+                if (endDate) {
+                    return d >= startDate! && d <= endDate;
+                }
+                return d >= startDate!;
+            });
+        }
+    }
+
+    // Course Filter
+    if (filters.courseId !== 'all') {
+        result = result.filter(e => e.course_id === filters.courseId);
+    }
+
+    // Variant Filter
+    if (filters.variant !== 'all') {
+        result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === filters.variant.toLowerCase());
+    }
+
+    // Priority Filter
+    if (filters.priorityOnly) {
+        result = result.filter(e => !!e.is_priority);
+    }
+
+    return result;
+}
 
 export default function Analytics() {
     // 1. Global Filter State
@@ -99,65 +154,25 @@ export default function Analytics() {
         // short staleTime re-read every status on each return
     });
 
-    // 5. Apply Global Filters
-    const filteredEnrollments = useMemo(() => {
-        let result = allEnrollments;
+    // 5. Course runs marked "Ignore in reports" count nowhere in Analytics; Courses & cohorts
+    // still lists them (in the current filters), to count them again
+    const { reportable, ignored } = useMemo(() => {
+        const reportable: EnrollmentWithRelations[] = [];
+        const ignored: EnrollmentWithRelations[] = [];
+        for (const e of allEnrollments) (isReportable(e) ? reportable : ignored).push(e);
+        return { reportable, ignored };
+    }, [allEnrollments]);
 
-        // Date Filter
-        if (filters.datePreset !== 'all') {
-            const now = new Date();
-            let startDate: Date | null = null;
-            let endDate: Date | null = null;
-
-            if (filters.datePreset === '30') {
-                startDate = new Date(now.getTime() - 30 * 86400000);
-            } else if (filters.datePreset === '90') {
-                startDate = new Date(now.getTime() - 90 * 86400000);
-            } else if (filters.datePreset === '180') {
-                startDate = new Date(now.getTime() - 180 * 86400000);
-            } else if (filters.datePreset === '365') {
-                startDate = new Date(now.getTime() - 365 * 86400000);
-            } else if (filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate) {
-                // Parse as local dates (plain YYYY-MM-DD would be UTC midnight and shift a day west of GMT)
-                startDate = new Date(`${filters.customStartDate}T00:00:00`);
-                endDate = new Date(`${filters.customEndDate}T00:00:00`);
-                endDate.setHours(23, 59, 59, 999);
-            }
-
-            if (startDate) {
-                result = result.filter(e => {
-                    const d = new Date(e.created_at);
-                    if (endDate) {
-                        return d >= startDate! && d <= endDate;
-                    }
-                    return d >= startDate!;
-                });
-            }
-        }
-
-        // Course Filter
-        if (filters.courseId !== 'all') {
-            result = result.filter(e => e.course_id === filters.courseId);
-        }
-
-        // Variant Filter
-        if (filters.variant !== 'all') {
-            result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === filters.variant.toLowerCase());
-        }
-
-        // Priority Filter
-        if (filters.priorityOnly) {
-            result = result.filter(e => !!e.is_priority);
-        }
-
-        return result;
-    }, [allEnrollments, filters]);
+    // 6. Apply Global Filters
+    const filteredEnrollments = useMemo(() => applyFilters(reportable, filters), [reportable, filters]);
+    const filteredIgnored = useMemo(() => applyFilters(ignored, filters), [ignored, filters]);
 
     // Tabs render from deferred copies: filter controls and KPI cards update instantly while the
     // heavier chart/aggregation re-render happens in the background (and can be interrupted).
     const deferredFiltered = useDeferredValue(filteredEnrollments);
-    const deferredAll = useDeferredValue(allEnrollments);
-    const isTabStale = deferredFiltered !== filteredEnrollments || deferredAll !== allEnrollments;
+    const deferredAll = useDeferredValue(reportable);
+    const deferredIgnored = useDeferredValue(filteredIgnored);
+    const isTabStale = deferredFiltered !== filteredEnrollments || deferredAll !== reportable || deferredIgnored !== filteredIgnored;
 
     // Switching tabs may download a chunk and mount heavy charts — keep the current view
     // interactive meanwhile instead of flashing the Suspense fallback.
@@ -165,7 +180,7 @@ export default function Analytics() {
         startTransition(() => setActiveTab(tab));
     }, [setActiveTab]);
 
-    // 6. High-level KPI Summary Calculations
+    // 7. High-level KPI Summary Calculations
     const kpiSummary = useMemo(() => {
         const total = filteredEnrollments.length;
         const requested = filteredEnrollments.filter(e => e.status === 'requested').length;
@@ -215,6 +230,23 @@ export default function Analytics() {
         setSelectedStudent(student);
     }, []);
 
+    // A whole course run (all its enrollments, whatever the filters) in or out of reports
+    const queryClient = useQueryClient();
+    const handleSetRunIgnored = useCallback(async (runKey: string, ignore: boolean) => {
+        const ids = new Set(allEnrollments.filter(e => courseRunKey(e) === runKey).map(e => e.id));
+        if (ids.size === 0) return;
+        try {
+            await setExcludedFromReports([...ids], ignore);
+        } catch {
+            toast.error('Could not save. Is migration 82 applied?');
+            return;
+        }
+        queryClient.setQueryData<EnrollmentWithRelations[]>(['enrollments'], old =>
+            old?.map(e => (ids.has(e.id) ? { ...e, exclude_from_reports: ignore } : e)),
+        );
+        toast.success(ignore ? 'Course run left out of Analytics and reports' : 'Course run counted in Analytics and reports again');
+    }, [allEnrollments, queryClient]);
+
     const handleExportExcel = async () => {
         try {
             setIsExportingExcel(true);
@@ -253,7 +285,7 @@ export default function Analytics() {
             <GlobalFilterBar
                 filters={filters}
                 onFiltersChange={setFilters}
-                allEnrollments={allEnrollments}
+                allEnrollments={reportable}
                 filteredEnrollments={filteredEnrollments}
                 actions={
                     <>
@@ -261,7 +293,7 @@ export default function Analytics() {
                             variant="secondary"
                             size="sm"
                             onClick={() => { setReportLoaded(true); setReportOpen(true); }}
-                            disabled={allEnrollments.length === 0}
+                            disabled={reportable.length === 0}
                             title="One-page A4 report for a period: registrations and completions by course"
                         >
                             <FileText size={14} />
@@ -364,7 +396,9 @@ export default function Analytics() {
                         {activeTab === 'courses' && (
                             <CourseMatrixTab
                                 enrollments={deferredFiltered}
+                                ignoredEnrollments={deferredIgnored}
                                 onDrillDown={handleDrillDown}
+                                onSetRunIgnored={handleSetRunIgnored}
                             />
                         )}
 
@@ -396,7 +430,7 @@ export default function Analytics() {
 
             {reportLoaded && (
                 <Suspense fallback={null}>
-                    <SummaryReportModal open={reportOpen} onClose={() => setReportOpen(false)} enrollments={allEnrollments} />
+                    <SummaryReportModal open={reportOpen} onClose={() => setReportOpen(false)} enrollments={reportable} />
                 </Suspense>
             )}
 

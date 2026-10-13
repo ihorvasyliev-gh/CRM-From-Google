@@ -3,11 +3,12 @@ import { render, screen, within } from '@testing-library/react';
 import SummaryReportSheet from './SummaryReportSheet';
 import type { ReportCourseRow, SummaryReport } from './summaryReport';
 
-const course = (i: number, registered: number, completed: number): ReportCourseRow => ({
+const course = (i: number, registered: number, completed: number, runs = 1): ReportCourseRow => ({
     courseId: `c${i}`,
     name: `Course ${i}`,
     registered,
     completed,
+    runs,
 });
 
 function report(courses: ReportCourseRow[], months: SummaryReport['months']): SummaryReport {
@@ -16,6 +17,7 @@ function report(courses: ReportCourseRow[], months: SummaryReport['months']): Su
         registrations: courses.reduce((s, c) => s + c.registered, 0),
         peopleCompleted: 7,
         completions: courses.reduce((s, c) => s + c.completed, 0),
+        courseRuns: courses.reduce((s, c) => s + c.runs, 0),
         coursesDelivered: courses.filter(c => c.completed > 0).length,
         courses,
         months,
@@ -30,11 +32,12 @@ const PERIOD = { start: '2026-01-01', end: '2026-02-28' };
 
 describe('SummaryReportSheet', () => {
     it('shows the period, the key figures and a row per course', () => {
-        render(<SummaryReportSheet report={report([course(1, 4, 2), course(2, 1, 1)], TWO_MONTHS)} period={PERIOD} />);
+        render(<SummaryReportSheet report={report([course(1, 4, 2, 3), course(2, 1, 1, 1)], TWO_MONTHS)} period={PERIOD} />);
 
         expect(screen.getByText('1 January – 28 February 2026')).toBeInTheDocument();
         expect(screen.getByText('1,234')).toBeInTheDocument();
         expect(screen.getByText('5 course registrations')).toBeInTheDocument();
+        expect(screen.getByText('with graduates, across 2 courses')).toBeInTheDocument();
         expect(screen.getByRole('img', { name: 'Registrations and completions by month' })).toBeInTheDocument();
         const table = screen.getByRole('table');
         expect(within(table).getByText('Course 1')).toBeInTheDocument();

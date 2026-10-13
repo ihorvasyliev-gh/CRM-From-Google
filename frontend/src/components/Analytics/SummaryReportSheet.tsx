@@ -54,9 +54,9 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                     hint={`${plural(report.completions, 'course completion')}`}
                 />
                 <Figure
-                    label="Courses delivered"
-                    value={report.coursesDelivered}
-                    hint="with at least one graduate"
+                    label="Course runs"
+                    value={report.courseRuns}
+                    hint={`with graduates, across ${plural(report.coursesDelivered, 'course')}`}
                 />
             </section>
 
@@ -74,13 +74,15 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                 ) : (
                     <table className="w-full table-fixed border-collapse text-[8.5pt]">
                         <colgroup>
-                            <col className="w-[44%]" />
-                            <col className="w-[28%]" />
-                            <col className="w-[28%]" />
+                            <col className="w-[38%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[26%]" />
+                            <col className="w-[26%]" />
                         </colgroup>
                         <thead>
                             <tr className="text-left text-[7.5pt] uppercase tracking-wider text-(--rs-muted) border-b border-(--rs-rule)">
                                 <th className="font-semibold py-[1.2mm] pr-[3mm]">Course</th>
+                                <th className="font-semibold py-[1.2mm] pr-[4mm] text-right">Runs</th>
                                 <th className="font-semibold py-[1.2mm] pr-[3mm]">Registered</th>
                                 <th className="font-semibold py-[1.2mm]">Completed</th>
                             </tr>
@@ -91,6 +93,7 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                                     <td className={`py-[1.15mm] pr-[3mm] truncate ${row.courseId === 'other' ? 'text-(--rs-ink-2) italic' : 'font-medium'}`} title={row.name}>
                                         {row.name}
                                     </td>
+                                    <td className="py-[1.15mm] pr-[4mm] text-right tabular-nums">{formatCount(row.runs)}</td>
                                     <td className="py-[1.15mm] pr-[3mm]">
                                         <BarCell value={row.registered} max={scaleMax} color="var(--rs-registered)" />
                                     </td>
@@ -103,6 +106,7 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                         <tfoot>
                             <tr className="font-semibold">
                                 <td className="pt-[1.6mm] pr-[3mm]">Total</td>
+                                <td className="pt-[1.6mm] pr-[4mm] text-right tabular-nums">{formatCount(report.courseRuns)}</td>
                                 <td className="pt-[1.6mm] pr-[3mm] tabular-nums">{formatCount(report.registrations)}</td>
                                 <td className="pt-[1.6mm] tabular-nums">{formatCount(report.completions)}</td>
                             </tr>
@@ -115,6 +119,7 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                 <p className="max-w-[135mm]">
                     Registrations are counted by the date a person registered, completions by the date of the course.
                     Each person counts once per course, and all language groups of a course count as one course.
+                    A course run is one course, in one language, on one date.
                 </p>
                 <p className="whitespace-nowrap">Cork City Partnership · SICAP</p>
             </footer>

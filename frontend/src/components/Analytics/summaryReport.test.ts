@@ -59,7 +59,7 @@ describe('buildSummaryReport', () => {
             enrollment('3', 'bob', 'safe', '2026-04-01', { course_variant: 'Safe Pass (Ukrainian)' }),
         ], YEAR_2026);
 
-        expect(report.courses).toEqual([{ courseId: 'safe', name: 'Safe Pass', registered: 2, completed: 0 }]);
+        expect(report.courses).toEqual([{ courseId: 'safe', name: 'Safe Pass', registered: 2, completed: 0, runs: 0 }]);
         expect(report.registrations).toBe(2);
         expect(report.peopleRegistered).toBe(2);
     });
@@ -74,7 +74,7 @@ describe('buildSummaryReport', () => {
             enrollment('3', 'cat', 'sna', '2026-01-15', completed('2026-03-01')),
         ], YEAR_2026);
 
-        expect(report.courses).toEqual([{ courseId: 'sna', name: 'SNA Level 5', registered: 2, completed: 2 }]);
+        expect(report.courses).toEqual([{ courseId: 'sna', name: 'SNA Level 5', registered: 2, completed: 2, runs: 2 }]);
         expect(report.peopleCompleted).toBe(2);
         expect(report.completions).toBe(2);
     });
@@ -121,6 +121,38 @@ describe('buildSummaryReport', () => {
         ]);
     });
 
+    it('counts a course run per course, language and date', () => {
+        const run = (date: string, variant: string | null = null): Partial<EnrollmentWithRelations> => ({
+            ...completed(date),
+            confirmed_date: date,
+            invited_date: date,
+            course_variant: variant,
+        });
+        const report = buildSummaryReport([
+            enrollment('1', 'ann', 'safe', '2026-02-01', run('2026-03-10')),
+            enrollment('2', 'bob', 'safe', '2026-02-02', run('2026-03-10')),
+            enrollment('3', 'cat', 'safe', '2026-02-03', run('2026-03-10', 'Ukrainian')),
+            enrollment('4', 'dan', 'safe', '2026-04-01', run('2026-05-12')),
+            enrollment('5', 'eve', 'barista', '2026-04-01', run('2026-05-12')),
+        ], YEAR_2026);
+
+        expect(report.courses.find(c => c.courseId === 'safe')?.runs).toBe(3);
+        expect(report.courseRuns).toBe(4);
+        expect(report.coursesDelivered).toBe(2);
+    });
+
+    it('leaves out course runs marked "Ignore in reports" entirely', () => {
+        const report = buildSummaryReport([
+            enrollment('1', 'ann', 'safe', '2026-02-01', { ...completed('2026-03-10'), exclude_from_reports: true }),
+            enrollment('2', 'bob', 'safe', '2026-02-01', { exclude_from_reports: true }),
+            enrollment('3', 'cat', 'safe', '2026-02-05', { ...completed('2026-03-12'), exclude_from_reports: null }),
+        ], YEAR_2026);
+
+        expect(report.courses).toEqual([{ courseId: 'safe', name: 'Safe Pass', registered: 1, completed: 1, runs: 1 }]);
+        expect(report.peopleRegistered).toBe(1);
+        expect(report.peopleCompleted).toBe(1);
+    });
+
     it('counts courses delivered only where someone completed', () => {
         const report = buildSummaryReport([
             enrollment('1', 'ann', 'safe', '2026-02-01', completed('2026-02-20')),
@@ -149,7 +181,7 @@ describe('completionDay', () => {
 });
 
 describe('foldCourses', () => {
-    const row = (id: string, registered: number, completedCount: number): ReportCourseRow => ({ courseId: id, name: id, registered, completed: completedCount });
+    const row = (id: string, registered: number, completedCount: number, runs = 1): ReportCourseRow => ({ courseId: id, name: id, registered, completed: completedCount, runs });
 
     it('keeps short lists as they are', () => {
         const rows = [row('a', 3, 1), row('b', 2, 2)];
@@ -161,7 +193,7 @@ describe('foldCourses', () => {
         expect(folded).toEqual([
             row('a', 9, 1),
             row('b', 5, 2),
-            { courseId: 'other', name: 'Other courses (3)', registered: 6, completed: 4 },
+            { courseId: 'other', name: 'Other courses (3)', registered: 6, completed: 4, runs: 3 },
         ]);
     });
 });

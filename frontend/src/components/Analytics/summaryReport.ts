@@ -1,5 +1,6 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { formatLocalDate } from '../../lib/dateUtils';
+import { courseRunKey, isReportable } from './courseRuns';
 
 /**
  * The one-page report: who registered and who completed a course within a period.
@@ -7,7 +8,9 @@ import { formatLocalDate } from '../../lib/dateUtils';
  * Each figure is dated by its own event: a registration by the day the student registered
  * (created_at), a completion by the day the course was completed (completed_date). A person
  * counts once per course, so the languages of a course (Safe Pass and Safe Pass in Ukrainian)
- * are one course and a student queued in two of them is one registration.
+ * are one course and a student queued in two of them is one registration. A course run is a
+ * course in one language on one date with a completion in the period. Course runs marked
+ * "Ignore in reports" are left out entirely.
  */
 
 /** Inclusive period, both ends YYYY-MM-DD. */
@@ -23,6 +26,8 @@ export interface ReportCourseRow {
     registered: number;
     /** People who completed this course in the period */
     completed: number;
+    /** Runs of this course with a completion in the period */
+    runs: number;
 }
 
 export interface ReportMonth {
@@ -41,6 +46,8 @@ export interface SummaryReport {
     peopleCompleted: number;
     /** Course completions (one per person per course) */
     completions: number;
+    /** Course runs (course · language · date) with at least one completion */
+    courseRuns: number;
     /** Courses with at least one completion */
     coursesDelivered: number;
     /** Every course with a registration or a completion, most registrations first */
@@ -102,6 +109,7 @@ export function buildSummaryReport(enrollments: EnrollmentWithRelations[], perio
     // course → person → earliest day in the period
     const registeredBy = new Map<string, Map<string, string>>();
     const completedBy = new Map<string, Map<string, string>>();
+    const runsBy = new Map<string, Set<string>>();
     const names = new Map<string, string>();
 
     const note = (target: Map<string, Map<string, string>>, courseId: string, person: string, day: string) => {
@@ -116,7 +124,7 @@ export function buildSummaryReport(enrollments: EnrollmentWithRelations[], perio
 
     for (const e of enrollments) {
         const courseId = e.course_id || e.courses?.id || '';
-        if (!courseId) continue;
+        if (!courseId || !isReportable(e)) continue;
         const person = e.student_id || e.students?.id || e.id;
         const registered = registrationDay(e);
         const completed = completionDay(e);
@@ -124,7 +132,15 @@ export function buildSummaryReport(enrollments: EnrollmentWithRelations[], perio
 
         if (!names.has(courseId) && e.courses?.name) names.set(courseId, e.courses.name.trim());
         if (inPeriod(registered)) note(registeredBy, courseId, person, registered);
-        if (inPeriod(completed)) note(completedBy, courseId, person, completed);
+        if (inPeriod(completed)) {
+            note(completedBy, courseId, person, completed);
+            let runs = runsBy.get(courseId);
+            if (!runs) {
+                runs = new Set();
+                runsBy.set(courseId, runs);
+            }
+            runs.add(courseRunKey(e));
+        }
     }
 
     const courseIds = new Set([...registeredBy.keys(), ...completedBy.keys()]);
@@ -134,6 +150,7 @@ export function buildSummaryReport(enrollments: EnrollmentWithRelations[], perio
             name: names.get(courseId) || 'Unnamed course',
             registered: registeredBy.get(courseId)?.size ?? 0,
             completed: completedBy.get(courseId)?.size ?? 0,
+            runs: runsBy.get(courseId)?.size ?? 0,
         }))
         .sort((a, b) => b.registered - a.registered || b.completed - a.completed || a.name.localeCompare(b.name));
 
@@ -160,6 +177,7 @@ export function buildSummaryReport(enrollments: EnrollmentWithRelations[], perio
         registrations: courses.reduce((sum, c) => sum + c.registered, 0),
         peopleCompleted: peopleCompleted.size,
         completions: courses.reduce((sum, c) => sum + c.completed, 0),
+        courseRuns: courses.reduce((sum, c) => sum + c.runs, 0),
         coursesDelivered: courses.filter(c => c.completed > 0).length,
         courses,
         months: [...monthIndex.values()],
@@ -181,6 +199,7 @@ export function foldCourses(courses: ReportCourseRow[], limit: number): ReportCo
             name: `Other courses (${rest.length})`,
             registered: rest.reduce((sum, c) => sum + c.registered, 0),
             completed: rest.reduce((sum, c) => sum + c.completed, 0),
+            runs: rest.reduce((sum, c) => sum + c.runs, 0),
         },
     ];
 }

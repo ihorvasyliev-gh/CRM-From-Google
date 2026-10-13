@@ -8,7 +8,7 @@ import {
     CartesianGrid, 
     Tooltip as RechartsTooltip,
 } from 'recharts';
-import { BookOpen, TrendingUp, Layers, Percent, GraduationCap, ArrowRight } from 'lucide-react';
+import { BookOpen, TrendingUp, Layers, Percent, GraduationCap, ArrowRight, EyeOff, Eye, Loader2 } from 'lucide-react';
 import Card, { SectionHeader } from '../ui/Card';
 import Badge from '../ui/Badge';
 import SearchInput from '../ui/SearchInput';
@@ -20,15 +20,23 @@ import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from 
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
+import { courseRunDate, courseRunKey } from './courseRuns';
+
+const NO_ENROLLMENTS: EnrollmentWithRelations[] = [];
 
 interface CourseMatrixTabProps {
     enrollments: EnrollmentWithRelations[];
+    /** Enrollments of course runs marked "Ignore in reports": listed under Conducted course runs only */
+    ignoredEnrollments?: EnrollmentWithRelations[];
     onDrillDown: (title: string, data: EnrollmentWithRelations[]) => void;
+    /** Marks a course run (by courseRunKey) as left out of Analytics and reports, or counts it again */
+    onSetRunIgnored?: (runKey: string, ignore: boolean) => Promise<void>;
 }
 
-export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatrixTabProps) {
+export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_ENROLLMENTS, onDrillDown, onSetRunIgnored }: CourseMatrixTabProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [savingRun, setSavingRun] = useState<string | null>(null);
     const itemsPerPage = 6;
 
     // 1. Group by Course Performance
@@ -128,55 +136,67 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
             .slice(0, 8);
     }, [enrollments]);
 
-    // 4. Conducted Course Runs (historical cohorts with completions)
+    // 4. Conducted Course Runs (historical cohorts with completions). A run is ignored when all
+    // of its enrollments are marked "Ignore in reports".
     const conductedRuns = useMemo(() => {
-        const groups: Record<string, {
+        const groups = new Map<string, {
+            key: string;
             courseId: string;
             courseName: string;
             variant: string;
             date: string | null;
             completedEnrollments: EnrollmentWithRelations[];
-            allEnrollments: EnrollmentWithRelations[];
-        }> = {};
+            counted: number;
+        }>();
 
-        enrollments.forEach(e => {
-            const courseId = e.course_id || 'unknown';
-            const courseName = e.courses?.name || 'Unknown Course';
-            const variant = cleanVariant(courseName, e.course_variant);
-            const dateKey = e.invited_date || e.confirmed_date || 'No Date';
-            const key = `${courseId}-${variant}-${dateKey}`;
-
-            if (!groups[key]) {
-                groups[key] = {
-                    courseId,
+        const add = (e: EnrollmentWithRelations, counted: boolean) => {
+            const key = courseRunKey(e);
+            let group = groups.get(key);
+            if (!group) {
+                const courseName = e.courses?.name || 'Unknown Course';
+                group = {
+                    key,
+                    courseId: e.course_id || 'unknown',
                     courseName,
-                    variant,
-                    date: e.invited_date || e.confirmed_date,
+                    variant: cleanVariant(courseName, e.course_variant),
+                    date: courseRunDate(e),
                     completedEnrollments: [],
-                    allEnrollments: []
+                    counted: 0,
                 };
+                groups.set(key, group);
             }
+            if (counted) group.counted++;
+            if (e.status === 'completed') group.completedEnrollments.push(e);
+        };
+        enrollments.forEach(e => add(e, true));
+        ignoredEnrollments.forEach(e => add(e, false));
 
-            groups[key].allEnrollments.push(e);
-            if (e.status === 'completed') {
-                groups[key].completedEnrollments.push(e);
-            }
-        });
-
-        return Object.values(groups)
+        return [...groups.values()]
             .filter(g => g.completedEnrollments.length > 0)
-            .map(g => ({
-                ...g,
-                completedCount: g.completedEnrollments.length,
-                totalRunParticipants: g.allEnrollments.length
-            }))
+            .map(g => {
+                const ignored = g.counted === 0;
+                // A counted run shows only its counted graduates (one added after it was ignored)
+                const graduates = ignored ? g.completedEnrollments : g.completedEnrollments.filter(e => !e.exclude_from_reports);
+                return { ...g, ignored, completedEnrollments: graduates, completedCount: graduates.length };
+            })
             .sort((a, b) => {
                 if (!a.date && !b.date) return a.courseName.localeCompare(b.courseName);
                 if (!a.date) return 1;
                 if (!b.date) return -1;
                 return b.date.localeCompare(a.date);
             });
-    }, [enrollments]);
+    }, [enrollments, ignoredEnrollments]);
+    const ignoredRunCount = useMemo(() => conductedRuns.filter(r => r.ignored).length, [conductedRuns]);
+
+    const setRunIgnored = async (runKey: string, ignore: boolean) => {
+        if (!onSetRunIgnored || savingRun) return;
+        setSavingRun(runKey);
+        try {
+            await onSetRunIgnored(runKey, ignore);
+        } finally {
+            setSavingRun(null);
+        }
+    };
 
     const filteredRuns = useMemo(() => {
         if (!searchQuery.trim()) return conductedRuns;
@@ -316,7 +336,7 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                 title="Conducted course runs"
                 icon={GraduationCap}
                 tone="success"
-                subtitle={`${filteredRuns.length} cohorts with completions`}
+                subtitle={`${conductedRuns.length - ignoredRunCount} cohorts with completions${ignoredRunCount > 0 ? ` · ${ignoredRunCount} ignored in reports` : ''}`}
                 divided
                 flush
                 action={
@@ -352,32 +372,67 @@ export default function CourseMatrixTab({ enrollments, onDrillDown }: CourseMatr
                                 </tr>
                             </thead>
                             <tbody className={tbodyCls}>
-                                {paginatedRuns.map((r, idx) => (
-                                    <tr
-                                        key={`${r.courseId}-${r.variant}-${r.date || idx}`}
-                                        className={`${trCls} cursor-pointer group`}
-                                        onClick={() => onDrillDown(`${r.courseName} - ${r.variant} (${formatDateDMY(r.date)}) Graduates`, r.completedEnrollments)}
-                                    >
-                                        <td className={`${tdCls} font-semibold text-primary`}>{r.courseName}</td>
-                                        <td className={tdCls}><Badge tone="brand">{r.variant}</Badge></td>
-                                        <td className={`${tdCls} text-muted tabular-nums`}>{formatDateDMY(r.date) || 'No date recorded'}</td>
-                                        <td className={`${tdCls} text-right`}>
-                                            <Badge tone="success" shape="pill" className="tabular-nums">{r.completedCount}</Badge>
-                                        </td>
-                                        <td className={`${tdCls} text-right`}>
-                                            <button
-                                                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-70 group-hover:opacity-100 transition-opacity whitespace-nowrap"
-                                                onClick={e => {
-                                                    e.stopPropagation();
-                                                    onDrillDown(`${r.courseName} - ${r.variant} (${formatDateDMY(r.date)}) Graduates`, r.completedEnrollments);
-                                                }}
-                                            >
-                                                View graduates
-                                                <ArrowRight size={12} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {paginatedRuns.map(r => {
+                                    const title = `${r.courseName} - ${r.variant} (${formatDateDMY(r.date)}) Graduates`;
+                                    const saving = savingRun === r.key;
+                                    return (
+                                        <tr
+                                            key={r.key}
+                                            className={`${trCls} cursor-pointer group`}
+                                            onClick={() => onDrillDown(title, r.completedEnrollments)}
+                                        >
+                                            <td className={`${tdCls} font-semibold ${r.ignored ? 'text-muted' : 'text-primary'}`}>
+                                                <span className="inline-flex items-center gap-2 flex-wrap">
+                                                    <span className={r.ignored ? 'line-through decoration-border-strong' : ''}>{r.courseName}</span>
+                                                    {r.ignored && (
+                                                        <Badge tone="warning" title="Left out of Analytics and the one-page report">Ignored in reports</Badge>
+                                                    )}
+                                                </span>
+                                            </td>
+                                            <td className={`${tdCls} ${r.ignored ? 'opacity-60' : ''}`}><Badge tone="brand">{r.variant}</Badge></td>
+                                            <td className={`${tdCls} text-muted tabular-nums`}>{formatDateDMY(r.date) || 'No date recorded'}</td>
+                                            <td className={`${tdCls} text-right`}>
+                                                <Badge tone={r.ignored ? 'neutral' : 'success'} shape="pill" className="tabular-nums">{r.completedCount}</Badge>
+                                            </td>
+                                            <td className={`${tdCls} text-right`}>
+                                                <div className="inline-flex items-center gap-3 justify-end">
+                                                    {onSetRunIgnored && (
+                                                        <button
+                                                            type="button"
+                                                            disabled={!!savingRun}
+                                                            title={r.ignored
+                                                                ? 'Count this course run in Analytics and the one-page report again'
+                                                                : 'Ignore in reports: leave this course run out of Analytics and the one-page report'}
+                                                            className={`inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap transition-opacity disabled:opacity-40 ${
+                                                                r.ignored
+                                                                    ? 'text-primary hover:text-brand-600 dark:hover:text-brand-400'
+                                                                    : 'text-muted hover:text-primary opacity-70 group-hover:opacity-100'
+                                                            }`}
+                                                            onClick={e => {
+                                                                e.stopPropagation();
+                                                                void setRunIgnored(r.key, !r.ignored);
+                                                            }}
+                                                        >
+                                                            {saving ? <Loader2 size={12} className="animate-spin" /> : r.ignored ? <Eye size={12} /> : <EyeOff size={12} />}
+                                                            {r.ignored ? 'Count again' : 'Ignore'}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-70 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            onDrillDown(title, r.completedEnrollments);
+                                                        }}
+                                                    >
+                                                        View graduates
+                                                        <ArrowRight size={12} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

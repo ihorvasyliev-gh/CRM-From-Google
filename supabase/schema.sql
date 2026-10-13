@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
     confirmed_at    TIMESTAMPTZ,            -- timestamp when student confirmed (analytics)
     completed_at    TIMESTAMPTZ,            -- timestamp when enrollment was completed (analytics)
     response_days   INTEGER     DEFAULT 7,  -- configurable confirmation deadline (days)
+    exclude_from_reports BOOLEAN DEFAULT false, -- course run marked "Ignore in reports" (migration 82)
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ DEFAULT now(),
     UNIQUE (student_id, course_id, course_variant)

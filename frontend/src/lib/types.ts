@@ -67,6 +67,8 @@ export interface Enrollment {
     completion_requested_by?: string | null;
     completion_request_status?: 'none' | 'pending' | 'approved' | 'rejected' | null;
     completion_rejection_reason?: string | null;
+    /** Left out of Analytics and the one-page report (course run marked "Ignore in reports", migration 82) */
+    exclude_from_reports?: boolean | null;
     created_at: string;
     updated_at: string;
 }
