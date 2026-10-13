@@ -49,13 +49,14 @@ describe('CourseMatrixTab — conducted course runs', () => {
         expect(onSetRunIgnored).toHaveBeenCalledWith(courseRunKey(counted[0]), true);
     });
 
-    it('opens the graduates of a run without toggling it', () => {
+    it('opens the graduates of a run, with its key, without toggling it', () => {
         const onDrillDown = vi.fn();
         const onSetRunIgnored = vi.fn();
         render(<CourseMatrixTab enrollments={counted} onDrillDown={onDrillDown} onSetRunIgnored={onSetRunIgnored} />);
 
         fireEvent.click(screen.getByRole('button', { name: /View graduates/ }));
-        expect(onDrillDown).toHaveBeenCalledWith(expect.stringContaining('SafePass'), counted);
+        // With the run's key, so the graduates window can ignore the run
+        expect(onDrillDown).toHaveBeenCalledWith(expect.stringContaining('SafePass'), counted, courseRunKey(counted[0]));
         expect(onSetRunIgnored).not.toHaveBeenCalled();
     });
 });

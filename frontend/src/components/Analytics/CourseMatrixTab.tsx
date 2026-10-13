@@ -28,7 +28,8 @@ interface CourseMatrixTabProps {
     enrollments: EnrollmentWithRelations[];
     /** Enrollments of course runs marked "Ignore in reports": listed under Conducted course runs only */
     ignoredEnrollments?: EnrollmentWithRelations[];
-    onDrillDown: (title: string, data: EnrollmentWithRelations[]) => void;
+    /** `runKey`: the list is the graduates of that course run */
+    onDrillDown: (title: string, data: EnrollmentWithRelations[], runKey?: string) => void;
     /** Marks a course run (by courseRunKey) as left out of Analytics and reports, or counts it again */
     onSetRunIgnored?: (runKey: string, ignore: boolean) => Promise<void>;
 }
@@ -379,7 +380,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                         <tr
                                             key={r.key}
                                             className={`${trCls} cursor-pointer group`}
-                                            onClick={() => onDrillDown(title, r.completedEnrollments)}
+                                            onClick={() => onDrillDown(title, r.completedEnrollments, r.key)}
                                         >
                                             <td className={`${tdCls} font-semibold ${r.ignored ? 'text-muted' : 'text-primary'}`}>
                                                 <span className="inline-flex items-center gap-2 flex-wrap">
@@ -406,7 +407,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                                             className={`inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap transition-opacity disabled:opacity-40 ${
                                                                 r.ignored
                                                                     ? 'text-primary hover:text-brand-600 dark:hover:text-brand-400'
-                                                                    : 'text-muted hover:text-primary opacity-70 group-hover:opacity-100'
+                                                                    : 'text-muted hover:text-primary'
                                                             }`}
                                                             onClick={e => {
                                                                 e.stopPropagation();
@@ -422,7 +423,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                                         className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-70 group-hover:opacity-100 transition-opacity whitespace-nowrap"
                                                         onClick={e => {
                                                             e.stopPropagation();
-                                                            onDrillDown(title, r.completedEnrollments);
+                                                            onDrillDown(title, r.completedEnrollments, r.key);
                                                         }}
                                                     >
                                                         View graduates

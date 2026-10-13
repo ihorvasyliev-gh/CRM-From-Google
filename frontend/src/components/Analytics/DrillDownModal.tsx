@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { Download, Mail, User, Users, ExternalLink, Check, MapPin } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { Button, IconButton } from '../ui/Button';
@@ -20,9 +20,11 @@ interface DrillDownModalProps {
     title: string;
     data: EnrollmentWithRelations[];
     onSelectStudent?: (student: Student) => void;
+    /** Extra buttons for what the list is (a course run: Ignore in reports) */
+    actions?: ReactNode;
 }
 
-export default function DrillDownModal({ isOpen, onClose, title, data, onSelectStudent }: DrillDownModalProps) {
+export default function DrillDownModal({ isOpen, onClose, title, data, onSelectStudent, actions }: DrillDownModalProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [copiedCount, setCopiedCount] = useState<number | null>(null);
@@ -87,6 +89,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
             bodyClassName="p-0!"
             headerAction={
                 <div className="hidden sm:flex items-center gap-2 mr-1">
+                    {actions}
                     <Button variant="secondary" size="sm" onClick={handleCopyEmails} title="Copy email addresses to clipboard">
                         {copiedCount !== null ? <Check size={14} className="text-status-confirmed" /> : <Mail size={14} />}
                         {copiedCount !== null ? `Copied ${copiedCount}` : 'Copy emails'}
@@ -110,6 +113,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                     wrapperClassName="flex-1 max-w-md"
                 />
                 <div className="flex sm:hidden items-center gap-1">
+                    {actions}
                     <IconButton label="Copy emails" onClick={handleCopyEmails}>
                         {copiedCount !== null ? <Check size={16} className="text-status-confirmed" /> : <Mail size={16} />}
                     </IconButton>

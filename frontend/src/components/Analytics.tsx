@@ -17,7 +17,9 @@ import {
     BookOpen, 
     Search,
     Award,
-    FileText
+    FileText,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 
 import { fetchAllEnrollments } from '../hooks/useEnrollments';
@@ -128,6 +130,8 @@ export default function Analytics() {
         isOpen: boolean;
         title: string;
         data: EnrollmentWithRelations[];
+        /** Set when the list is the graduates of a course run */
+        runKey?: string;
     }>({
         isOpen: false,
         title: '',
@@ -218,11 +222,12 @@ export default function Analytics() {
     }, [filteredEnrollments, employmentStatuses]);
 
     // Handlers
-    const handleDrillDown = useCallback((title: string, data: EnrollmentWithRelations[]) => {
+    const handleDrillDown = useCallback((title: string, data: EnrollmentWithRelations[], runKey?: string) => {
         setDrillDownModal({
             isOpen: true,
             title,
-            data
+            data,
+            runKey
         });
     }, []);
 
@@ -246,6 +251,24 @@ export default function Analytics() {
         );
         toast.success(ignore ? 'Course run left out of Analytics and reports' : 'Course run counted in Analytics and reports again');
     }, [allEnrollments, queryClient]);
+
+    // The course run a drill-down lists: ignored when none of its enrollments is counted
+    const drillRunKey = drillDownModal.runKey;
+    const drillRunIgnored = useMemo(() => {
+        if (!drillRunKey) return false;
+        const run = allEnrollments.filter(e => courseRunKey(e) === drillRunKey);
+        return run.length > 0 && !run.some(isReportable);
+    }, [allEnrollments, drillRunKey]);
+    const [savingDrillRun, setSavingDrillRun] = useState(false);
+    const toggleDrillRun = async () => {
+        if (!drillRunKey) return;
+        setSavingDrillRun(true);
+        try {
+            await handleSetRunIgnored(drillRunKey, !drillRunIgnored);
+        } finally {
+            setSavingDrillRun(false);
+        }
+    };
 
     const handleExportExcel = async () => {
         try {
@@ -440,6 +463,20 @@ export default function Analytics() {
                 onClose={() => setDrillDownModal(prev => ({ ...prev, isOpen: false }))}
                 title={drillDownModal.title}
                 data={drillDownModal.data}
+                actions={drillRunKey && (
+                    <Button
+                        variant={drillRunIgnored ? 'brand-soft' : 'secondary'}
+                        size="sm"
+                        loading={savingDrillRun}
+                        onClick={toggleDrillRun}
+                        title={drillRunIgnored
+                            ? 'Count this course run in Analytics and the one-page report again'
+                            : 'Leave this course run out of Analytics and the one-page report'}
+                    >
+                        {!savingDrillRun && (drillRunIgnored ? <Eye size={14} /> : <EyeOff size={14} />)}
+                        {drillRunIgnored ? 'Ignored · Count again' : 'Ignore in reports'}
+                    </Button>
+                )}
                 onSelectStudent={handleOpenStudentDetail}
             />
 
