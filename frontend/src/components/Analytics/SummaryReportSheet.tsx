@@ -114,15 +114,6 @@ export default function SummaryReportSheet({ report, period, preparedOn = new Da
                     </table>
                 )}
             </section>
-
-            <footer className="mt-[4mm] pt-[2.5mm] border-t border-(--rs-rule) flex items-end justify-between gap-6 text-[7pt] leading-snug text-(--rs-muted)">
-                <p className="max-w-[135mm]">
-                    Registrations are counted by the date a person registered, completions by the date of the course.
-                    Each person counts once per course, and all language groups of a course count as one course.
-                    A course run is one course, in one language, on one date.
-                </p>
-                <p className="whitespace-nowrap">Cork City Partnership · SICAP</p>
-            </footer>
         </article>
     );
 }
