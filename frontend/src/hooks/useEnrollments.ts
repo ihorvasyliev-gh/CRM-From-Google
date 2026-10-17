@@ -1,5 +1,5 @@
-import { useEffect, useCallback, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { ENROLLMENT_SELECT, fetchAllPages } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
@@ -7,7 +7,10 @@ import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { todayISO } from '../lib/dateUtils';
 import { changeEnrollmentStatus, linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
-import { noteFullLoad, refreshCachedEnrollments } from '../lib/enrollmentCache';
+import {
+    ENROLLMENTS_KEY, cancelListReload, isPartialList, markListPartial, noteFullLoad, refreshCachedEnrollments,
+    restoreCachedRows, subscribePartialList, withHistory,
+} from '../lib/enrollmentCache';
 
 export type EnrollmentRow = EnrollmentWithRelations;
 
@@ -26,23 +29,69 @@ interface UseEnrollmentsProps {
 }
 
 
-/** Every enrollment, newest first; id breaks ties (rows imported together share created_at). */
-export async function readAllEnrollments(): Promise<EnrollmentRow[]> {
-    return await fetchAllPages((from, to) => supabase
-        .from('enrollments')
-        .select(ENROLLMENT_SELECT)
+/** The statuses the board and dashboard work with; completed, withdrawn and rejected are history. */
+const CURRENT_STATUSES = '(requested,invited,confirmed)';
+/** History changed within this many days comes with the current enrollments (recent activity). */
+const RECENT_HISTORY_DAYS = 30;
+
+type EnrollmentQuery = ReturnType<ReturnType<typeof supabase.from>['select']>;
+
+/**
+ * Enrollments newest first; id breaks ties (rows imported together share created_at). `part`
+ * narrows them: the current ones (and history changed since `since`), or the rest.
+ */
+function readEnrollments(part?: { current: boolean; since: string }): Promise<EnrollmentRow[]> {
+    const narrow = (query: EnrollmentQuery) => !part ? query
+        : part.current ? query.or(`status.in.${CURRENT_STATUSES},updated_at.gte.${part.since}`)
+            : query.not('status', 'in', CURRENT_STATUSES).or(`updated_at.lt.${part.since},updated_at.is.null`);
+    return fetchAllPages((from, to) => narrow(supabase.from('enrollments').select(ENROLLMENT_SELECT))
         .order('created_at', { ascending: false })
         .order('id')
         .range(from, to)
-    ) as EnrollmentRow[];
+    ) as Promise<EnrollmentRow[]>;
 }
 
-/** The query function of the cached ['enrollments'] list. */
-export async function fetchAllEnrollments(): Promise<EnrollmentRow[]> {
-    const rows = await readAllEnrollments();
+/** Every enrollment, newest first. */
+export function readAllEnrollments(): Promise<EnrollmentRow[]> {
+    return readEnrollments();
+}
+
+/**
+ * The query function of the cached ['enrollments'] list. The first load comes in two parts: the
+ * current enrollments (about a sixth of them) are shown as soon as they arrive, so the board and
+ * dashboard don't wait for years of completed courses, which follow.
+ */
+export async function fetchAllEnrollments(context?: { client?: QueryClient }): Promise<EnrollmentRow[]> {
+    const client = context?.client;
+    let rows: EnrollmentRow[];
+    if (client && !client.getQueryData(ENROLLMENTS_KEY)) {
+        const since = new Date(Date.now() - RECENT_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+        // Both parts are requested at once; the smaller one arrives first
+        const historyRead = readEnrollments({ current: false, since });
+        historyRead.catch(() => { /* thrown where it is awaited below */ });
+        const current = await readEnrollments({ current: true, since });
+        // Shown while the rest loads (the query stays "fetching")
+        client.setQueryData(ENROLLMENTS_KEY, current);
+        markListPartial(client);
+        const history = await historyRead;
+        // The current rows as cached now: changes made to them meanwhile are kept
+        rows = withHistory(client.getQueryData<EnrollmentRow[]>(ENROLLMENTS_KEY) ?? current, history);
+    } else {
+        rows = await readEnrollments();
+    }
     // Later catch-ups (after a dropped realtime channel) read only what changed after this load
     noteFullLoad(rows);
     return rows;
+}
+
+/**
+ * The cached list of every enrollment. `complete` is false while only its first part (the current
+ * enrollments) has arrived: what needs every enrollment waits for it.
+ */
+export function useEnrollmentList() {
+    const query = useQuery({ queryKey: ENROLLMENTS_KEY, queryFn: fetchAllEnrollments });
+    const partial = useSyncExternalStore(subscribePartialList, isPartialList);
+    return { ...query, complete: query.data !== undefined && !partial };
 }
 
 export function useEnrollments({ showToast, openInviteModal, openConfirmModal }: UseEnrollmentsProps) {
@@ -51,10 +100,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
     // Ref to access current enrollments without re-creating callbacks
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
 
-    const { data: enrollments = [], refetch: fetchEnrollments } = useQuery({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
-    });
+    const { data: enrollments = [], refetch: fetchEnrollments, complete } = useEnrollmentList();
 
     // Keep ref in sync
     useEffect(() => {
@@ -78,7 +124,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         mutationFn: ({ all, row, status, dates }: StatusChange) => changeEnrollmentStatus(all, [row], status, dates),
         onMutate: async ({ all, row, status, dates }) => {
             // Cancel without awaiting to avoid blocking the UI thread
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             // Show the change straight away; the saved values replace it once the database answers
             const fields = statusUpdate(row, status, dates);
@@ -89,7 +135,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
                 .filter(e => !removed.has(e.id))
                 .map(e => updated.has(e.id) ? { ...e, ...fields } : e)
             );
-            return { previousEnrollments };
+            return { previousEnrollments, changedIds: [...updated, ...removed] };
         },
         onSuccess: ({ updated, removed, removeFailed }, { status }) => {
             const saved = new Map(updated.map(snap => [snap.id, snap]));
@@ -110,7 +156,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         onError: (err, _variables, context) => {
             console.error('Status update failed:', err);
             if (context?.previousEnrollments) {
-                setEnrollments(context.previousEnrollments);
+                restoreCachedRows(queryClient, context.previousEnrollments, context.changedIds);
             } else {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             }
@@ -143,13 +189,13 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { id, newPriority };
         },
         onMutate: async ({ id, currentPriority }) => {
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.map(e => e.id === id ? { ...e, is_priority: !currentPriority } : e));
             return { previousEnrollments };
         },
-        onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+        onError: (_err, variables, context) => {
+            if (context?.previousEnrollments) restoreCachedRows(queryClient, context.previousEnrollments, [variables.id]);
             showToast('Failed to update priority', 'error');
         }
     });
@@ -166,14 +212,14 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { id, noteText };
         },
         onMutate: async ({ id, noteText }) => {
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.map(e => e.id === id ? { ...e, notes: noteText } : e));
             return { previousEnrollments };
         },
         onSuccess: () => showToast('Note updated', 'success'),
-        onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+        onError: (_err, variables, context) => {
+            if (context?.previousEnrollments) restoreCachedRows(queryClient, context.previousEnrollments, [variables.id]);
             showToast('Failed to update note', 'error');
         }
     });
@@ -196,14 +242,14 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return id;
         },
         onMutate: async (id) => {
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             setEnrollments(prev => prev.filter(e => e.id !== id));
             return { previousEnrollments };
         },
         onSuccess: () => showToast('Enrollment deleted', 'success'),
-        onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+        onError: (_err, id, context) => {
+            if (context?.previousEnrollments) restoreCachedRows(queryClient, context.previousEnrollments, [id]);
             showToast('Failed to delete enrollment', 'error');
         }
     });
@@ -227,7 +273,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return snapshots;
         },
         onMutate: async (snapshots) => {
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             const byId = new Map(snapshots.map(snap => [snap.id, snap]));
             setEnrollments(prev => prev.map(e => {
@@ -237,8 +283,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             return { previousEnrollments };
         },
         onSuccess: () => showToast('Change undone', 'success'),
-        onError: (_err, _variables, context) => {
-            if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
+        onError: (_err, snapshots, context) => {
+            if (context?.previousEnrollments) restoreCachedRows(queryClient, context.previousEnrollments, snapshots.map(snap => snap.id));
             showToast('Failed to undo change', 'error');
         },
         onSettled: (_data, _err, snapshots) => {
@@ -252,6 +298,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
 
     return {
         enrollments,
+        /** False while older history (completed, withdrawn, rejected) is still loading */
+        complete,
         setEnrollments, // For other hooks to do optimistic updates easily
         fetchEnrollments,
         updateStatus,

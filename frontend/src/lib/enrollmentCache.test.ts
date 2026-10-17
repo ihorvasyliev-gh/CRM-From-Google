@@ -4,7 +4,7 @@ import type { EnrollmentWithRelations } from './documentRender';
 import {
     mergeEnrollmentRows, patchCachedEnrollments, MAX_PATCHED_ENROLLMENTS, refreshCachedEnrollments, refreshStudentEnrollments,
     updateCachedRelations, removeCachedEnrollments, noteFullLoad, resetSyncPoint, syncCachedEnrollments, MAX_SYNCED_ENROLLMENTS,
-    configureEnrollmentCache, shareRowsById,
+    configureEnrollmentCache, shareRowsById, withHistory, restoreCachedRows, cancelListReload, markListPartial, isPartialList,
 } from './enrollmentCache';
 import type { ChangesSince } from './queries';
 
@@ -371,5 +371,103 @@ describe('shareRowsById', () => {
         expect(shared[1]).not.toBe(b);
         expect(shared[1].status).toBe('invited');
         expect(shared[1].students).toBe(b.students);
+    });
+});
+
+describe('the first load in two parts', () => {
+    const current = [row('a', '2026-03-03T10:00:00Z'), row('c', '2026-03-01T10:00:00Z', 'invited')];
+    const history = [row('b', '2026-03-02T10:00:00Z', 'completed'), row('d', '2026-02-01T10:00:00Z', 'rejected')];
+
+    /** Partway through a first load: its first part is cached and the rest still loading. */
+    const midLoad = () => {
+        const client = appClient();
+        let finish: (rows: EnrollmentWithRelations[]) => void = () => {};
+        const load = client.fetchQuery({
+            queryKey: ['enrollments'],
+            queryFn: () => new Promise<EnrollmentWithRelations[]>(resolve => {
+                client.setQueryData(['enrollments'], current);
+                markListPartial(client);
+                finish = resolve;
+            }),
+        });
+        return { client, load, finish: (rows: EnrollmentWithRelations[]) => finish(rows) };
+    };
+
+    it('puts the history among the current rows in reading order, keeping the cached copy of a row in both', () => {
+        const changed = row('c', current[1].created_at, 'confirmed');
+        const whole = withHistory([current[0], changed], [...history, row('c', current[1].created_at, 'invited')]);
+        expect(whole.map(r => r.id)).toEqual(['a', 'b', 'c', 'd']);
+        expect(whole[2]).toBe(changed);
+    });
+
+    it('is whole once the load writes every row', async () => {
+        const { client, load, finish } = midLoad();
+        expect(isPartialList()).toBe(true);
+        expect(listOf(client)).toEqual(current);
+
+        finish(withHistory(current, history));
+        await load;
+        expect(isPartialList()).toBe(false);
+        expect(listOf(client)).toHaveLength(4);
+    });
+
+    it('stays partial when the load is replaced, until the new one writes', async () => {
+        const { client, load, finish } = midLoad();
+        let finishReload: (rows: EnrollmentWithRelations[]) => void = () => {};
+        const reload = client.fetchQuery({
+            queryKey: ['enrollments'],
+            queryFn: () => new Promise<EnrollmentWithRelations[]>(resolve => { finishReload = resolve; }),
+            staleTime: 0,
+        });
+        void client.refetchQueries({ queryKey: ['enrollments'], exact: true });
+
+        // The replaced load's function runs on, but what it returns is dropped
+        finish(withHistory(current, history));
+        await Promise.resolve();
+        expect(isPartialList()).toBe(true);
+
+        finishReload(withHistory(current, history));
+        await reload.catch(() => {});
+        await load.catch(() => {});
+        await vi.waitFor(() => expect(isPartialList()).toBe(false));
+    });
+
+    it('is not partial after signing out (the cache is cleared)', async () => {
+        const { client, load } = midLoad();
+        client.clear();
+        expect(isPartialList()).toBe(false);
+        await load.catch(() => { /* cancelled by the clear */ });
+    });
+
+    it('never cancels the first load while its first part is shown', async () => {
+        const { client, load, finish } = midLoad();
+        cancelListReload(client);
+        finish(withHistory(current, history));
+        await load;
+        expect(listOf(client)).toHaveLength(4);
+
+    });
+
+    it('cancels a later reload before an optimistic change', async () => {
+        const client = appClient();
+        client.setQueryData(['enrollments'], current);
+        const reload = client.fetchQuery({ queryKey: ['enrollments'], queryFn: () => new Promise<EnrollmentWithRelations[]>(() => {}), staleTime: 0 });
+        cancelListReload(client);
+        expect(await reload).toEqual(current);
+        expect(client.getQueryCache().find({ queryKey: ['enrollments'], exact: true })?.state.fetchStatus).toBe('idle');
+    });
+
+    it('undoes an optimistic change on its own rows only', () => {
+        const client = appClient();
+        const before = [row('a', '2026-03-03T10:00:00Z'), row('c', '2026-03-01T10:00:00Z')];
+        client.setQueryData(['enrollments'], before);
+        // The optimistic change to 'a', then the history arriving and a realtime change to 'c'
+        const optimistic = row('a', before[0].created_at, 'invited');
+        const realtime = row('c', before[1].created_at, 'confirmed');
+        client.setQueryData(['enrollments'], [optimistic, ...history.slice(0, 1), realtime]);
+
+        restoreCachedRows(client, before, ['a']);
+
+        expect(listOf(client).map(r => `${r.id}:${r.status}`)).toEqual(['a:requested', 'b:completed', 'c:confirmed']);
     });
 });

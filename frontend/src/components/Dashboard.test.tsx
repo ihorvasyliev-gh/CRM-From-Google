@@ -53,13 +53,15 @@ vi.mock('../lib/supabase', () => ({
         from: vi.fn(() => ({
             select: vi.fn().mockResolvedValue({ count: 5 }),
         })),
+        rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'not in this test' } }),
     },
 }));
 
 const futureCohortDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-vi.mock('../hooks/useEnrollments', () => ({
-    fetchAllEnrollments: vi.fn().mockResolvedValue([
+vi.mock('../hooks/useEnrollments', async () => {
+    const { useQuery } = await import('@tanstack/react-query');
+    const rows = [
         {
             id: 'enr-1',
             student_id: 'stu-1',
@@ -90,8 +92,14 @@ vi.mock('../hooks/useEnrollments', () => ({
             students: { id: 'stu-3', first_name: 'Alice', last_name: 'Wonder' },
             courses: { id: 'crs-3', name: 'First Aid' },
         },
-    ]),
-}));
+    ];
+    return {
+        useEnrollmentList: () => {
+            const query = useQuery({ queryKey: ['enrollments'], queryFn: async () => rows });
+            return { ...query, complete: query.data !== undefined };
+        },
+    };
+});
 
 describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
     let queryClient: QueryClient;

@@ -22,7 +22,7 @@ import {
     EyeOff
 } from 'lucide-react';
 
-import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { useEnrollmentList } from '../hooks/useEnrollments';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EmploymentStatusRow, Student } from '../lib/types';
 import { cleanVariant } from '../lib/types';
@@ -146,10 +146,10 @@ export default function Analytics() {
     const [reportLoaded, setReportLoaded] = useState(false);
 
     // 4. TanStack Data Queries
-    const { data: allEnrollments = EMPTY_ENROLLMENTS, isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
-    });
+    // Every enrollment: the figures wait for older history, which loads after the current ones
+    const enrollmentList = useEnrollmentList();
+    const allEnrollments = enrollmentList.complete ? enrollmentList.data ?? EMPTY_ENROLLMENTS : EMPTY_ENROLLMENTS;
+    const isEnrollmentsLoading = !enrollmentList.complete;
 
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],

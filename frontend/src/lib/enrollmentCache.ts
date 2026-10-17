@@ -70,6 +70,80 @@ export function mergeEnrollmentRows(
     return result.sort(compareRows);
 }
 
+// ─── The first load, in two parts ─────────────────────────────────
+
+/**
+ * True while the cached list holds only the first part of the first load (current enrollments),
+ * and the rest (older completed, withdrawn and rejected ones) is still loading: pages that need
+ * every enrollment (Analytics, Documents) wait for it.
+ */
+let partialList = false;
+const partialListeners = new Set<() => void>();
+
+const watchedClients = new WeakSet<QueryClient>();
+
+function setPartialList(partial: boolean): void {
+    if (partialList === partial) return;
+    partialList = partial;
+    partialListeners.forEach(listener => listener());
+}
+
+/**
+ * The first part of the first load is in the cache. The list is whole again once a load writes
+ * all of it: this one when it ends, or the one that replaced it (a load cancelled meanwhile never
+ * writes, though its query function runs on), or the cache is cleared (signing out).
+ */
+export function markListPartial(queryClient: QueryClient): void {
+    if (!watchedClients.has(queryClient)) {
+        watchedClients.add(queryClient);
+        queryClient.getQueryCache().subscribe(event => {
+            const { queryKey } = event.query;
+            if (queryKey.length !== 1 || queryKey[0] !== ENROLLMENTS_KEY[0]) return;
+            const written = event.type === 'updated' && event.action.type === 'success' && !event.action.manual;
+            if (written || event.type === 'removed') setPartialList(false);
+        });
+    }
+    setPartialList(true);
+}
+
+/** For useSyncExternalStore */
+export function subscribePartialList(listener: () => void): () => void {
+    partialListeners.add(listener);
+    return () => { partialListeners.delete(listener); };
+}
+
+export function isPartialList(): boolean {
+    return partialList;
+}
+
+/**
+ * The whole list: the cached current enrollments (with any change made to them meanwhile) and the
+ * history read after them. A row in both keeps its cached copy.
+ */
+export function withHistory(current: EnrollmentWithRelations[], history: EnrollmentWithRelations[]): EnrollmentWithRelations[] {
+    const ids = new Set(current.map(e => e.id));
+    return current.concat(history.filter(e => !ids.has(e.id))).sort(compareRows);
+}
+
+/**
+ * Before an optimistic change to the list: stops a reload that would overwrite it with older rows.
+ * Never the first load while its first part is shown: cancelling it would empty the board.
+ */
+export function cancelListReload(queryClient: QueryClient): void {
+    if (!partialList) void queryClient.cancelQueries({ queryKey: ENROLLMENTS_KEY });
+}
+
+/**
+ * Undoes an optimistic change: these rows go back to how `previous` (taken before the change) had
+ * them. Only these: rows loaded or patched in since (the rest of the first load, realtime changes)
+ * stay.
+ */
+export function restoreCachedRows(queryClient: QueryClient, previous: EnrollmentWithRelations[], ids: Iterable<string>): void {
+    const restored = new Set(ids);
+    const before = previous.filter(e => restored.has(e.id));
+    queryClient.setQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY, old => old && mergeEnrollmentRows(old, restored, before));
+}
+
 /**
  * The full load of the list running now, if any. Only the list itself: the per-student lists kept
  * under the same key prefix (['enrollments', 'by_student', id]) don't count.

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FileArchive, Tag, Users, Variable } from 'lucide-react';
 import { fetchCourses } from '../lib/queries';
-import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { useEnrollmentList } from '../hooks/useEnrollments';
 import { showToast } from '../lib/toast';
 import ConfirmDialog from './ConfirmDialog';
 import StatTile from './ui/StatTile';
@@ -22,10 +22,9 @@ export default function DocumentGenerator() {
     });
     // Reuse the global enrollments cache (same key as useEnrollments / Dashboard; kept fresh by realtime sync).
     // Generation re-reads the chosen people anyway, so documents never use stale data.
-    const { data: enrollments = [], isLoading: enrollmentsLoading } = useQuery({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
-    });
+    // (Certificates need older completed courses too: it waits for the whole list.)
+    const { data: enrollments = [], complete: enrollmentsComplete } = useEnrollmentList();
+    const enrollmentsLoading = !enrollmentsComplete;
     const setup = useDocumentSetup();
 
     const [pendingDelete, setPendingDelete] = useState<Parameters<ConfirmDelete>[0] | null>(null);

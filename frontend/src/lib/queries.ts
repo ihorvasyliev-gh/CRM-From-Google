@@ -141,19 +141,39 @@ export async function fetchCourses(): Promise<Course[]> {
     return (data || []) as Course[];
 }
 
-export async function fetchDashboardStats() {
-    const [studRes, courseRes, enrollRes] = await Promise.all([
+const STATUS_COUNT_KEYS = ['requested', 'invited', 'confirmed', 'completed', 'withdrawn', 'rejected'] as const;
+
+export interface DashboardStats {
+    students: number;
+    courses: number;
+    enrollments: number;
+    /** Enrollments in each status, from the per-course counts (null if those can't be read) */
+    byStatus: Record<string, number> | null;
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+    const [studRes, courseRes, enrollRes, perCourse] = await Promise.all([
         supabase.from('students').select('*', { count: 'exact', head: true }),
         supabase.from('courses').select('*', { count: 'exact', head: true }),
         supabase.from('enrollments').select('*', { count: 'exact', head: true }),
+        supabase.rpc('get_course_enrollment_counts'),
     ]);
     // A failed count would otherwise show as 0
     const failed = [studRes, courseRes, enrollRes].find(r => r.error);
     if (failed) throw failed.error;
+    // The dashboard's numbers then don't wait for every enrollment to load
+    let byStatus: Record<string, number> | null = null;
+    if (!perCourse.error && Array.isArray(perCourse.data)) {
+        byStatus = Object.fromEntries(STATUS_COUNT_KEYS.map(key => [key, 0]));
+        for (const row of perCourse.data as Record<string, unknown>[]) {
+            for (const key of STATUS_COUNT_KEYS) byStatus[key] += Number(row[key] || 0);
+        }
+    }
     return {
         students: studRes.count || 0,
         courses: courseRes.count || 0,
         enrollments: enrollRes.count || 0,
+        byStatus,
     };
 }
 

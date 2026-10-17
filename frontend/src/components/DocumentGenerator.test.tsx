@@ -55,7 +55,7 @@ function query(table: string) {
     let ids: string[] | null = null;
     let eq: unknown;
     const chain: Record<string, unknown> = {};
-    for (const m of ['select', 'order', 'limit']) chain[m] = () => chain;
+    for (const m of ['select', 'order', 'limit', 'or', 'not']) chain[m] = () => chain;
     chain.eq = (_col: string, value: unknown) => { eq = value; return chain; };
     chain.range = (from: number) => { page = from; return chain; };
     chain.in = (_col: string, values: string[]) => { ids = values; return chain; };

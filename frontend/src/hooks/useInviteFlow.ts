@@ -12,6 +12,7 @@ import {
     type CourseSession,
 } from '../lib/courseSessions';
 import { COURSE_SESSIONS_QUERY_KEY } from './useCourseSessions';
+import { cancelListReload, restoreCachedRows } from '../lib/enrollmentCache';
 
 export interface DateStats {
     pending: number;
@@ -362,7 +363,7 @@ export function useInviteFlow({
             return { ids, updatePayload };
         },
         onMutate: async ({ ids, dates, days }) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
 
             const updatePayload = buildInvitePayload(dates, days);
@@ -377,9 +378,9 @@ export function useInviteFlow({
             queryClient.invalidateQueries({ queryKey: COURSE_SESSIONS_QUERY_KEY });
             showToast(`${data.ids.length} enrollment(s) → invited`, 'success');
         },
-        onError: (_err, _variables, context) => {
+        onError: (_err, variables, context) => {
             if (context?.previousEnrollments) {
-                setEnrollments(context.previousEnrollments);
+                restoreCachedRows(queryClient, context.previousEnrollments, variables.ids);
             } else {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             }

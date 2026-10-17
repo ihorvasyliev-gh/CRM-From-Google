@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw } from 'lucide-react';
+import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw, Loader2 } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -670,6 +670,7 @@ export default function EnrollmentBoard({
             <FilterBar
                 enrollments={enrollments}
                 enrollmentCount={enrollments.length}
+                countLoading={!enrollmentsHook.complete}
                 filteredCount={filteredEnrollments.length}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
@@ -768,6 +769,7 @@ export default function EnrollmentBoard({
                                 onMoveStatus={handleCardMoveStatus}
                                 sessions={courseSessions}
                                 filters={shownFilters}
+                                loadingOlder={status === 'completed' && !enrollmentsHook.complete}
                             />
                         </div>
                     ))}
@@ -840,6 +842,12 @@ export default function EnrollmentBoard({
                     >
                         <ChevronDown size={16} className={`transition-transform ${showSecondary ? 'rotate-180' : ''}`} />
                         Withdrawn & Rejected ({secondaryCount})
+                        {!enrollmentsHook.complete && (
+                            <span className="flex items-center" title="Loading older enrollments">
+                                <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+                                <span className="sr-only">, loading older ones</span>
+                            </span>
+                        )}
                     </button>
 
                     {showSecondary && (

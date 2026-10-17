@@ -13,6 +13,8 @@ type SortOrder = 'date-asc' | 'date-desc' | 'name';
 interface FilterBarProps {
     enrollments: EnrollmentRow[];
     enrollmentCount: number;
+    /** Older enrollments are still loading, so the count will grow */
+    countLoading?: boolean;
     filteredCount: number;
     searchQuery: string;
     setSearchQuery: (q: string) => void;
@@ -187,6 +189,7 @@ function formatRange(from: string, to: string) {
 export default function FilterBar({
     enrollments,
     enrollmentCount,
+    countLoading = false,
     filteredCount,
     searchQuery,
     setSearchQuery,
@@ -222,6 +225,7 @@ export default function FilterBar({
     const hasCourseRange = !!(courseDateFrom || courseDateTo);
     const rangeCount = (hasCreatedRange ? 1 : 0) + (hasCourseRange ? 1 : 0);
     const isFiltered = filteredCount < enrollmentCount;
+    const shownCount = countLoading ? `${enrollmentCount}+` : enrollmentCount;
     // Language chips only help when there is something to choose between (or one is already picked)
     const showLanguages = selectedCourse !== 'all' && (uniqueVariants.length > 1 || selectedVariant !== 'all');
     const datesTotal = courseDatesTotal ?? availableCourseDates.reduce((sum, d) => sum + d.count, 0);
@@ -440,9 +444,9 @@ export default function FilterBar({
                 <div className="hidden md:flex items-center gap-2 ml-auto shrink-0">
                     <span className="text-xs text-muted whitespace-nowrap" aria-live="polite">
                         {isFiltered ? (
-                            <><span className="font-mono font-bold text-primary">{filteredCount}</span> of <span className="font-mono">{enrollmentCount}</span></>
+                            <><span className="font-mono font-bold text-primary">{filteredCount}</span> of <span className="font-mono">{shownCount}</span></>
                         ) : (
-                            <><span className="font-mono font-bold text-primary">{enrollmentCount}</span> total</>
+                            <><span className="font-mono font-bold text-primary">{shownCount}</span> total</>
                         )}
                     </span>
                     {activeFilters.length > 0 && (
@@ -527,7 +531,7 @@ export default function FilterBar({
                 open={sheetOpen}
                 onClose={() => setSheetOpen(false)}
                 title="Filters"
-                subtitle={isFiltered ? `${filteredCount} of ${enrollmentCount} enrollments` : `${enrollmentCount} enrollments`}
+                subtitle={isFiltered ? `${filteredCount} of ${shownCount} enrollments` : `${shownCount} enrollments`}
                 icon={SlidersHorizontal}
                 sheetOnMobile
                 labelId="enrollment-filters-title"
