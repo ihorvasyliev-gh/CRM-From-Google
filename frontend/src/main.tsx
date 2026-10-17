@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './contexts/AuthContext'
 import { lazyWithRetry } from './lib/lazyWithRetry'
+import { configureEnrollmentCache } from './lib/enrollmentCache'
 import ErrorBoundary from './components/ErrorBoundary'
 import UpdateNotice from './components/UpdateNotice'
 import { PublicPageFallback, AppFallback } from './components/ui/PageFallbacks'
@@ -35,6 +36,8 @@ const queryClient = new QueryClient({
         },
     },
 })
+
+configureEnrollmentCache(queryClient)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

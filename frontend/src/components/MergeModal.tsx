@@ -6,6 +6,7 @@ import { X, Loader2, Search, GitMerge, Check, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import DialogLayer from './ui/DialogLayer';
 import { errorMessage } from '../lib/errors';
+import { refreshStudentEnrollments } from '../lib/enrollmentCache';
 
 interface Props {
     open: boolean;
@@ -131,7 +132,8 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
 
             // Invalidate React Query Cache
             queryClient.invalidateQueries({ queryKey: ['students'] });
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            // Both students' enrollments, now all the primary's, re-read into the cached list
+            void refreshStudentEnrollments(queryClient, [primaryId, duplicateId]);
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['analytics_enrollments_v2'] });

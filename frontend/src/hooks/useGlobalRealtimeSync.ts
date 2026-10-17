@@ -4,7 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { setupSleepAndWakeListener } from '../lib/realtimeSync';
-import { ENROLLMENTS_KEY, patchCachedEnrollments } from '../lib/enrollmentCache';
+import { ENROLLMENTS_KEY, patchCachedEnrollments, syncCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
 
 /**
  * Global Supabase realtime subscription hook.
@@ -12,11 +12,12 @@ import { ENROLLMENTS_KEY, patchCachedEnrollments } from '../lib/enrollmentCache'
  * Subscribes to postgres_changes on the enrollments, students, courses, employment_status,
  * outreach and student_flags tables and invalidates the relevant React Query caches
  * so that every page stays in sync without needing a manual refresh. Changed enrollments are
- * re-read one by one into the cached list rather than reloading all of them.
+ * re-read one by one into the cached list rather than reloading all of them, and edited students
+ * and courses are written into it from the event itself.
  *
- * A dropped channel is rebuilt, and once it is live again everything is reloaded: changes made
- * while it was down are never sent. Waking from sleep and coming back online rebuild it the same
- * way. A return to the tab only reloads when something was missed (or, as a safety net, when the
+ * A dropped channel is rebuilt, and once it is live again everything is reloaded (the enrollment
+ * list only catches up on what changed since): changes made while it was down are never sent.
+ * Waking from sleep and coming back online rebuild it the same way. A return to the tab only reloads when something was missed (or, as a safety net, when the
  * last reload is old): reloading every enrollment on each switch back from Outlook made the app
  * slow to come back to.
  *
@@ -25,10 +26,19 @@ import { ENROLLMENTS_KEY, patchCachedEnrollments } from '../lib/enrollmentCache'
 // Viewer portal caches that depend on enrollment rows
 const VIEWER_ENROLLMENT_KEYS = ['viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail'];
 
+/** The cached list of every enrollment itself (not the per-student lists under the same prefix). */
+const isEnrollmentList = (key: readonly unknown[]) => key.length === 1 && key[0] === ENROLLMENTS_KEY[0];
+
 /** A return to the tab with a live channel reloads everything at most this often (safety net). */
 const SOFT_RESYNC_MIN_INTERVAL_MS = 10 * 60_000;
 /** A rebuilt channel that isn't live by then: reload anyway (realtime down, the API may be up). */
 const REJOIN_RESYNC_FALLBACK_MS = 5_000;
+
+/** The row an insert or update event carries. */
+function newRow(payload: unknown): RelationRow | undefined {
+    const next = (payload as { new?: Record<string, unknown> } | null)?.new;
+    return typeof next?.id === 'string' ? next as RelationRow : undefined;
+}
 
 /** The changed row's id: `new` for inserts and updates, `old` for deletes. */
 function changedRowId(payload: unknown): string | undefined {
@@ -59,6 +69,8 @@ export function useGlobalRealtimeSync() {
     // Enrollments changed in this burst: only these rows are re-read into the cached list
     // (null: an event without an id, so the whole list is reloaded)
     const pendingEnrollmentIdsRef = useRef<Set<string> | null>(new Set());
+    // Students and courses edited in this burst, as their events carry them
+    const pendingRelationsRef = useRef({ students: new Map<string, RelationRow>(), courses: new Map<string, RelationRow>() });
 
     const flushInvalidations = useCallback(() => {
         flushTimerRef.current = null;
@@ -67,6 +79,10 @@ export function useGlobalRealtimeSync() {
         pendingKeysRef.current.clear();
         const enrollmentIds = pendingEnrollmentIdsRef.current;
         pendingEnrollmentIdsRef.current = new Set();
+        const relations = pendingRelationsRef.current;
+        pendingRelationsRef.current = { students: new Map(), courses: new Map() };
+        // Their names and details on the cached enrollments, without re-reading those
+        updateCachedRelations(queryClient, { students: [...relations.students.values()], courses: [...relations.courses.values()] });
         // Not just the active queries: a page that isn't open (the board while on Students) would
         // otherwise show its old data when opened again within its staleTime
         keys.forEach(key => {
@@ -101,7 +117,13 @@ export function useGlobalRealtimeSync() {
         }
         lastResyncRef.current = Date.now();
         console.log(`[useGlobalRealtimeSync] Resyncing active queries (source: ${source})`);
-        queryClient.invalidateQueries();
+        // Everything reloads except the enrollment list, which catches up on the rows changed
+        // since it was read: reloading it whole downloaded every enrollment again after each
+        // dropped connection and on returns to the tab
+        queryClient.invalidateQueries({ predicate: q => !isEnrollmentList(q.queryKey) });
+        void syncCachedEnrollments(queryClient).then(synced => {
+            if (!synced) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY, exact: true });
+        });
     }, [queryClient]);
 
     const subscribeChannel = useCallback(() => {
@@ -136,7 +158,9 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'students' },
-                () => {
+                payload => {
+                    const row = newRow(payload);
+                    if (row) pendingRelationsRef.current.students.set(row.id, row);
                     queueInvalidation(['students', 'dashboard_stats', 'viewer_students_directory', 'viewer_course_roster', 'restricted_student_detail']);
                 }
             )
@@ -144,7 +168,9 @@ export function useGlobalRealtimeSync() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'courses' },
-                () => {
+                payload => {
+                    const row = newRow(payload);
+                    if (row) pendingRelationsRef.current.courses.set(row.id, row);
                     queueInvalidation(['courses', 'doc_courses', 'dashboard_stats', 'viewer_courses', 'viewer_upcoming_courses']);
                 }
             )
@@ -280,6 +306,7 @@ export function useGlobalRealtimeSync() {
             }
             pendingKeys.clear();
             pendingEnrollmentIdsRef.current = new Set();
+            pendingRelationsRef.current = { students: new Map(), courses: new Map() };
             burstStartRef.current = 0;
             const channel = activeChannelRef.current;
             activeChannelRef.current = null; // before removing, as in subscribeChannel

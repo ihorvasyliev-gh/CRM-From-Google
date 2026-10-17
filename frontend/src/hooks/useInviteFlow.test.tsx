@@ -546,6 +546,25 @@ describe('useInviteFlow course date schedule (time, place, days)', () => {
         expect(result.current.sessionFor('2026-11-12').location).toBe('Room 2');
     });
 
+    it("preselects the course's next saved date, or today when it has none", async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-01T09:00:00'));
+        supabaseMocks.inviteDateRows = [{ invite_date: '2026-08-26' }, { invite_date: '2026-09-10' }, { invite_date: '2026-09-24' }];
+        const { result } = renderInviteFlow();
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        expect(result.current.savedInviteDates).toEqual(['2026-09-10', '2026-09-24']);
+        expect(result.current.inviteDate).toBe('2026-09-10');
+
+        supabaseMocks.inviteDateRows = [{ invite_date: '2026-08-26' }];
+        await act(async () => {
+            result.current.openInviteModal(['en-1'], false);
+        });
+        expect(result.current.inviteDate).toBe('2026-09-01');
+        vi.useRealTimers();
+    });
+
     it('does not invite while a time ends before it starts', async () => {
         const { result } = renderInviteFlow();
         await act(async () => {

@@ -39,6 +39,10 @@ export async function fetchAllPages<T>(
 
 /** Enrollment columns plus the student and course fields the board and documents use. */
 export const ENROLLMENT_SELECT = '*, students(id, first_name, last_name, email, phone, address, eircode, dob), courses(id, name, requires_english, max_capacity)';
+/** The student fields each enrollment row carries (`students` in ENROLLMENT_SELECT). */
+export const ENROLLMENT_STUDENT_FIELDS = ['id', 'first_name', 'last_name', 'email', 'phone', 'address', 'eircode', 'dob'] as const;
+/** The course fields each enrollment row carries (`courses` in ENROLLMENT_SELECT). */
+export const ENROLLMENT_COURSE_FIELDS = ['id', 'name', 'requires_english', 'max_capacity'] as const;
 
 /**
  * Fresh copies of these enrollments, in the order of `ids`. Deleted ones (and ones this user may
@@ -54,6 +58,49 @@ export async function fetchEnrollmentsByIds(ids: string[]): Promise<EnrollmentWi
     }));
     const byId = new Map(results.flat().map(e => [e.id, e]));
     return ids.map(id => byId.get(id)).filter((e): e is EnrollmentWithRelations => !!e);
+}
+
+/** Every enrollment of these students, with the same fields as the cached list. */
+export async function fetchEnrollmentsByStudentIds(studentIds: string[]): Promise<EnrollmentWithRelations[]> {
+    const { data, error } = await supabase.from('enrollments').select(ENROLLMENT_SELECT).in('student_id', studentIds);
+    if (error) throw error;
+    return (data || []) as EnrollmentWithRelations[];
+}
+
+type EnrollmentStudent = NonNullable<EnrollmentWithRelations['students']>;
+type EnrollmentCourse = NonNullable<EnrollmentWithRelations['courses']>;
+type Changed = { updated_at: string };
+
+export interface ChangesSince {
+    /** Enrollments changed or added */
+    enrollments: EnrollmentWithRelations[];
+    /** How many enrollments there are in all (fewer than the cached list: some were deleted) */
+    total: number;
+    /** Students and courses changed, with the fields the enrollment rows carry and updated_at */
+    students: (EnrollmentStudent & Changed)[];
+    courses: (EnrollmentCourse & Changed)[];
+}
+
+/**
+ * What changed since `since` (an ISO time) for the cached enrollment list: at most `limit + 1`
+ * rows of each kind (more than `limit`: too many to catch up on). Students and courses need
+ * migration 84 (their updated_at); without it this throws.
+ */
+export async function fetchChangesSince(since: string, limit: number): Promise<ChangesSince> {
+    const [enrollments, all, students, courses] = await Promise.all([
+        supabase.from('enrollments').select(ENROLLMENT_SELECT).gte('updated_at', since).order('updated_at').order('id').limit(limit + 1),
+        supabase.from('enrollments').select('id', { count: 'exact', head: true }),
+        supabase.from('students').select([...ENROLLMENT_STUDENT_FIELDS, 'updated_at'].join(', ')).gte('updated_at', since).limit(limit + 1),
+        supabase.from('courses').select([...ENROLLMENT_COURSE_FIELDS, 'updated_at'].join(', ')).gte('updated_at', since).limit(limit + 1),
+    ]);
+    const failed = [enrollments, all, students, courses].find(r => r.error);
+    if (failed) throw failed.error;
+    return {
+        enrollments: (enrollments.data || []) as EnrollmentWithRelations[],
+        total: all.count ?? 0,
+        students: (students.data || []) as unknown as ChangesSince['students'],
+        courses: (courses.data || []) as unknown as ChangesSince['courses'],
+    };
 }
 
 export interface StudentsPage {

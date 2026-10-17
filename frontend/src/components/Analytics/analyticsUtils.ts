@@ -656,11 +656,20 @@ export function calculateFunnelAnalysis(enrollments: EnrollmentWithRelations[]) 
     const confirmedToCompleted = everConfirmed > 0 ? Math.round((everCompleted / everConfirmed) * 100) : 0;
     const overallSuccessRate = everRequested > 0 ? Math.round((everCompleted / everRequested) * 100) : 0;
 
+    // Where enrollments wait now, by their current status: the same rows as each stage's list.
+    // (Reached one stage but not the next counted withdrawn and rejected ones as waiting.)
+    const waitingForInvite = enrollments.filter(e => e.status === 'requested').length;
+    const waitingForReply = enrollments.filter(e => e.status === 'invited').length;
+    const inCourse = enrollments.filter(e => e.status === 'confirmed').length;
+
     return {
         everRequested,
         everInvited,
         everConfirmed,
         everCompleted,
+        waitingForInvite,
+        waitingForReply,
+        inCourse,
         requestedToInvited,
         invitedToConfirmed,
         confirmedToCompleted,
@@ -757,6 +766,7 @@ export async function exportExecutiveExcelReport(
     const invitedCount = enrollments.filter(e => e.status === 'invited').length;
     const confirmedCount = enrollments.filter(e => e.status === 'confirmed').length;
     const completedCount = enrollments.filter(e => e.status === 'completed').length;
+    const graduatedPeople = new Set(enrollments.filter(e => e.status === 'completed').map(e => e.student_id)).size;
     const successRate = totalEnrollments > 0 ? Math.round((completedCount / totalEnrollments) * 100) : 0;
 
     const speed = calculateSpeedMetrics(enrollments);
@@ -776,11 +786,12 @@ export async function exportExecutiveExcelReport(
         [],
         sectionHeader('1. Core Pipeline Key Performance Indicators'),
         tableHeader(['Metric Name', 'Count / Value', 'Benchmark / Target', 'Notes']),
-        valueCells(['Total Pipeline Applications', totalEnrollments, '-', 'Total candidate registrations in scope']),
-        valueCells(['Waiting Queue (Requested)', requestedCount, '-', 'Candidates awaiting invitation']),
-        valueCells(['Invited Stage', invitedCount, '-', 'Candidates currently in invitation window']),
-        valueCells(['Confirmed Students', confirmedCount, '-', 'Confirmed attendees awaiting course start']),
-        valueCells(['Graduated / Completed', completedCount, '-', 'Successfully finished course']),
+        valueCells(['Total Pipeline Applications', totalEnrollments, '-', 'Enrollments in scope (one per person and course)']),
+        valueCells(['Waiting Queue (Requested)', requestedCount, '-', 'Enrollments awaiting invitation']),
+        valueCells(['Invited Stage', invitedCount, '-', 'Enrollments currently in invitation window']),
+        valueCells(['Confirmed Students', confirmedCount, '-', 'Confirmed enrollments awaiting course start']),
+        valueCells(['Graduated / Completed', completedCount, '-', 'Completed enrollments']),
+        valueCells(['Graduates (people)', graduatedPeople, '-', 'People with at least one completed course, as Outcomes counts them']),
         valueCells(['Pipeline Completion Rate', `${successRate}%`, '> 60%', 'Completed vs Total registered']),
         [],
         sectionHeader('2. Conversion Funnel & Cycle Velocity'),
@@ -858,7 +869,7 @@ export async function exportExecutiveExcelReport(
 
     await downloadXlsx([
         { name: 'Executive Summary', rows: summaryRows, widths: [32, 22, 22, 35] },
-        table('Geographic Funnel', [['District / Town', 30], ['Macro Region', 22], ['Applications', 16], ['Confirmed', 14], ['Graduates', 14], ['Completion %', 16]], geoRows),
+        table('Geographic Funnel', [['District / Town', 30], ['Macro Region', 22], ['Applications', 16], ['Confirmed', 14], ['Completed', 14], ['Completion %', 16]], geoRows),
         table('Course Performance', [['Course Name', 35], ['Total Applicants', 18], ['Invited', 14], ['Confirmed', 14], ['Completed', 14], ['Completion %', 16], ['Drop-off %', 14]], courseRows),
         table('Graduate Outcomes', [['Student Name', 25], ['Email', 30], ['Completed Course', 30], ['Completion Date', 16], ['Survey Status', 16], ['Employed?', 14], ['Employment Type', 18], ['Field / Industry', 25], ['Started Work', 16]], outcomeRows),
         table('Full Participants Roster', [['First Name', 18], ['Last Name', 18], ['Email', 28], ['Phone', 18], ['Normalized District', 22], ['Macro Region', 20], ['Course', 25], ['Variant', 18], ['Status', 14], ['Priority', 10], ['Registered Date', 16]], rosterRows),

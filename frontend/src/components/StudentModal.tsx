@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { User, AlertTriangle } from 'lucide-react';
-import { fullName, StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
+import { fullName, Student, StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { todayISO } from '../lib/dateUtils';
 import { normalizePhone } from '../lib/contactUtils';
@@ -13,8 +13,11 @@ import { DateInput } from './ui/DatePicker';
 interface Props {
     open: boolean;
     student: StudentFormData | null;
-    onSave: (data: StudentPayload) => Promise<void>;
+    /** Resolves to the saved student, when it can be read back */
+    onSave: (data: StudentPayload) => Promise<Student | null | void>;
     onClose: () => void;
+    /** When adding: a "Save and enroll" button, which hands the new student on to be enrolled */
+    onSaveAndEnroll?: (student: Student) => void;
 }
 
 const EMPTY_FORM: StudentFormData = { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' };
@@ -27,8 +30,11 @@ function quoteFilterValue(value: string): string {
     return `"${value.replace(/["\\]/g, '')}"`;
 }
 
-export default function StudentModal({ open, student, onSave, onClose }: Props) {
+export default function StudentModal({ open, student, onSave, onClose, onSaveAndEnroll }: Props) {
     const [form, setForm] = useState<StudentFormData>(EMPTY_FORM);
+    const formRef = useRef<HTMLFormElement>(null);
+    // Set by "Save and enroll" just before it submits the form
+    const enrollAfterSaveRef = useRef(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [duplicateWarning, setDuplicateWarning] = useState('');
@@ -109,6 +115,8 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        const thenEnroll = enrollAfterSaveRef.current;
+        enrollAfterSaveRef.current = false;
         if (saving) return;
         if (!form.first_name.trim() || !form.last_name.trim()) {
             setError('First and last name are required');
@@ -117,8 +125,9 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
         setSaving(true);
         setError('');
         try {
-            await onSave(toStudentPayload(form));
+            const saved = await onSave(toStudentPayload(form));
             onClose();
+            if (thenEnroll && saved) onSaveAndEnroll?.(saved);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -148,13 +157,27 @@ export default function StudentModal({ open, student, onSave, onClose }: Props) 
             footer={
                 <>
                     <Button variant="ghost" onClick={requestClose}>Cancel</Button>
+                    {!isEditing && onSaveAndEnroll && (
+                        <Button
+                            variant="secondary"
+                            disabled={saving}
+                            onClick={() => {
+                                const formEl = formRef.current;
+                                if (!formEl?.reportValidity()) return;
+                                enrollAfterSaveRef.current = true;
+                                formEl.requestSubmit();
+                            }}
+                        >
+                            Save and enroll
+                        </Button>
+                    )}
                     <Button variant="primary" type="submit" form="student-form" loading={saving}>
                         {saving ? 'Saving...' : isEditing ? 'Update Student' : 'Add Student'}
                     </Button>
                 </>
             }
         >
-                <form id="student-form" onSubmit={handleSubmit} className="space-y-4">
+                <form id="student-form" ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                     {error && <FormError>{error}</FormError>}
 
                     {duplicateWarning && (

@@ -5,6 +5,7 @@ import type { EnrollmentRow } from './useEnrollments';
 import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { changeEnrollmentStatus, restoreEnrollments } from '../lib/enrollmentStatus';
+import { refreshCachedEnrollments } from '../lib/enrollmentCache';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -94,7 +95,8 @@ export function useBulkActions({
                     console.error('Undo failed:', err);
                     showToast('Failed to undo status changes', 'error');
                 } finally {
-                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                    // What the database has now for these rows (not every enrollment reloaded)
+                    void refreshCachedEnrollments(queryClient, [...undoData.snapshots.map(snap => snap.id), ...removed.map(e => e.id)]);
                 }
             };
 

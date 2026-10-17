@@ -203,7 +203,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <StatTile label="Graduates" icon={Users} tone="brand" value={graduateData.totalGraduates} hint="Unique students" onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)} />
+                <StatTile label="Graduates" icon={Users} tone="brand" value={graduateData.totalGraduates} hint="People, each counted once" onClick={() => onDrillDown('All Course Graduates', graduateData.gradsList)} />
                 <StatTile label="Response rate" icon={Mail} tone="completed" value={`${graduateData.responseRate}%`} hint={`${graduateData.respondedCount} responded`} onClick={() => onDrillDown('Graduates Who Responded', graduateData.respondedList)} />
                 <StatTile label="Employment rate" icon={Briefcase} tone="success" value={`${graduateData.employmentRate}%`} hint={`${graduateData.workingCount} employed`} hintTone="positive" onClick={() => onDrillDown('Employed Graduates', graduateData.workingList)} />
                 <StatTile label="Pending responses" icon={Clock} tone="warning" value={graduateData.pendingList.length} hint="Survey sent, no reply yet" onClick={() => onDrillDown('Pending Survey Follow-ups', graduateData.pendingList)} />
