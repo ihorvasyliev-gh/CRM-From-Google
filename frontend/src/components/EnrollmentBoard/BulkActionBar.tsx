@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
-import { CustomTooltip } from '../ui/Tooltip';
+import Menu, { type MenuItem } from '../ui/Menu';
+import { fittingActions } from './bulkActions';
 import type { EnrollmentStatus } from '../../lib/types';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+
+const actionCls = 'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white leading-none whitespace-nowrap transition-colors shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white/60';
 
 interface BulkActionBarProps {
     selectedCount: number;
@@ -34,6 +37,13 @@ export default function BulkActionBar({
 
     if (selectedCount === 0) return null;
 
+    const fits = fittingActions(new Set(selectedEnrollments.map(e => e.status)));
+    const moreItems: MenuItem[] = [
+        ...(fits.backToRequested ? [{ label: 'Back to requested', icon: <Clock size={14} />, onSelect: () => bulkUpdateStatus('requested') }] : []),
+        ...(fits.reject ? [{ label: 'Reject…', icon: <Ban size={14} />, onSelect: () => setConfirmRejectOpen(true), tone: 'danger' as const }] : []),
+        { label: 'Delete…', icon: <Trash2 size={14} />, onSelect: () => setBulkDeleteOpen(true), tone: 'danger' },
+    ];
+
     return (
         <>
         <div className="fixed bottom-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 animate-slideUpCenter">
@@ -42,7 +52,7 @@ export default function BulkActionBar({
                 <div className="bg-surface border border-border-subtle rounded-xl shadow-float w-72 max-h-64 flex flex-col overflow-hidden animate-slideUp">
                     <div className="px-4 py-3 border-b border-border-subtle flex justify-between items-center bg-surface">
                         <span className="text-xs font-bold text-primary uppercase tracking-wider">Selected Students ({selectedCount})</span>
-                        <button onClick={() => setShowList(false)} className="text-muted hover:text-primary transition-colors">
+                        <button type="button" onClick={() => setShowList(false)} aria-label="Close the list" className="text-muted hover:text-primary transition-colors">
                             <X size={16} />
                         </button>
                     </div>
@@ -52,9 +62,11 @@ export default function BulkActionBar({
                                 <span className="text-[13px] font-semibold text-primary truncate pr-2">
                                     {e.students?.first_name} {e.students?.last_name}
                                 </span>
-                                <button 
+                                <button
+                                    type="button"
                                     onClick={() => toggleSelect(e.id)}
-                                    className="text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-danger/10 transition-all p-1 rounded-md"
+                                    className="text-muted sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 hover:text-red-500 hover:bg-danger/10 transition-all p-1 rounded-md"
+                                    aria-label={`Deselect ${e.students?.first_name ?? ''} ${e.students?.last_name ?? ''}`.trim()}
                                     title="Deselect"
                                 >
                                     <X size={14} />
@@ -66,8 +78,10 @@ export default function BulkActionBar({
             )}
 
             <div className="glass-dark rounded-2xl shadow-float px-4 py-2.5 flex flex-wrap justify-center items-center gap-1.5 w-[calc(100vw-2rem)] sm:w-auto max-w-[450px] sm:max-w-none">
-                <button 
+                <button
+                    type="button"
                     onClick={() => setShowList(!showList)}
+                    aria-expanded={showList}
                     className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white leading-none rounded-lg transition-colors whitespace-nowrap ${showList ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}
                     title="View selected list"
                 >
@@ -81,104 +95,55 @@ export default function BulkActionBar({
 
                 <div className="w-px h-5 bg-white/10 ml-0.5" />
 
-                <CustomTooltip content="Copy Emails (BCC)">
-                    <button
-                        onClick={handleCopySelectedEmails}
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
-                    >
-                        <Copy size={15} />
-                    </button>
-                </CustomTooltip>
+                <button type="button" onClick={handleCopySelectedEmails} aria-label="Copy emails (BCC)" title="Copy emails (BCC)" className={`${actionCls} bg-white/10 hover:bg-white/20`}>
+                    <Copy size={14} />
+                    <span className="hidden sm:inline">Emails</span>
+                </button>
 
-                <CustomTooltip content="Requested">
-                    <button
-                        onClick={() => bulkUpdateStatus('requested')}
-                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs"
-                    >
-                        <Clock size={15} />
+                {fits.invite && (
+                    <button type="button" onClick={() => bulkUpdateStatus('invited')} className={`${actionCls} bg-blue-500 hover:bg-blue-600`}>
+                        <Send size={14} /> Invite
                     </button>
-                </CustomTooltip>
-
-                <CustomTooltip content="Invite">
-                    <button
-                        onClick={() => bulkUpdateStatus('invited')}
-                        className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-xs"
-                    >
-                        <Send size={15} />
+                )}
+                {fits.remind && (
+                    <button type="button" onClick={sendReminder} title="Send a reminder to the confirmed ones" className={`${actionCls} bg-sky-500 hover:bg-sky-600`}>
+                        <BellRing size={14} /> Remind
                     </button>
-                </CustomTooltip>
-
-                {selectedEnrollments.some(e => e.status === 'confirmed') && (
-                    <CustomTooltip content="Send reminder to confirmed">
-                        <button
-                            onClick={sendReminder}
-                            className="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-xs"
-                        >
-                            <BellRing size={15} />
-                        </button>
-                    </CustomTooltip>
+                )}
+                {fits.confirm && (
+                    <button type="button" onClick={() => bulkUpdateStatus('confirmed')} className={`${actionCls} bg-emerald-500 hover:bg-emerald-600`}>
+                        <CheckCircle size={14} /> Confirm
+                    </button>
+                )}
+                {fits.complete && (
+                    <button type="button" onClick={() => bulkUpdateStatus('completed')} className={`${actionCls} bg-teal-500 hover:bg-teal-600`}>
+                        <GraduationCap size={14} /> Complete
+                    </button>
                 )}
 
-                <CustomTooltip content="Confirm">
-                    <button
-                        onClick={() => bulkUpdateStatus('confirmed')}
-                        className="p-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-xs"
-                    >
-                        <CheckCircle size={15} />
-                    </button>
-                </CustomTooltip>
+                <div className="w-px h-5 bg-white/10" />
 
-                <CustomTooltip content="Complete">
-                    <button
-                        onClick={() => bulkUpdateStatus('completed')}
-                        className="p-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition-all shadow-xs"
-                    >
-                        <GraduationCap size={15} />
-                    </button>
-                </CustomTooltip>
+                <button type="button" onClick={handleGenerateDocuments} aria-label="Generate documents" title="Generate documents" className={`${actionCls} bg-white/10 hover:bg-white/20`}>
+                    <FileArchive size={14} />
+                    <span className="hidden sm:inline">Docs</span>
+                </button>
+
+                <Menu label="More actions" placement="top" items={moreItems} triggerClassName={`${actionCls} bg-white/10 hover:bg-white/20`}>
+                    <MoreHorizontal size={14} />
+                    <span className="hidden sm:inline">More</span>
+                </Menu>
 
                 <div className="w-px h-5 bg-white/10" />
 
-                <CustomTooltip content="Rejected">
-                    <button
-                        onClick={() => setConfirmRejectOpen(true)}
-                        className="p-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white transition-all shadow-xs"
-                    >
-                        <Ban size={15} />
-                    </button>
-                </CustomTooltip>
-
-                <div className="w-px h-5 bg-white/10" />
-
-                <CustomTooltip content="Generate Docs">
-                    <button
-                        onClick={handleGenerateDocuments}
-                        aria-label="Generate Docs"
-                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs"
-                    >
-                        <FileArchive size={15} />
-                    </button>
-                </CustomTooltip>
-
-                <CustomTooltip content="Delete Selected">
-                    <button
-                        onClick={() => setBulkDeleteOpen(true)}
-                        className="p-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all shadow-xs"
-                    >
-                        <Trash2 size={15} />
-                    </button>
-                </CustomTooltip>
-
-                <div className="w-px h-5 bg-white/10" />
-
-                <CustomTooltip content="Clear Selection">
-                    <button
-                        onClick={clearSelection}
-                        className="text-white/50 hover:text-white transition-all p-1.5 hover:bg-white/10 rounded-lg"
-                    >
-                        <X size={15} />
-                    </button>
-                </CustomTooltip>
+                <button
+                    type="button"
+                    onClick={clearSelection}
+                    aria-label="Clear selection"
+                    title="Clear selection"
+                    className="text-white/60 hover:text-white transition-all p-1.5 hover:bg-white/10 rounded-lg"
+                >
+                    <X size={15} />
+                </button>
             </div>
         </div>
 

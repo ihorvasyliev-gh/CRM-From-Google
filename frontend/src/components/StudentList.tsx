@@ -141,9 +141,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             }
             notify({ message: 'Student updated', type: 'success' });
         } else {
-            await createStudent(formData);
+            const created = await createStudent(formData);
             addStudentToCache();
             notify({ message: 'Student added', type: 'success' });
+            return created;
         }
     }
 
@@ -455,6 +456,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                     open={studentModalOpen}
                     student={editingStudent}
                     onSave={handleSaveStudent}
+                    onSaveAndEnroll={student => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
                     onClose={() => setStudentModalOpen(false)}
                 />
             )}
