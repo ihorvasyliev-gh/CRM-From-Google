@@ -78,11 +78,6 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
             }));
     }, [enrollments]);
 
-    // Drop-off calculations
-    const requestedDropOff = funnel.everRequested > 0 ? funnel.everRequested - funnel.everInvited : 0;
-    const invitedDropOff = funnel.everInvited > 0 ? funnel.everInvited - funnel.everConfirmed : 0;
-    const confirmedDropOff = funnel.everConfirmed > 0 ? funnel.everConfirmed - funnel.everCompleted : 0;
-
     const stages = [
         {
             key: 'requested', label: 'Requested', value: funnel.everRequested, tone: 'warning' as const, bar: 'bg-warning',
@@ -109,17 +104,17 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
 
     const dropOffs = [
         {
-            label: 'Waiting queue', value: requestedDropOff, unit: 'pending', tone: 'text-status-requested',
+            label: 'Waiting queue', value: funnel.waitingForInvite, tone: 'text-status-requested',
             desc: 'Registered but not yet invited to a course date',
             onClick: () => onDrillDown('Applicants Not Yet Invited', enrollments.filter(e => e.status === 'requested')),
         },
         {
-            label: 'Invitation non-response', value: invitedDropOff, unit: 'pending', tone: 'text-status-invited',
+            label: 'Invitation non-response', value: funnel.waitingForReply, tone: 'text-status-invited',
             desc: "Invited but haven't confirmed a place yet",
             onClick: () => onDrillDown('Invited Students Awaiting Confirmation', enrollments.filter(e => e.status === 'invited')),
         },
         {
-            label: 'In progress', value: confirmedDropOff, unit: 'active', tone: 'text-status-confirmed',
+            label: 'In progress', value: funnel.inCourse, tone: 'text-status-confirmed',
             desc: 'Attending, awaiting the completion date',
             onClick: () => onDrillDown('Active Students In Course', enrollments.filter(e => e.status === 'confirmed')),
         },
@@ -143,7 +138,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
             />
 
             {/* Funnel */}
-            <Card title="Candidate progression funnel" icon={TrendingUp} subtitle="Click a stage to see the students in it">
+            <Card title="Candidate progression funnel" icon={TrendingUp} subtitle="Enrollments that reached each stage, whatever happened after. Click one to see them">
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                     {stages.map((st, idx) => (
                         <button
@@ -184,7 +179,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                     title="Drop-off diagnostics"
                     icon={AlertCircle}
                     tone="warning"
-                    subtitle="Where applicants are currently waiting"
+                    subtitle="Enrollments waiting at each stage now"
                     bodyClassName="flex flex-col"
                 >
                     <div className="space-y-2">
@@ -197,7 +192,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                             >
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-[13px] font-semibold text-primary">{d.label}</span>
-                                    <span className={`text-xs font-semibold tabular-nums ${d.tone}`}>{d.value} {d.unit}</span>
+                                    <span className={`text-xs font-semibold tabular-nums ${d.tone}`}>{d.value.toLocaleString()} {d.value === 1 ? 'enrollment' : 'enrollments'}</span>
                                 </div>
                                 <p className="text-[11px] text-muted mt-0.5">{d.desc}</p>
                             </button>
