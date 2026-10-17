@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAllPages, fetchStudentsPage } from './queries';
+import { ENROLLMENT_COURSE_FIELDS, ENROLLMENT_SELECT, ENROLLMENT_STUDENT_FIELDS, fetchAllPages, fetchStudentsPage } from './queries';
 import { supabase } from './supabase';
 
 vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }));
@@ -83,5 +83,12 @@ describe('fetchStudentsPage', () => {
         const page1 = await fetchStudentsPage({ pageParam: 1, queryKey: ['students', 'ann'] });
         expect(next.select).toHaveBeenCalledWith('*', undefined);
         expect(page1).toMatchObject({ count: 0, nextPage: 2 });
+    });
+});
+
+describe('ENROLLMENT_SELECT', () => {
+    it('reads the student and course fields the cache keeps up to date', () => {
+        expect(ENROLLMENT_SELECT).toContain(`students(${ENROLLMENT_STUDENT_FIELDS.join(', ')})`);
+        expect(ENROLLMENT_SELECT).toContain(`courses(${ENROLLMENT_COURSE_FIELDS.join(', ')})`);
     });
 });

@@ -16,6 +16,7 @@ import { CalendarPanel } from './ui/DatePicker';
 import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
 import { errorMessage } from '../lib/errors';
+import { refreshCachedEnrollments, updateCachedRelations } from '../lib/enrollmentCache';
 
 interface Enrollment {
     id: string;
@@ -314,8 +315,9 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
     const approveMutation = useApproveCompletion();
     const rejectMutation = useRejectCompletion();
 
-    const invalidateRelated = () => {
-        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+    /** After these enrollments changed here: re-read into the board's list, not the whole list reloaded. */
+    const invalidateRelated = (ids: string[]) => {
+        void refreshCachedEnrollments(queryClient, ids);
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
     };
@@ -339,7 +341,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
             notify(removeFailed
                 ? { message: `Marked as ${label.toLowerCase()}, but the requested duplicates could not be removed`, type: 'error' }
                 : { message: `Marked as ${label.toLowerCase()}`, type: 'success' });
-            invalidateRelated();
+            invalidateRelated([...updated.map(snap => snap.id), ...removed.map(e => e.id)]);
         } catch (err) {
             console.error('Status update failed:', err);
             notify({ message: `Failed to mark as ${label.toLowerCase()}`, type: 'error' });
@@ -360,7 +362,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
             setEnrollments(prev => prev.filter(e => e.id !== id));
             setConfirmDeleteId(null);
             notify({ message: 'Enrollment deleted', type: 'success' });
-            invalidateRelated();
+            invalidateRelated([id]);
         } catch {
             notify({ message: 'Failed to delete enrollment', type: 'error' });
         } finally {
@@ -373,6 +375,8 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
         const updated = { ...student, [field]: value || null };
         onStudentUpdated?.(updated as Student);
         queryClient.invalidateQueries({ queryKey: ['students'] });
+        // The board and every other page show the student's enrollments with the new value
+        updateCachedRelations(queryClient, { students: [{ id: student.id, [field]: value || null }] });
         notify({ message: 'Saved', type: 'success' });
     }
 

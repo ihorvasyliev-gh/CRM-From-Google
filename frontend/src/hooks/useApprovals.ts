@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { PendingCompletionRequest } from '../lib/types';
+import { refreshCachedEnrollments } from '../lib/enrollmentCache';
 
 export function usePendingApprovalsList(enabled: boolean = true) {
     return useQuery<PendingCompletionRequest[]>({
@@ -45,13 +46,13 @@ export function useRequestCompletion() {
             if (error) throw error;
             return data;
         },
-        onSuccess: () => {
+        onSuccess: (_data, { enrollmentIds }) => {
             queryClient.invalidateQueries({ queryKey: ['pending_completions'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_courses'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_course_roster'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_student_detail'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_students_search'] });
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            void refreshCachedEnrollments(queryClient, enrollmentIds);
         },
     });
 }
@@ -67,9 +68,9 @@ export function useApproveCompletion() {
             if (error) throw error;
             return data;
         },
-        onSuccess: () => {
+        onSuccess: (_data, { enrollmentIds }) => {
             queryClient.invalidateQueries({ queryKey: ['pending_completions'] });
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            void refreshCachedEnrollments(queryClient, enrollmentIds);
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
@@ -93,9 +94,9 @@ export function useRejectCompletion() {
             if (error) throw error;
             return data;
         },
-        onSuccess: () => {
+        onSuccess: (_data, { enrollmentIds }) => {
             queryClient.invalidateQueries({ queryKey: ['pending_completions'] });
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            void refreshCachedEnrollments(queryClient, enrollmentIds);
             queryClient.invalidateQueries({ queryKey: ['viewer_courses'] });
             queryClient.invalidateQueries({ queryKey: ['viewer_course_roster'] });
             queryClient.invalidateQueries({ queryKey: ['restricted_student_detail'] });

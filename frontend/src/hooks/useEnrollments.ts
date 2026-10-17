@@ -7,6 +7,7 @@ import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { todayISO } from '../lib/dateUtils';
 import { changeEnrollmentStatus, linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
+import { noteFullLoad, refreshCachedEnrollments } from '../lib/enrollmentCache';
 
 export type EnrollmentRow = EnrollmentWithRelations;
 
@@ -25,15 +26,23 @@ interface UseEnrollmentsProps {
 }
 
 
-export async function fetchAllEnrollments(): Promise<EnrollmentRow[]> {
-    // Newest first; id breaks ties (rows imported together share created_at)
-    return fetchAllPages((from, to) => supabase
+/** Every enrollment, newest first; id breaks ties (rows imported together share created_at). */
+export async function readAllEnrollments(): Promise<EnrollmentRow[]> {
+    return await fetchAllPages((from, to) => supabase
         .from('enrollments')
         .select(ENROLLMENT_SELECT)
         .order('created_at', { ascending: false })
         .order('id')
         .range(from, to)
-    ) as Promise<EnrollmentRow[]>;
+    ) as EnrollmentRow[];
+}
+
+/** The query function of the cached ['enrollments'] list. */
+export async function fetchAllEnrollments(): Promise<EnrollmentRow[]> {
+    const rows = await readAllEnrollments();
+    // Later catch-ups (after a dropped realtime channel) read only what changed after this load
+    noteFullLoad(rows);
+    return rows;
 }
 
 export function useEnrollments({ showToast, openInviteModal, openConfirmModal }: UseEnrollmentsProps) {
@@ -232,8 +241,8 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             if (context?.previousEnrollments) setEnrollments(context.previousEnrollments);
             showToast('Failed to undo change', 'error');
         },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        onSettled: (_data, _err, snapshots) => {
+            void refreshCachedEnrollments(queryClient, snapshots.map(snap => snap.id));
         },
     });
 

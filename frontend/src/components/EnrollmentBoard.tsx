@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
 import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
-import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
 
@@ -61,7 +60,6 @@ export default function EnrollmentBoard({
 
     // Modals
     const [enrollModalOpen, setEnrollModalOpen] = useState(false);
-    const queryClient = useQueryClient();
     // Time, place and days of the course dates, shown on the cards
     const courseSessions = useCourseSessions();
     const [detailStudent, setDetailStudent] = useState<Student | null>(null);
@@ -937,7 +935,7 @@ export default function EnrollmentBoard({
                     open={enrollModalOpen}
                     preselectedStudentId={enrollStudentId}
                     onSave={() => {
-                        enrollmentsHook.fetchEnrollments();
+                        // The modal itself reads the new enrollment into the cached list
                         showToast('Enrollment created', 'success');
                         if (detailStudent) setDetailStudent({ ...detailStudent });
                     }}
@@ -1024,10 +1022,7 @@ export default function EnrollmentBoard({
                     student={shownDetail}
                     onClose={() => setDetailStudent(null)}
                     onEnroll={openEnrollFromDetail}
-                    onStudentUpdated={(updatedStudent) => {
-                        setDetailStudent(updatedStudent);
-                        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                    }}
+                    onStudentUpdated={setDetailStudent}
                 />
             )}
         </div>

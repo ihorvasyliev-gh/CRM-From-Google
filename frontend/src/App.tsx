@@ -680,8 +680,7 @@ function App() {
                         key={enrollMount.key}
                         open={globalEnrollModalOpen}
                         onSave={() => {
-                            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                            // The modal itself reads the new enrollment into the cached list
                             queryClient.invalidateQueries({ queryKey: ['courses'] });
                             toast.success('Enrollment created');
                         }}

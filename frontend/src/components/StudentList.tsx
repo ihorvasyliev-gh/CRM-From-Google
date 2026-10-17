@@ -19,6 +19,7 @@ import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils'
 import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
 import { fetchStudentsPage, type StudentsPage } from '../lib/queries';
 import { createStudent, deleteStudent, updateStudent } from '../lib/students';
+import { removeCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
 import type { NavigateFn } from '../lib/navigation';
 
 function SkeletonRow() {
@@ -114,6 +115,8 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
         ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
+        // Their enrollments on the board show the new name and details
+        updateCachedRelations(queryClient, { students: [updatedStudent as unknown as RelationRow] });
     }, [queryClient, debouncedSearch]);
 
     const addStudentToCache = useCallback(() => {
@@ -157,7 +160,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         }
         removeStudentFromCache(target.id);
         // Enrollments are cascade-deleted together with the student
-        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        removeCachedEnrollments(queryClient, e => e.student_id === target.id);
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         if (detailStudent?.id === target.id) setDetailStudent(null);
         notify({ message: 'Student deleted', type: 'success' });

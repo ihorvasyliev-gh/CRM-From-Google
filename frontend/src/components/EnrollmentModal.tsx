@@ -7,6 +7,7 @@ import { buildStudentSearchFilters } from '../lib/searchUtils';
 import { useDebounce } from '../hooks/useDebounce';
 import DialogLayer from './ui/DialogLayer';
 import type { EnrollmentRow } from '../hooks/useEnrollments';
+import { refreshCachedEnrollments } from '../lib/enrollmentCache';
 
 interface Student {
     id: string;
@@ -234,8 +235,9 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
             // The duplicate-enrollment trigger skips the row instead of failing
             if (!inserted?.length) throw new Error('Not added: this student is already enrolled in this course');
             onSave();
-            // Invalidate caches so all pages reflect the new enrollment immediately
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            // Every page shows the new enrollment straight away: it is read into the cached list
+            // (reloading the list downloaded every enrollment again)
+            void refreshCachedEnrollments(queryClient, inserted.map(row => row.id));
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             onClose();
