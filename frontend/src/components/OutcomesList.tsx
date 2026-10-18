@@ -389,7 +389,7 @@ function GraduateOutcomes() {
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <div className="flex flex-wrap gap-1">
                                                     {grad.courses.map(c => (
-                                                        <span key={c} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 truncate max-w-[120px]">
+                                                        <span key={c} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 truncate max-w-[120px]">
                                                             {c}
                                                         </span>
                                                     ))}

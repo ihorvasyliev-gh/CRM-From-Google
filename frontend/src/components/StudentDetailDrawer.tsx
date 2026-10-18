@@ -118,7 +118,7 @@ function InfoField({ icon, label, value, copyValue, action }: {
                         {value}
                     </button>
                 ) : (
-                    <p className="text-sm text-muted/60 italic">Not set</p>
+                    <p className="text-sm text-muted italic">Not set</p>
                 )}
             </div>
             {action}

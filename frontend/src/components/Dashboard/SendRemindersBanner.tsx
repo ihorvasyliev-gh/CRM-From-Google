@@ -43,7 +43,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                         <div className="min-w-0">
                             <p className="text-[13px] font-semibold text-primary truncate">{item.courseName}</p>
                             <p className="text-[11px] text-muted">
-                                {formatDateLongWithWeekday(item.date)} · <span className="font-semibold text-sky-600 dark:text-sky-400">{untilLabel(item.date)}</span> · {item.confirmedCount} confirmed
+                                {formatDateLongWithWeekday(item.date)} · <span className="font-semibold text-sky-700 dark:text-sky-400">{untilLabel(item.date)}</span> · {item.confirmedCount} confirmed
                                 {item.dayBefore && <> · day-before reminder</>}
                             </p>
                         </div>
@@ -51,7 +51,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                             <button
                                 type="button"
                                 onClick={() => onSend(item)}
-                                className="flex items-center gap-1 h-8 px-3 text-xs font-semibold bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors cursor-pointer"
+                                className="flex items-center gap-1 h-8 px-3 text-xs font-semibold bg-sky-700 text-white rounded-lg hover:bg-sky-800 transition-colors cursor-pointer"
                             >
                                 <Mail size={13} /> Send reminder
                             </button>

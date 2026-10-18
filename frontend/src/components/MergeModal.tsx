@@ -364,7 +364,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                     {/* Profile A Cell */}
                                                     {isAPrimary ? (
                                                         <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
-                                                            {primaryVal || <span className="text-muted/40 italic">Not set</span>}
+                                                            {primaryVal || <span className="text-muted italic">Not set</span>}
                                                         </td>
                                                     ) : (
                                                         <td className="p-3 text-center text-muted">
@@ -378,7 +378,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                     {/* Profile B Cell */}
                                                     {!isAPrimary ? (
                                                         <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
-                                                            {primaryVal || <span className="text-muted/40 italic">Not set</span>}
+                                                            {primaryVal || <span className="text-muted italic">Not set</span>}
                                                         </td>
                                                     ) : (
                                                         <td className="p-3 text-center text-muted">

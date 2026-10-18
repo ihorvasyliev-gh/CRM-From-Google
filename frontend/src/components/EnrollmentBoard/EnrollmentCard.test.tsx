@@ -282,4 +282,33 @@ describe('EnrollmentCard Component', () => {
         window.innerWidth = 1024;
         window.dispatchEvent(new Event('resize'));
     });
+
+    it('selects from the avatar, a checkbox named after the student, and the card is no button itself', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        const select = screen.getByRole('checkbox', { name: 'Select John Doe' });
+        expect(select).toHaveAttribute('aria-checked', 'false');
+        fireEvent.click(select);
+        expect(mockToggleSelect).toHaveBeenCalledTimes(1);
+        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1');
+
+        const card = screen.getByRole('group', { name: 'John Doe' });
+        expect(card).not.toHaveAttribute('tabindex');
+    });
+
+    it('keeps the less used actions in a menu on touch screens, without selecting the card', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for John Doe' }));
+        expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Move to…', 'Edit note', 'Student details', 'Flag student']);
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Student details' }));
+        expect(mockOnShowDetail).toHaveBeenCalledWith(sampleEnrollment);
+
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for John Doe' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Move to…' }));
+        expect(screen.getByText('Move to Status')).toBeInTheDocument();
+
+        expect(mockToggleSelect).not.toHaveBeenCalled();
+    });
 });

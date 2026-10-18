@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, CalendarRange, GraduationCap, Timer } from 'lucide-react';
+import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
+import CourseFilter from './CourseFilter';
+import { useIsSmallScreen } from '../../hooks/useScreenSize';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { CustomTooltip } from '../ui/Tooltip';
 import Modal from '../ui/Modal';
@@ -57,7 +59,7 @@ type ChipTone = 'brand' | 'violet' | 'emerald' | 'red' | 'amber';
 const CHIP_ACTIVE: Record<ChipTone, string> = {
     brand: 'bg-brand-500 text-white border-brand-500 shadow-xs',
     violet: 'bg-violet-500 text-white border-violet-500 shadow-xs',
-    emerald: 'bg-emerald-600 text-white border-emerald-600 shadow-xs',
+    emerald: 'bg-emerald-700 text-white border-emerald-700 shadow-xs',
     red: 'bg-red-600 text-white border-red-600 shadow-xs',
     amber: 'bg-amber-500 text-white border-amber-500 shadow-xs',
 };
@@ -66,8 +68,8 @@ const CHIP_IDLE: Record<ChipTone, string> = {
     brand: 'hover:border-brand-500 hover:text-brand-500',
     violet: 'hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400',
     emerald: 'hover:border-emerald-500/60 hover:text-primary',
-    red: 'text-red-600 dark:text-red-400 hover:border-red-500',
-    amber: 'text-amber-600 dark:text-amber-400 hover:border-amber-500',
+    red: 'text-red-700 dark:text-red-400 hover:border-red-500',
+    amber: 'text-amber-700 dark:text-amber-400 hover:border-amber-500',
 };
 
 function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, children }: {
@@ -218,12 +220,11 @@ export default function FilterBar({
     setInviteFilter,
     inviteCounts,
 }: FilterBarProps) {
-    const [showRanges, setShowRanges] = useState(false);
     const [sheetOpen, setSheetOpen] = useState(false);
+    const isSmallScreen = useIsSmallScreen();
 
     const hasCreatedRange = !!(dateFrom || dateTo);
     const hasCourseRange = !!(courseDateFrom || courseDateTo);
-    const rangeCount = (hasCreatedRange ? 1 : 0) + (hasCourseRange ? 1 : 0);
     const isFiltered = filteredCount < enrollmentCount;
     const shownCount = countLoading ? `${enrollmentCount}+` : enrollmentCount;
     // Language chips only help when there is something to choose between (or one is already picked)
@@ -276,7 +277,13 @@ export default function FilterBar({
             onRemove: () => setInviteFilter('all'),
         });
     }
-    const rangeFilters = activeFilters.filter(f => f.id === 'createdDate' || f.id === 'courseDateRange');
+    // Desktop: with a course chosen, its languages and dates stay in view as chips (the usual next
+    // step); the rest of the filters open from the Filters button, and what is on shows below
+    const showDrillDown = selectedCourse !== 'all' && (showLanguages || availableCourseDates.length > 0);
+    const desktopFilters = activeFilters.filter(f =>
+        f.id !== 'course' && !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')));
+    // What the Filters button holds: on a phone the course too
+    const sheetFilterCount = isSmallScreen ? activeFilters.length : activeFilters.filter(f => f.id !== 'course').length;
 
     const renderFilterChip = (filter: typeof activeFilters[number]) => (
         <span
@@ -296,27 +303,24 @@ export default function FilterBar({
         </span>
     );
 
-    const renderRangePickers = (stacked: boolean) => {
-        const pair = `flex ${stacked ? 'flex-col' : 'flex-row items-center'} gap-2`;
-        const dash = !stacked && <span className="text-muted/45 text-xs">—</span>;
+    const renderRangePickers = () => {
+        const pair = 'flex flex-col sm:flex-row sm:items-center gap-2';
         return (
             <>
-                <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-2'}>
+                <div className="space-y-1.5">
                     <GroupLabel icon={<Calendar size={12} />}>Created</GroupLabel>
                     <div className={pair}>
                         <DateCalendarPicker label="From" value={dateFrom} onChange={setDateFrom} placeholder="Start date"
                             enrollments={enrollments} selectedCourse={selectedCourse} limitDate={dateTo} isEndDate={false} dateField="created_at" />
-                        {dash}
                         <DateCalendarPicker label="To" value={dateTo} onChange={setDateTo} placeholder="End date"
                             enrollments={enrollments} selectedCourse={selectedCourse} limitDate={dateFrom} isEndDate={true} dateField="created_at" />
                     </div>
                 </div>
-                <div className={stacked ? 'space-y-1.5' : 'flex items-center gap-2'}>
+                <div className="space-y-1.5">
                     <GroupLabel icon={<GraduationCap size={12} />}>Course date</GroupLabel>
                     <div className={pair}>
                         <DateCalendarPicker label="From" value={courseDateFrom} onChange={setCourseDateFrom} placeholder="Start date"
                             enrollments={enrollments} selectedCourse={selectedCourse} limitDate={courseDateTo} isEndDate={false} dateField="confirmed_date" />
-                        {dash}
                         <DateCalendarPicker label="To" value={courseDateTo} onChange={setCourseDateTo} placeholder="End date"
                             enrollments={enrollments} selectedCourse={selectedCourse} limitDate={courseDateFrom} isEndDate={true} dateField="confirmed_date" />
                     </div>
@@ -380,44 +384,27 @@ export default function FilterBar({
             <div className="flex items-center gap-1.5 md:gap-2">
                 <SearchField value={searchQuery} onChange={setSearchQuery} />
 
-                {/* Mobile: every filter lives in one bottom sheet */}
+                {/* Desktop: the course, picked from a searchable list */}
+                <div className="hidden md:block">
+                    <CourseFilter courses={uniqueCourses} value={selectedCourse} onChange={id => { if (id !== selectedCourse) selectCourse(id); }} />
+                </div>
+
+                {/* Every other filter lives in one sheet (on a phone, the course too) */}
                 <button
                     type="button"
                     onClick={() => setSheetOpen(true)}
                     aria-label="Open filters"
-                    className={`md:hidden inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
-                        activeFilters.length > 0
-                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                            : 'bg-surface-elevated text-muted border-border-strong'
+                    className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
+                        sheetFilterCount > 0
+                            ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 border-brand-500/40'
+                            : 'bg-surface-elevated text-primary border-border-strong hover:border-brand-500'
                     }`}
                 >
                     <SlidersHorizontal size={14} />
                     <span>Filters</span>
-                    {activeFilters.length > 0 && (
+                    {sheetFilterCount > 0 && (
                         <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-[10px] font-bold">
-                            {activeFilters.length}
-                        </span>
-                    )}
-                </button>
-
-                {/* Desktop: date ranges toggle + sort */}
-                <button
-                    type="button"
-                    onClick={() => setShowRanges(v => !v)}
-                    aria-expanded={showRanges}
-                    aria-label="Date range filters"
-                    title="Filter by created / course date range"
-                    className={`hidden md:inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
-                        showRanges || rangeCount > 0
-                            ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400 border-brand-500/40'
-                            : 'bg-surface-elevated text-muted border-border-strong hover:text-primary hover:border-brand-500'
-                    }`}
-                >
-                    <CalendarRange size={14} />
-                    <span className="hidden xl:inline">Date range</span>
-                    {rangeCount > 0 && (
-                        <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-[10px] font-bold">
-                            {rangeCount}
+                            {sheetFilterCount}
                         </span>
                     )}
                 </button>
@@ -434,10 +421,10 @@ export default function FilterBar({
                     </select>
                 </label>
 
-                {/* Ranges are hidden behind the toggle — keep them visible as chips while it's closed */}
-                {!showRanges && rangeFilters.length > 0 && (
+                {/* Desktop: the filters set in the sheet, removable in one click */}
+                {desktopFilters.length > 0 && (
                     <div className="hidden md:flex items-center gap-1.5 min-w-0 overflow-x-auto scrollbar-none">
-                        {rangeFilters.map(renderFilterChip)}
+                        {desktopFilters.map(renderFilterChip)}
                     </div>
                 )}
 
@@ -484,24 +471,8 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Desktop row 2: courses */}
-            <div className="hidden md:flex flex-wrap gap-1.5 items-center">
-                <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
-                {uniqueCourses.map(c => (
-                    <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
-                ))}
-            </div>
-
-            {/* Desktop: invite deadline filter */}
-            {showInviteChips && (
-                <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-                    <GroupLabel icon={<Timer size={12} />} className="mr-0.5 text-status-rejected">Invites</GroupLabel>
-                    {renderInviteChips('sm')}
-                </div>
-            )}
-
-            {/* Desktop row 3: language + upcoming course dates, one line */}
-            {(showLanguages || availableCourseDates.length > 0) && (
+            {/* Desktop row 2, with a course chosen: its languages and upcoming dates, one line */}
+            {showDrillDown && (
                 <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
                     {showLanguages && (
                         <>
@@ -519,14 +490,7 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Desktop: date range pickers */}
-            {showRanges && (
-                <div className="hidden md:flex flex-wrap items-center gap-x-5 gap-y-2 p-2.5 bg-surface-elevated/60 border border-border-subtle rounded-xl animate-slideDown">
-                    {renderRangePickers(false)}
-                </div>
-            )}
-
-            {/* Mobile filter sheet */}
+            {/* The filter sheet: a bottom sheet on a phone, a dialog on a larger screen */}
             <Modal
                 open={sheetOpen}
                 onClose={() => setSheetOpen(false)}
@@ -549,7 +513,7 @@ export default function FilterBar({
                     </>
                 }
             >
-                <section className="space-y-2">
+                <section className="space-y-2 md:hidden">
                     <GroupLabel icon={<GraduationCap size={12} />}>Course</GroupLabel>
                     <div className="flex flex-wrap gap-1.5">
                         <Chip size="lg" active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
@@ -580,7 +544,7 @@ export default function FilterBar({
                     </section>
                 )}
 
-                <section className="space-y-2">
+                <section className="space-y-2 md:hidden">
                     <GroupLabel icon={<ArrowDownUp size={12} />}>Sort</GroupLabel>
                     <div className="grid grid-cols-3 gap-1 p-1 bg-surface-elevated rounded-xl border border-border-subtle">
                         {SORT_OPTIONS.map(o => (
@@ -599,7 +563,7 @@ export default function FilterBar({
                     </div>
                 </section>
 
-                <section className="space-y-4">{renderRangePickers(true)}</section>
+                <section className="space-y-4">{renderRangePickers()}</section>
             </Modal>
         </div>
     );

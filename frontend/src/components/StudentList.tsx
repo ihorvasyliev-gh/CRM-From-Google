@@ -432,7 +432,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 <div className="text-xs text-muted text-center">
                     Showing <span className="font-semibold text-primary tabular-nums">{displayedStudents.length}</span> of <span className="font-semibold text-primary tabular-nums">{totalCount}</span> students
                     {search && (
-                        <span className="text-muted/70"> (filtered)</span>
+                        <span className="text-muted"> (filtered)</span>
                     )}
                 </div>
             </div>

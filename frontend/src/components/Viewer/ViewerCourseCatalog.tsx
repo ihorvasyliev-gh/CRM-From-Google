@@ -196,7 +196,7 @@ function PinButton({ pinned, onToggle, name }: { pinned: boolean; onToggle: () =
 }
 
 function NextSession({ next }: { next?: ViewerUpcomingCourse }) {
-    if (!next) return <span className="text-muted/70">No upcoming session</span>;
+    if (!next) return <span className="text-muted">No upcoming session</span>;
     const soon = (daysFromToday(next.course_date) ?? 99) <= 2;
     return (
         <span className="inline-flex items-center gap-1.5 min-w-0">

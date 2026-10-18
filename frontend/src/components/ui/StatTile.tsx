@@ -30,8 +30,8 @@ export interface StatTileProps {
 
 const HINT: Record<NonNullable<StatTileProps['hintTone']>, string> = {
     muted: 'text-muted',
-    positive: 'text-success font-semibold',
-    alert: 'text-danger font-semibold',
+    positive: 'text-emerald-700 dark:text-success font-semibold',
+    alert: 'text-red-700 dark:text-danger font-semibold',
 };
 
 /** KPI tile — same anatomy as the dashboard KPIs (icon chip · label · big number · hint). */

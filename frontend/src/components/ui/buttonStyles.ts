@@ -15,7 +15,7 @@ const SIZES: Record<ButtonSize, string> = {
 
 const VARIANTS: Record<ButtonVariant, string> = {
     primary: 'bg-brand-500 hover:bg-brand-600 text-white shadow-xs shadow-brand-500/20',
-    success: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs',
+    success: 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs',
     danger: 'bg-red-600 hover:bg-red-700 text-white shadow-xs',
     secondary: 'bg-surface hover:bg-surface-elevated text-primary border border-border-subtle hover:border-border-strong shadow-card',
     ghost: 'text-muted hover:text-primary hover:bg-surface-elevated',

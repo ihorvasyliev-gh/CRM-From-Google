@@ -232,7 +232,7 @@ const StatusColumn = function StatusColumn({
                             <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mb-2.5 ${cfg.color} ${isOver ? 'scale-110' : 'opacity-40'} transition-transform`}>
                                 {cfg.icon}
                             </div>
-                            <p className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isOver ? cfg.color : 'text-muted/50'}`}>
+                            <p className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isOver ? cfg.color : 'text-muted'}`}>
                                 {isOver ? 'Drop here' : loadingOlder ? 'Loading…' : 'No enrollments'}
                             </p>
                         </div>

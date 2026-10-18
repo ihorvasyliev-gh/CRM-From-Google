@@ -213,7 +213,7 @@ function InlineEditField({
             <span className="text-muted">{icon}</span>
             <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted font-medium">{label}</p>
-                <p className="text-sm text-primary">{displayValue || value || <span className="text-muted/50 italic">Not set</span>}</p>
+                <p className="text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</p>
             </div>
             {extraActions && (
                 <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
