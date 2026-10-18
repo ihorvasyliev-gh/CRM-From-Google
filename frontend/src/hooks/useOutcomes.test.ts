@@ -5,12 +5,30 @@ import { supabase } from '../lib/supabase';
 vi.mock('../lib/supabase', () => ({
     supabase: {
         from: vi.fn(),
+        rpc: vi.fn(),
     },
 }));
 
 describe('useOutcomes - fetchGraduatesFn', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Before migration 85: the list is built here
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } } as never);
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    it('takes the list from the database when it can, A–Z by last name', async () => {
+        const row = (student_id: string, first_name: string, last_name: string) => ({
+            student_id, first_name, last_name, email: '', courses: ['First Aid'], is_working: null, started_month: null,
+            field_of_work: null, employment_type: null, status_updated_at: null, tracking_status: 'not_contacted', last_sent_at: null,
+        });
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: [row('s2', 'Zoe', 'Walsh'), row('s1', 'Ann', 'Byrne')], error: null } as never);
+
+        const graduates = await fetchGraduatesFn();
+
+        expect(supabase.rpc).toHaveBeenCalledWith('get_outcome_graduates');
+        expect(supabase.from).not.toHaveBeenCalled();
+        expect(graduates.map(g => g.last_name)).toEqual(['Byrne', 'Walsh']);
     });
 
     it('processes enrollments and matches employment status correctly', async () => {

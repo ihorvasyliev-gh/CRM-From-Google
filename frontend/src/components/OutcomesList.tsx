@@ -336,6 +336,7 @@ function GraduateOutcomes() {
                                             type="checkbox"
                                             checked={filtered.length > 0 && filtered.every(g => selectedIds.has(g.student_id))}
                                             onChange={selectAll}
+                                            aria-label="Select all shown graduates"
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
@@ -365,6 +366,7 @@ function GraduateOutcomes() {
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => toggleSelect(grad.student_id)}
+                                                    aria-label={`Select ${grad.first_name} ${grad.last_name}`}
                                                     className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
