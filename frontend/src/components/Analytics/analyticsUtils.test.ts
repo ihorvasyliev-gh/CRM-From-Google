@@ -304,5 +304,18 @@ describe('analyticsUtils', () => {
             expect(funnel.confirmedToCompleted).toBe(100);
             expect(funnel.overallSuccessRate).toBe(50);
         });
+
+        it('counts the enrollments waiting at each stage by their current status, as the lists show them', () => {
+            const [completed, requested] = mockEnrollments;
+            const withdrawn = { ...requested, id: '3', status: 'withdrawn' } as EnrollmentWithRelations;
+            const rejected = { ...requested, id: '4', status: 'rejected', invited_date: '2026-02-03' } as EnrollmentWithRelations;
+            const invited = { ...requested, id: '5', status: 'invited', invited_date: '2026-02-03' } as EnrollmentWithRelations;
+            const funnel = calculateFunnelAnalysis([completed, requested, withdrawn, rejected, invited]);
+            // Never invited: 2 (requested, withdrawn), but only the requested one is waiting
+            expect(funnel.everRequested - funnel.everInvited).toBe(2);
+            expect(funnel.waitingForInvite).toBe(1);
+            expect(funnel.waitingForReply).toBe(1);
+            expect(funnel.inCourse).toBe(0);
+        });
     });
 });

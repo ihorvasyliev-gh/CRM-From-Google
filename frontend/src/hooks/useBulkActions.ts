@@ -5,6 +5,7 @@ import type { EnrollmentRow } from './useEnrollments';
 import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { changeEnrollmentStatus, restoreEnrollments } from '../lib/enrollmentStatus';
+import { cancelListReload, refreshCachedEnrollments, restoreCachedRows } from '../lib/enrollmentCache';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -94,7 +95,8 @@ export function useBulkActions({
                     console.error('Undo failed:', err);
                     showToast('Failed to undo status changes', 'error');
                 } finally {
-                    queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+                    // What the database has now for these rows (not every enrollment reloaded)
+                    void refreshCachedEnrollments(queryClient, [...undoData.snapshots.map(snap => snap.id), ...removed.map(e => e.id)]);
                 }
             };
 
@@ -148,7 +150,7 @@ export function useBulkActions({
             return ids;
         },
         onMutate: async () => {
-            queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
             const ids = Array.from(selectedIds);
             setEnrollments(prev => prev.filter(e => !ids.includes(e.id)));
@@ -160,7 +162,7 @@ export function useBulkActions({
         },
         onError: (_err, _variables, context) => {
             if (context?.previousEnrollments) {
-                setEnrollments(context.previousEnrollments);
+                restoreCachedRows(queryClient, context.previousEnrollments, context.ids);
             } else {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             }

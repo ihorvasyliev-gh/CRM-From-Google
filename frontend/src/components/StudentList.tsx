@@ -19,6 +19,7 @@ import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils'
 import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
 import { fetchStudentsPage, type StudentsPage } from '../lib/queries';
 import { createStudent, deleteStudent, updateStudent } from '../lib/students';
+import { removeCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
 import type { NavigateFn } from '../lib/navigation';
 
 function SkeletonRow() {
@@ -114,6 +115,8 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
         ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
+        // Their enrollments on the board show the new name and details
+        updateCachedRelations(queryClient, { students: [updatedStudent as unknown as RelationRow] });
     }, [queryClient, debouncedSearch]);
 
     const addStudentToCache = useCallback(() => {
@@ -138,9 +141,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             }
             notify({ message: 'Student updated', type: 'success' });
         } else {
-            await createStudent(formData);
+            const created = await createStudent(formData);
             addStudentToCache();
             notify({ message: 'Student added', type: 'success' });
+            return created;
         }
     }
 
@@ -157,7 +161,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         }
         removeStudentFromCache(target.id);
         // Enrollments are cascade-deleted together with the student
-        queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+        removeCachedEnrollments(queryClient, e => e.student_id === target.id);
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         if (detailStudent?.id === target.id) setDetailStudent(null);
         notify({ message: 'Student deleted', type: 'success' });
@@ -428,7 +432,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 <div className="text-xs text-muted text-center">
                     Showing <span className="font-semibold text-primary tabular-nums">{displayedStudents.length}</span> of <span className="font-semibold text-primary tabular-nums">{totalCount}</span> students
                     {search && (
-                        <span className="text-muted/70"> (filtered)</span>
+                        <span className="text-muted"> (filtered)</span>
                     )}
                 </div>
             </div>
@@ -452,6 +456,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                     open={studentModalOpen}
                     student={editingStudent}
                     onSave={handleSaveStudent}
+                    onSaveAndEnroll={student => { setEnrollStudentId(student.id); setEnrollModalOpen(true); }}
                     onClose={() => setStudentModalOpen(false)}
                 />
             )}

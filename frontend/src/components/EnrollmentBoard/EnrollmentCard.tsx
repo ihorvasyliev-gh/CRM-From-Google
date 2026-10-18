@@ -1,7 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X } from 'lucide-react';
-import { useDraggable, type DraggableAttributes, type DraggableSyntheticListeners } from '@dnd-kit/core';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal } from 'lucide-react';
+import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
 import { formatDateChoiceList, formatDateLong, formatLocalDate, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
@@ -11,6 +11,7 @@ import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
 import { getInviteDeadline, formatTimeLeft, DEFAULT_RESPONSE_DAYS } from '../../lib/inviteDeadline';
 import { CustomTooltip } from '../ui/Tooltip';
+import Menu, { type MenuItem } from '../ui/Menu';
 import { sessionShortNote, sessionTooltip, type CourseSession } from '../../lib/courseSessions';
 
 /** Statuses offered by the card's "move to" menu, in menu order. */
@@ -48,7 +49,6 @@ interface EnrollmentCardBodyProps extends EnrollmentCardProps {
     isEditingNote: boolean;
     setIsEditingNote: (editing: boolean) => void;
     dragRef: (element: HTMLElement | null) => void;
-    dragAttributes: DraggableAttributes;
     dragListeners: DraggableSyntheticListeners;
     isDragging: boolean;
 }
@@ -69,9 +69,10 @@ function getRelativeTime(isoDate: string): string {
     return `${Math.floor(months / 12)}y ago`;
 }
 
-// Shared class strings for the compact card layout
-const iconBtnBase = 'w-6 h-6 inline-flex items-center justify-center rounded-md transition-colors';
-const iconBtn = `${iconBtnBase} text-muted/60 hover:text-brand-500 hover:bg-surface-elevated`;
+// Shared class strings for the compact card layout. Buttons are finger-sized on touch screens.
+const iconBtnBase = 'w-8 h-8 lg:w-6 lg:h-6 inline-flex items-center justify-center rounded-md transition-colors';
+const iconBtn = `${iconBtnBase} text-muted hover:text-brand-500 hover:bg-surface-elevated`;
+// 20 px wide in the narrow four-column layout (a mouse), where the phone number needs the room
 const contactBtn = 'w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
@@ -99,7 +100,6 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     isEditingNote,
     setIsEditingNote,
     dragRef,
-    dragAttributes,
     dragListeners,
     isDragging,
 }: EnrollmentCardBodyProps) {
@@ -113,6 +113,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const [isSavingNote, setIsSavingNote] = useState(false);
     const noteInputRef = useRef<HTMLTextAreaElement | null>(null);
     const quickMoveBtnRef = useRef<HTMLButtonElement | null>(null);
+    const moreMenuRef = useRef<HTMLSpanElement | null>(null);
     const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
     // Dialogs mount on first use (hundreds of cards, few ever open one) and stay while they animate out
@@ -128,14 +129,17 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         }
     }, [isEditingNote]);
 
-    const handleStartEditNote = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const startEditNote = () => {
         if (onUpdateNote) {
             setIsEditingNote(true);
             setNoteDraft(enrollment.notes || '');
         } else {
             openEditNote(enrollment);
         }
+    };
+    const handleStartEditNote = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        startEditNote();
     };
 
     const handleSaveNote = async (e?: React.MouseEvent | React.KeyboardEvent) => {
@@ -217,9 +221,8 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         toggleSelect(enrollment.id);
     };
 
-    const handleOpenQuickMove = (e: React.MouseEvent | React.TouchEvent) => {
-        e.stopPropagation();
-        const trigger = (e.currentTarget as HTMLElement) || quickMoveBtnRef.current;
+    /** Opens the "move to" choices next to `trigger` (a sheet on phones) */
+    const openQuickMove = (trigger: HTMLElement | null) => {
         if (trigger) {
             const rect = trigger.getBoundingClientRect();
             const width = 176;
@@ -237,6 +240,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             setPopoverPos({ top, left, isAbove });
         }
         setShowQuickMove(prev => !prev);
+    };
+    const handleOpenQuickMove = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        openQuickMove(e.currentTarget as HTMLElement);
     };
 
     // Invitation deadline — same calculation as the dashboard's Expired Invites card
@@ -286,7 +293,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
                 className={`${iconBtnBase} ${studentFlags.length > 0
                     ? 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'
-                    : 'text-muted/60 hover:text-orange-500 hover:bg-surface-elevated'
+                    : 'text-muted hover:text-orange-500 hover:bg-surface-elevated'
                 } ${className}`}
             >
                 <AlertTriangle size={13} strokeWidth={studentFlags.length > 0 ? 2.5 : 2} />
@@ -303,7 +310,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 }}
                 className={`${iconBtnBase} ${enrollment.is_priority
                     ? 'text-warning hover:bg-warning/10'
-                    : 'text-muted/60 hover:text-warning hover:bg-surface-elevated'
+                    : 'text-muted hover:text-warning hover:bg-surface-elevated'
                 } ${className}`}
             >
                 <Star size={13} fill={enrollment.is_priority ? 'currentColor' : 'none'} />
@@ -311,12 +318,21 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         </CustomTooltip>
     );
 
+    const touchMenuItems: MenuItem[] = [
+        ...(onMoveStatus ? [{ label: 'Move to…', icon: <ArrowRightLeft size={14} />, onSelect: () => openQuickMove(moreMenuRef.current) }] : []),
+        { label: enrollment.notes ? 'Edit note' : 'Add note', icon: <Pencil size={14} />, onSelect: startEditNote },
+        { label: 'Student details', icon: <Info size={14} />, onSelect: () => onShowDetail?.(enrollment) },
+        { label: studentFlags.length > 0 ? 'Student flags' : 'Flag student', icon: <AlertTriangle size={14} />, onSelect: () => onFlagClick?.(enrollment) },
+    ];
+
     return (
         <div
             ref={isOverlay || isMobile ? undefined : dragRef}
             style={style}
-            {...(isOverlay || isMobile ? {} : dragAttributes)}
             {...(isOverlay || isMobile ? {} : dragListeners)}
+            // A group, not a button: the card holds buttons of its own, and the avatar selects it
+            role="group"
+            aria-label={fullName}
             className={`group relative enrollment-card cv-auto-card flex items-start gap-2.5 p-2 md:p-2.5 rounded-lg md:rounded-xl border ${
                 isOverlay
                     ? 'cursor-grabbing shadow-2xl ring-2 ring-brand-500 bg-surface z-100 scale-[1.02] transform-gpu'
@@ -334,9 +350,16 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             onClick={handleClick}
         >
             {/* Avatar — initials, doubles as the selection checkbox; queue position sits on its corner */}
-            <div
-                aria-hidden="true"
-                className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors ${
+            <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                aria-label={`Select ${fullName}`}
+                onClick={e => {
+                    e.stopPropagation();
+                    toggleSelect(enrollment.id);
+                }}
+                className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg
                 }`}
             >
@@ -356,7 +379,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         #{queuePosition}
                     </span>
                 )}
-            </div>
+            </button>
 
             {/* A size container: in the narrow four-column layout the contact row drops its decorations
                 (@max-2xs) so the phone number fits */}
@@ -385,7 +408,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         return (
                             <span
                                 className={`${metaChip} ${inviteDeadline.isDueSoon
-                                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 animate-pulse-timer'
+                                    ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 animate-pulse-timer'
                                     : 'bg-info/10 text-status-invited'
                                 }`}
                                 title={`${timerText} remaining (${days}-day deadline)`}
@@ -396,10 +419,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         );
                     })()}
 
-                    <div className="card-actions-col flex items-center shrink-0 -my-1 -mr-1">
-                        {/* Secondary actions: in the row on touch screens; on desktop a small toolbar
-                            over the card's top-right corner on hover, so they don't take the name's space */}
-                        <div className="flex items-center lg:absolute lg:top-1 lg:right-1 lg:z-10 lg:p-0.5 lg:rounded-lg lg:bg-surface lg:border lg:border-border-subtle lg:shadow-sm lg:opacity-0 lg:pointer-events-none lg:group-hover:opacity-100 lg:group-hover:pointer-events-auto lg:focus-within:opacity-100 lg:focus-within:pointer-events-auto transition-opacity">
+                    <div className="card-actions-col flex items-center shrink-0 -my-1.5 lg:-my-1 -mr-1">
+                        {/* Secondary actions on desktop: a small toolbar over the card's top-right corner
+                            on hover, so they don't take the name's space. Touch screens have the menu below. */}
+                        <div className="hidden lg:flex items-center absolute top-1 right-1 z-10 p-0.5 rounded-lg bg-surface border border-border-subtle shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
                             {!enrollment.notes && (
                                 <CustomTooltip content="Add note">
                                     <button aria-label="Add Note" onClick={handleStartEditNote} className={iconBtn}>
@@ -433,15 +456,28 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 </button>
                             </CustomTooltip>
 
-                            {/* Flag and star: in the toolbar on desktop (it covers the indicators below);
-                                on touch screens only "add a flag" is here */}
-                            {flagButton(studentFlags.length > 0 ? 'max-lg:hidden' : '')}
-                            {starButton('max-lg:hidden')}
+                            {/* In the toolbar it covers the indicators below */}
+                            {flagButton('')}
+                            {starButton('')}
                         </div>
 
-                        {/* Set flags and priority stay visible (hidden under the desktop toolbar on hover) */}
+                        {/* Set flags and priority stay visible (hidden under the desktop toolbar on hover);
+                            on touch screens the star is always here */}
                         {studentFlags.length > 0 && flagButton('lg:group-hover:invisible')}
                         {starButton(enrollment.is_priority ? 'lg:group-hover:invisible' : 'lg:hidden')}
+
+                        {/* Touch screens: the less used actions in a menu */}
+                        <span ref={moreMenuRef} className="lg:hidden inline-flex">
+                            <StopCardEvents>
+                                <Menu
+                                    label={`More actions for ${fullName}`}
+                                    items={touchMenuItems}
+                                    triggerClassName={iconBtn}
+                                >
+                                    <MoreHorizontal size={15} />
+                                </Menu>
+                            </StopCardEvents>
+                        </span>
                     </div>
                 </div>
 
@@ -455,7 +491,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     </span>
                     {scheduleTooltip && (
                         <CustomTooltip content={scheduleTooltip}>
-                            <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-medium text-primary/55 whitespace-nowrap tabular-nums" data-testid="card-schedule">
+                            <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-medium text-muted whitespace-nowrap tabular-nums" data-testid="card-schedule">
                                 {scheduleNote ? <><Clock size={10} />{scheduleNote}</> : <MapPin size={10} aria-label="Place set" />}
                             </span>
                         </CustomTooltip>
@@ -465,7 +501,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                             title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                            className="card-pill inline-flex items-center gap-0.5 h-[18px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shrink-0 transition-colors"
+                            className="card-pill inline-flex items-center justify-center gap-0.5 h-6 min-w-6 -my-[3px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shrink-0 transition-colors"
                         >
                             <Award size={10} strokeWidth={2.5} className="shrink-0" />
                             {completedCourses.length}
@@ -486,7 +522,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         onClick={e => e.stopPropagation()}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 min-w-0 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors mr-1 @max-2xs:mr-0"
+                                        className="flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors mr-1 @max-2xs:mr-0"
                                         title="Click to call"
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
@@ -535,7 +571,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                     {/* Stage date — the most relevant date for the current status; all dates in the tooltip */}
                     <CustomTooltip content={dateTooltip}>
-                        <span className="card-info ml-auto pl-1 text-[11px] text-primary/50 whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
+                        <span className="card-info ml-auto pl-1 text-[11px] text-muted whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
                             {stageDate}
                         </span>
                     </CustomTooltip>
@@ -811,7 +847,6 @@ const MemoCardBody = memo(EnrollmentCardBody, (prev, next) =>
     prev.isEditingNote === next.isEditingNote &&
     prev.isDragging === next.isDragging &&
     prev.dragRef === next.dragRef &&
-    prev.dragAttributes === next.dragAttributes &&
     prev.dragListeners === next.dragListeners
 );
 
@@ -826,7 +861,7 @@ function EnrollmentCard(props: EnrollmentCardProps) {
     const [isEditingNote, setIsEditingNote] = useState(false);
     const draggableData = useMemo(() => ({ status: props.status }), [props.status]);
 
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    const { listeners, setNodeRef, isDragging } = useDraggable({
         id: props.enrollment.id,
         data: draggableData,
         disabled: props.isOverlay || isMobile || isEditingNote
@@ -839,7 +874,6 @@ function EnrollmentCard(props: EnrollmentCardProps) {
             isEditingNote={isEditingNote}
             setIsEditingNote={setIsEditingNote}
             dragRef={setNodeRef}
-            dragAttributes={attributes}
             dragListeners={listeners}
             isDragging={isDragging}
         />

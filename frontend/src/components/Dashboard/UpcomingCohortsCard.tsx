@@ -79,9 +79,9 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                         soon ? 'bg-brand-500 text-white shadow-glow-sm' : 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
                                     }`}
                                 >
-                                    <span className="text-[10px] font-semibold uppercase opacity-80">{weekday}</span>
+                                    <span className="text-[10px] font-semibold uppercase">{weekday}</span>
                                     <span className="text-lg font-bold tabular-nums my-0.5">{day}</span>
-                                    <span className="text-[10px] font-semibold uppercase opacity-80">{month}</span>
+                                    <span className="text-[10px] font-semibold uppercase">{month}</span>
                                 </span>
                                 <span className="flex-1 min-w-0 self-stretch flex flex-col justify-center divide-y divide-border-subtle">
                                     {items.map(c => (
@@ -109,7 +109,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                                     </span>
                                                     <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
                                                     {(c.confirmedCount > 0 || !c.pendingCount) && (
-                                                        <span className="inline-flex items-center gap-1 font-semibold text-success">
+                                                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-success">
                                                             <Users size={11} />
                                                             {c.confirmedCount} confirmed
                                                         </span>

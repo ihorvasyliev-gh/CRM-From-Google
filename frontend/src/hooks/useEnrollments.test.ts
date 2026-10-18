@@ -8,6 +8,7 @@
  * is not tested here — those require a full React wrapper and are out of scope for unit tests.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 
 // We mock the supabase module so fetchAllEnrollments doesn't hit the network
 vi.mock('../lib/supabase', () => ({
@@ -18,6 +19,7 @@ vi.mock('../lib/supabase', () => ({
 
 import { fetchAllEnrollments } from './useEnrollments';
 import { supabase } from '../lib/supabase';
+import { isPartialList } from '../lib/enrollmentCache';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -109,5 +111,58 @@ describe('fetchAllEnrollments', () => {
         };
         (supabase.from as ReturnType<typeof vi.fn>).mockReturnValue(chain);
         await expect(fetchAllEnrollments()).rejects.toMatchObject({ message: 'Database error' });
+    });
+});
+
+describe('fetchAllEnrollments, first load', () => {
+    /** One query's filters and the rows it returns: the current part, or the rest */
+    function mockParts(current: unknown[], history: unknown[]) {
+        const calls: { or?: string; not?: unknown[] }[] = [];
+        (supabase.from as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            const call: { or?: string; not?: unknown[] } = {};
+            calls.push(call);
+            const chain = {
+                select: vi.fn().mockReturnThis(),
+                or: vi.fn((filter: string) => { call.or = filter; return chain; }),
+                not: vi.fn((...args: unknown[]) => { call.not = args; return chain; }),
+                order: vi.fn().mockReturnThis(),
+                range: vi.fn(() => Promise.resolve({ data: call.not ? history : current, error: null })),
+            };
+            return chain;
+        });
+        return calls;
+    }
+
+    it('shows the current enrollments first, then adds the rest', async () => {
+        const client = new QueryClient();
+        const calls = mockParts([makeEnrollmentRecord('enr-current')], [makeEnrollmentRecord('enr-old')]);
+        const seen: string[][] = [];
+        client.getQueryCache().subscribe(() => {
+            const data = client.getQueryData<{ id: string }[]>(['enrollments']);
+            if (data && seen[seen.length - 1]?.length !== data.length) seen.push(data.map(e => e.id));
+        });
+
+        const rows = await client.fetchQuery({ queryKey: ['enrollments'], queryFn: fetchAllEnrollments });
+
+        expect(seen[0]).toEqual(['enr-current']);
+        expect(rows.map(e => e.id)).toEqual(['enr-current', 'enr-old']);
+        expect(isPartialList()).toBe(false);
+        // Both parts at once. Current: the open statuses, or anything changed lately; the rest: neither
+        expect(calls).toHaveLength(2);
+        const current = calls.find(call => !call.not)!;
+        expect(current.or).toMatch(/^status\.in\.\(requested,invited,confirmed\),updated_at\.gte\.\d{4}-\d{2}-\d{2}$/);
+        const rest = calls.find(call => call.not)!;
+        expect(rest.not).toEqual(['status', 'in', '(requested,invited,confirmed)']);
+        expect(rest.or).toMatch(/^updated_at\.lt\.\d{4}-\d{2}-\d{2},updated_at\.is\.null$/);
+    });
+
+    it('reads everything at once when the list is already cached (a reload)', async () => {
+        const client = new QueryClient();
+        client.setQueryData(['enrollments'], []);
+        const calls = mockParts([makeEnrollmentRecord('enr-1')], []);
+
+        await client.fetchQuery({ queryKey: ['enrollments'], queryFn: fetchAllEnrollments, staleTime: 0 });
+
+        expect(calls.every(call => !call.or && !call.not)).toBe(true);
     });
 });

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAllPages, fetchStudentsPage } from './queries';
+import { ENROLLMENT_COURSE_FIELDS, ENROLLMENT_SELECT, ENROLLMENT_STUDENT_FIELDS, fetchAllPages, fetchDashboardStats, fetchStudentsPage } from './queries';
 import { supabase } from './supabase';
 
-vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }));
+vi.mock('./supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }));
 
 /** A students query that records its select() options and answers with `rows`. */
 function studentsQuery(rows: unknown[], count: number | null) {
@@ -83,5 +83,40 @@ describe('fetchStudentsPage', () => {
         const page1 = await fetchStudentsPage({ pageParam: 1, queryKey: ['students', 'ann'] });
         expect(next.select).toHaveBeenCalledWith('*', undefined);
         expect(page1).toMatchObject({ count: 0, nextPage: 2 });
+    });
+});
+
+describe('ENROLLMENT_SELECT', () => {
+    it('reads the student and course fields the cache keeps up to date', () => {
+        expect(ENROLLMENT_SELECT).toContain(`students(${ENROLLMENT_STUDENT_FIELDS.join(', ')})`);
+        expect(ENROLLMENT_SELECT).toContain(`courses(${ENROLLMENT_COURSE_FIELDS.join(', ')})`);
+    });
+});
+
+describe('fetchDashboardStats', () => {
+    const counted = (count: number) => ({ select: () => Promise.resolve({ count, error: null }) });
+
+    it('adds up the enrollments in each status from the per-course counts', async () => {
+        vi.mocked(supabase.from).mockImplementation(((table: string) => counted(table === 'students' ? 40 : table === 'courses' ? 2 : 7)) as never);
+        vi.mocked(supabase.rpc).mockResolvedValue({
+            data: [
+                { course_id: 'c1', total: 4, requested: 2, invited: 1, confirmed: 0, completed: 1, withdrawn: 0, rejected: 0 },
+                { course_id: 'c2', total: 3, requested: 1, invited: 0, confirmed: 1, completed: 0, withdrawn: 1, rejected: 0 },
+            ],
+            error: null,
+        } as never);
+
+        expect(await fetchDashboardStats()).toEqual({
+            students: 40,
+            courses: 2,
+            enrollments: 7,
+            byStatus: { requested: 3, invited: 1, confirmed: 1, completed: 1, withdrawn: 1, rejected: 0 },
+        });
+    });
+
+    it('leaves them out when the per-course counts cannot be read', async () => {
+        vi.mocked(supabase.from).mockImplementation((() => counted(1)) as never);
+        vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: { message: 'denied' } } as never);
+        expect((await fetchDashboardStats()).byStatus).toBeNull();
     });
 });

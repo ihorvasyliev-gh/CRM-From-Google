@@ -16,7 +16,7 @@ export function EmploymentBadge({ status, row }: {
     row: { is_working: boolean | null; employment_type: string | null; field_of_work: string | null };
 }) {
     if (status !== 'responded') return <span className="text-xs text-muted italic">No data</span>;
-    if (!row.is_working) return <span className={`${pillCls} bg-orange-500/20 text-orange-400`}>Not working</span>;
+    if (!row.is_working) return <span className={`${pillCls} bg-orange-500/15 text-orange-800 dark:text-orange-300`}>Not working</span>;
     const type = row.employment_type === 'full_time' ? 'Full-time' : row.employment_type === 'part_time' ? 'Part-time' : '';
     return (
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">

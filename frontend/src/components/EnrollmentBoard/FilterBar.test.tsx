@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { useState, type ComponentProps } from 'react';
 import FilterBar from './FilterBar';
 
@@ -122,8 +122,9 @@ describe('FilterBar Component - Date Filter', () => {
             />
         );
 
-        // Filter count badge on the mobile button: course + date (search lives in its own field)
-        expect(screen.getByRole('button', { name: /Open filters/i })).toHaveTextContent('2');
+        // The Filters button counts the date: the course has its own picker (search its own field)
+        expect(screen.getByRole('button', { name: /Open filters/i })).toHaveTextContent('1');
+        expect(screen.getByRole('button', { name: 'Course: Patient moving and handling' })).toBeInTheDocument();
         expect(screen.queryByText(/"Alice"/)).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByLabelText('Remove Date filter'));
@@ -148,17 +149,27 @@ describe('FilterBar Component - Date Filter', () => {
         expect(mockSetSearchQuery).not.toHaveBeenCalled();
     });
 
-    it('shows a hidden date range as a chip until the range panel is opened', () => {
+    it('keeps date ranges in the filter sheet and shows one that is set as a removable chip', () => {
         render(<FilterBar {...defaultProps} dateFrom="2026-08-01T00:00" />);
 
-        const toggle = screen.getByRole('button', { name: /Date range filters/i });
-        expect(toggle).toHaveTextContent('1');
+        const button = screen.getByRole('button', { name: /Open filters/i });
+        expect(button).toHaveTextContent('1');
         // mobile strip + desktop toolbar
         expect(screen.getAllByLabelText('Remove Created filter')).toHaveLength(2);
+        expect(screen.queryByText('Course date')).not.toBeInTheDocument();
 
-        fireEvent.click(toggle);
-        expect(screen.getAllByLabelText('Remove Created filter')).toHaveLength(1);
-        expect(screen.getByText('Course date')).toBeInTheDocument();
+        fireEvent.click(button);
+        expect(within(screen.getByRole('dialog')).getByText('Course date')).toBeInTheDocument();
+    });
+
+    it('shows no chip per course, and the chosen course\'s dates only once one is chosen', () => {
+        const courses = [{ id: 'course-1', name: 'Patient moving and handling' }, { id: 'course-2', name: 'Barista Skills' }];
+        const { rerender } = render(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="all" />);
+        expect(screen.queryByRole('button', { name: 'Barista Skills' })).not.toBeInTheDocument();
+        expect(screen.queryByText('All dates')).not.toBeInTheDocument();
+
+        rerender(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="course-2" />);
+        expect(screen.getByText('All dates')).toBeInTheDocument();
     });
 
     it('changes sort order from the toolbar select', () => {
@@ -183,6 +194,7 @@ describe('FilterBar Component - Date Filter', () => {
 
     it('lets the user filter by expired invites', () => {
         render(<FilterBar {...defaultProps} inviteCounts={{ expired: 3, soon: 2 }} />);
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
         const chip = screen.getByRole('button', { name: /^Expired\s*3/ });
         fireEvent.click(chip);
         expect(mockSetInviteFilter).toHaveBeenCalledWith('expired');
@@ -190,6 +202,7 @@ describe('FilterBar Component - Date Filter', () => {
 
     it('toggles an active invite filter off', () => {
         render(<FilterBar {...defaultProps} inviteFilter="expired" inviteCounts={{ expired: 3, soon: 2 }} />);
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
         fireEvent.click(screen.getByRole('button', { name: /^Expired\s*3/ }));
         expect(mockSetInviteFilter).toHaveBeenCalledWith('all');
     });

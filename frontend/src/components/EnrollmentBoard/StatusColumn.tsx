@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, Loader2 } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import type { EnrollmentStatus, StudentFlag } from '../../lib/types';
@@ -42,6 +42,8 @@ interface StatusColumnProps {
     sessions: ReadonlyMap<string, CourseSession>;
     /** The board's filters and search: when they change, the column shows its new cards at once */
     filters: object;
+    /** Older enrollments of this status are still loading (the first load reads current ones first) */
+    loadingOlder?: boolean;
 }
 
 const StatusColumn = function StatusColumn({
@@ -66,6 +68,7 @@ const StatusColumn = function StatusColumn({
     onMoveStatus,
     sessions,
     filters,
+    loadingOlder = false,
 }: StatusColumnProps) {
     const cfg = STATUS_CONFIG[status];
     
@@ -161,6 +164,12 @@ const StatusColumn = function StatusColumn({
                             <span className={`text-[10px] md:text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-xs`}>
                                 {items.length}
                             </span>
+                            {loadingOlder && (
+                                <span role="status" className="flex items-center text-muted" title="Loading older enrollments">
+                                    <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+                                    <span className="sr-only">Loading older enrollments</span>
+                                </span>
+                            )}
                             {status === 'requested' && priorityCount > 0 && (
                                 <span
                                     className="flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full priority-badge shadow-xs"
@@ -223,8 +232,8 @@ const StatusColumn = function StatusColumn({
                             <div className={`w-10 h-10 rounded-full ${cfg.bg} flex items-center justify-center mb-2.5 ${cfg.color} ${isOver ? 'scale-110' : 'opacity-40'} transition-transform`}>
                                 {cfg.icon}
                             </div>
-                            <p className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isOver ? cfg.color : 'text-muted/50'}`}>
-                                {isOver ? 'Drop here' : 'No enrollments'}
+                            <p className={`text-xs font-semibold uppercase tracking-wider transition-colors ${isOver ? cfg.color : 'text-muted'}`}>
+                                {isOver ? 'Drop here' : loadingOlder ? 'Loading…' : 'No enrollments'}
                             </p>
                         </div>
                     )}
@@ -282,6 +291,7 @@ export default memo(StatusColumn, (prev, next) => {
     if (prev.onMoveStatus !== next.onMoveStatus) return false;
     if (prev.sessions !== next.sessions) return false;
     if (prev.filters !== next.filters) return false;
+    if (prev.loadingOlder !== next.loadingOlder) return false;
 
     if (prev.items === next.items && 
         prev.selectedIds === next.selectedIds && 

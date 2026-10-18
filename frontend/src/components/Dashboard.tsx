@@ -2,8 +2,8 @@ import { useMemo, useState, useEffect, useDeferredValue, type ReactNode } from '
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, UserPlus, BookOpen, KanbanSquare, Clock, RefreshCw, ArrowRight, type LucideIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { fetchDashboardStats } from '../lib/queries';
-import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { fetchDashboardStats, type DashboardStats } from '../lib/queries';
+import { useEnrollmentList, type EnrollmentRow } from '../hooks/useEnrollments';
 import DashboardKPIs, { type KpiHint, type KpiKey } from './Dashboard/DashboardKPIs';
 import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
 import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
@@ -60,6 +60,8 @@ export interface DashboardProps {
 
 const VALID_FILTERS: ActivityFilter[] = ['all', 'requested', 'invited', 'confirmed', 'completed'];
 const ACTIVITY_PAGE_SIZE = 20;
+const NO_STATS: DashboardStats = { students: 0, courses: 0, enrollments: 0, byStatus: null };
+const NO_ENROLLMENTS: EnrollmentRow[] = [];
 
 function greeting(hour: number): string {
     if (hour < 5) return 'Good evening';
@@ -173,7 +175,7 @@ export default function Dashboard({
 
     // Stats counts — staleTime 30s
     const {
-        data: stats = { students: 0, courses: 0, enrollments: 0 },
+        data: stats = NO_STATS,
         isLoading: statsLoading,
         isFetching: statsFetching,
     } = useQuery({
@@ -184,17 +186,18 @@ export default function Dashboard({
 
     // Reuse the global ['enrollments'] cache, kept live by realtime sync (so the default
     // staleTime). The dashboard stays mounted between visits and checks its data on every return:
-    // with 30s, each return after half a minute downloaded every enrollment again.
+    // with 30s, each return after half a minute downloaded every enrollment again. On a first load
+    // the current enrollments arrive first, which is all the cards below need.
     const {
-        data: allEnrollments = [],
+        data: allEnrollments = NO_ENROLLMENTS,
         isLoading: enrollmentsLoading,
         isFetching: enrollmentsFetching,
         dataUpdatedAt,
-    } = useQuery({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
-    });
+        complete,
+    } = useEnrollmentList();
 
+    // The numbers come from the counts query, so they don't wait for the enrollments
+    const countsLoading = statsLoading || (enrollmentsLoading && !stats.byStatus);
     const loading = statsLoading || enrollmentsLoading;
     const refreshing = !loading && (statsFetching || enrollmentsFetching);
 
@@ -205,13 +208,15 @@ export default function Dashboard({
         queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY.dayBefore });
     };
 
+    // From the loaded list once it is whole (it shows this tab's changes at once), else the counts
     const statusCounts = useMemo(() => {
+        if (!complete && stats.byStatus) return stats.byStatus;
         const counts: Record<string, number> = {};
         for (const e of allEnrollments) {
             counts[e.status] = (counts[e.status] || 0) + 1;
         }
         return counts;
-    }, [allEnrollments]);
+    }, [allEnrollments, complete, stats.byStatus]);
 
     const expiredInvites = useMemo(() => calculateExpiredInvites(allEnrollments), [allEnrollments]);
     const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
@@ -260,12 +265,12 @@ export default function Dashboard({
     );
 
     const filterCounts = useMemo((): Record<ActivityFilter, number> => ({
-        all: allEnrollments.length,
+        all: complete ? allEnrollments.length : stats.enrollments,
         requested: statusCounts.requested || 0,
         invited: statusCounts.invited || 0,
         confirmed: statusCounts.confirmed || 0,
         completed: statusCounts.completed || 0,
-    }), [allEnrollments.length, statusCounts]);
+    }), [allEnrollments.length, complete, stats.enrollments, statusCounts]);
 
     // Contextual one-liners under each KPI number
     const kpiHints = useMemo(() => {
@@ -336,13 +341,13 @@ export default function Dashboard({
     ) : null;
 
     const kpis = (
-        <DashboardKPIs stats={stats} statusCounts={statusCounts} onNavigate={onNavigate} loading={loading} hints={kpiHints} />
+        <DashboardKPIs stats={stats} statusCounts={statusCounts} onNavigate={onNavigate} loading={countsLoading} hints={kpiHints} />
     );
     const cohorts = <UpcomingCohortsCard cohorts={upcomingCohorts} onNavigate={onNavigate} />;
     const expired = (
         <ExpiredInvitesCard items={expiredInvites} onNavigate={onNavigate} onOpenStudentDetail={onOpenStudentDetail} />
     );
-    const statusBreakdown = <StatusBreakdownCard statusBreakdown={statusCounts} loading={loading} onNavigate={onNavigate} />;
+    const statusBreakdown = <StatusBreakdownCard statusBreakdown={statusCounts} loading={countsLoading} onNavigate={onNavigate} />;
     const activity = (
         <DashboardActivityFeed
             groupedActivity={groupedActivity}
@@ -363,8 +368,10 @@ export default function Dashboard({
         <div className="w-full space-y-4 sm:space-y-6">
             {header}
             {approvalsBanner}
-            <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
             {kpis}
+            {/* Under the numbers: it appears once the enrollments load, and above them it pushed
+                the numbers down just as they could be clicked */}
+            <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
 
             {/* Only one layout is mounted to avoid rendering everything twice. The registration
                 form link goes near the top, as on the viewer home: below the activity feed nobody saw it. */}

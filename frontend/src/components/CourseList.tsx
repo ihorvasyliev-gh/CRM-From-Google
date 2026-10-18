@@ -14,9 +14,10 @@ import { useDialogMount } from '../hooks/usePresence';
 import ConfirmDialog from './ConfirmDialog';
 import { notify } from '../lib/toast';
 import { useDebounce } from '../hooks/useDebounce';
-import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { readAllEnrollments } from '../hooks/useEnrollments';
 import { coursePreset, fetchDocumentTemplates } from '../lib/documentUtils';
 import { fetchCourses } from '../lib/queries';
+import { removeCachedEnrollments, updateCachedRelations } from '../lib/enrollmentCache';
 
 interface EnrollmentCount {
     course_id: string;
@@ -100,7 +101,7 @@ async function fetchCourseEnrollmentCounts(): Promise<Record<string, EnrollmentC
     }
     if (error) console.warn('get_course_enrollment_counts unavailable, counting on the client:', error.message);
 
-    const enrollments = await fetchAllEnrollments();
+    const enrollments = await readAllEnrollments();
     const counts: Record<string, EnrollmentCount> = {};
     for (const e of enrollments) {
         if (!counts[e.course_id]) {
@@ -175,7 +176,8 @@ export default function CourseList() {
                 .eq('id', data.id);
             if (error) throw new Error(error.message);
             setCourses(prev => prev.map(c => c.id === data.id ? { ...c, name: data.name, requires_english: data.requires_english, max_capacity: maxCapacity, template_ids: data.template_ids, email_templates: data.email_templates } : c));
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            // Its enrollments show the new name and settings, without reloading every enrollment
+            updateCachedRelations(queryClient, { courses: [{ id: data.id, name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             notify({ message: 'Course updated', type: 'success' });
         } else {
@@ -201,7 +203,7 @@ export default function CourseList() {
                 .update({ requires_english: newRequiresEnglish })
                 .eq('id', course.id);
             if (error) throw error;
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: newRequiresEnglish }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             notify({
                 message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
@@ -221,7 +223,8 @@ export default function CourseList() {
             notify({ message: 'Failed to delete course', type: 'error' });
         } else {
             setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
-            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            // Its enrollments were deleted with it
+            removeCachedEnrollments(queryClient, e => e.course_id === deleteTarget.id);
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             notify({ message: 'Course deleted', type: 'success' });

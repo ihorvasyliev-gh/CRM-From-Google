@@ -30,8 +30,8 @@ interface KpiDef {
 }
 
 const HINT_TONE: Record<NonNullable<KpiHint['tone']>, string> = {
-    alert: 'text-danger font-semibold',
-    positive: 'text-success font-semibold',
+    alert: 'text-red-700 dark:text-danger font-semibold',
+    positive: 'text-emerald-700 dark:text-success font-semibold',
     neutral: 'text-muted',
 };
 

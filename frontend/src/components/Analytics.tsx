@@ -22,7 +22,7 @@ import {
     EyeOff
 } from 'lucide-react';
 
-import { fetchAllEnrollments } from '../hooks/useEnrollments';
+import { useEnrollmentList } from '../hooks/useEnrollments';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EmploymentStatusRow, Student } from '../lib/types';
 import { cleanVariant } from '../lib/types';
@@ -146,10 +146,10 @@ export default function Analytics() {
     const [reportLoaded, setReportLoaded] = useState(false);
 
     // 4. TanStack Data Queries
-    const { data: allEnrollments = EMPTY_ENROLLMENTS, isLoading: isEnrollmentsLoading } = useQuery<EnrollmentWithRelations[]>({
-        queryKey: ['enrollments'],
-        queryFn: fetchAllEnrollments,
-    });
+    // Every enrollment: the figures wait for older history, which loads after the current ones
+    const enrollmentList = useEnrollmentList();
+    const allEnrollments = enrollmentList.complete ? enrollmentList.data ?? EMPTY_ENROLLMENTS : EMPTY_ENROLLMENTS;
+    const isEnrollmentsLoading = !enrollmentList.complete;
 
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],
@@ -200,6 +200,8 @@ export default function Analytics() {
         const completedStudentIds = new Set(
             filteredEnrollments.filter(e => e.status === 'completed' && e.student_id).map(e => e.student_id)
         );
+        // Outcomes counts people: someone who completed two courses is one graduate there
+        const graduatedPeople = completedStudentIds.size;
         const respondedStatuses = employmentStatuses.filter(
             es => completedStudentIds.has(es.student_id) && es.status === 'responded'
         );
@@ -212,6 +214,7 @@ export default function Analytics() {
             invited,
             confirmed,
             completed,
+            graduatedPeople,
             successRate,
             speed,
             funnel,
@@ -340,8 +343,8 @@ export default function Analytics() {
                     label="Total pipeline"
                     icon={Users}
                     tone="brand"
-                    value={kpiSummary.total}
-                    hint={`${kpiSummary.completed + kpiSummary.confirmed} confirmed or graduated`}
+                    value={kpiSummary.total.toLocaleString()}
+                    hint={`Enrollments · ${(kpiSummary.completed + kpiSummary.confirmed).toLocaleString()} confirmed or completed`}
                     loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('All Active Scope Applications', filteredEnrollments)}
                 />
@@ -349,8 +352,8 @@ export default function Analytics() {
                     label="Waiting queue"
                     icon={Clock}
                     tone="warning"
-                    value={kpiSummary.requested}
-                    hint={`Avg ${kpiSummary.speed.avgDaysToInvite}d to invite`}
+                    value={kpiSummary.requested.toLocaleString()}
+                    hint={`Enrollments · avg ${kpiSummary.speed.avgDaysToInvite}d to invite`}
                     loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Candidates In Waiting Queue', filteredEnrollments.filter(e => e.status === 'requested'))}
                 />
@@ -358,17 +361,18 @@ export default function Analytics() {
                     label="In course"
                     icon={CheckCircle2}
                     tone="info"
-                    value={kpiSummary.confirmed}
-                    hint="Confirmed attendees"
+                    value={kpiSummary.confirmed.toLocaleString()}
+                    hint="Confirmed enrollments"
                     loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Confirmed Students', filteredEnrollments.filter(e => e.status === 'confirmed'))}
                 />
                 <StatTile
-                    label="Graduates"
+                    label="Completed"
                     icon={GraduationCap}
                     tone="success"
-                    value={kpiSummary.completed}
-                    hint={`${kpiSummary.successRate}% success rate`}
+                    value={kpiSummary.completed.toLocaleString()}
+                    hint={`Enrollments · ${kpiSummary.graduatedPeople.toLocaleString()} people · ${kpiSummary.successRate}% success`}
+                    title={`${kpiSummary.completed.toLocaleString()} completed enrollments by ${kpiSummary.graduatedPeople.toLocaleString()} people (Outcomes counts people). ${kpiSummary.successRate}% of enrollments completed.`}
                     hintTone="positive"
                     loading={isEnrollmentsLoading}
                     onClick={() => handleDrillDown('Graduated Course Completers', filteredEnrollments.filter(e => e.status === 'completed'))}

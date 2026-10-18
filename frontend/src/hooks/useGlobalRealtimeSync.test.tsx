@@ -47,9 +47,13 @@ vi.mock('../lib/realtimeSync', () => ({
 }));
 
 const patchCachedEnrollments = vi.fn<(client: unknown, ids: string[]) => Promise<boolean>>();
+const syncCachedEnrollments = vi.fn<(client: unknown) => Promise<boolean>>();
+const updateCachedRelations = vi.fn();
 vi.mock('../lib/enrollmentCache', () => ({
     ENROLLMENTS_KEY: ['enrollments'],
     patchCachedEnrollments: (client: unknown, ids: string[]) => patchCachedEnrollments(client, ids),
+    syncCachedEnrollments: (client: unknown) => syncCachedEnrollments(client),
+    updateCachedRelations: (...args: unknown[]) => updateCachedRelations(...args),
 }));
 
 function setup() {
@@ -60,17 +64,19 @@ function setup() {
     );
     const { unmount } = renderHook(() => useGlobalRealtimeSync(), { wrapper });
     const invalidatedKeys = () => invalidate.mock.calls
-        .filter(([filters]) => filters)
+        .filter(([filters]) => filters?.queryKey)
         .map(([filters]) => (filters as { queryKey: string[] }).queryKey[0]);
-    // invalidateQueries() without filters: every query reloads
-    const fullReloads = () => invalidate.mock.calls.filter(([filters]) => !filters).length;
-    return { invalidate, invalidatedKeys, fullReloads, unmount };
+    // Every query reloads (all but the enrollment list, which catches up on what changed)
+    const fullReloads = () => invalidate.mock.calls.filter(([filters]) => filters?.predicate).length;
+    return { queryClient, invalidate, invalidatedKeys, fullReloads, unmount };
 }
 
 describe('useGlobalRealtimeSync', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         patchCachedEnrollments.mockReset().mockResolvedValue(true);
+        syncCachedEnrollments.mockReset().mockResolvedValue(true);
+        updateCachedRelations.mockReset();
         channelStatus.state = 'joined';
         Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     });
@@ -159,6 +165,57 @@ describe('useGlobalRealtimeSync', () => {
         act(() => { handlers.enrollments({ eventType: 'UPDATE', new: { id: 'e-2' } }); });
         await act(async () => { vi.advanceTimersByTime(250); });
         expect(patchCachedEnrollments).toHaveBeenCalledWith(expect.anything(), ['e-2']);
+    });
+
+    it("writes edited students and courses into the cached enrollments from the event", async () => {
+        setup();
+
+        act(() => {
+            handlers.students({ eventType: 'UPDATE', new: { id: 's-1', first_name: 'Ann' } });
+            handlers.students({ eventType: 'UPDATE', new: { id: 's-1', first_name: 'Anna' } });
+            handlers.courses({ eventType: 'UPDATE', new: { id: 'c-1', name: 'Python 2' } });
+            handlers.students({ eventType: 'DELETE', new: {}, old: { id: 's-2' } });
+        });
+        await act(async () => { vi.advanceTimersByTime(250); });
+
+        expect(updateCachedRelations).toHaveBeenCalledTimes(1);
+        expect(updateCachedRelations).toHaveBeenCalledWith(expect.anything(), {
+            students: [{ id: 's-1', first_name: 'Anna' }],
+            courses: [{ id: 'c-1', name: 'Python 2' }],
+        });
+    });
+
+    it('reloads everything but the enrollment list on a resync, which catches up instead', async () => {
+        const { queryClient, invalidate, fullReloads } = setup();
+        act(() => { vi.advanceTimersByTime(11 * 60_000); });
+        queryClient.setQueryData(['enrollments'], []);
+        queryClient.setQueryData(['enrollments', 'by_student', 's-1'], []);
+        queryClient.setQueryData(['students', ''], []);
+
+        await act(async () => {
+            wake.cb?.('visibility');
+            vi.advanceTimersByTime(300);
+        });
+
+        expect(fullReloads()).toBe(1);
+        const { predicate } = invalidate.mock.calls.find(([filters]) => filters?.predicate)![0]!;
+        const reloaded = queryClient.getQueryCache().getAll().filter(q => predicate!(q)).map(q => q.queryKey);
+        expect(reloaded).toEqual([['enrollments', 'by_student', 's-1'], ['students', '']]);
+        expect(syncCachedEnrollments).toHaveBeenCalledTimes(1);
+        expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['enrollments'], exact: true });
+    });
+
+    it('reloads the enrollment list when it cannot catch up', async () => {
+        syncCachedEnrollments.mockResolvedValue(false);
+        const { invalidate } = setup();
+
+        await act(async () => {
+            vi.advanceTimersByTime(11 * 60_000);
+            wake.cb?.('visibility');
+            vi.advanceTimersByTime(300);
+        });
+
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: ['enrollments'], exact: true });
     });
 
     it('does not take its own removal of the channel for a dropped connection', () => {

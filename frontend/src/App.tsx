@@ -223,11 +223,18 @@ function App() {
     });
 
     const handleSaveNewStudent = async (formData: StudentPayload) => {
-        await createStudent(formData);
+        const created = await createStudent(formData);
         queryClient.invalidateQueries({ queryKey: ['students'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
         toast.success(`${fullName(formData)} added`);
         setGlobalAddStudentOpen(false);
+        return created;
+    };
+
+    // "Save and enroll": the new student, already chosen, in the enrollment dialog
+    const enrollNewStudent = (student: Student) => {
+        setGlobalEnrollStudentId(student.id);
+        setGlobalEnrollModalOpen(true);
     };
 
     if (loading) {
@@ -668,6 +675,7 @@ function App() {
                         open={globalAddStudentOpen}
                         student={null}
                         onSave={handleSaveNewStudent}
+                        onSaveAndEnroll={enrollNewStudent}
                         onClose={() => setGlobalAddStudentOpen(false)}
                     />
                 </Suspense>
@@ -680,8 +688,7 @@ function App() {
                         key={enrollMount.key}
                         open={globalEnrollModalOpen}
                         onSave={() => {
-                            queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                            queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
+                            // The modal itself reads the new enrollment into the cached list
                             queryClient.invalidateQueries({ queryKey: ['courses'] });
                             toast.success('Enrollment created');
                         }}

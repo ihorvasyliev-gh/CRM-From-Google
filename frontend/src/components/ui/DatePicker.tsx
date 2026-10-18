@@ -111,7 +111,7 @@ export function CalendarPanel({ mode, value, onChange, min, max, label, classNam
         grid = (
             <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map(d => (
-                    <span key={d} className="text-center text-[10px] font-semibold uppercase text-muted/70 pb-1">{d}</span>
+                    <span key={d} className="text-center text-[10px] font-semibold uppercase text-muted pb-1">{d}</span>
                 ))}
                 {Array.from({ length: lead }, (_, i) => <span key={`x${i}`} />)}
                 {Array.from({ length: days }, (_, i) => {
@@ -253,7 +253,7 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
                 onClick={() => setOpen(o => !o)}
                 className={`flex items-center justify-between gap-2 text-left ${className}`}
             >
-                <span className={value ? 'text-primary' : 'text-muted/70'}>{value ? formatDateDMY(value) : placeholder}</span>
+                <span className={value ? 'text-primary' : 'text-muted'}>{value ? formatDateDMY(value) : placeholder}</span>
                 <Calendar size={15} className="text-muted shrink-0" />
             </button>
             {open && createPortal(

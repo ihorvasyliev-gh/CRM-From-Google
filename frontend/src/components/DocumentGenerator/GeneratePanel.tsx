@@ -12,6 +12,7 @@ import { StepHeader } from './shared';
 import { errorText, type ShowToast } from './helpers';
 import type { DocumentSetup } from './useDocumentSetup';
 import { usePersistentState } from '../../hooks/usePersistentState';
+import { refreshCachedEnrollments } from '../../lib/enrollmentCache';
 import { formatDateLong } from '../../lib/dateUtils';
 import type { Course } from '../../lib/types';
 import {
@@ -107,11 +108,13 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
         setReport(null);
         try {
             // Re-read the chosen people so names, addresses and statuses are current
+            const chosen = sample ? selected.slice(0, 1) : selected;
             const { people, skipped } = await refreshParticipants(
-                sample ? selected.slice(0, 1) : selected,
+                chosen,
                 e => e.status === status && e.course_id === courseId && sessionKeyOf(e) === session?.key,
             );
-            if (skipped.length) queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            // The list shows what changed for the people chosen
+            if (skipped.length) void refreshCachedEnrollments(queryClient, chosen.map(e => e.id));
             if (!people.length) {
                 showToast('Nobody to generate for — the selected enrollments changed since the list was loaded. The list has been refreshed.', 'error');
                 return;

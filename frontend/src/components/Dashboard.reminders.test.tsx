@@ -27,6 +27,7 @@ vi.mock('../lib/supabase', () => ({
                 },
             }
             : { select: vi.fn().mockResolvedValue({ count: 5 }) }),
+        rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'not in this test' } }),
     },
 }));
 
@@ -41,12 +42,21 @@ const confirmed = (id: string, courseId: string, name: string, offset: number) =
     courses: { id: courseId, name },
 });
 
-vi.mock('../hooks/useEnrollments', () => ({
-    fetchAllEnrollments: vi.fn(async () => [
-        confirmed('1', 'crs-tomorrow', 'Tomorrow Course', 1),
-        confirmed('2', 'crs-later', 'Later Course', 4),
-    ]),
-}));
+vi.mock('../hooks/useEnrollments', async () => {
+    const { useQuery } = await import('@tanstack/react-query');
+    return {
+        useEnrollmentList: () => {
+            const query = useQuery({
+                queryKey: ['enrollments'],
+                queryFn: async () => [
+                    confirmed('1', 'crs-tomorrow', 'Tomorrow Course', 1),
+                    confirmed('2', 'crs-later', 'Later Course', 4),
+                ],
+            });
+            return { ...query, complete: query.data !== undefined };
+        },
+    };
+});
 
 describe('Dashboard send-reminders banner', () => {
     beforeEach(() => {

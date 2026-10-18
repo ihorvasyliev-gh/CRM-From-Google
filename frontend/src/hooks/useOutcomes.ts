@@ -27,7 +27,20 @@ interface GraduateEnrollment {
     students: { id: string; first_name: string; last_name: string; email: string } | null;
 }
 
+const byName = (a: GraduateRow, b: GraduateRow) =>
+    `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
+
+/** Every student who completed a course, with their employment answer, A–Z by last name. */
 export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
+    // Built by the database in one request (migration 85)
+    const { data, error } = await supabase.rpc('get_outcome_graduates');
+    if (!error) return ((data ?? []) as GraduateRow[]).sort(byName);
+    console.warn('get_outcome_graduates unavailable (is migration 85 applied?), building the list here:', error.message);
+    return buildGraduates();
+}
+
+/** The same list from completed enrollments and employment statuses, read in full. */
+async function buildGraduates(): Promise<GraduateRow[]> {
     // All completed enrollments with student info, and every employment_status row. A failed
     // page throws: an empty or partial list would look like real data.
     const [enrollments, empStatuses] = await Promise.all([
@@ -89,7 +102,5 @@ export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
         }
     }
 
-    return Array.from(studentMap.values()).sort(
-        (a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
-    );
+    return Array.from(studentMap.values()).sort(byName);
 }

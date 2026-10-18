@@ -12,6 +12,7 @@ import {
     type CourseSession,
 } from '../lib/courseSessions';
 import { COURSE_SESSIONS_QUERY_KEY } from './useCourseSessions';
+import { cancelListReload, restoreCachedRows } from '../lib/enrollmentCache';
 
 export interface DateStats {
     pending: number;
@@ -192,6 +193,12 @@ export function useInviteFlow({
     // False until migration 79 adds the schedule columns
     const [scheduleSupported, setScheduleSupported] = useState(true);
 
+    /** The course's upcoming dates; the next one is preselected unless a date was picked meanwhile. */
+    function showSavedDates(upcoming: string[]) {
+        setSavedInviteDates(upcoming);
+        if (upcoming.length) setInviteDate(prev => (prev === todayISO() ? upcoming[0] : prev));
+    }
+
     async function fetchCourseDates(courseId: string) {
         setTargetCourseId(courseId);
         const today = todayISO();
@@ -209,12 +216,12 @@ export function useInviteFlow({
                 .eq('course_id', courseId)
                 .gte('invite_date', today)
                 .order('invite_date', { ascending: true });
-            setSavedInviteDates(plain ? plain.map((d: { invite_date: string }) => d.invite_date) : []);
+            showSavedDates(plain ? plain.map((d: { invite_date: string }) => d.invite_date) : []);
             return;
         }
         setScheduleSupported(true);
         const sessions = (data || []).map(sessionFromRow).filter((s): s is CourseSession => !!s);
-        setSavedInviteDates(sessions.map(s => s.date).filter(d => d >= today));
+        showSavedDates(sessions.map(s => s.date).filter(d => d >= today));
         setSavedSessions(Object.fromEntries(sessions.map(s => [s.date, s])));
         // The course's latest date with a time or place sets the defaults for a new date
         const latest = [...sessions].reverse().find(s => s.start_time || s.end_time || s.location);
@@ -356,7 +363,7 @@ export function useInviteFlow({
             return { ids, updatePayload };
         },
         onMutate: async ({ ids, dates, days }) => {
-            await queryClient.cancelQueries({ queryKey: ['enrollments'] });
+            cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
 
             const updatePayload = buildInvitePayload(dates, days);
@@ -371,9 +378,9 @@ export function useInviteFlow({
             queryClient.invalidateQueries({ queryKey: COURSE_SESSIONS_QUERY_KEY });
             showToast(`${data.ids.length} enrollment(s) → invited`, 'success');
         },
-        onError: (_err, _variables, context) => {
+        onError: (_err, variables, context) => {
             if (context?.previousEnrollments) {
-                setEnrollments(context.previousEnrollments);
+                restoreCachedRows(queryClient, context.previousEnrollments, variables.ids);
             } else {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
             }

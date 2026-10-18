@@ -240,7 +240,7 @@ export default function GeographyDemographicsTab({ enrollments, onDrillDown }: G
                                     {viewMode === 'micro' && <th className={thCls}>Zone</th>}
                                     <th className={`${thCls} w-56`}>Applications</th>
                                     <th className={`${thCls} text-right`}>Confirmed</th>
-                                    <th className={`${thCls} text-right`}>Graduates</th>
+                                    <th className={`${thCls} text-right`}>Completed</th>
                                     <th className={`${thCls} text-right`}>Success</th>
                                     <th className={thCls}><span className="sr-only">Action</span></th>
                                 </tr>

@@ -251,7 +251,7 @@ export default function DateCalendarPicker({
                         <X size={12} />
                     </button>
                 ) : (
-                    <span className="text-[10px] uppercase font-semibold text-muted/50 px-1">{label}</span>
+                    <span className="text-[10px] uppercase font-semibold text-muted px-1">{label}</span>
                 )}
             </div>
 

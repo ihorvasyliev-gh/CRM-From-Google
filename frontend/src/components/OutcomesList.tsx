@@ -336,6 +336,7 @@ function GraduateOutcomes() {
                                             type="checkbox"
                                             checked={filtered.length > 0 && filtered.every(g => selectedIds.has(g.student_id))}
                                             onChange={selectAll}
+                                            aria-label="Select all shown graduates"
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
@@ -365,6 +366,7 @@ function GraduateOutcomes() {
                                                     type="checkbox"
                                                     checked={isSelected}
                                                     onChange={() => toggleSelect(grad.student_id)}
+                                                    aria-label={`Select ${grad.first_name} ${grad.last_name}`}
                                                     className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
@@ -389,7 +391,7 @@ function GraduateOutcomes() {
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <div className="flex flex-wrap gap-1">
                                                     {grad.courses.map(c => (
-                                                        <span key={c} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-500 truncate max-w-[120px]">
+                                                        <span key={c} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 truncate max-w-[120px]">
                                                             {c}
                                                         </span>
                                                     ))}
