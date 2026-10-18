@@ -147,9 +147,11 @@ describe('fetchAllEnrollments, first load', () => {
         expect(seen[0]).toEqual(['enr-current']);
         expect(rows.map(e => e.id)).toEqual(['enr-current', 'enr-old']);
         expect(isPartialList()).toBe(false);
-        // Current: the open statuses, or anything changed lately; the rest: neither
-        expect(calls[0].or).toMatch(/^status\.in\.\(requested,invited,confirmed\),updated_at\.gte\.\d{4}-\d{2}-\d{2}$/);
-        const rest = calls[calls.length - 1];
+        // Both parts at once. Current: the open statuses, or anything changed lately; the rest: neither
+        expect(calls).toHaveLength(2);
+        const current = calls.find(call => !call.not)!;
+        expect(current.or).toMatch(/^status\.in\.\(requested,invited,confirmed\),updated_at\.gte\.\d{4}-\d{2}-\d{2}$/);
+        const rest = calls.find(call => call.not)!;
         expect(rest.not).toEqual(['status', 'in', '(requested,invited,confirmed)']);
         expect(rest.or).toMatch(/^updated_at\.lt\.\d{4}-\d{2}-\d{2},updated_at\.is\.null$/);
     });
