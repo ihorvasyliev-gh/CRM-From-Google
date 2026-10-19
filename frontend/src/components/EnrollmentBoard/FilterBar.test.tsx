@@ -122,16 +122,16 @@ describe('FilterBar Component - Date Filter', () => {
             />
         );
 
-        // The Filters button counts the date: the course shows as its pressed chip (search has its own field)
+        // The Filters button counts the date: the course has its own chips (search its own field)
         expect(screen.getByRole('button', { name: /Open filters/i })).toHaveTextContent('1');
-        expect(screen.queryByLabelText('Remove Course filter')).not.toBeInTheDocument();
+        expect(within(screen.getByRole('group', { name: 'Course' })).getByRole('button', { name: 'Patient moving and handling' }))
+            .toHaveAttribute('aria-pressed', 'true');
         expect(screen.queryByText(/"Alice"/)).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByLabelText('Remove Date filter'));
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
 
-        // Clicking the chosen course again goes back to every course
-        fireEvent.click(screen.getByRole('button', { name: 'Patient moving and handling', pressed: true }));
+        fireEvent.click(screen.getByLabelText('Remove Course filter'));
         expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
         expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
     });
@@ -163,7 +163,7 @@ describe('FilterBar Component - Date Filter', () => {
         expect(within(screen.getByRole('dialog')).getByText('Course date')).toBeInTheDocument();
     });
 
-    it('shows every course as a chip, picked in one click, and the chosen course\'s dates once one is chosen', () => {
+    it('shows every course as a chip on a larger screen, picked in one click, and the chosen course\'s dates once one is chosen', () => {
         const courses = [{ id: 'course-2', name: 'Barista Skills' }, { id: 'course-1', name: 'Patient moving and handling' }];
         const { rerender } = render(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="all" />);
         const row = screen.getByRole('group', { name: 'Course' });
@@ -179,11 +179,9 @@ describe('FilterBar Component - Date Filter', () => {
         expect(within(row).getByRole('button', { name: 'Barista Skills' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByText('All dates')).toBeInTheDocument();
 
-        fireEvent.click(within(row).getByRole('button', { name: 'All courses' }));
+        // Clicking the chosen course again goes back to every course
+        fireEvent.click(within(row).getByRole('button', { name: 'Barista Skills' }));
         expect(mockSetSelectedCourse).toHaveBeenLastCalledWith('all');
-        // Courses are no longer repeated in the filter sheet
-        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
-        expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Barista Skills' })).not.toBeInTheDocument();
     });
 
     it('changes sort order from the toolbar select', () => {
