@@ -1,9 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
-import CourseFilter from './CourseFilter';
-import { useIsSmallScreen } from '../../hooks/useScreenSize';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { CustomTooltip } from '../ui/Tooltip';
 import Modal from '../ui/Modal';
@@ -78,7 +76,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, chil
     tone?: ChipTone;
     count?: number;
     onClick: () => void;
-    /** `lg` — finger-sized chips for the mobile sheet */
+    /** `sm` — toolbar chips (a little taller on a phone); `lg` — finger-sized chips for the mobile sheet */
     size?: 'sm' | 'lg';
     children: ReactNode;
 }) {
@@ -89,7 +87,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, chil
             aria-pressed={active}
             title={title}
             className={`inline-flex items-center gap-1.5 font-semibold rounded-full border whitespace-nowrap shrink-0 transition-all active:scale-95 ${
-                size === 'lg' ? 'px-3.5 py-2 text-sm' : 'px-2.5 py-1 text-xs'
+                size === 'lg' ? 'px-3.5 py-2 text-sm' : 'px-3 py-1.5 md:px-2.5 md:py-1 text-xs'
             } ${active ? CHIP_ACTIVE[tone] : `bg-surface-elevated text-muted border-border-strong ${CHIP_IDLE[tone]}`}`}
         >
             {children}
@@ -221,7 +219,7 @@ export default function FilterBar({
     inviteCounts,
 }: FilterBarProps) {
     const [sheetOpen, setSheetOpen] = useState(false);
-    const isSmallScreen = useIsSmallScreen();
+    const courseRowRef = useRef<HTMLDivElement>(null);
 
     const hasCreatedRange = !!(dateFrom || dateTo);
     const hasCourseRange = !!(courseDateFrom || courseDateTo);
@@ -277,13 +275,23 @@ export default function FilterBar({
             onRemove: () => setInviteFilter('all'),
         });
     }
+    // The course has its own chip row; every other filter opens from the Filters button
+    const sheetFilters = activeFilters.filter(f => f.id !== 'course');
     // Desktop: with a course chosen, its languages and dates stay in view as chips (the usual next
-    // step); the rest of the filters open from the Filters button, and what is on shows below
+    // step); the rest of the filters set in the sheet show in the toolbar
     const showDrillDown = selectedCourse !== 'all' && (showLanguages || availableCourseDates.length > 0);
-    const desktopFilters = activeFilters.filter(f =>
-        f.id !== 'course' && !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')));
-    // What the Filters button holds: on a phone the course too
-    const sheetFilterCount = isSmallScreen ? activeFilters.length : activeFilters.filter(f => f.id !== 'course').length;
+    const desktopFilters = sheetFilters.filter(f => !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')));
+
+    // Phone: the course row scrolls sideways, so bring the chosen course into view (once courses load too)
+    const hasCourses = uniqueCourses.length > 0;
+    useEffect(() => {
+        const row = courseRowRef.current;
+        const chip = row?.querySelector<HTMLElement>('[aria-pressed="true"]');
+        if (!row || !chip || row.scrollWidth <= row.clientWidth) return;
+        const rowBox = row.getBoundingClientRect();
+        const chipBox = chip.getBoundingClientRect();
+        row.scrollLeft += chipBox.left - rowBox.left - (rowBox.width - chipBox.width) / 2;
+    }, [selectedCourse, hasCourses]);
 
     const renderFilterChip = (filter: typeof activeFilters[number]) => (
         <span
@@ -384,27 +392,22 @@ export default function FilterBar({
             <div className="flex items-center gap-1.5 md:gap-2">
                 <SearchField value={searchQuery} onChange={setSearchQuery} />
 
-                {/* Desktop: the course, picked from a searchable list */}
-                <div className="hidden md:block">
-                    <CourseFilter courses={uniqueCourses} value={selectedCourse} onChange={id => { if (id !== selectedCourse) selectCourse(id); }} />
-                </div>
-
-                {/* Every other filter lives in one sheet (on a phone, the course too) */}
+                {/* Every filter but the course lives in one sheet */}
                 <button
                     type="button"
                     onClick={() => setSheetOpen(true)}
                     aria-label="Open filters"
                     className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 ${
-                        sheetFilterCount > 0
+                        sheetFilters.length > 0
                             ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300 border-brand-500/40'
                             : 'bg-surface-elevated text-primary border-border-strong hover:border-brand-500'
                     }`}
                 >
                     <SlidersHorizontal size={14} />
                     <span>Filters</span>
-                    {sheetFilterCount > 0 && (
+                    {sheetFilters.length > 0 && (
                         <span className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-[10px] font-bold">
-                            {sheetFilterCount}
+                            {sheetFilters.length}
                         </span>
                     )}
                 </button>
@@ -457,10 +460,25 @@ export default function FilterBar({
                 </CustomTooltip>
             </div>
 
-            {/* Mobile: what's applied, removable in one tap */}
-            {activeFilters.length > 0 && (
+            {/* Courses, one click each: wrapped on a larger screen, one sideways-scrolling row on a phone */}
+            {hasCourses && (
+                <div
+                    ref={courseRowRef}
+                    role="group"
+                    aria-label="Course"
+                    className="flex md:flex-wrap items-center gap-1.5 overflow-x-auto md:overflow-visible scrollbar-none -mx-2 px-2 sm:mx-0 sm:px-0"
+                >
+                    <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
+                    {uniqueCourses.map(c => (
+                        <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
+                    ))}
+                </div>
+            )}
+
+            {/* Mobile: what's applied in the sheet, removable in one tap */}
+            {sheetFilters.length > 0 && (
                 <div className="md:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-none -mx-2 px-2 sm:mx-0 sm:px-0">
-                    {activeFilters.map(renderFilterChip)}
+                    {sheetFilters.map(renderFilterChip)}
                     <button
                         type="button"
                         onClick={clearFilters}
@@ -513,16 +531,6 @@ export default function FilterBar({
                     </>
                 }
             >
-                <section className="space-y-2 md:hidden">
-                    <GroupLabel icon={<GraduationCap size={12} />}>Course</GroupLabel>
-                    <div className="flex flex-wrap gap-1.5">
-                        <Chip size="lg" active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
-                        {uniqueCourses.map(c => (
-                            <Chip key={c.id} size="lg" active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
-                        ))}
-                    </div>
-                </section>
-
                 {showInviteChips && (
                     <section className="space-y-2">
                         <GroupLabel icon={<Timer size={12} />} className="text-status-rejected">Invites</GroupLabel>

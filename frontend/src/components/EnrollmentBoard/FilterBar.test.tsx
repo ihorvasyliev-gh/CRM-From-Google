@@ -122,15 +122,16 @@ describe('FilterBar Component - Date Filter', () => {
             />
         );
 
-        // The Filters button counts the date: the course has its own picker (search its own field)
+        // The Filters button counts the date: the course shows as its pressed chip (search has its own field)
         expect(screen.getByRole('button', { name: /Open filters/i })).toHaveTextContent('1');
-        expect(screen.getByRole('button', { name: 'Course: Patient moving and handling' })).toBeInTheDocument();
+        expect(screen.queryByLabelText('Remove Course filter')).not.toBeInTheDocument();
         expect(screen.queryByText(/"Alice"/)).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByLabelText('Remove Date filter'));
         expect(mockSetSelectedCourseDate).toHaveBeenCalledWith('all');
 
-        fireEvent.click(screen.getByLabelText('Remove Course filter'));
+        // Clicking the chosen course again goes back to every course
+        fireEvent.click(screen.getByRole('button', { name: 'Patient moving and handling', pressed: true }));
         expect(mockSetSelectedCourse).toHaveBeenCalledWith('all');
         expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
     });
@@ -162,14 +163,27 @@ describe('FilterBar Component - Date Filter', () => {
         expect(within(screen.getByRole('dialog')).getByText('Course date')).toBeInTheDocument();
     });
 
-    it('shows no chip per course, and the chosen course\'s dates only once one is chosen', () => {
-        const courses = [{ id: 'course-1', name: 'Patient moving and handling' }, { id: 'course-2', name: 'Barista Skills' }];
+    it('shows every course as a chip, picked in one click, and the chosen course\'s dates once one is chosen', () => {
+        const courses = [{ id: 'course-2', name: 'Barista Skills' }, { id: 'course-1', name: 'Patient moving and handling' }];
         const { rerender } = render(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="all" />);
-        expect(screen.queryByRole('button', { name: 'Barista Skills' })).not.toBeInTheDocument();
+        const row = screen.getByRole('group', { name: 'Course' });
+        expect(within(row).getAllByRole('button').map(b => b.textContent)).toEqual(['All courses', 'Barista Skills', 'Patient moving and handling']);
+        expect(within(row).getByRole('button', { name: 'All courses' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.queryByText('All dates')).not.toBeInTheDocument();
 
+        fireEvent.click(within(row).getByRole('button', { name: 'Barista Skills' }));
+        expect(mockSetSelectedCourse).toHaveBeenCalledWith('course-2');
+        expect(mockSetSelectedVariant).toHaveBeenCalledWith('all');
+
         rerender(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="course-2" />);
+        expect(within(row).getByRole('button', { name: 'Barista Skills' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByText('All dates')).toBeInTheDocument();
+
+        fireEvent.click(within(row).getByRole('button', { name: 'All courses' }));
+        expect(mockSetSelectedCourse).toHaveBeenLastCalledWith('all');
+        // Courses are no longer repeated in the filter sheet
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
+        expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Barista Skills' })).not.toBeInTheDocument();
     });
 
     it('changes sort order from the toolbar select', () => {
