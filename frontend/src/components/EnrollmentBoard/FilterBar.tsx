@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
-import CourseFilter from './CourseFilter';
 import { useIsSmallScreen } from '../../hooks/useScreenSize';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { CustomTooltip } from '../ui/Tooltip';
@@ -277,8 +276,8 @@ export default function FilterBar({
             onRemove: () => setInviteFilter('all'),
         });
     }
-    // Desktop: with a course chosen, its languages and dates stay in view as chips (the usual next
-    // step); the rest of the filters open from the Filters button, and what is on shows below
+    // Desktop: the course has its own chip row, and with a course chosen its languages and dates stay
+    // in view as chips (the usual next step); the rest of the filters set in the sheet show in the toolbar
     const showDrillDown = selectedCourse !== 'all' && (showLanguages || availableCourseDates.length > 0);
     const desktopFilters = activeFilters.filter(f =>
         f.id !== 'course' && !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')));
@@ -384,11 +383,6 @@ export default function FilterBar({
             <div className="flex items-center gap-1.5 md:gap-2">
                 <SearchField value={searchQuery} onChange={setSearchQuery} />
 
-                {/* Desktop: the course, picked from a searchable list */}
-                <div className="hidden md:block">
-                    <CourseFilter courses={uniqueCourses} value={selectedCourse} onChange={id => { if (id !== selectedCourse) selectCourse(id); }} />
-                </div>
-
                 {/* Every other filter lives in one sheet (on a phone, the course too) */}
                 <button
                     type="button"
@@ -471,7 +465,17 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Desktop row 2, with a course chosen: its languages and upcoming dates, one line */}
+            {/* Desktop row 2: every course, one click each */}
+            {uniqueCourses.length > 0 && (
+                <div role="group" aria-label="Course" className="hidden md:flex flex-wrap items-center gap-1.5">
+                    <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
+                    {uniqueCourses.map(c => (
+                        <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
+                    ))}
+                </div>
+            )}
+
+            {/* Desktop row 3, with a course chosen: its languages and upcoming dates, one line */}
             {showDrillDown && (
                 <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
                     {showLanguages && (
