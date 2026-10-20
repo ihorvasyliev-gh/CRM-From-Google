@@ -12,7 +12,7 @@ import {
     type CourseSession,
 } from '../lib/courseSessions';
 import { COURSE_SESSIONS_QUERY_KEY } from './useCourseSessions';
-import { cancelListReload, restoreCachedRows } from '../lib/enrollmentCache';
+import { cancelListReload, refreshCachedEnrollments, restoreCachedRows } from '../lib/enrollmentCache';
 
 export interface DateStats {
     pending: number;
@@ -56,6 +56,16 @@ async function fetchSession(courseId: string | undefined, date: string): Promise
         console.warn('Course date schedule unavailable (is migration 79 applied?):', err);
         return null;
     }
+}
+
+/** Statuses an invitation replaces only when the organizer chose such a row knowingly. */
+const PLACED_STATUSES = ['confirmed', 'completed'];
+
+/** Who an invitation is for. placedIds: those who already had a place when the dialog opened. */
+interface InviteTarget {
+    ids: string[];
+    bulk: boolean;
+    placedIds: string[];
 }
 
 /** Time & place of an invitation that aren't tied to one course date. */
@@ -177,7 +187,7 @@ export function useInviteFlow({
     showToast
 }: UseInviteFlowProps) {
     const queryClient = useQueryClient();
-    const [inviteDateTarget, setInviteDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
+    const [inviteDateTarget, setInviteDateTarget] = useState<InviteTarget | null>(null);
     const [inviteDate, setInviteDate] = useState(todayISO());
     // Multi-date mode: several groups of the same course, the student picks one date
     const [multiDate, setMultiDate] = useState(false);
@@ -229,7 +239,16 @@ export function useInviteFlow({
     }
 
     function openInviteModal(ids: string[], bulk: boolean) {
-        setInviteDateTarget({ ids, bulk });
+        const chosen = enrollments.filter(e => ids.includes(e.id));
+        // One invitation has one confirmation link and one set of dates, both for a single course
+        if (new Set(chosen.map(e => e.course_id)).size > 1) {
+            showToast('Select people from one course to invite: the confirmation link works for one course only.', 'error');
+            return;
+        }
+        // The board asks before re-inviting people who have a place; anyone else who
+        // confirms while this dialog is open keeps their place (see inviteMutation)
+        const placedIds = chosen.filter(e => PLACED_STATUSES.includes(e.status)).map(e => e.id);
+        setInviteDateTarget({ ids, bulk, placedIds });
         setInviteDate(todayISO());
         setMultiDate(false);
         setInviteDates([]);
@@ -337,7 +356,7 @@ export function useInviteFlow({
     }
 
     const inviteMutation = useMutation({
-        mutationFn: async ({ ids, dates, days, sessions }: { ids: string[], dates: string[], days: number, sessions: CourseSession[] }) => {
+        mutationFn: async ({ ids, placedIds, dates, days, sessions }: { ids: string[], placedIds: string[], dates: string[], days: number, sessions: CourseSession[] }) => {
             const first = enrollments.find(e => ids.includes(e.id));
             if (first && first.course_id) {
                 const courseId = first.course_id;
@@ -354,13 +373,21 @@ export function useInviteFlow({
 
             const updatePayload = buildInvitePayload(dates, days);
 
-            const { error } = await supabase
+            // A person who confirms after the dialog opened keeps their place: only the rows
+            // that had one at that point (chosen knowingly) may lose it
+            const placed = `(${PLACED_STATUSES.join(',')})`;
+            const query = supabase
                 .from('enrollments')
                 .update(updatePayload)
                 .in('id', ids);
+            const { data, error } = await (placedIds.length > 0
+                ? query.or(`status.not.in.${placed},id.in.(${placedIds.join(',')})`)
+                : query.not('status', 'in', placed)
+            ).select('id');
             if (error) throw error;
 
-            return { ids, updatePayload };
+            const written = new Set((data ?? []).map((row: { id: string }) => row.id));
+            return { ids: ids.filter(id => written.has(id)), skipped: ids.filter(id => !written.has(id)), updatePayload };
         },
         onMutate: async ({ ids, dates, days }) => {
             cancelListReload(queryClient);
@@ -376,7 +403,10 @@ export function useInviteFlow({
         onSuccess: (data) => {
             clearSelection();
             queryClient.invalidateQueries({ queryKey: COURSE_SESSIONS_QUERY_KEY });
-            showToast(`${data.ids.length} enrollment(s) → invited`, 'success');
+            // They were shown as invited straight away: put back what the database has
+            if (data.skipped.length > 0) void refreshCachedEnrollments(queryClient, data.skipped);
+            const kept = data.skipped.length > 0 ? ` · ${data.skipped.length} confirmed meanwhile and kept their place` : '';
+            showToast(`${data.ids.length} enrollment(s) → invited${kept}`, 'success');
         },
         onError: (_err, variables, context) => {
             if (context?.previousEnrollments) {
@@ -390,7 +420,8 @@ export function useInviteFlow({
 
     async function handleInviteWithDate() {
         if (!inviteDateTarget || !canInvite) return;
-        inviteMutation.mutate({ ids: inviteDateTarget.ids, dates: selectedDates, days: responseDays, sessions: selectedSessions });
+        const { ids, placedIds } = inviteDateTarget;
+        inviteMutation.mutate({ ids, placedIds, dates: selectedDates, days: responseDays, sessions: selectedSessions });
         setInviteDateTarget(null);
     }
 
@@ -428,16 +459,26 @@ export function useInviteFlow({
         const courseInfo = await fetchCourseInfo(first?.course_id);
 
         // Await the database update so mailto navigation doesn't abort the HTTP request
+        let invited: string[];
         try {
-            await inviteMutation.mutateAsync({ ids, dates, days: responseDays, sessions: selectedSessions });
+            ({ ids: invited } = await inviteMutation.mutateAsync({ ids, placedIds: inviteDateTarget.placedIds, dates, days: responseDays, sessions: selectedSessions }));
         } catch (err) {
             console.error('Failed to complete invite mutation:', err);
             return;
         }
+        // Whoever confirmed while the dialog was open needs no invitation
+        const recipients = selectedEnrollments.filter(e => invited.includes(e.id));
+        if (recipients.length === 0) {
+            setInviteDateTarget(null);
+            return;
+        }
+        const keptNote = recipients.length < selectedEnrollments.length
+            ? ` · ${selectedEnrollments.length - recipients.length} confirmed meanwhile, not emailed`
+            : '';
 
         const requiresEnglish = Boolean(first?.courses?.requires_english);
         const htmlBody = buildEmailBodyHtml(courseName, dates.map(formatDateLongWithWeekday), confirmLink, undefined, responseDays, requiresEnglish, 'invite', courseInfo, sessions);
-        await copyHtmlAndOpenDraft(htmlBody, selectedEnrollments.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted), skippedNote(skipped.length), showToast);
+        await copyHtmlAndOpenDraft(htmlBody, recipients.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted), skippedNote(skipped.length) + keptNote, showToast);
         setInviteDateTarget(null);
     }
 
