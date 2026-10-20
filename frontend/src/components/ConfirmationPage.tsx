@@ -378,6 +378,69 @@ export default function ConfirmationPage() {
         }
     }
 
+    /** Fully booked view: someone who already has a place (e.g. added by the organizer) checks it by email. */
+    async function handleCheckPlace(e: React.FormEvent) {
+        e.preventDefault();
+
+        const trimmedEmail = email.trim().toLowerCase();
+        if (!trimmedEmail || !trimmedEmail.includes('@')) {
+            setInlineError('Please enter a valid email address.');
+            return;
+        }
+
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+        setIsSubmitting(true);
+        setInlineError('');
+        try {
+            // Returns only pending invitations, i.e. people who have no place yet
+            const { data: pending, error: findError } = await supabase.rpc('find_students_by_email', {
+                p_email: trimmedEmail,
+                p_course_id: courseId,
+            });
+            if (findError) {
+                setInlineError('Something went wrong. Please try again.');
+                return;
+            }
+            if (pending && pending.length > 0) {
+                // A place may have come free since the page loaded: then they confirm as usual
+                const stillFull = isMultiDate
+                    ? allDatesFull(courseDates, await fetchDateCapacities(courseId, courseDates))
+                    : await fetchCapacity(courseId, courseDate);
+                if (stillFull) {
+                    setInlineError("This email doesn't have a place in this group yet, and all places are taken.");
+                } else {
+                    setState('form');
+                }
+                return;
+            }
+
+            // No pending invitation, so nothing is confirmed here: the reply only says
+            // whether this email already has a place on the course
+            const { data, error } = await supabase.rpc('public_confirm_enrollment', {
+                p_email: trimmedEmail,
+                p_course_id: courseId,
+                p_student_id: null,
+            });
+            if (error) {
+                setInlineError(error.message || 'Something went wrong. Please try again.');
+                return;
+            }
+            if (data?.success) {
+                setResultMessage(data.message || 'You have a place on this course. We look forward to seeing you!');
+                setState('success');
+            } else {
+                setInlineError(data?.message || 'No place found for this email.');
+            }
+        } catch (err) {
+            console.error('Check place error:', err);
+            setInlineError('Network error. Please check your connection and try again.');
+        } finally {
+            setIsSubmitting(false);
+            submittingRef.current = false;
+        }
+    }
+
     function toggleStudent(studentId: string) {
         setSelectedStudentIds(prev => {
             const next = new Set(prev);
@@ -816,11 +879,61 @@ export default function ConfirmationPage() {
                                         {isMultiDate ? 'All places for these dates have been taken' : 'All places for this date have been taken'}
                                     </h3>
                                     <p className="text-sm text-muted mt-1.5 leading-relaxed">
-                                        {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed. If you're still interested,
-                                        email {ORGANIZER_EMAIL} and you'll be given <strong className="text-primary">priority for the next course</strong>.
+                                        {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed.
                                     </p>
                                 </div>
 
+                                {/* People already in the group (confirmed earlier or added by the organizer) see their place here */}
+                                <form onSubmit={handleCheckPlace} className="p-4 rounded-xl bg-surface/80 border border-border-subtle space-y-3">
+                                    <div className="flex items-start gap-2.5">
+                                        <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-white">Already have a place?</p>
+                                            <p className="text-xs text-muted mt-0.5 leading-relaxed">
+                                                If you confirmed earlier or the organizer added you to the group, enter your email to see your place.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <label htmlFor="check-email" className="sr-only">Your email</label>
+                                        <div className="relative flex-1 min-w-0">
+                                            <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
+                                            <input
+                                                id="check-email"
+                                                type="email"
+                                                inputMode="email"
+                                                autoComplete="email"
+                                                autoCapitalize="none"
+                                                spellCheck={false}
+                                                required
+                                                value={email}
+                                                disabled={isSubmitting}
+                                                onChange={(e) => handleEmailInputChange(e.target.value)}
+                                                onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
+                                                placeholder="Your email address"
+                                                className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="shrink-0 flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation cursor-pointer"
+                                        >
+                                            {isSubmitting && <Loader2 size={16} className="animate-spin shrink-0" />}
+                                            <span>Check my place</span>
+                                        </button>
+                                    </div>
+                                    {inlineError && (
+                                        <p role="alert" className="flex items-start gap-2 text-xs text-amber-300 leading-relaxed animate-fadeIn">
+                                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                                            <span className="wrap-break-word">{inlineError}</span>
+                                        </p>
+                                    )}
+                                </form>
+
+                                <p className="text-sm text-muted leading-relaxed">
+                                    No place yet? If you're still interested, email {ORGANIZER_EMAIL} and you'll be given <strong className="text-primary">priority for the next course</strong>.
+                                </p>
                                 <a
                                     href={getPriorityMailtoUrl()}
                                     className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-brand-600/30 transition-all touch-manipulation"
@@ -831,11 +944,6 @@ export default function ConfirmationPage() {
                                 <p className="text-[11px] text-muted/80 leading-normal text-center -mt-1">
                                     Opens a pre-filled email to {ORGANIZER_EMAIL}.
                                 </p>
-
-                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs text-muted leading-relaxed">
-                                    <CheckCircle size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                                    <span>Already confirmed your place earlier? You're all set — no further action is needed.</span>
-                                </div>
 
                                 <div className="pt-4 border-t border-border-subtle/70 text-center">
                                     <p className="text-[11px] text-muted/80">
