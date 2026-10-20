@@ -220,7 +220,7 @@ describe('ConfirmationPage Component', () => {
         expect(await screen.findByText(/all places for this date have been taken/i)).toBeInTheDocument();
     });
 
-    function mockFullCourse({ pending = [] as any[], capacity = [true] as boolean[], confirm = { success: true, message: 'Your attendance has already been confirmed!' } as any } = {}) {
+    function mockFullCourse({ pending = [] as any[], capacity = [true] as boolean[], confirm = { success: true, message: 'Your attendance has already been confirmed!' } as any, confirmedSession = null as any[] | null } = {}) {
         // Each capacity lookup takes the next value; the last one repeats
         let lookups = 0;
         (supabase.rpc as any).mockImplementation(async (name: string) => {
@@ -236,6 +236,9 @@ describe('ConfirmationPage Component', () => {
             }
             if (name === 'public_confirm_enrollment') {
                 return { data: confirm, error: null } as any;
+            }
+            if (name === 'get_confirmed_session') {
+                return { data: confirmedSession, error: null } as any;
             }
             return { data: null, error: null } as any;
         });
@@ -259,6 +262,47 @@ describe('ConfirmationPage Component', () => {
             p_email: 'a@b.com',
             p_course_id: 'test-course-123',
             p_student_id: null,
+        });
+    });
+
+    it('shows the date, time and place the person is actually confirmed for', async () => {
+        mockFullCourse({ confirmedSession: [{ course_date: '2026-10-22', start_time: '09:00', end_time: '16:30', location: 'Heron House', days: null }] });
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/22 October 2026/)).toBeInTheDocument();
+        expect(screen.queryByText(/15 October 2026/)).not.toBeInTheDocument();
+        expect(screen.getByText(/09:00/)).toBeInTheDocument();
+        expect(screen.getByText('Heron House')).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('get_confirmed_session', {
+            p_email: 'a@b.com',
+            p_course_id: 'test-course-123',
+            p_student_id: null,
+        });
+    });
+
+    it('shows the time and place of the confirmed date after confirming', async () => {
+        mockFullCourse({
+            capacity: [false],
+            pending: [{ student_id: 's1', first_name: 'A', last_name: 'B' }],
+            confirm: { success: true, message: 'Your attendance has been confirmed!' },
+            confirmedSession: [{ course_date: '2026-10-15', start_time: '10:00', end_time: '14:00', location: 'Heron House', days: null }],
+        });
+        render(<ConfirmationPage />);
+
+        fireEvent.change(await screen.findByPlaceholderText(/enter registered email address/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/15 October 2026/)).toBeInTheDocument();
+        expect(screen.getByText(/10:00/)).toBeInTheDocument();
+        expect(screen.getByText('Heron House')).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('get_confirmed_session', {
+            p_email: 'a@b.com',
+            p_course_id: 'test-course-123',
+            p_student_id: 's1',
         });
     });
 
@@ -298,7 +342,7 @@ describe('ConfirmationPage Component', () => {
 describe('ConfirmationPage multi-date invitation', () => {
     const DATES = ['2026-10-14', '2026-10-15', '2026-10-16'];
 
-    function mockMultiDate({ fullDates = [] as string[], confirm, pending = [{ student_id: 's1', first_name: 'A', last_name: 'B' }] }: { fullDates?: string[]; confirm?: (args: any) => any; pending?: any[] } = {}) {
+    function mockMultiDate({ fullDates = [] as string[], confirm, pending = [{ student_id: 's1', first_name: 'A', last_name: 'B' }], confirmedSession = null }: { fullDates?: string[]; confirm?: (args: any) => any; pending?: any[]; confirmedSession?: any[] | null } = {}) {
         (supabase.rpc as any).mockImplementation(async (name: string, args: any) => {
             if (name === 'resolve_confirmation_token') {
                 return {
@@ -315,6 +359,9 @@ describe('ConfirmationPage multi-date invitation', () => {
             }
             if (name === 'public_confirm_enrollment') {
                 return { data: confirm ? confirm(args) : { success: true, message: 'Confirmed!' }, error: null } as any;
+            }
+            if (name === 'get_confirmed_session') {
+                return { data: confirmedSession, error: null } as any;
             }
             return { data: null, error: null } as any;
         });
@@ -379,13 +426,20 @@ describe('ConfirmationPage multi-date invitation', () => {
     });
 
     it('lets someone already in the group check their place when every offered date is full', async () => {
-        mockMultiDate({ fullDates: DATES, pending: [], confirm: () => ({ success: true, message: 'Your attendance has already been confirmed!' }) });
+        mockMultiDate({
+            fullDates: DATES,
+            pending: [],
+            confirm: () => ({ success: true, message: 'Your attendance has already been confirmed!' }),
+            confirmedSession: [{ course_date: '2026-10-16', start_time: '18:00', end_time: '20:00', location: 'Room 4', days: null }],
+        });
         render(<ConfirmationPage />);
 
         fireEvent.change(await screen.findByLabelText(/your email/i), { target: { value: 'a@b.com' } });
         fireEvent.click(screen.getByRole('button', { name: /check my place/i }));
 
         expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/16 October 2026/)).toBeInTheDocument();
+        expect(screen.getByText('Room 4')).toBeInTheDocument();
         expect(supabase.rpc).toHaveBeenCalledWith('public_confirm_enrollment', {
             p_email: 'a@b.com',
             p_course_id: 'c-1',

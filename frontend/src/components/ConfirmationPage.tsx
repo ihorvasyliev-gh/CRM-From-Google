@@ -116,6 +116,26 @@ export default function ConfirmationPage() {
         }
     }, []);
 
+    /**
+     * Shows the date the person is actually confirmed for, with its time and place.
+     * Keeps the link's date when it is unknown (e.g. migration 86 missing).
+     */
+    const loadConfirmedSession = useCallback(async (emailAddress: string, studentId: string | null) => {
+        try {
+            const { data, error } = await supabase.rpc('get_confirmed_session', {
+                p_email: emailAddress,
+                p_course_id: courseId,
+                p_student_id: studentId,
+            });
+            const session = !error && Array.isArray(data) && data[0] ? sessionFromRow(data[0]) : null;
+            if (!session) return;
+            setCourseDate(session.date);
+            if (sessionHasSchedule(session)) setSessions(prev => ({ ...prev, [session.date]: session }));
+        } catch (err) {
+            console.warn('get_confirmed_session exception:', err);
+        }
+    }, [courseId]);
+
     const resolveToken = useCallback(async (token: string) => {
         void loadSessions(token);
         try {
@@ -356,6 +376,7 @@ export default function ConfirmationPage() {
                 }
                 if (data && data.success) {
                     setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you.');
+                    await loadConfirmedSession(trimmedEmail, students?.[0]?.student_id ?? null);
                     setState('success');
                 } else if (data?.code === 'course_full') {
                     await handleCourseFull();
@@ -428,6 +449,7 @@ export default function ConfirmationPage() {
             }
             if (data?.success) {
                 setResultMessage(data.message || 'You have a place on this course. We look forward to seeing you!');
+                await loadConfirmedSession(trimmedEmail, null);
                 setState('success');
             } else {
                 setInlineError(data?.message || 'No place found for this email.');
@@ -488,6 +510,7 @@ export default function ConfirmationPage() {
                         ? ` Unfortunately the course filled up before everyone could be confirmed — please email ${ORGANIZER_EMAIL} about the next course.`
                         : '';
                 setResultMessage(`Attendance confirmed for: ${confirmedNames}.${note}`);
+                await loadConfirmedSession(trimmedEmail, results.find(r => r.success)?.id ?? null);
                 setState('success');
             } else if (results.some(r => r.code === 'course_full')) {
                 await handleCourseFull();
