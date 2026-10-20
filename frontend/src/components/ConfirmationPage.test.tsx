@@ -219,12 +219,130 @@ describe('ConfirmationPage Component', () => {
 
         expect(await screen.findByText(/all places for this date have been taken/i)).toBeInTheDocument();
     });
+
+    function mockFullCourse({ pending = [] as any[], capacity = [true] as boolean[], confirm = { success: true, message: 'Your attendance has already been confirmed!' } as any, confirmedSession = null as any[] | null } = {}) {
+        // Each capacity lookup takes the next value; the last one repeats
+        let lookups = 0;
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
+            if (name === 'get_public_course_info') {
+                return { data: [{ course_name: 'Python for Beginners' }], error: null } as any;
+            }
+            if (name === 'get_course_capacity') {
+                const full = capacity[Math.min(lookups++, capacity.length - 1)];
+                return { data: [{ max_capacity: 10, confirmed_count: full ? 10 : 9, is_full: full }], error: null } as any;
+            }
+            if (name === 'find_students_by_email') {
+                return { data: pending, error: null } as any;
+            }
+            if (name === 'public_confirm_enrollment') {
+                return { data: confirm, error: null } as any;
+            }
+            if (name === 'get_confirmed_session') {
+                return { data: confirmedSession, error: null } as any;
+            }
+            return { data: null, error: null } as any;
+        });
+    }
+
+    async function checkPlace(emailAddress: string) {
+        fireEvent.change(await screen.findByLabelText(/your email/i), { target: { value: emailAddress } });
+        fireEvent.click(screen.getByRole('button', { name: /check my place/i }));
+    }
+
+    it('shows their place to someone already in the group when the course date is full', async () => {
+        mockFullCourse();
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText('Your attendance has already been confirmed!')).toBeInTheDocument();
+        expect(screen.getByText(/15 October 2026/)).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('public_confirm_enrollment', {
+            p_email: 'a@b.com',
+            p_course_id: 'test-course-123',
+            p_student_id: null,
+        });
+    });
+
+    it('shows the date, time and place the person is actually confirmed for', async () => {
+        mockFullCourse({ confirmedSession: [{ course_date: '2026-10-22', start_time: '09:00', end_time: '16:30', location: 'Heron House', days: null }] });
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/22 October 2026/)).toBeInTheDocument();
+        expect(screen.queryByText(/15 October 2026/)).not.toBeInTheDocument();
+        expect(screen.getByText(/09:00/)).toBeInTheDocument();
+        expect(screen.getByText('Heron House')).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('get_confirmed_session', {
+            p_email: 'a@b.com',
+            p_course_id: 'test-course-123',
+            p_student_id: null,
+        });
+    });
+
+    it('shows the time and place of the confirmed date after confirming', async () => {
+        mockFullCourse({
+            capacity: [false],
+            pending: [{ student_id: 's1', first_name: 'A', last_name: 'B' }],
+            confirm: { success: true, message: 'Your attendance has been confirmed!' },
+            confirmedSession: [{ course_date: '2026-10-15', start_time: '10:00', end_time: '14:00', location: 'Heron House', days: null }],
+        });
+        render(<ConfirmationPage />);
+
+        fireEvent.change(await screen.findByPlaceholderText(/enter registered email address/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /confirm my participation/i }));
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/15 October 2026/)).toBeInTheDocument();
+        expect(screen.getByText(/10:00/)).toBeInTheDocument();
+        expect(screen.getByText('Heron House')).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('get_confirmed_session', {
+            p_email: 'a@b.com',
+            p_course_id: 'test-course-123',
+            p_student_id: 's1',
+        });
+    });
+
+    it('tells someone with no place yet that the group is full, without confirming anything', async () => {
+        mockFullCourse({ pending: [{ student_id: 's1', first_name: 'A', last_name: 'B' }] });
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByText(/doesn't have a place in this group yet/i)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /priority for the next course/i })).toBeInTheDocument();
+        expect(supabase.rpc).not.toHaveBeenCalledWith('public_confirm_enrollment', expect.anything());
+    });
+
+    it('opens the confirmation form when a place has come free since the page loaded', async () => {
+        mockFullCourse({ pending: [{ student_id: 's1', first_name: 'A', last_name: 'B' }], capacity: [true, false] });
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByRole('button', { name: /confirm my participation/i })).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/enter registered email address/i)).toHaveValue('a@b.com');
+        expect(supabase.rpc).not.toHaveBeenCalledWith('public_confirm_enrollment', expect.anything());
+    });
+
+    it('shows the reason when the email has no place on the course', async () => {
+        mockFullCourse({ confirm: { success: false, message: 'No pending invitation found for this course. Please contact the organizer.' } });
+        render(<ConfirmationPage />);
+
+        await checkPlace('a@b.com');
+
+        expect(await screen.findByText(/no pending invitation found/i)).toBeInTheDocument();
+        expect(screen.queryByText(/you're all set/i)).not.toBeInTheDocument();
+    });
 });
 
 describe('ConfirmationPage multi-date invitation', () => {
     const DATES = ['2026-10-14', '2026-10-15', '2026-10-16'];
 
-    function mockMultiDate({ fullDates = [] as string[], confirm }: { fullDates?: string[]; confirm?: (args: any) => any } = {}) {
+    function mockMultiDate({ fullDates = [] as string[], confirm, pending = [{ student_id: 's1', first_name: 'A', last_name: 'B' }], confirmedSession = null }: { fullDates?: string[]; confirm?: (args: any) => any; pending?: any[]; confirmedSession?: any[] | null } = {}) {
         (supabase.rpc as any).mockImplementation(async (name: string, args: any) => {
             if (name === 'resolve_confirmation_token') {
                 return {
@@ -237,10 +355,13 @@ describe('ConfirmationPage multi-date invitation', () => {
                 return { data: [{ max_capacity: 10, confirmed_count: full ? 10 : 4, is_full: full }], error: null } as any;
             }
             if (name === 'find_students_by_email') {
-                return { data: [{ student_id: 's1', first_name: 'A', last_name: 'B' }], error: null } as any;
+                return { data: pending, error: null } as any;
             }
             if (name === 'public_confirm_enrollment') {
                 return { data: confirm ? confirm(args) : { success: true, message: 'Confirmed!' }, error: null } as any;
+            }
+            if (name === 'get_confirmed_session') {
+                return { data: confirmedSession, error: null } as any;
             }
             return { data: null, error: null } as any;
         });
@@ -302,6 +423,28 @@ describe('ConfirmationPage multi-date invitation', () => {
         render(<ConfirmationPage />);
 
         expect(await screen.findByText(/all places for these dates have been taken/i)).toBeInTheDocument();
+    });
+
+    it('lets someone already in the group check their place when every offered date is full', async () => {
+        mockMultiDate({
+            fullDates: DATES,
+            pending: [],
+            confirm: () => ({ success: true, message: 'Your attendance has already been confirmed!' }),
+            confirmedSession: [{ course_date: '2026-10-16', start_time: '18:00', end_time: '20:00', location: 'Room 4', days: null }],
+        });
+        render(<ConfirmationPage />);
+
+        fireEvent.change(await screen.findByLabelText(/your email/i), { target: { value: 'a@b.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /check my place/i }));
+
+        expect(await screen.findByText(/you're all set/i)).toBeInTheDocument();
+        expect(screen.getByText(/16 October 2026/)).toBeInTheDocument();
+        expect(screen.getByText('Room 4')).toBeInTheDocument();
+        expect(supabase.rpc).toHaveBeenCalledWith('public_confirm_enrollment', {
+            p_email: 'a@b.com',
+            p_course_id: 'c-1',
+            p_student_id: null,
+        });
     });
 
     it('asks to pick another date when the chosen one fills up during confirmation', async () => {
