@@ -15,7 +15,34 @@ const supabaseMocks = vi.hoisted(() => ({
     inviteDateRows: [] as Record<string, unknown>[],
     /** Migration 79 not applied: reading or writing the schedule columns fails */
     noScheduleColumns: false,
+    /** Statuses in the database that differ from the rows the hook was given (changed meanwhile) */
+    dbStatus: {} as Record<string, string>,
 }));
+
+/**
+ * Chainable stand-in for update().in('id', …) with the status guard (.not / .or), resolving on
+ * .select('id') to the rows it wrote. Statuses come from dbStatus, else the given rows.
+ */
+function updateQuery(rowStatus: (id: string) => string | undefined) {
+    let ids: string[] = [];
+    let keep: (id: string) => boolean = () => true;
+    const chain = {
+        in: (_col: string, values: string[]) => { ids = values; return chain; },
+        not: (_col: string, _op: string, list: string) => {
+            const placed = list.slice(1, -1).split(',');
+            keep = id => !placed.includes(rowStatus(id) ?? '');
+            return chain;
+        },
+        or: (filter: string) => {
+            const placed = /status\.not\.in\.\(([^)]*)\)/.exec(filter)![1].split(',');
+            const allowed = /id\.in\.\(([^)]*)\)/.exec(filter)![1].split(',');
+            keep = id => !placed.includes(rowStatus(id) ?? '') || allowed.includes(id);
+            return chain;
+        },
+        select: () => Promise.resolve({ data: ids.filter(id => keep(id)).map(id => ({ id })), error: null }),
+    };
+    return chain;
+}
 
 /** Chainable, awaitable stand-in for a PostgREST select (eq filters on columns the rows have). */
 function selectQuery(columns: string) {
@@ -25,6 +52,8 @@ function selectQuery(columns: string) {
     const chain = {
         eq: (col: string, value: unknown) => { rows = rows.filter(r => !(col in r) || r[col] === value); return chain; },
         gte: () => chain,
+        // Only the unsubscribe list is read with .in(): nobody has unsubscribed
+        in: () => { rows = []; return chain; },
         order: () => chain,
         or: () => chain,
         maybeSingle: () => Promise.resolve(failing ? result() : { data: rows[0] ?? null, error: null }),
@@ -44,7 +73,7 @@ vi.mock('../lib/supabase', () => ({
             },
             update: (payload: unknown) => {
                 supabaseMocks.update(payload);
-                return { in: () => Promise.resolve({ error: null }) };
+                return updateQuery(id => supabaseMocks.dbStatus[id] ?? mockEnrollments.find(e => e.id === id)?.status);
             }
         }),
         rpc: (name: string, args: unknown) => {
@@ -186,6 +215,7 @@ const mockEnrollments: EnrollmentRow[] = [
 beforeEach(() => {
     supabaseMocks.inviteDateRows = DEFAULT_INVITE_DATE_ROWS;
     supabaseMocks.noScheduleColumns = false;
+    supabaseMocks.dbStatus = {};
 });
 
 describe('useInviteFlow getDateStats', () => {
@@ -634,5 +664,85 @@ describe('useInviteFlow course date schedule (time, place, days)', () => {
         });
         await vi.waitFor(() => expect(supabaseMocks.update).toHaveBeenCalled());
         expect(supabaseMocks.upsert).toHaveBeenCalledWith([{ course_id: 'c-1', invite_date: '2026-10-20' }]);
+    });
+});
+
+describe('useInviteFlow keeps confirmations made while the dialog is open', () => {
+    const row = (id: string, status: EnrollmentRow['status'], email: string, courseId = 'c-1'): EnrollmentRow => ({
+        ...mockEnrollments[0],
+        id,
+        status,
+        course_id: courseId,
+        students: { email } as EnrollmentRow['students'],
+    });
+    const rows = [
+        row('en-a', 'invited', 'a@example.com'),
+        row('en-b', 'requested', 'b@example.com'),
+        row('en-c', 'confirmed', 'c@example.com'),
+        row('en-x', 'requested', 'x@example.com', 'c-2'),
+    ];
+
+    function renderInviteFlow(showToast = vi.fn()) {
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        return renderHook(() => useInviteFlow({
+            enrollments: rows,
+            setEnrollments: vi.fn(),
+            clearSelection: vi.fn(),
+            showToast,
+        }), { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> });
+    }
+
+    /** Runs Invite & Email; returns the clipboard write, made only when the email draft opens. */
+    async function inviteAndEmail(ids: string[], showToast = vi.fn()) {
+        const write = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+        vi.stubGlobal('ClipboardItem', class { constructor(public items: unknown) {} });
+        try {
+            const { result } = renderInviteFlow(showToast);
+            await act(async () => {
+                result.current.openInviteModal(ids, true);
+            });
+            await act(async () => {
+                await result.current.handleInviteAndEmail();
+            });
+            return write;
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    }
+
+    it('leaves someone who confirmed meanwhile confirmed and out of the email', async () => {
+        supabaseMocks.dbStatus = { 'en-a': 'confirmed' };
+        const showToast = vi.fn();
+        const write = await inviteAndEmail(['en-a', 'en-b'], showToast);
+
+        expect(write).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith('1 enrollment(s) → invited · 1 confirmed meanwhile and kept their place', 'success');
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('1 confirmed meanwhile, not emailed'), 'success');
+    });
+
+    it('opens no email when everyone confirmed meanwhile', async () => {
+        supabaseMocks.dbStatus = { 'en-a': 'confirmed' };
+        const write = await inviteAndEmail(['en-a']);
+        expect(write).not.toHaveBeenCalled();
+    });
+
+    it('still re-invites someone who had a place when the dialog opened', async () => {
+        supabaseMocks.dbStatus = { 'en-c': 'confirmed' };
+        const showToast = vi.fn();
+        const write = await inviteAndEmail(['en-c', 'en-b'], showToast);
+
+        expect(write).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith('2 enrollment(s) → invited', 'success');
+        expect(showToast).not.toHaveBeenCalledWith(expect.stringContaining('meanwhile'), expect.anything());
+    });
+
+    it('refuses to invite people from different courses with one link', async () => {
+        const showToast = vi.fn();
+        const { result } = renderInviteFlow(showToast);
+        act(() => result.current.openInviteModal(['en-b', 'en-x'], true));
+
+        expect(result.current.inviteDateTarget).toBeNull();
+        expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/one course/), 'error');
     });
 });
