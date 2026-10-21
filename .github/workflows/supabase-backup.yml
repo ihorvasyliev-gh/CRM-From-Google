@@ -62,9 +62,10 @@ jobs:
         with:
           version: latest
 
+      # Та же версия, что у фронтенда: обновлять в одном месте
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: frontend/.node-version
 
       # Тот же набор, что в официальной инструкции Supabase: роли, схема, данные
       # (данные включают auth.users и метаданные storage)
