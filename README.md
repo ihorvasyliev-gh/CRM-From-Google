@@ -360,7 +360,7 @@ The same three run on GitHub for every pull request and push to `main` ([`.githu
 | Build command | `npm run build` |
 | Output directory | `dist` |
 | Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
-| Node.js | 24 LTS, the exact patch version pinned by [`frontend/.node-version`](frontend/.node-version) (also used by CI and the backup). Bump it when Node.js ships a security release |
+| Node.js | 24 LTS, pinned by [`frontend/.node-version`](frontend/.node-version). CI and the backup read the same file and always fetch the newest 24.x |
 
 Security headers, the CSP and cache rules ship from [`frontend/public/_headers`](frontend/public/_headers). SPA routing works out of the box.
 
