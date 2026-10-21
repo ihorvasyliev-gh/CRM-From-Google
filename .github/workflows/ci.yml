@@ -23,9 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # check-latest: the newest 24.x, not an older one cached on the runner,
+      # so Node.js security releases reach CI without a bump
       - uses: actions/setup-node@v5
         with:
           node-version-file: frontend/.node-version
+          check-latest: true
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

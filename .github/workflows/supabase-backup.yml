@@ -62,9 +62,11 @@ jobs:
         with:
           version: latest
 
+      # Та же ветка Node, что у фронтенда, и всегда её свежий релиз с исправлениями
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: frontend/.node-version
+          check-latest: true
 
       # Тот же набор, что в официальной инструкции Supabase: роли, схема, данные
       # (данные включают auth.users и метаданные storage)
