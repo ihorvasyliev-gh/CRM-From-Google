@@ -1,0 +1,552 @@
+// ─── Cheque requisitions: reading a supplier invoice ───────────
+// Invoices come from many systems (Xero, QuickBooks, Sage, Word…), so nothing here relies
+// on one layout. The text keeps its positions (PDF points), and every value is looked
+// for next to its label: on the same line, or just under it. Whatever can't be read with
+// a clear label is returned as a guess (`sure: false`) for the person to check.
+
+import type { Phrase, Rect } from '../pdfForms/types';
+import { collapseSpaces, domainWord, EMAIL_RE, findAmounts, findDateRange, IBAN_RE, parseDate, PHONE_RE, referenceToken, squash, WEBSITE_RE } from './parse';
+import type { Found, InvoiceFacts, InvoiceItem, SupplierFacts } from './types';
+
+/** The customer side of an invoice: this partnership. Blocks mentioning it are never the supplier. */
+export const OUR_ORGANISATION = /cork\s*city\s*partnership|heron\s*house|\bsicap\b|\bccp\b/i;
+
+export interface TextLine {
+    page: number;
+    /** Baseline */
+    y: number;
+    /** Font size */
+    h: number;
+    phrases: Phrase[];
+    text: string;
+}
+
+/** Phrases sharing a baseline, top to bottom, page by page */
+export function toLines(phrases: Phrase[]): TextLine[] {
+    const sorted = [...phrases].filter(p => p.text.trim()).sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x);
+    const lines: TextLine[] = [];
+    for (const p of sorted) {
+        const line = lines[lines.length - 1];
+        if (line && line.page === p.page && Math.abs(line.y - p.y) <= Math.max(2, Math.min(line.h, p.h) * 0.4)) line.phrases.push(p);
+        else lines.push({ page: p.page, y: p.y, h: p.h, phrases: [p], text: '' });
+    }
+    for (const line of lines) {
+        line.phrases.sort((a, b) => a.x - b.x);
+        line.text = line.phrases.map(p => p.text).join(' ');
+        line.h = Math.max(...line.phrases.map(p => p.h));
+    }
+    return lines;
+}
+
+export function rectOf(p: Phrase): Rect {
+    return { page: p.page, x: p.x - 1, y: p.y - p.h * 0.25, w: p.w + 2, h: p.h * 1.2 };
+}
+
+// ─── Values next to labels ─────────────────────────────────────
+
+interface Candidate<T> {
+    value: T;
+    score: number;
+    rects: Rect[];
+    from: string;
+}
+
+/** The phrase under `p` (same column, within a couple of lines) */
+function phraseBelow(lines: TextLine[], lineIndex: number, p: Phrase): Phrase | null {
+    const left = p.x - Math.max(3, p.h * 0.6);
+    const right = p.x + Math.max(p.w, 40);
+    for (let i = lineIndex + 1; i < lines.length && i <= lineIndex + 3; i++) {
+        const line = lines[i];
+        if (line.page !== p.page || p.y - line.y > Math.max(p.h, line.h) * 2.6) break;
+        const under = line.phrases.find(q => q.x >= left && q.x <= right);
+        if (under) return under;
+    }
+    return null;
+}
+
+/**
+ * Values labelled by `label`: the rest of the label's own phrase ("PO Number: 9001"), the next
+ * phrase on its line ("Invoice No.   INV-12"), or the phrase under it (Xero's header boxes).
+ */
+function labelled<T>(lines: TextLine[], label: RegExp, accept: (text: string) => T | null, skip?: (line: TextLine) => boolean): Candidate<T>[] {
+    const found: Candidate<T>[] = [];
+    lines.forEach((line, li) => {
+        if (skip?.(line)) return;
+        line.phrases.forEach((p, pi) => {
+            const m = label.exec(p.text);
+            if (!m) return;
+            const after = p.text.slice(m.index + m[0].length).replace(/^[\s:#.–-]+/, '');
+            if (after) {
+                const v = accept(after);
+                if (v !== null) {
+                    found.push({ value: v, score: 3, rects: [rectOf(p)], from: p.text });
+                    return;
+                }
+                // The label ends a sentence ("please quote the invoice number on…"): not a label
+                if (after.split(/\s+/).length > 3) return;
+            }
+            for (const r of line.phrases.slice(pi + 1, pi + 3)) {
+                if (r.x - (p.x + p.w) > 160) break;
+                const v = accept(r.text);
+                if (v !== null) {
+                    found.push({ value: v, score: 2.5, rects: [rectOf(p), rectOf(r)], from: `${p.text} ${r.text}` });
+                    return;
+                }
+            }
+            const below = phraseBelow(lines, li, p);
+            if (below) {
+                const v = accept(below.text);
+                if (v !== null) found.push({ value: v, score: 2, rects: [rectOf(p), rectOf(below)], from: `${p.text} ${below.text}` });
+            }
+        });
+    });
+    return found;
+}
+
+/** The value most labels agree on; sure when it came with a label */
+function best<T>(candidates: Candidate<T>[], key: (v: T) => string = v => String(v)): Found<T> | undefined {
+    if (candidates.length === 0) return undefined;
+    const groups = new Map<string, Candidate<T>[]>();
+    for (const c of candidates) {
+        const k = key(c.value);
+        groups.set(k, [...(groups.get(k) ?? []), c]);
+    }
+    const ranked = [...groups.values()].sort((a, b) => b.reduce((s, c) => s + c.score, 0) - a.reduce((s, c) => s + c.score, 0));
+    const top = ranked[0];
+    return { value: top[0].value, sure: top[0].score >= 2, source: top[0].rects, from: top[0].from };
+}
+
+// ─── Labels ────────────────────────────────────────────────────
+
+const INVOICE_NO = /\b(?:tax\s+)?(?:invoice|inv|bill)\.?\s*(?:number|no\.?|num|#|ref(?:erence)?\s*(?:no\.?)?)(?![a-z])/i;
+const INVOICE_DATE = /\b(?:invoice|tax\s*point|issue|issued|document|bill(?:ing)?)\s*date\b|^\s*date\b(?!\s*(?:of|due))/i;
+const DUE_DATE = /\bdue\s*date\b|\bpayment\s*due\b|\bdue\s*(?:by|on)\b|\bpay\s*by\b/i;
+const PO_NUMBER = /\b(?:p\.?\s?o\.?(?!\s*box)\s*(?:number|no\.?|num|#|ref(?:erence)?)?|purchase\s*order\s*(?:number|no\.?|num|#|ref)?|order\s*(?:number|no\.?|num|#))(?![a-z])/i;
+
+const TOTAL_STRONG = /\b(?:amount|balance|total)\s*(?:due|payable|owing|outstanding)\b|\bgrand\s*total\b|\binvoice\s*total\b|^\s*total\s*(?:eur|€|amount|incl\.?(?:uding)?\s*vat|\(eur\)|\(€\))/i;
+const TOTAL_WEAK = /^\s*total\b(?!\s*(?:vat|tax|net|ex|excl|before|hours|qty|quantity|units|discount))/i;
+const SUBTOTAL = /^\s*(?:sub[\s-]?total|net(?:\s*(?:total|amount|value))?|total\s*(?:net|excl\.?|exclusive|ex\.?|before)|amount\s*(?:excl|ex)\.?|goods(?:\s*total)?)\b/i;
+const VAT = /^\s*(?:total\s+)?(?:vat|tax)\b(?!\s*(?:no|number|reg|registration|id|on\s+sales|rate\s*$))/i;
+const ANY_TOTAL = new RegExp(`${SUBTOTAL.source}|${TOTAL_STRONG.source}|${TOTAL_WEAK.source}`, 'i');
+
+const HEADER_DESC = /^(?:description|item|items|details|particulars|services?|product|activity|course)\b/i;
+const HEADER_NUM = /^(?:qty|quantity|hours|hrs|units?|days|no\.?|unit\s*price|price|rate|cost|amount|total|line\s*total|net|vat|tax|vat\s*%|tax\s*rate)\b/i;
+const QTY_HEADER = /^(?:qty|quantity|hours|hrs|units?|days|no\.?)\b/i;
+const PRICE_HEADER = /^(?:unit\s*price|price|rate|cost)\b/i;
+
+const VAT_NUMBER = /\b(?:vat|revenue|tax)\s*(?:reg(?:istration)?\.?\s*)?(?:no\.?|number|#|id)(?![a-z])/i;
+const PHONE_LABEL = /\b(?:tel|telephone|phone|ph|mob|mobile|call|contact)\b/i;
+const IDENTIFIER_LINE = /\b(?:vat|revenue|tax|company|reg(?:istration)?|cro|charity)\b.*\b(?:no\.?|number|reg|#|id)\b|^\s*(?:tel|telephone|phone|ph|mob|mobile|fax|email|e-mail|web|website)\b|@|www\.|https?:|^\s*(?:iban|bic|swift|sort\s*code|account)\b/i;
+const ADDRESS_HINT = /\b[AC-FHKNPRTV-Y]\d{2}\s?[AC-FHKNPRTV-Y0-9]{4}\b|\b(?:co\.?\s+[a-z]+|county|dublin|cork|galway|limerick|waterford|kerry|kilkenny|ireland|united kingdom)\b|\b(?:unit|road|rd\.?|street|st\.|avenue|ave|lane|park|house|estate|business|industrial|centre|center|quay|place|square|terrace|drive|court|way|floor|suite|building|mall|hall)\b/i;
+/** Where an address block ends: the next label ("Invoice No:", "Date", "Description") */
+const ADDRESS_STOP = /:\s*$|^\s*(?:invoice|date|due|p\.?\s?o\.?\b|purchase|order|description|item|reference|ref\b|account|customer|total|sub\s*total|qty|quantity|attention|attn)\b/i;
+const HEADING = /^(?:tax\s+)?(?:invoice|statement|credit\s+note|receipt|quote|quotation|description|payment\s+advice|remittance)\b/i;
+const CUSTOMER_LABEL = /^(?:(?:bill(?:ed)?|invoice|sold|ship|deliver(?:y)?)\s*(?:to|address)|to|customer|client|attention|attn|fao)\b\s*:?$/i;
+const SUPPLIER_LABEL = /^(?:from|supplier|vendor|payee|pay(?:able)?\s*to|remit\s*to|make\s+cheques\s+payable\s+to)\b\s*:?$/i;
+
+// ─── Items ─────────────────────────────────────────────────────
+
+interface ItemTable {
+    header: TextLine;
+    descX: number;
+    descRight: number;
+    columns: { x: number; right: number; kind: 'qty' | 'price' | 'other' }[];
+}
+
+function findItemTable(lines: TextLine[], from: number): { table: ItemTable; index: number } | null {
+    for (let i = from; i < lines.length; i++) {
+        const line = lines[i];
+        const desc = line.phrases.find(p => HEADER_DESC.test(p.text));
+        const nums = line.phrases.filter(p => p !== desc && HEADER_NUM.test(p.text));
+        if (!desc || nums.length === 0 || nums.some(n => n.x < desc.x)) continue;
+        const columns = nums.map(n => ({ x: n.x, right: n.x + n.w, kind: PRICE_HEADER.test(n.text) ? 'price' as const : QTY_HEADER.test(n.text) ? 'qty' as const : 'other' as const }));
+        return { table: { header: line, descX: desc.x, descRight: Math.min(...nums.map(n => n.x)) - 2, columns }, index: i };
+    }
+    return null;
+}
+
+/** The column a number sits in: the header it overlaps most (numbers are often right-aligned) */
+function columnOf(table: ItemTable, p: Phrase) {
+    let bestCol: ItemTable['columns'][number] | null = null;
+    let bestDist = Infinity;
+    for (const c of table.columns) {
+        const overlap = Math.min(c.right, p.x + p.w) - Math.max(c.x, p.x);
+        const dist = overlap > 0 ? -overlap : Math.min(Math.abs(p.x - c.x), Math.abs(p.x + p.w - c.right));
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestCol = c;
+        }
+    }
+    return bestCol;
+}
+
+function plainNumber(text: string): number | null {
+    const m = /^\s*(\d+(?:[.,]\d+)?)\s*$/.exec(text.replace(/,(?=\d{3}\b)/g, ''));
+    return m ? Number(m[1].replace(',', '.')) : null;
+}
+
+/** Lines printed on every page (letterhead, footer): never part of the items */
+function repeatedLines(lines: TextLine[]): Set<string> {
+    const pagesByText = new Map<string, Set<number>>();
+    for (const l of lines) {
+        const key = squash(l.text);
+        if (key.length < 6) continue;
+        pagesByText.set(key, (pagesByText.get(key) ?? new Set()).add(l.page));
+    }
+    return new Set([...pagesByText].filter(([, pages]) => pages.size > 1).map(([k]) => k));
+}
+
+function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<TextLine> } {
+    const items: InvoiceItem[] = [];
+    const itemLines = new Set<TextLine>();
+    const first = findItemTable(lines, 0);
+    if (!first) return { items, itemLines };
+    const repeated = repeatedLines(lines);
+    let table = first.table;
+    let current: InvoiceItem | null = null;
+    for (let i = first.index + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (repeated.has(squash(line.text))) continue;
+        // The table goes on over the page under a repeated header
+        if (line.page !== table.header.page) {
+            const next = findItemTable(lines, i);
+            if (next && next.table.header.page === line.page && next.index <= i + 2) {
+                table = next.table;
+                i = next.index;
+                continue;
+            }
+        }
+        const desc = line.phrases.filter(p => p.x < table.descRight && p.x >= table.descX - 12);
+        const rest = line.phrases.filter(p => p.x >= table.descRight);
+        // Totals start: a total label in the description column, or one alone on its line
+        // (a tax column's "VAT 23%" on an item row is not one)
+        const isTotal = (p: Phrase) => ANY_TOTAL.test(p.text) || VAT.test(p.text);
+        if (desc.some(isTotal) || (desc.length === 0 && rest.some(isTotal))) break;
+        const amounts = rest.flatMap(p => findAmounts(p.text).map(a => ({ ...a, p })));
+        const text = collapseSpaces(desc.map(p => p.text).join(' '));
+        if (amounts.length > 0) {
+            const item: InvoiceItem = { description: text, details: [], amount: amounts[amounts.length - 1].value, source: line.phrases.map(rectOf) };
+            for (const p of rest) {
+                const n = plainNumber(p.text);
+                if (n === null) continue;
+                const col = columnOf(table, p);
+                if (col?.kind === 'qty' && item.quantity === undefined) item.quantity = n;
+                else if (col?.kind === 'price' && item.unitPrice === undefined) item.unitPrice = n;
+            }
+            items.push(item);
+            current = item;
+            itemLines.add(line);
+        } else if (text) {
+            if (!current) {
+                current = { description: text, details: [], source: desc.map(rectOf) };
+                items.push(current);
+            } else if (!current.description) {
+                current.description = text;
+            } else {
+                current.details.push(text);
+            }
+            itemLines.add(line);
+        }
+    }
+    return { items, itemLines };
+}
+
+/** "1. Anna" + "Smith" (wrapped) → "Anna Smith": the numbered names under an item */
+export function numberedPeople(details: string[]): string[] {
+    const people: string[] = [];
+    let current: string | null = null;
+    for (const raw of details) {
+        const line = raw.trim();
+        const m = /^(\d{1,3})\s*[.)]\s*(\S.*)$/.exec(line);
+        if (m && !/\d/.test(m[2])) {
+            if (current) people.push(current);
+            current = m[2];
+        } else if (current && /^[\p{L}'’ -]{2,40}$/u.test(line) && line.split(/\s+/).length <= 3) {
+            current += ` ${line}`;
+        } else if (current) {
+            people.push(current);
+            current = null;
+        }
+    }
+    if (current) people.push(current);
+    return people.length >= 2 ? people.map(collapseSpaces) : [];
+}
+
+// ─── Supplier ──────────────────────────────────────────────────
+
+interface Block {
+    x: number;
+    lines: Phrase[];
+}
+
+const INLINE_LABEL = /^((?:to|from|supplier|vendor|payee|pay(?:able)?\s*to|remit\s*to|bill\s*to|invoice\s*to)\s*:)\s*(\S.*)$/i;
+
+/**
+ * "To: Acme Ltd" → "To:" and "Acme Ltd" when the address under it lines up with the name
+ * (Xero's payment advice); left whole when the address starts under the label (Word).
+ */
+function splitLabel(p: Phrase, lines: TextLine[]): Phrase[] {
+    const m = INLINE_LABEL.exec(p.text);
+    if (!m) return [p];
+    const charW = p.w / Math.max(1, p.text.length);
+    const x = p.x + (p.text.length - m[2].length) * charW;
+    const alignedBelow = lines.some(l => l.page === p.page && l.y < p.y && p.y - l.y <= p.h * 2.2 && l.phrases.some(q => Math.abs(q.x - x) <= Math.max(4, p.h * 0.5)));
+    if (!alignedBelow) return [p];
+    return [
+        { ...p, text: m[1], w: m[1].length * charW },
+        { ...p, text: m[2], x, w: m[2].length * charW },
+    ];
+}
+
+/** Left-aligned stacks of lines: address blocks, label/value boxes, paragraphs */
+function buildBlocks(lines: TextLine[]): Block[] {
+    const blocks: Block[] = [];
+    for (const line of lines) {
+        for (const p of line.phrases) {
+            const block = blocks.find(b => {
+                const last = b.lines[b.lines.length - 1];
+                const gap = last.y - p.y;
+                // A title in a bigger font starts its own block
+                const sameSize = Math.abs(last.h - p.h) <= Math.max(1.5, Math.min(last.h, p.h) * 0.25);
+                return last.page === p.page && sameSize && Math.abs(b.x - p.x) <= Math.max(3, p.h * 0.4) && gap > 0 && gap <= Math.max(last.h, p.h) * 1.9;
+            });
+            if (block) block.lines.push(p);
+            else blocks.push({ x: p.x, lines: [p] });
+        }
+    }
+    return blocks;
+}
+
+function isAllCaps(s: string): boolean {
+    return /[A-Z]/.test(s) && s === s.toUpperCase();
+}
+
+/** Where the name of a supplier block ends and its address begins */
+function splitNameAndAddress(texts: string[]): { name: string; nameLines: number; address: string[] } {
+    const name = [texts[0]];
+    let i = 1;
+    const next = texts[1];
+    if (
+        next &&
+        !/\d/.test(next) &&
+        !ADDRESS_HINT.test(next) &&
+        !IDENTIFIER_LINE.test(next) &&
+        !(isAllCaps(next) && !isAllCaps(texts[0])) &&
+        next.split(/\s+/).length <= 5 &&
+        (/(?:&|\band|,|-|\bof)\s*$/i.test(texts[0]) || /^[a-z&]/.test(next) || (texts.length >= 5 && /^[A-Z]/.test(next)))
+    ) {
+        name.push(next);
+        i = 2;
+    }
+    const address: string[] = [];
+    for (; i < texts.length && address.length < 7; i++) {
+        const t = texts[i];
+        if (IDENTIFIER_LINE.test(t) || ADDRESS_STOP.test(t) || findAmounts(t).length > 0 || parseDate(t)) break;
+        address.push(t);
+    }
+    return { name: collapseSpaces(name.join(' ')).replace(/[,:]$/, ''), nameLines: name.length, address };
+}
+
+/** Address lines → one line: "Unit 7, Mill Road, Cork T12 R2KX, Ireland" */
+export function joinAddress(lines: string[]): string {
+    const parts: string[] = [];
+    for (const raw of lines) {
+        const line = raw.trim().replace(/[,.]+$/, '');
+        if (!line) continue;
+        // An Eircode wrapped after its routing key: "CORK CITY CORK T12" + "R2KX"
+        if (parts.length && /\b[AC-FHKNPRTV-Y]\d{2}$/i.test(parts[parts.length - 1]) && /^[AC-FHKNPRTV-Y0-9]{4}$/i.test(line)) {
+            parts[parts.length - 1] += ` ${line}`;
+        } else {
+            parts.push(line);
+        }
+    }
+    return parts.join(', ').replace(/\s*,\s*,/g, ',').replace(/\s+,/g, ',');
+}
+
+function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
+    const supplier: SupplierFacts = {};
+    const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
+
+    const emails = [...allText.matchAll(EMAIL_RE)].map(m => m[0]).filter(e => !OUR_ORGANISATION.test(e) && !/partnership/i.test(e));
+    supplier.email = emails[0];
+    const sites = [...allText.matchAll(WEBSITE_RE)].map(m => m[0]).filter(s => !OUR_ORGANISATION.test(s) && !/partnership/i.test(s));
+    supplier.website = sites[0];
+    const domains = [...emails, ...sites].map(domainWord).filter((d): d is string => !!d);
+
+    const phones = lines.filter(l => PHONE_LABEL.test(l.text) && !OUR_ORGANISATION.test(l.text)).flatMap(l => l.text.match(PHONE_RE) ?? []);
+    supplier.phone = phones[0];
+
+    const iban = allText.match(IBAN_RE)?.[0];
+    if (iban) supplier.iban = iban.replace(/\s/g, '');
+    supplier.bic = best(labelled(lines, /\b(?:bic|swift)(?:\s*code)?\b/i, t => {
+        const token = t.trim().split(/\s+/)[0]?.replace(/[.,;:]$/, '') ?? '';
+        return /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/.test(token) ? token : null;
+    }))?.value;
+    supplier.vatNumber = best(labelled(lines, VAT_NUMBER, t => {
+        const token = t.trim().split(/\s+/)[0]?.replace(/[.,;:]$/, '') ?? '';
+        return /^(?:IE)?[A-Z0-9]{6,14}$/i.test(token) && /\d/.test(token) ? token.toUpperCase() : null;
+    }, l => OUR_ORGANISATION.test(l.text)))?.value;
+
+    // Score every block that could be the supplier's name and address
+    let bestBlock: { score: number; lines: Phrase[]; labelSure: boolean } | null = null;
+    const pageTop = new Map<number, number>();
+    for (const l of lines) pageTop.set(l.page, Math.max(pageTop.get(l.page) ?? -Infinity, l.y));
+    for (const block of buildBlocks(lines)) {
+        let blockLines = block.lines;
+        if (blockLines.some(p => OUR_ORGANISATION.test(p.text))) continue;
+        while (blockLines.length > 1 && HEADING.test(blockLines[0].text)) blockLines = blockLines.slice(1);
+        if (CUSTOMER_LABEL.test(blockLines[0].text)) continue;
+        let labelSure = false;
+        // "From: Acme Ltd" with the address under the label
+        const inline = INLINE_LABEL.exec(blockLines[0].text);
+        if (inline) {
+            if (!SUPPLIER_LABEL.test(inline[1])) continue;
+            blockLines = [{ ...blockLines[0], text: inline[2] }, ...blockLines.slice(1)];
+            labelSure = true;
+        }
+        // "From:" / "Payable to:" on a line of its own above the name
+        if (SUPPLIER_LABEL.test(blockLines[0].text) && blockLines.length > 1) {
+            blockLines = blockLines.slice(1);
+            labelSure = true;
+        }
+        const texts = blockLines.map(p => p.text);
+        const first = texts[0];
+        if (HEADING.test(first) || /^(?:registered\s+office|dates?\b)/i.test(first) || /^\d+[.)]\s/.test(first)) continue;
+        if (findAmounts(first).length > 0 || parseDate(first)) continue;
+        if (first.replace(/[^\p{L}]/gu, '').length < 3) continue;
+
+        // A label left of the first line: "To:" in a payment advice is the supplier, elsewhere the customer
+        const firstLine = lines.find(l => l.phrases.includes(blockLines[0]));
+        const label = firstLine?.phrases.filter(p => p.x < block.x).map(p => p.text).join(' ').trim() ?? '';
+        const top = blockLines[0];
+        const inPaymentAdvice = lines.some(l => l.page === top.page && l.y > top.y && l.y - top.y < top.h * 8 && /payment\s+advice|remittance/i.test(l.text));
+        const adviceTo = inPaymentAdvice && /^to\b/i.test(label);
+        if (CUSTOMER_LABEL.test(label) && !adviceTo) continue;
+
+        let score = 0;
+        if (texts.length >= 2) score += 1;
+        if (texts.slice(1).some(t => ADDRESS_HINT.test(t))) score += 2;
+        if (texts.some(t => VAT_NUMBER.test(t))) score += 2;
+        if (domains.some(d => texts.slice(0, 2).some(t => squash(t).includes(d)))) score += 3;
+        if (SUPPLIER_LABEL.test(label) || adviceTo) labelSure = true;
+        if (labelSure) score += 3;
+        if (top.page === 0 && (pageTop.get(0) ?? 0) - top.y < 140) score += 1;
+        if (texts.length === 1) score -= 1;
+        if (!bestBlock || score > bestBlock.score) bestBlock = { score, lines: blockLines, labelSure };
+    }
+
+    if (bestBlock && bestBlock.score >= 3) {
+        const texts = bestBlock.lines.map(p => p.text);
+        const { name, nameLines, address } = splitNameAndAddress(texts);
+        const domainMatch = domains.some(d => squash(name).includes(d));
+        const sure = bestBlock.labelSure || (domainMatch && bestBlock.score >= 6);
+        supplier.name = { value: name, sure, source: bestBlock.lines.slice(0, nameLines).map(rectOf), from: texts.slice(0, nameLines).join(' / ') };
+        if (address.length > 0) {
+            const addressLines = bestBlock.lines.slice(nameLines, nameLines + address.length);
+            supplier.address = { value: joinAddress(address), sure, source: addressLines.map(rectOf), from: address.join(' / ') };
+        }
+    }
+
+    // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345."
+    if (!supplier.address) {
+        const office = lines.find(l => /registered\s+office\s*:/i.test(l.text) && !OUR_ORGANISATION.test(l.text));
+        if (office) {
+            const parts = office.text.replace(/^.*registered\s+office\s*:\s*/i, '').split(/\s*,\s*/).filter(Boolean);
+            if (parts.length >= 2) {
+                if (!supplier.name) supplier.name = { value: collapseSpaces(parts[0]), sure: false, source: office.phrases.map(rectOf), from: office.text };
+                supplier.address = { value: joinAddress(parts.slice(1)), sure: false, source: office.phrases.map(rectOf), from: office.text };
+            }
+        }
+    }
+    return supplier;
+}
+
+// ─── Totals ────────────────────────────────────────────────────
+
+function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Candidate<number>[] {
+    const found: Candidate<number>[] = [];
+    lines.forEach((line, li) => {
+        if (skip.has(line)) return;
+        line.phrases.forEach((p, pi) => {
+            const m = label.exec(p.text);
+            if (!m) return;
+            let hit: Candidate<number> | null = null;
+            const own = findAmounts(p.text.slice(m.index + m[0].length));
+            if (own.length) hit = { value: own[own.length - 1].value, score: 3, rects: [rectOf(p)], from: p.text };
+            for (const r of line.phrases.slice(pi + 1)) {
+                const a = findAmounts(r.text);
+                if (a.length) hit = { value: a[a.length - 1].value, score: 3, rects: [rectOf(p), rectOf(r)], from: `${p.text} ${r.text}` };
+            }
+            if (!hit) {
+                const below = phraseBelow(lines, li, p);
+                const a = below ? findAmounts(below.text) : [];
+                if (below && a.length) hit = { value: a[0].value, score: 2, rects: [rectOf(p), rectOf(below)], from: `${p.text} ${below.text}` };
+            }
+            if (hit) found.push(hit);
+        });
+    });
+    return found;
+}
+
+// ─── All together ──────────────────────────────────────────────
+
+export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
+    const lines = toLines(phrases);
+    const allText = lines.map(l => l.text).join('\n');
+    const facts: InvoiceFacts = { hasText: allText.replace(/\s/g, '').length > 20, supplier: {}, items: [], people: [], mentionsSicap: /\bsicap\b/i.test(allText) };
+    if (!facts.hasText) return facts;
+
+    const invoiceNumber = best(labelled(lines, INVOICE_NO, referenceToken));
+    if (invoiceNumber) facts.invoiceNumber = invoiceNumber;
+    else {
+        const m = /\b(INV[-\s]?\d+[A-Z0-9-]*)\b/i.exec(allText);
+        if (m) facts.invoiceNumber = { value: m[1], sure: false, from: m[0] };
+    }
+
+    facts.invoiceDate = best(labelled(lines, INVOICE_DATE, parseDate));
+    facts.dueDate = best(labelled(lines, DUE_DATE, parseDate));
+
+    const po = best(labelled(lines, PO_NUMBER, t => {
+        const token = referenceToken(t);
+        return token && token !== facts.invoiceNumber?.value ? token : null;
+    }));
+    if (po) facts.poNumber = po;
+
+    const { items, itemLines } = readItems(lines);
+    facts.items = items.filter(i => i.description || i.amount !== undefined);
+
+    const strong = best(amountBeside(lines, TOTAL_STRONG, itemLines));
+    const weak = best(amountBeside(lines, TOTAL_WEAK, itemLines));
+    const subtotal = best(amountBeside(lines, SUBTOTAL, itemLines));
+    const vat = best(amountBeside(lines, VAT, itemLines));
+    if (subtotal) facts.subtotal = subtotal;
+    if (vat) facts.vat = vat;
+    const total = strong && strong.value > 0 ? strong : weak ?? strong;
+    if (total) {
+        // Sure when two things agree: two total labels, subtotal + VAT, or the lines
+        const itemSum = facts.items.reduce((s, i) => s + (i.amount ?? 0), 0);
+        const agree =
+            (strong && weak && Math.abs(strong.value - weak.value) < 0.005) ||
+            (subtotal && Math.abs(subtotal.value + (vat?.value ?? 0) - total.value) < 0.005) ||
+            (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined) && Math.abs(itemSum + (vat?.value ?? 0) - total.value) < 0.005);
+        facts.total = { ...total, sure: !!agree };
+    } else if (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined)) {
+        const sum = Math.round(facts.items.reduce((s, i) => s + (i.amount ?? 0), 0) * 100) / 100;
+        facts.total = { value: sum, sure: false, from: 'the sum of the lines' };
+    }
+
+    facts.supplier = readSupplier(lines, allText);
+
+    facts.people = numberedPeople(facts.items.flatMap(i => i.details));
+    for (const item of facts.items) {
+        const range = findDateRange(item.description) ?? item.details.map(d => findDateRange(d)).find(Boolean) ?? null;
+        if (range) {
+            facts.serviceDates = range;
+            break;
+        }
+    }
+
+    const attention = phrases.map(p => /\b(?:attention|attn|fao|for the attention of)\b\.?\s*:?\s*(.+)$/i.exec(p.text)?.[1]).find(Boolean);
+    if (attention) facts.attention = collapseSpaces(attention).replace(/[,.]$/, '');
+    return facts;
+}

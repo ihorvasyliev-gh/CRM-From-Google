@@ -18,7 +18,7 @@ and leave as invitations, certificates and outcome surveys.
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="Tailwind CSS 4"/>
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase"/>
   <img src="https://img.shields.io/badge/Apps_Script-sync-4285F4?style=flat-square&logo=google&logoColor=white" alt="Google Apps Script"/>
-  <img src="https://img.shields.io/badge/Vitest-870%2B_tests-729B1B?style=flat-square&logo=vitest&logoColor=white" alt="870+ tests"/>
+  <img src="https://img.shields.io/badge/Vitest-1000%2B_tests-729B1B?style=flat-square&logo=vitest&logoColor=white" alt="1000+ tests"/>
   <img src="https://img.shields.io/badge/Cloudflare-Pages-F38020?style=flat-square&logo=cloudflarepages&logoColor=white" alt="Cloudflare Pages"/>
 </p>
 
@@ -171,6 +171,23 @@ The spreadsheet and the PDF never leave the browser.
 
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+
+### 🧾 Cheque requisitions
+Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requisition is filled in from it, ready to check, edit and download as Word. Admins only.
+
+- **Any invoice layout:** the invoice number, dates, PO number, total, supplier name and address, VAT number, IBAN and the invoice lines are found next to their labels, wherever they sit on the page.
+- **Shows what to check:** each field says where it came from. Orange is a guess, red was not found, blue is as last time for this supplier; click a field to see it highlighted on the invoice.
+- **Learns each supplier:** the payee name and address, quote details and the wording of the description are taken from the last requisition for the same supplier (matched by VAT number, IBAN, email domain or a close name).
+- **Checks before you submit:** a missing PO number or "SICAP" on the invoice, lines that don't add up to the total, people named against the quantity charged, an invoice already done, and the €5,000 a year (excl. VAT) three-quotations rule.
+- **Kept to download again:** every requisition is kept (migration 88), with each supplier's total for the year.
+- **Scans and photos too:** a scanned PDF or a phone photo is read by OCR (Tesseract, in the browser): the lighting is evened out and a tilted photo is levelled first. Everything read off a picture is marked to check, since a letter or digit can be misread.
+
+The invoice is read in the browser and never uploaded; the OCR engine and its English model ship with the app (the CSP allows WebAssembly with `'wasm-unsafe-eval'`).
+
+</td>
+</tr>
 </table>
 
 **And everywhere:** <kbd>Ctrl</kbd> <kbd>K</kbd> command palette · keyboard shortcuts (<kbd>?</kbd>) · light and dark themes · compact density · pages that stay as you left them · smooth page transitions, dialogs that animate in and out and keep keyboard focus, lists that glide instead of jumping (reduced motion respected) · stacked, swipeable notifications · mobile bottom navigation · offline / sync indicator · web push for new confirmations.
@@ -239,7 +256,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 
 | Role | Sees | Can |
 | :-- | :-- | :-- |
-| 🧑‍💼 **Admin** | Everything | Manage students, courses, enrollments, templates, analytics, settings and user roles |
+| 🧑‍💼 **Admin** | Everything | Manage students, courses, enrollments, templates, analytics, cheque requisitions, settings and user roles |
 | 👀 **Viewer** | Home · Students · Courses · External Lists · PDF Forms | Read rosters, request course completion for admin approval, fill PDF forms |
 | 📋 **External Lists** | External Lists · PDF Forms | Import, survey and export outreach contacts; fill PDF forms |
 | 🧾 **PDF Forms** | PDF Forms | Set up PDF form templates (forms, new revisions, column links) and fill them |
@@ -262,6 +279,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | **Documents** | `docxtemplater` + `pizzip` in a Web Worker |
 | **Spreadsheets** | `write-excel-file` for exports; a small built-in `.xlsx` reader for imports |
 | **PDF forms** | `pdf-lib` (+ `@pdf-lib/fontkit`, Arimo font), `pdfjs-dist` |
+| **Invoice OCR** | `tesseract.js` (WebAssembly, English model shipped with the app) for scanned and photographed invoices |
 | **Backend** | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, an Edge Function for web push |
 | **Automation** | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
 | **Quality** | Vitest 5 + Testing Library (VM pool, ~20 s), ESLint 10 (zero warnings), `tsc` strict, GitHub Actions CI on every pull request |
@@ -392,6 +410,7 @@ CRM-From-Google/
 │   └── src/
 │       ├── components/
 │       │   ├── Analytics/         six analytics views + shared utils
+│       │   ├── ChequeRequisitions/ requisition editor, invoice preview
 │       │   ├── Dashboard/         KPIs, activity feed, reminders
 │       │   ├── DocumentGenerator/ templates, presets, generation report
 │       │   ├── EmailEditor/       TipTap editor for email templates
@@ -402,6 +421,7 @@ CRM-From-Google/
 │       ├── contexts/              auth, network status
 │       ├── hooks/                 data, realtime, modal and presence hooks
 │       ├── lib/                   Supabase queries, email templates, documents
+│       │   ├── chequeReq/         invoice reading, requisition draft and checks, Word output
 │       │   ├── pdfForms/          spreadsheet reading, field mapping, PDF filling
 │       │   └── pdfToDocx/         PDF → Word conversion
 │       ├── App.tsx                admin shell, navigation, shortcuts

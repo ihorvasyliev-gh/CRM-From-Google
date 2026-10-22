@@ -21,6 +21,8 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react(), tailwindcss()],
+    // Word templates shipped with the app (the SICAP cheque requisition)
+    assetsInclude: ['**/*.docx'],
     // The document worker loads pizzip/docxtemplater with dynamic import(), which needs ES module workers
     worker: { format: 'es' },
     build: {
@@ -29,6 +31,8 @@ export default defineConfig({
             // failures (caught errors, failed syncs) they are the only trace left
             treeshake: { manualPureFunctions: ['console.log', 'console.debug', 'console.info'] },
             output: {
+                // Tesseract (reading scanned invoices) fetches its English model by file name
+                assetFileNames: asset => (asset.names.includes('eng.traineddata.gz') ? 'ocr/[name][extname]' : 'assets/[name]-[hash][extname]'),
                 minify: {
                     compress: { dropDebugger: true },
                 },

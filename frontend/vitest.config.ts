@@ -7,6 +7,7 @@ const EXCELJS_FIXTURES = ['src/lib/contactImport.test.ts', 'src/lib/pdfForms/exc
 
 export default defineConfig({
     plugins: [react()],
+    assetsInclude: ['**/*.docx'],
     test: {
         globals: true,
         environment: 'jsdom',

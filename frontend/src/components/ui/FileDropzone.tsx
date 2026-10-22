@@ -11,6 +11,7 @@ export default function FileDropzone({
     onChange,
     disabled = false,
     uploading = false,
+    uploadingTitle = 'Uploading…',
     title = 'Drop a file here or click to browse',
     hint,
     compact = false,
@@ -22,6 +23,8 @@ export default function FileDropzone({
     onChange: (e: ChangeEvent<HTMLInputElement>) => void;
     disabled?: boolean;
     uploading?: boolean;
+    /** Shown instead of the title while `uploading` */
+    uploadingTitle?: ReactNode;
     title?: ReactNode;
     hint?: ReactNode;
     compact?: boolean;
@@ -65,7 +68,7 @@ export default function FileDropzone({
                 {uploading ? <Loader2 size={compact ? 15 : 18} className="animate-spin text-brand-500" /> : icon ?? <UploadCloud size={compact ? 15 : 18} />}
             </span>
             <span className={`min-w-0 ${compact ? 'text-left' : ''}`}>
-                <span className="block text-xs font-semibold text-primary">{uploading ? 'Uploading…' : title}</span>
+                <span className="block text-xs font-semibold text-primary">{uploading ? uploadingTitle : title}</span>
                 {hint && <span className="block text-[11px] text-muted mt-0.5">{hint}</span>}
             </span>
             <input ref={inputRef} type="file" accept={accept} multiple={multiple} className="hidden" onChange={onChange} disabled={inactive} />

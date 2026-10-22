@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, Suspense, us
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle, Receipt } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -44,6 +44,7 @@ const ViewerCourses = lazyWithRetry(() => import('./components/ViewerCourses'));
 const ViewerHome = lazyWithRetry(() => import('./components/ViewerHome'));
 const OutreachLists = lazyWithRetry(() => import('./components/OutreachLists'));
 const PdfForms = lazyWithRetry(() => import('./components/PdfForms'));
+const ChequeRequisitions = lazyWithRetry(() => import('./components/ChequeRequisitions'));
 const StudentDetailDrawer = lazyWithRetry(() => import('./components/StudentDetailDrawer'));
 const PendingApprovalsModal = lazyWithRetry(() => import('./components/PendingApprovalsModal'));
 // Dialogs opened on demand, and the External Lists / PDF Forms shell: not part of the first load
@@ -69,8 +70,9 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
     { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Insights' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
-    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Insights
+    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Insights (number keys stop at 9)
     { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Insights' },
+    { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Insights' },
 ];
 const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
 
@@ -283,6 +285,7 @@ function App() {
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />
                     <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
+                    <Route path="/cheque-reqs" element={<ChequeRequisitions />} />
                     <Route path="/settings" element={null} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </>
@@ -380,7 +383,7 @@ function App() {
                                                 )}
                                                 <Icon size={17} className="shrink-0" />
                                                 <span className="flex-1 text-left truncate">{item.label}</span>
-                                                <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>
+                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
                                             </button>
                                         );
                                     })}
