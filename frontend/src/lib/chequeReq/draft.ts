@@ -4,7 +4,7 @@
 
 import { bigramSimilarity } from '../pdfForms/text';
 import { collapseSpaces, domainWord, dottedDate, findDates, formatAmount, parseAmount, slashDate, squash } from './parse';
-import { EMPTY_FORM, EMPTY_META, type ChequeReqForm, type ChequeReqMeta, type Check, type FieldFlags, type InvoiceFacts, type SavedChequeReq } from './types';
+import { EMPTY_FORM, EMPTY_META, type ChequeReqForm, type ChequeReqMeta, type Check, type FieldFlags, type FieldKey, type InvoiceFacts, type SavedChequeReq } from './types';
 
 /** Payments to one supplier in a year from which three quotations are needed (excl. VAT) */
 export const THREE_QUOTES_FROM = 5000;
@@ -240,6 +240,14 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
             flags.quoteEmail = { level: 'check', note: 'The email on the invoice: is it who gave the quote?' };
         }
     }
+
+    // Read off a picture: a letter or digit may be wrong, so nothing found is taken as certain
+    if (facts.scanned) {
+        for (const key of Object.keys(flags) as FieldKey[]) {
+            const flag = flags[key];
+            if (flag?.level === 'found') flags[key] = { ...flag, level: 'check', note: `${flag.note} (read from a scan: check it against the invoice)` };
+        }
+    }
     return { form, flags, meta, previous };
 }
 
@@ -253,9 +261,15 @@ function euro(value: number): string {
 export function invoiceChecks(facts: InvoiceFacts, today: string): Check[] {
     const checks: Check[] = [];
     if (!facts.hasText) {
-        checks.push({ level: 'warning', text: 'No text could be read from this file (a scan or a photo?). Type the details from the invoice.' });
+        checks.push({
+            level: 'warning',
+            text: facts.scanned
+                ? 'No text could be read from the picture (is it sharp, and the right way up?). Type the details from the invoice.'
+                : 'No text could be read from this file. Type the details from the invoice.',
+        });
         return checks;
     }
+    if (facts.scanned) checks.push({ level: 'info', text: 'Read from a scan or photo: letters and digits can be misread, so every value is marked to check.' });
     if (!facts.poNumber) checks.push({ level: 'warning', text: 'No PO number on the invoice. The checklist asks for the PO number and “SICAP” on the invoice.' });
     if (!facts.mentionsSicap) checks.push({ level: 'warning', text: '“SICAP” is not written on the invoice (checklist: PO Number and “SICAP” on Invoice).' });
 

@@ -31,6 +31,8 @@ export default defineConfig({
             // failures (caught errors, failed syncs) they are the only trace left
             treeshake: { manualPureFunctions: ['console.log', 'console.debug', 'console.info'] },
             output: {
+                // Tesseract (reading scanned invoices) fetches its English model by file name
+                assetFileNames: asset => (asset.names.includes('eng.traineddata.gz') ? 'ocr/[name][extname]' : 'assets/[name]-[hash][extname]'),
                 minify: {
                     compress: { dropDebugger: true },
                 },

@@ -1,6 +1,7 @@
 // ─── Cheque requisitions: the filled-in .docx ──────────────────
 // The template is the team's own SICAP cheque requisition with {placeholders} where the
-// values go; its ruled lines are drawn shapes, so values sit on them as before.
+// values go. Most ruled lines are drawn shapes of a fixed length, so the description is split
+// to fit its two; the payee's name and address are underlined text that wraps under itself.
 
 import templateUrl from '../../assets/templates/sicap-cheque-requisition.docx?url';
 import { loadDocxLibs } from '../documentRender';
@@ -9,16 +10,48 @@ import type { ChequeReqForm, ChequeReqMeta } from './types';
 
 const CHECKED = '☒';
 const UNCHECKED = '☐';
-/** Characters of the description that fit on its first ruled line, after the label */
-const DESCRIPTION_FIRST_LINE = 64;
+/** Width (pt) of the description's first ruled line after its label: 145.5pt to 394.5pt, less the space before the text */
+const DESCRIPTION_FIRST_LINE = 244;
+/** A blank payee name or address line, to fill in by hand: about as wide as the room beside the checklist */
+const BLANK_LINE = '_'.repeat(44);
 
-/** Text up to `max` characters on the first line (broken at a space), the rest on the second */
-export function splitFirstLine(text: string, max = DESCRIPTION_FIRST_LINE): [string, string] {
-    const t = text.replace(/\s+/g, ' ').trim();
-    if (t.length <= max) return [t, ''];
-    const cut = t.lastIndexOf(' ', max);
-    const at = cut > max * 0.5 ? cut : max;
-    return [t.slice(0, at).trim(), t.slice(at).trim()];
+/** Advance widths of Calibri (Carlito has the same metrics) for ' ' to '~', in 1/2048 em */
+const CALIBRI = [
+    463, 667, 821, 1020, 1038, 1464, 1397, 452, 621, 621, 1020, 1020, 511, 627, 517, 791, 1038, 1038, 1038, 1038, 1038, 1038, 1038, 1038,
+    1038, 1038, 548, 548, 1020, 1020, 1020, 949, 1831, 1185, 1114, 1092, 1260, 1000, 941, 1292, 1276, 516, 653, 1064, 861, 1751, 1322,
+    1356, 1058, 1378, 1112, 941, 998, 1314, 1162, 1822, 1063, 998, 959, 628, 791, 628, 1020, 1020, 596, 981, 1076, 866, 1076, 1019,
+    625, 964, 1076, 470, 490, 931, 470, 1636, 1076, 1080, 1076, 1076, 714, 801, 686, 1076, 925, 1464, 887, 927, 809, 644, 943, 644, 1020,
+];
+
+/** Width in points of `text` in 11pt Calibri, the form's font; accented letters measure as their base letter */
+export function textWidth(text: string, size = 11): number {
+    let units = 0;
+    for (const ch of text.normalize('NFD')) {
+        const code = ch.charCodeAt(0);
+        if (code >= 0x300 && code <= 0x36f) continue;
+        units += code >= 32 && code <= 126 ? CALIBRI[code - 32] : 1020;
+    }
+    return (units / 2048) * size;
+}
+
+/** As many words as fit `maxWidth` points on the first line, the rest on the second */
+export function splitFirstLine(text: string, maxWidth = DESCRIPTION_FIRST_LINE): [string, string] {
+    const words = text.replace(/\s+/g, ' ').trim().split(' ');
+    let first = '';
+    for (const [i, word] of words.entries()) {
+        const next = first ? `${first} ${word}` : word;
+        if (textWidth(next) > maxWidth) {
+            // A single word longer than the line is cut where it stops fitting
+            if (!first) {
+                let cut = 1;
+                while (cut < word.length && textWidth(word.slice(0, cut + 1)) <= maxWidth) cut++;
+                return [word.slice(0, cut), [word.slice(cut), ...words.slice(i + 1)].join(' ')];
+            }
+            return [first, words.slice(i).join(' ')];
+        }
+        first = next;
+    }
+    return [first, ''];
 }
 
 function money(value: string): string {
@@ -38,8 +71,8 @@ export function templateData(form: ChequeReqForm): Record<string, string> {
         actionNumber: form.actionNumber.trim(),
         nonSicapFunding: form.nonSicapFunding.trim(),
         poNumber: form.poNumber.trim(),
-        payeeName: oneLine(form.payeeName),
-        payeeAddress: oneLine(form.payeeAddress),
+        payeeName: oneLine(form.payeeName) || BLANK_LINE,
+        payeeAddress: oneLine(form.payeeAddress) || BLANK_LINE,
         amount: money(form.amount),
         description1,
         description2,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import PizZip from 'pizzip';
 import template from '../../assets/templates/sicap-cheque-requisition.docx?inline';
-import { chequeReqFileName, renderChequeReqDocx, splitFirstLine, syncCheckboxes, templateData } from './docx';
+import { chequeReqFileName, renderChequeReqDocx, splitFirstLine, syncCheckboxes, templateData, textWidth } from './docx';
 import { EMPTY_FORM, type ChequeReqForm } from './types';
 
 function templateBytes(): ArrayBuffer {
@@ -32,11 +32,26 @@ const FORM: ChequeReqForm = {
 };
 
 describe('the requisition template', () => {
+    it('measures text in the font of the form', () => {
+        expect(textWidth('Description of goods/services:')).toBeCloseTo(134.8, 1);
+        // Capitals take more room than small letters; accents measure as their letter
+        expect(textWidth('MANUAL HANDLING')).toBeGreaterThan(textWidth('Manual Handling'));
+        expect(textWidth('Café')).toBeCloseTo(textWidth('Cafe'), 5);
+    });
+
     it('splits a long description over its two ruled lines', () => {
         expect(splitFirstLine('short')).toEqual(['short', '']);
         const [a, b] = splitFirstLine(FORM.description);
-        expect(a.length).toBeLessThanOrEqual(64);
+        expect(a).toBe('Manual Handling QQI Level 5 course 03.11.2026 for');
+        expect(textWidth(a)).toBeLessThanOrEqual(244);
         expect(`${a} ${b}`).toBe(FORM.description);
+        // Capitals fill the line sooner
+        const [caps] = splitFirstLine(FORM.description.toUpperCase());
+        expect(caps.length).toBeLessThan(a.length);
+        // A word longer than the line is cut
+        const [long, rest] = splitFirstLine('x'.repeat(80));
+        expect(long.length + rest.length).toBe(80);
+        expect(textWidth(long)).toBeLessThanOrEqual(244);
     });
 
     it('keeps blank lines to fill in by hand', () => {
@@ -44,6 +59,8 @@ describe('the requisition template', () => {
         expect(data.requestedDate).toMatch(/^_+$/);
         expect(data.approvedDate).toMatch(/^ _+$/);
         expect(data.shopName).toMatch(/^_+$/);
+        expect(data.payeeName).toMatch(/^_+$/);
+        expect(data.payeeAddress).toMatch(/^_+$/);
         expect(data.cTax).toBe('☐');
         const filled = templateData(FORM);
         expect(filled.requestedDate).toBe('22/10/2026');

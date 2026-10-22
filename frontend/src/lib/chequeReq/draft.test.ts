@@ -69,6 +69,18 @@ describe('draftFromInvoice', () => {
         expect(meta).toMatchObject({ invoiceNumber: 'INV-0101', invoiceDate: '2026-10-21', netAmount: 450, supplierVat: 'IE1234567T', supplierDomain: 'brightway', item: 'Manual Handling QQI Level 5', serviceDate: '2026-11-03' });
     });
 
+    it('marks everything read off a scan as a value to check', () => {
+        const facts = { ...extractInvoice(xeroLikeInvoice()), scanned: true };
+        const { form, flags } = draftFromInvoice({ facts, history: [], defaults: EMPTY_DEFAULTS, fileName: 'scan.jpg' });
+        expect(form.poNumber).toBe('9001');
+        expect(flags.poNumber).toMatchObject({ level: 'check', note: expect.stringMatching(/PO Number: 9001.*read from a scan/) });
+        expect(flags.amount?.level).toBe('check');
+        expect(flags.payeeName?.level).toBe('check');
+        expect(Object.values(flags).some(f => f?.level === 'found')).toBe(false);
+        expect(invoiceChecks(facts, '2026-10-22')[0]).toMatchObject({ level: 'info', text: expect.stringMatching(/scan or photo/) });
+        expect(invoiceChecks({ ...extractInvoice([]), scanned: true }, '2026-10-22')[0].text).toMatch(/from the picture/);
+    });
+
     it('starts from last time for a known supplier', () => {
         const previous = saved({
             form: {

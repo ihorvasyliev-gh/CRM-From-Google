@@ -175,15 +175,16 @@ The spreadsheet and the PDF never leave the browser.
 <td colspan="2" valign="top">
 
 ### 🧾 Cheque requisitions
-Drop a supplier invoice (PDF or Word) and the SICAP cheque requisition is filled in from it, ready to check, edit and download as Word. Admins only.
+Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requisition is filled in from it, ready to check, edit and download as Word. Admins only.
 
 - **Any invoice layout:** the invoice number, dates, PO number, total, supplier name and address, VAT number, IBAN and the invoice lines are found next to their labels, wherever they sit on the page.
 - **Shows what to check:** each field says where it came from. Orange is a guess, red was not found, blue is as last time for this supplier; click a field to see it highlighted on the invoice.
 - **Learns each supplier:** the payee name and address, quote details and the wording of the description are taken from the last requisition for the same supplier (matched by VAT number, IBAN, email domain or a close name).
 - **Checks before you submit:** a missing PO number or "SICAP" on the invoice, lines that don't add up to the total, people named against the quantity charged, an invoice already done, and the €5,000 a year (excl. VAT) three-quotations rule.
 - **Kept to download again:** every requisition is kept (migration 88), with each supplier's total for the year.
+- **Scans and photos too:** a scanned PDF or a phone photo is read by OCR (Tesseract, in the browser): the lighting is evened out and a tilted photo is levelled first. Everything read off a picture is marked to check, since a letter or digit can be misread.
 
-The invoice is read in the browser and never uploaded. Photos and scans without a text layer can't be read yet: they are shown beside the form to fill in by hand.
+The invoice is read in the browser and never uploaded; the OCR engine and its English model ship with the app (the CSP allows WebAssembly with `'wasm-unsafe-eval'`).
 
 </td>
 </tr>
@@ -278,6 +279,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | **Documents** | `docxtemplater` + `pizzip` in a Web Worker |
 | **Spreadsheets** | `write-excel-file` for exports; a small built-in `.xlsx` reader for imports |
 | **PDF forms** | `pdf-lib` (+ `@pdf-lib/fontkit`, Arimo font), `pdfjs-dist` |
+| **Invoice OCR** | `tesseract.js` (WebAssembly, English model shipped with the app) for scanned and photographed invoices |
 | **Backend** | Supabase: PostgreSQL, Row Level Security, RPCs, Realtime, Storage, an Edge Function for web push |
 | **Automation** | Google Apps Script (form sync, CRM Mirror sheet, employment survey sync) |
 | **Quality** | Vitest 5 + Testing Library (VM pool, ~20 s), ESLint 10 (zero warnings), `tsc` strict, GitHub Actions CI on every pull request |

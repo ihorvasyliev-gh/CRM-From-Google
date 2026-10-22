@@ -20,10 +20,16 @@ import { draftFromInvoice, readDefaults, sameSupplier, THREE_QUOTES_FROM, type C
 import { chequeReqFileName, renderChequeReq } from '../lib/chequeReq/docx';
 import { formatAmount } from '../lib/chequeReq/parse';
 import { INVOICE_ACCEPT, invoiceKind, MAX_INVOICE_BYTES, readDocxInvoice } from '../lib/chequeReq/read';
+import { ocrPhrases, photoPage, readScan, scannedPdfPages, type OcrPage } from '../lib/chequeReq/ocr';
 import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from '../lib/chequeReq/types';
 import type { Phrase } from '../lib/pdfForms/types';
 
 const NO_FACTS: InvoiceFacts = { hasText: false, supplier: {}, items: [], people: [], mentionsSicap: false };
+
+/** A PDF with hardly any text is a scan (perhaps with a scanner's stamp): its pages are pictures to read */
+function looksScanned(phrases: Phrase[]): boolean {
+    return phrases.map(p => p.text).join('').replace(/[^\p{L}\p{N}]/gu, '').length < 100;
+}
 
 /** This year's payments per supplier (excl. VAT), largest first: the €5,000 single-quote limit */
 function yearTotals(rows: SavedChequeReq[], year: string) {
@@ -53,7 +59,8 @@ export default function ChequeRequisitions() {
     const remove = useDeleteChequeReq();
     const userName = useFormUserName();
     const [session, setSession] = useState<EditorSession | null>(null);
-    const [reading, setReading] = useState(false);
+    /** What is being done while an invoice is read, e.g. "Reading the scan… 40%" */
+    const [reading, setReading] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<SavedChequeReq | null>(null);
     const rows = useMemo(() => history?.rows ?? [], [history]);
     const year = todayISO().slice(0, 4);
@@ -82,29 +89,51 @@ export default function ChequeRequisitions() {
             toast.error('The file is larger than 25 MB');
             return;
         }
-        setReading(true);
+        setReading('Reading the invoice…');
         try {
             let invoice: LoadedInvoice;
             let phrases: Phrase[] = [];
+            let scanned = false;
+            // Pictures (a scanned PDF's pages, a photo) are read by OCR; if that fails the
+            // invoice still opens beside an empty requisition to fill in by hand
+            let angles: number[] = [];
+            const readPictures = async (pages: OcrPage[]) => {
+                scanned = true;
+                try {
+                    const read = await readScan(pages, done => setReading(`Reading the scan… ${Math.round(done * 100)}%`));
+                    angles = read.angles;
+                    return ocrPhrases(read.pageSizes, read.items);
+                } catch (err) {
+                    toast.error(err instanceof Error ? `The scan could not be read: ${err.message}` : 'The scan could not be read');
+                    return [];
+                }
+            };
             if (kind === 'pdf') {
                 const pdf = await loadPdf(new Uint8Array(await file.arrayBuffer()));
-                invoice = { kind, pdf, fileName: file.name };
                 phrases = pdf.layout.phrases;
+                if (looksScanned(phrases)) {
+                    setReading('Reading the scan…');
+                    phrases = await readPictures(await scannedPdfPages(pdf.doc));
+                }
+                invoice = { kind, pdf, fileName: file.name, angles };
             } else if (kind === 'docx') {
                 phrases = await readDocxInvoice(await file.arrayBuffer());
                 invoice = { kind, phrases, fileName: file.name };
             } else {
-                invoice = { kind, url: URL.createObjectURL(file), fileName: file.name };
+                setReading('Reading the photo…');
+                const page = await photoPage(file);
+                phrases = await readPictures([page]);
+                invoice = { kind, url: URL.createObjectURL(file), fileName: file.name, size: { w: page.width, h: page.height }, angle: angles[0] ?? 0 };
             }
             // Earlier requisitions first: they hold this supplier's details from last time
             const hist = await queryClient.fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 }).catch(() => undefined);
-            const facts = extractInvoice(phrases);
+            const facts: InvoiceFacts = { ...extractInvoice(phrases), scanned };
             const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName: file.name });
             setSession({ key: crypto.randomUUID(), invoice, facts, draft });
         } catch (err) {
             toast.error(err instanceof Error ? `The invoice could not be read: ${err.message}` : 'The invoice could not be read');
         } finally {
-            setReading(false);
+            setReading(null);
         }
     };
 
@@ -164,10 +193,11 @@ export default function ChequeRequisitions() {
             <FileDropzone
                 accept={INVOICE_ACCEPT}
                 onChange={openInvoice}
-                uploading={reading}
+                uploading={!!reading}
+                uploadingTitle={reading}
                 icon={<FileText size={18} />}
-                title={reading ? 'Reading the invoice…' : 'Make a requisition: click here to choose the invoice, or drag it onto this box'}
-                hint="PDF or Word file, or a photo of a paper invoice. The invoice stays on this computer."
+                title="Make a requisition: click here to choose the invoice, or drag it onto this box"
+                hint="PDF or Word file, a scan or a photo of a paper invoice. The invoice is read on this computer and never uploaded."
                 className="py-10"
             />
 

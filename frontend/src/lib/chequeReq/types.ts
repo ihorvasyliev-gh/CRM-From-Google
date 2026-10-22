@@ -111,8 +111,10 @@ export interface SupplierFacts {
 }
 
 export interface InvoiceFacts {
-    /** Whether the file had readable text at all (a scan has none) */
+    /** Whether any text could be read from the file */
     hasText: boolean;
+    /** Read off a picture (a scan or a photo): a letter or digit may have been misread */
+    scanned?: boolean;
     invoiceNumber?: Found;
     /** YYYY-MM-DD */
     invoiceDate?: Found;

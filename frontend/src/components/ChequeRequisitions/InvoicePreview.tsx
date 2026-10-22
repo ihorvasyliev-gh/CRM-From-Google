@@ -2,12 +2,15 @@ import { useEffect, useMemo, useRef } from 'react';
 import { PdfPage } from '../PdfForms/pdfView';
 import { rectStyle, useElementWidth, type LoadedPdf } from '../PdfForms/pdfHooks';
 import { toLines } from '../../lib/chequeReq/extract';
+import { unlevelRect } from '../../lib/chequeReq/ocr';
 import type { Phrase, Rect } from '../../lib/pdfForms/types';
 
+/** A scan or photo was read levelled: `angles` (per page) / `angle` put a place back onto the picture */
 export type LoadedInvoice =
-    | { kind: 'pdf'; pdf: LoadedPdf; fileName: string }
+    | { kind: 'pdf'; pdf: LoadedPdf; fileName: string; angles?: number[] }
     | { kind: 'docx'; phrases: Phrase[]; fileName: string }
-    | { kind: 'image'; url: string; fileName: string };
+    /** `size`: the photo's pixels, the units its words were read in */
+    | { kind: 'image'; url: string; fileName: string; size: { w: number; h: number }; angle: number };
 
 interface Props {
     invoice: LoadedInvoice;
@@ -22,21 +25,28 @@ export default function InvoicePreview({ invoice, highlight }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [measureRef, width] = useElementWidth<HTMLDivElement>();
     const pages = useMemo(() => (invoice.kind === 'pdf' ? invoice.pdf.layout.pages : []), [invoice]);
+    // Where the outlined places show on the page or picture
+    const shown = useMemo(() => {
+        if (!highlight || invoice.kind === 'docx') return highlight;
+        return highlight.map(r =>
+            invoice.kind === 'image' ? unlevelRect(r, invoice.angle, invoice.size) : pages[r.page] ? unlevelRect(r, invoice.angles?.[r.page] ?? 0, pages[r.page]) : r,
+        );
+    }, [highlight, invoice, pages]);
 
     // Bring the outlined value into view
     useEffect(() => {
         const box = scrollRef.current;
-        const first = highlight?.[0];
-        if (!box || !first || invoice.kind !== 'pdf' || width <= 0) return;
+        const first = shown?.[0];
+        if (!box || !first || invoice.kind === 'docx' || width <= 0) return;
         let top = 0;
-        for (let i = 0; i < first.page; i++) top += pages[i].h * (width / pages[i].w) + GAP;
-        const page = pages[first.page];
+        const page = invoice.kind === 'image' ? invoice.size : pages[first.page];
+        if (invoice.kind === 'pdf') for (let i = 0; i < first.page; i++) top += pages[i].h * (width / pages[i].w) + GAP;
         if (!page) return;
         const scale = width / page.w;
         top += (page.h - first.y - first.h) * scale;
         const view = box.clientHeight;
         if (top < box.scrollTop + 24 || top > box.scrollTop + view - 48) box.scrollTo({ top: Math.max(0, top - view / 3), behavior: 'smooth' });
-    }, [highlight, invoice.kind, pages, width]);
+    }, [shown, invoice, pages, width]);
 
     const docxLines = useMemo(() => (invoice.kind === 'docx' ? toLines(invoice.phrases) : []), [invoice]);
 
@@ -54,7 +64,7 @@ export default function InvoicePreview({ invoice, highlight }: Props) {
                                 width={width}
                                 overlay={scale => (
                                     <>
-                                        {highlight?.filter(r => r.page === i).map((r, k) => (
+                                        {shown?.filter(r => r.page === i).map((r, k) => (
                                             <div
                                                 key={k}
                                                 className="absolute rounded-xs ring-2 ring-brand-500 bg-brand-500/15 pointer-events-none animate-fadeIn"
@@ -76,7 +86,19 @@ export default function InvoicePreview({ invoice, highlight }: Props) {
                         ))}
                     </div>
                 )}
-                {invoice.kind === 'image' && <img src={invoice.url} alt={`Invoice: ${invoice.fileName}`} className="w-full rounded-sm shadow-card bg-white" />}
+                {invoice.kind === 'image' && (
+                    <div className="relative">
+                        <img src={invoice.url} alt={`Invoice: ${invoice.fileName}`} className="w-full rounded-sm shadow-card bg-white" />
+                        {width > 0 &&
+                            shown?.map((r, k) => (
+                                <div
+                                    key={k}
+                                    className="absolute rounded-xs ring-2 ring-brand-500 bg-brand-500/15 pointer-events-none animate-fadeIn"
+                                    style={rectStyle(r, width / invoice.size.w, invoice.size.h)}
+                                />
+                            ))}
+                    </div>
+                )}
             </div>
         </div>
     );
