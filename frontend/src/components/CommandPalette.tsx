@@ -11,7 +11,7 @@ import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
     Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
     Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
-    X, CornerDownLeft, Sparkles, Loader2
+    X, CornerDownLeft, Sparkles, Loader2, Receipt
 } from 'lucide-react';
 import type { NavigateFn } from '../lib/navigation';
 
@@ -144,6 +144,7 @@ export default function CommandPalette({
                 { id: 'nav-anal', title: 'Analytics', subtitle: 'Stats, funnels & insights', tab: 'analytics', icon: <PieChart size={17} />, shortcut: '7' },
                 { id: 'nav-sett', title: 'Settings', subtitle: 'App & email configuration', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
                 { id: 'nav-pdff', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '9' },
+                { id: 'nav-cheq', title: 'Cheque Requisitions', subtitle: 'SICAP cheque requisitions from supplier invoices', tab: 'cheque-reqs', icon: <Receipt size={17} /> },
             ];
 
             navs.forEach(nav => {

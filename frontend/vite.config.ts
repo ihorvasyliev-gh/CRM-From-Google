@@ -21,6 +21,8 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react(), tailwindcss()],
+    // Word templates shipped with the app (the SICAP cheque requisition)
+    assetsInclude: ['**/*.docx'],
     // The document worker loads pizzip/docxtemplater with dynamic import(), which needs ES module workers
     worker: { format: 'es' },
     build: {

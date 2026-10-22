@@ -15,6 +15,7 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('../components/Analytics') },
     settings: { chunk: () => import('../components/Settings') },
     'pdf-forms': { chunk: () => import('../components/PdfForms') },
+    'cheque-reqs': { chunk: () => import('../components/ChequeRequisitions') },
 };
 
 type IdleWindow = Window & {
