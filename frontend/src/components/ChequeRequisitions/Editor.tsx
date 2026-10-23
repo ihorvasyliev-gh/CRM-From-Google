@@ -82,7 +82,7 @@ function InvoiceFactsList({ facts }: { facts: InvoiceFacts }) {
         ['BIC', facts.supplier.bic],
         ['Email', facts.supplier.email],
         ['Phone', facts.supplier.phone],
-        ['Course / service dates', facts.serviceDates && [facts.serviceDates.start, facts.serviceDates.end].filter(Boolean).map(d => slashDate(d!)).join(' – ')],
+        ['Course / service dates', facts.serviceDates && (facts.serviceDates.days?.map(slashDate).join(', ') ?? [facts.serviceDates.start, facts.serviceDates.end].filter(Boolean).map(d => slashDate(d!)).join(' – '))],
     ];
     const shown = rows.filter(([, v]) => v);
     if (shown.length === 0 && facts.people.length === 0) return null;

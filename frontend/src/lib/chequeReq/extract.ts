@@ -5,7 +5,7 @@
 // a clear label is returned as a guess (`sure: false`) for the person to check.
 
 import type { Phrase, Rect } from '../pdfForms/types';
-import { collapseSpaces, domainWord, EMAIL_RE, findAmounts, findDateRange, IBAN_RE, parseDate, PHONE_RE, referenceToken, squash, WEBSITE_RE } from './parse';
+import { collapseSpaces, domainWord, EMAIL_RE, findAmounts, findDateRange, findDates, IBAN_RE, parseDate, PHONE_RE, referenceToken, squash, WEBSITE_RE } from './parse';
 import type { Found, InvoiceFacts, InvoiceItem, SupplierFacts } from './types';
 
 /** The customer side of an invoice: this partnership. Blocks mentioning it are never the supplier. */
@@ -143,6 +143,14 @@ const ADDRESS_STOP = /:\s*$|^\s*(?:invoice|date|due|p\.?\s?o\.?\b|purchase|order
 const HEADING = /^(?:tax\s+)?(?:invoice|statement|credit\s+note|receipt|quote|quotation|description|payment\s+advice|remittance)\b/i;
 const CUSTOMER_LABEL = /^(?:(?:bill(?:ed)?|invoice|sold|ship|deliver(?:y)?)\s*(?:to|address)|to|customer|client|attention|attn|fao)\b\s*:?$/i;
 const SUPPLIER_LABEL = /^(?:from|supplier|vendor|payee|pay(?:able)?\s*to|remit\s*to|make\s+cheques\s+payable\s+to)\b\s*:?$/i;
+/** "Cheque payable to. Thomas O Riordan", "Please make cheques payable to: Acme Ltd", "Payable to Acme" */
+const PAYABLE_TO = /(?:\bcheques?\b.*?|^\s*)payable\s+to\b\s*[.:,–-]?\s*(\S.*)$/i;
+/** The customer: this partnership by name, or a line saying only "SICAP" */
+const CUSTOMER_LINE = /cork\s*city\s*partnership|heron\s*house|^\W*(?:sicap|ccp)\W*$/i;
+/** A line saying only what the next ones are: "Description", "Invoice To" */
+const LONE_HEADING = /^(?:descr?iption|discription|details|items?|particulars|services?)\s*:?$/i;
+/** "4 x €60", "3 courses @ €1000 each", "Room rental 7 x €60" */
+const QTY_PRICE = /\b(\d{1,4})\s*(?:[a-z]+\s+){0,2}(?:(?:x|×)\s*(?:€|eur\s?)|@\s*(?:€|eur\s?)?)\s?(\d[\d,]*(?:\.\d{1,2})?)(?:\s*each)?/i;
 
 // ─── Items ─────────────────────────────────────────────────────
 
@@ -251,6 +259,58 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
     return { items, itemLines };
 }
 
+/** The text of a line without its PO numbers: "26/08/26. PO # 8208" → "26/08/26" */
+function withoutPo(text: string): string {
+    return collapseSpaces(text.replace(new RegExp(`${PO_NUMBER.source}[\\s:#.–-]*[A-Z0-9][A-Z0-9\\-/._]*`, 'gi'), ' ')).replace(/^[\s.,;:–-]+|[\s.,;:–-]+$/g, '');
+}
+
+/**
+ * An invoice with no table of items, written as lines ("Sewing Course 08/05, 15/05", "4 x €60"):
+ * the lines between the customer (or a "Description" heading) and the total. The first is the
+ * item; the lines under it are its details, and "N x €P" its quantity and price.
+ */
+function looseItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<TextLine> } {
+    const items: InvoiceItem[] = [];
+    const itemLines = new Set<TextLine>();
+    const end = lines.findIndex(l => l.phrases.some(p => TOTAL_STRONG.test(p.text) || TOTAL_WEAK.test(p.text) || SUBTOTAL.test(p.text)));
+    let start = -1;
+    for (let i = 0; i < (end < 0 ? 0 : end); i++) {
+        const l = lines[i];
+        const heading = l.phrases.some(p => LONE_HEADING.test(p.text.trim()) || CUSTOMER_LABEL.test(p.text.trim()) || HEADING.test(p.text));
+        if (heading || CUSTOMER_LINE.test(l.text) || l.phrases.some(p => INVOICE_NO.test(p.text) || INVOICE_DATE.test(p.text) || DUE_DATE.test(p.text))) start = i;
+    }
+    if (start < 0) return { items, itemLines };
+    let current: InvoiceItem | null = null;
+    for (let i = start + 1; i < end; i++) {
+        const line = lines[i];
+        const text = withoutPo(line.text);
+        const qp = QTY_PRICE.exec(text);
+        // Bank and contact details ("@" of an email, not of "3 courses @ €1000")
+        if (!text || (!qp && IDENTIFIER_LINE.test(text))) continue;
+        let rest = qp ? collapseSpaces(text.replace(qp[0], ' ')).replace(/^[\s.,;:–-]+|[\s,;:–-]+$/g, '') : text;
+        const amounts = qp ? [] : findAmounts(rest);
+        if (amounts.length) rest = collapseSpaces(rest.slice(0, amounts[amounts.length - 1].index).replace(/[€£]\s*$|\b(?:eur|gbp)\s*$/i, '')).replace(/[\s,;:–-]+$/, '');
+        const priced = !!qp || amounts.length > 0;
+        if (!current || (rest && priced && current.amount !== undefined)) {
+            current = { description: rest, details: [], source: line.phrases.map(rectOf) };
+            items.push(current);
+        } else if (rest) {
+            if (current.description) current.details.push(rest);
+            else current.description = rest;
+        }
+        if (qp && current.quantity === undefined) {
+            const unitPrice = Number(qp[2].replace(/,/g, ''));
+            current.quantity = Number(qp[1]);
+            current.unitPrice = unitPrice;
+            current.amount = Math.round(current.quantity * unitPrice * 100) / 100;
+        } else if (amounts.length && current.amount === undefined) {
+            current.amount = amounts[amounts.length - 1].value;
+        }
+        itemLines.add(line);
+    }
+    return { items, itemLines };
+}
+
 /** "1. Anna" + "Smith" (wrapped) → "Anna Smith": the numbered names under an item */
 export function numberedPeople(details: string[]): string[] {
     const people: string[] = [];
@@ -341,7 +401,7 @@ function splitNameAndAddress(texts: string[]): { name: string; nameLines: number
     const address: string[] = [];
     for (; i < texts.length && address.length < 7; i++) {
         const t = texts[i];
-        if (IDENTIFIER_LINE.test(t) || ADDRESS_STOP.test(t) || findAmounts(t).length > 0 || parseDate(t)) break;
+        if (IDENTIFIER_LINE.test(t) || ADDRESS_STOP.test(t) || findAmounts(t).length > 0 || parseDate(t) || /^\+?[\d\s()-]{7,}$/.test(t)) break;
         address.push(t);
     }
     return { name: collapseSpaces(name.join(' ')).replace(/[,:]$/, ''), nameLines: name.length, address };
@@ -363,9 +423,22 @@ export function joinAddress(lines: string[]): string {
     return parts.join(', ').replace(/\s*,\s*,/g, ',').replace(/\s+,/g, ',');
 }
 
+/** Whom the invoice asks cheques to be made out to: the payee, whatever the letterhead says */
+function payableTo(lines: TextLine[]): Found | undefined {
+    for (const line of lines) {
+        const m = PAYABLE_TO.exec(line.text);
+        if (!m) continue;
+        const name = collapseSpaces(m[1].split(/[.!;]\s+(?=[A-Z])/)[0]).replace(/[.,;:!]+$/, '');
+        if (/\d/.test(name) || name.split(/\s+/).length > 8 || OUR_ORGANISATION.test(name) || name.replace(/[^\p{L}]/gu, '').length < 3) continue;
+        return { value: name, sure: true, source: line.phrases.map(rectOf), from: line.text };
+    }
+    return undefined;
+}
+
 function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     const supplier: SupplierFacts = {};
     const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
+    const payable = payableTo(lines);
 
     const emails = [...allText.matchAll(EMAIL_RE)].map(m => m[0]).filter(e => !OUR_ORGANISATION.test(e) && !/partnership/i.test(e));
     supplier.email = emails[0];
@@ -428,7 +501,7 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
         if (texts.slice(1).some(t => ADDRESS_HINT.test(t))) score += 2;
         if (texts.some(t => VAT_NUMBER.test(t))) score += 2;
         if (domains.some(d => texts.slice(0, 2).some(t => squash(t).includes(d)))) score += 3;
-        if (SUPPLIER_LABEL.test(label) || adviceTo) labelSure = true;
+        if (SUPPLIER_LABEL.test(label) || adviceTo || (payable && squash(first) === squash(payable.value))) labelSure = true;
         if (labelSure) score += 3;
         if (top.page === 0 && (pageTop.get(0) ?? 0) - top.y < 140) score += 1;
         if (texts.length === 1) score -= 1;
@@ -445,7 +518,10 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
             const addressLines = bestBlock.lines.slice(nameLines, nameLines + address.length);
             supplier.address = { value: joinAddress(address), sure, source: addressLines.map(rectOf), from: address.join(' / ') };
         }
+        // A phone number on a line of its own under the name
+        supplier.phone ??= texts.join('\n').match(PHONE_RE)?.[0];
     }
+    if (payable) supplier.name = payable;
 
     // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345."
     if (!supplier.address) {
@@ -490,6 +566,19 @@ function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Ca
 
 // ─── All together ──────────────────────────────────────────────
 
+/** A date standing alone near the top ("INVOICE" / "1/10/2026"): most likely the invoice date */
+function loneDate(lines: TextLine[], dueDate: string | undefined): Found | undefined {
+    const stop = lines.findIndex(l => l.phrases.some(p => ANY_TOTAL.test(p.text)) || l.phrases.some(p => HEADER_DESC.test(p.text) && l.phrases.length > 1));
+    for (const line of lines.slice(0, stop < 0 ? lines.length : stop)) {
+        for (const p of line.phrases) {
+            const [date] = findDates(p.text);
+            if (!date || date.iso === dueDate || p.text.slice(0, date.index).trim() || p.text.slice(date.end).replace(/[.,]/g, '').trim()) continue;
+            return { value: date.iso, sure: false, source: [rectOf(p)], from: p.text };
+        }
+    }
+    return undefined;
+}
+
 export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     const lines = toLines(phrases);
     const allText = lines.map(l => l.text).join('\n');
@@ -503,16 +592,24 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
         if (m) facts.invoiceNumber = { value: m[1], sure: false, from: m[0] };
     }
 
-    facts.invoiceDate = best(labelled(lines, INVOICE_DATE, parseDate));
     facts.dueDate = best(labelled(lines, DUE_DATE, parseDate));
+    facts.invoiceDate = best(labelled(lines, INVOICE_DATE, parseDate)) ?? loneDate(lines, facts.dueDate?.value);
 
-    const po = best(labelled(lines, PO_NUMBER, t => {
+    const poCandidates = labelled(lines, PO_NUMBER, t => {
         const token = referenceToken(t);
         return token && token !== facts.invoiceNumber?.value ? token : null;
-    }));
+    });
+    const po = best(poCandidates);
     if (po) facts.poNumber = po;
+    // Several purchase orders on one invoice ("PO # 8208", "PO # 8209"…): all of them, in order
+    const orders = [...new Map(poCandidates.filter(c => c.score >= 2.5 && /\bp\.?\s?o\b|purchase/i.test(c.from)).map(c => [c.value, c])).values()];
+    if (orders.length > 1) {
+        facts.poNumbers = orders.map(c => c.value);
+        facts.poNumber = { value: facts.poNumbers.join(', '), sure: true, source: orders.flatMap(c => c.rects), from: orders.map(c => c.from).join(' · ') };
+    }
 
-    const { items, itemLines } = readItems(lines);
+    const table = readItems(lines);
+    const { items, itemLines } = table.items.length ? table : looseItems(lines);
     facts.items = items.filter(i => i.description || i.amount !== undefined);
 
     const strong = best(amountBeside(lines, TOTAL_STRONG, itemLines));
@@ -539,9 +636,12 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
 
     facts.people = numberedPeople(facts.items.flatMap(i => i.details));
     for (const item of facts.items) {
-        const range = findDateRange(item.description) ?? item.details.map(d => findDateRange(d)).find(Boolean) ?? null;
+        const texts = [item.description, ...item.details];
+        const range = texts.map(t => findDateRange(t)).find(Boolean);
         if (range) {
-            facts.serviceDates = range;
+            // Separate days ("26/08/26", "27/08/26", "28/08/26"), each its own course
+            const days = [...new Set(texts.flatMap(t => findDates(t).map(d => d.iso)))].sort();
+            facts.serviceDates = !range.end && days.length > 1 ? { start: days[0], days } : range;
             break;
         }
     }

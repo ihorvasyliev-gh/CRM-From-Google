@@ -68,8 +68,8 @@ describe('extractInvoice: a simple VAT invoice', () => {
         ]);
     });
 
-    it('takes the supplier from the "From:" block and its phone number', () => {
-        expect(facts.supplier.name).toMatchObject({ value: 'Greenleaf Catering', sure: true });
+    it('takes the supplier from the "From:" block and its phone number, named as cheques are payable', () => {
+        expect(facts.supplier.name).toMatchObject({ value: 'Greenleaf Catering Ltd', sure: true });
         expect(facts.supplier.address?.value).toBe('12 Patrick Street, Cork T12 XY99');
         expect(facts.supplier.phone).toBe('087 123 4567');
     });
@@ -120,5 +120,100 @@ describe('Word invoices', () => {
         expect(facts.items[0]).toMatchObject({ description: 'English tutoring 1st - 5th June 2026', quantity: 10, unitPrice: 40, amount: 400 });
         expect(facts.serviceDates).toEqual({ start: '2026-06-01', end: '2026-06-05' });
         expect(facts.supplier.name?.value).toBe('Riverside Tutors');
+    });
+
+    const NS = `${W} xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:v="urn:schemas-microsoft-com:vml"`;
+    /** A text box `x` points from the margin, as Word saves it: a drawing, and an old-style copy for older readers */
+    const box = (x: number, ...paras: string[]) => {
+        const content = `<w:txbxContent>${paras.map(p).join('')}</w:txbxContent>`;
+        return `<w:r><mc:AlternateContent>
+            <mc:Choice Requires="wps"><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>${x * 12700}</wp:posOffset></wp:positionH><wp:extent cx="2400000" cy="1100000"/><wps:txbx xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">${content}</wps:txbx></wp:anchor></w:drawing></mc:Choice>
+            <mc:Fallback><w:pict><v:shape style="position:absolute;margin-left:${x}pt"><v:textbox>${content}</v:textbox></v:shape></w:pict></mc:Fallback>
+        </mc:AlternateContent></w:r>`;
+    };
+
+    it('reads text boxes once each, beside each other, and several PO numbers', () => {
+        const xml = `<w:document ${NS}><w:body>
+            ${p('INVOICE #     2041                    DATE   14/09/2026')}
+            ${p('Invoice To')}
+            <w:p>${box(270, 'Aoife Kelly', '0871234567', 'aoife.kelly.training@gmail.com')}${box(0, 'Cork City Partnership', 'SICAP')}</w:p>
+            ${p('Description')}
+            <w:p>${box(0, 'First Aid Courses', '01/09/26.        PO # 7001', '02/09/26        PO # 7002', '03/09/26        PO # 7003', '3 courses @ €500 each')}</w:p>
+            <w:tbl><w:tr>${cell('Total Due')}${cell('€ 1500')}</w:tr></w:tbl>
+            ${p('Iban: IE29AIBK93115212345678')}
+            ${p('Cheque payable to. Aoife Kelly')}
+        </w:body></w:document>`;
+        const phrases = docxPhrases(xml);
+        expect(phrases.filter(ph => ph.text === 'SICAP')).toHaveLength(1);
+        // The supplier's box sits right of the customer's, on the same lines
+        const supplier = phrases.find(ph => ph.text === 'Aoife Kelly')!;
+        const customer = phrases.find(ph => ph.text === 'Cork City Partnership')!;
+        expect(supplier.x).toBe(270);
+        expect(supplier.y).toBe(customer.y);
+
+        const facts = extractInvoice(phrases);
+        expect(facts.invoiceNumber?.value).toBe('2041');
+        expect(facts.invoiceDate?.value).toBe('2026-09-14');
+        expect(facts.mentionsSicap).toBe(true);
+        expect(facts.poNumbers).toEqual(['7001', '7002', '7003']);
+        expect(facts.poNumber).toMatchObject({ value: '7001, 7002, 7003', sure: true });
+        expect(facts.items.map(i => [i.description, i.quantity, i.unitPrice, i.amount])).toEqual([['First Aid Courses', 3, 500, 1500]]);
+        expect(facts.serviceDates).toEqual({ start: '2026-09-01', days: ['2026-09-01', '2026-09-02', '2026-09-03'] });
+        expect(facts.total).toMatchObject({ value: 1500, sure: true });
+        expect(facts.supplier.name).toMatchObject({ value: 'Aoife Kelly', sure: true, from: 'Cheque payable to. Aoife Kelly' });
+        expect(facts.supplier.phone).toBe('0871234567');
+        expect(facts.supplier.address).toBeUndefined();
+    });
+
+    const right = (text: string) => `<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+    const big = (text: string, size = 32) => `<w:p><w:r><w:rPr><w:sz w:val="${size}"/></w:rPr><w:t xml:space="preserve">${text}</w:t></w:r></w:p>`;
+    /** Today's date as Word shows it, month first: what the invoice was last saved with is kept */
+    const dateField = (shown: string) =>
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> DATE \\@ "M/d/yyyy" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>${shown}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+    const plainInvoice = (...lines: string[]) => `<w:document ${W}><w:body>
+        ${right('The Willow Room')}${right('Unit 4 Lee Quay')}${right('Cork City')}
+        ${big('INVOICE', 44)}
+        ${dateField('9/14/2026')}
+        ${big('SICAP programme Cork City Partnership')}
+        ${lines.map(l => big(l)).join('')}
+    </w:body></w:document>`;
+
+    it('reads an invoice written as plain lines, with no table and no labels', () => {
+        const facts = extractInvoice(docxPhrases(plainInvoice('Pottery Course 03/09, 10/09', 'PO number 7123', '2 x €75', 'Total €150')));
+        expect(facts.supplier.name?.value).toBe('The Willow Room');
+        expect(facts.supplier.address?.value).toBe('Unit 4 Lee Quay, Cork City');
+        expect(facts.invoiceDate).toMatchObject({ value: '2026-09-14', sure: false });
+        expect(facts.poNumber?.value).toBe('7123');
+        expect(facts.poNumbers).toBeUndefined();
+        expect(facts.items.map(i => [i.description, i.quantity, i.unitPrice, i.amount])).toEqual([['Pottery Course 03/09, 10/09', 2, 75, 150]]);
+        expect(facts.total).toMatchObject({ value: 150, sure: true });
+
+        const oneLine = extractInvoice(docxPhrases(plainInvoice('Room hire 3 x €50', 'PO number 7124', 'Total €150')));
+        expect(oneLine.items.map(i => [i.description, i.quantity, i.unitPrice, i.amount])).toEqual([['Room hire', 3, 50, 150]]);
+        expect(oneLine.total).toMatchObject({ value: 150, sure: true });
+
+        // Nothing to say what the total pays for: it is for the person to check
+        const bare = extractInvoice(docxPhrases(plainInvoice('Garden tour 13/06', 'PO number 7125', 'Total €60')));
+        expect(bare.items.map(i => i.description)).toEqual(['Garden tour 13/06']);
+        expect(bare.total).toMatchObject({ value: 60, sure: false });
+    });
+
+    it('reads the letterhead in the page header, once', () => {
+        const header = `<w:hdr ${W}>${p('Riverbank Studio')}${p('9 Mill Lane, Cork')}</w:hdr>`;
+        const body = `<w:document ${W}><w:body>
+            ${p('INVOICE')}
+            ${p('Bill To:')}
+            ${p('Cork City Partnership')}
+            ${tabbed('Invoice No:', 'RS-88')}
+            ${tabbed('PO Number:', '4460')}
+            ${tabbed('Total Due:', '€120.00')}
+        </w:body></w:document>`;
+        const phrases = docxPhrases(body, { headers: [header, header] });
+        expect(phrases.filter(ph => ph.text === 'Riverbank Studio')).toHaveLength(1);
+        const facts = extractInvoice(phrases);
+        expect(facts.supplier.name?.value).toBe('Riverbank Studio');
+        expect(facts.supplier.address?.value).toBe('9 Mill Lane, Cork');
+        expect(facts.invoiceNumber?.value).toBe('RS-88');
+        expect(facts.total?.value).toBe(120);
     });
 });
