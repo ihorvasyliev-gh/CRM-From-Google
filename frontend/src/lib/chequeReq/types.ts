@@ -119,7 +119,10 @@ export interface InvoiceFacts {
     /** YYYY-MM-DD */
     invoiceDate?: Found;
     dueDate?: Found;
+    /** All of them, comma separated, when the invoice lists several */
     poNumber?: Found;
+    /** Every PO number, when the invoice lists several (one course per PO, say) */
+    poNumbers?: string[];
     total?: Found<number>;
     subtotal?: Found<number>;
     vat?: Found<number>;
@@ -127,8 +130,8 @@ export interface InvoiceFacts {
     items: InvoiceItem[];
     /** Numbered names under an item ("1. Anna Smith"), e.g. course participants */
     people: string[];
-    /** When the course / service ran, from the item lines */
-    serviceDates?: { start: string; end?: string };
+    /** When the course / service ran, from the item lines: from start to end, or on separate days */
+    serviceDates?: { start: string; end?: string; days?: string[] };
     /** "Attention: …" — who ordered it */
     attention?: string;
     mentionsSicap: boolean;

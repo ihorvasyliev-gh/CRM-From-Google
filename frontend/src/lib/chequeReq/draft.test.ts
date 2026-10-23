@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { buildDescription, descriptionPattern, draftFromInvoice, EMPTY_DEFAULTS, historyChecks, invoiceChecks, readDefaults, rememberDefaults, sameSupplier } from './draft';
 import { extractInvoice } from './extract';
 import { simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
-import { EMPTY_FORM, EMPTY_META, type SavedChequeReq } from './types';
+import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from './types';
 
 function saved(over: Partial<Omit<SavedChequeReq, 'form' | 'meta'>> & { form?: Partial<SavedChequeReq['form']>; meta?: Partial<SavedChequeReq['meta']> }): SavedChequeReq {
     return {
@@ -32,6 +32,8 @@ describe('description wording', () => {
         expect(buildDescription('Manual Handling QQI Level 5', '2026-11-03', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling QQI Level 5 course 03.11.2026 for IP and TP Clients');
         expect(buildDescription('Manual Handling', '', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling course for IP and TP Clients');
         expect(buildDescription('Manual Handling', '2026-11-03', null)).toBe('Manual Handling 03.11.2026');
+        // A course run on separate days lists them all
+        expect(buildDescription('First Aid', '2026-09-01', '{item} course {date} for IP and TP Clients', ['2026-09-01', '2026-09-02'])).toBe('First Aid course 01.09.2026, 02.09.2026 for IP and TP Clients');
     });
 });
 
@@ -67,6 +69,21 @@ describe('draftFromInvoice', () => {
         expect(flags.requestedBy?.level).toBe('check');
         expect(flags.quoteEmail?.level).toBe('check');
         expect(meta).toMatchObject({ invoiceNumber: 'INV-0101', invoiceDate: '2026-10-21', netAmount: 450, supplierVat: 'IE1234567T', supplierDomain: 'brightway', item: 'Manual Handling QQI Level 5', serviceDate: '2026-11-03' });
+    });
+
+    it('puts every PO number of the invoice on the requisition, and every day of the course in the description', () => {
+        const facts: InvoiceFacts = {
+            ...extractInvoice(simpleVatInvoice()),
+            items: [{ description: 'First Aid Courses', details: ['01/09/26', '02/09/26'], quantity: 2, unitPrice: 500, amount: 1000 }],
+            poNumber: { value: '7001, 7002', sure: true, from: 'PO # 7001 · PO # 7002' },
+            poNumbers: ['7001', '7002'],
+            serviceDates: { start: '2026-09-01', days: ['2026-09-01', '2026-09-02'] },
+        };
+        const { form, flags } = draftFromInvoice({ facts, history: [], defaults: EMPTY_DEFAULTS, fileName: 'inv.docx' });
+        expect(form.poNumber).toBe('7001, 7002');
+        expect(flags.poNumber).toMatchObject({ level: 'found', note: 'From the invoice: “PO # 7001 · PO # 7002”' });
+        expect(form.description).toBe('First Aid Courses 01.09.2026, 02.09.2026');
+        expect(invoiceChecks(facts, '2026-10-01')).toContainEqual({ level: 'info', text: '2 PO numbers on this invoice (7001, 7002): all of them are on the requisition.' });
     });
 
     it('marks everything read off a scan as a value to check', () => {

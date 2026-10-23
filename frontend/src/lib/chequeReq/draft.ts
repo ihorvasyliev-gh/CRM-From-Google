@@ -101,8 +101,9 @@ export function descriptionPattern(description: string, item: string, serviceDat
     return pattern;
 }
 
-export function buildDescription(item: string, serviceDate: string, pattern: string | null): string {
-    const date = serviceDate ? dottedDate(serviceDate) : '';
+/** `days`: a course run on separate days, all of them listed */
+export function buildDescription(item: string, serviceDate: string, pattern: string | null, days: string[] = []): string {
+    const date = days.length > 1 ? days.map(dottedDate).join(', ') : serviceDate ? dottedDate(serviceDate) : '';
     if (pattern && item) {
         return collapseSpaces(pattern.replace('{item}', item).replace('{date}', date)).replace(/\s+([,.;])/g, '$1');
     }
@@ -163,7 +164,7 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
         if (s.name) {
             form.payeeName = s.name.value;
             flags.payeeName = s.name.sure
-                ? { level: 'found', note: 'From the invoice', source: s.name.source }
+                ? { level: 'found', note: /payable/i.test(s.name.from ?? '') ? `The invoice says: “${s.name.from}”` : 'From the invoice', source: s.name.source }
                 : { level: 'check', note: 'Best guess from the invoice: check the spelling and that this is who gets paid', source: s.name.source };
         } else {
             flags.payeeName = { level: 'missing', note: 'Couldn’t tell who sent the invoice' };
@@ -196,7 +197,7 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
     // Description: built the way the last one was ({item} course {date} for …)
     const ownPattern = previous ? descriptionPattern(previous.form.description, previous.meta?.item ?? '', previous.meta?.serviceDate ?? '') : null;
     const pattern = ownPattern ?? (defaults.descriptionPattern || null);
-    form.description = buildDescription(firstItem, meta.serviceDate, pattern);
+    form.description = buildDescription(firstItem, meta.serviceDate, pattern, facts.serviceDates?.days);
     if (!form.description) flags.description = { level: 'missing', note: 'Say what was bought: the course or service, and its date' };
     else if (ownPattern) flags.description = { level: 'memory', note: `Worded like ${sinceLabel(previous!)}`, source: facts.items[0]?.source };
     else flags.description = { level: 'check', note: pattern ? 'Worded like your last requisition: check it fits' : 'From the invoice lines: add what it was for, if needed', source: facts.items[0]?.source };
@@ -271,6 +272,7 @@ export function invoiceChecks(facts: InvoiceFacts, today: string): Check[] {
     }
     if (facts.scanned) checks.push({ level: 'info', text: 'Read from a scan or photo: letters and digits can be misread, so every value is marked to check.' });
     if (!facts.poNumber) checks.push({ level: 'warning', text: 'No PO number on the invoice. The checklist asks for the PO number and “SICAP” on the invoice.' });
+    if (facts.poNumbers && facts.poNumbers.length > 1) checks.push({ level: 'info', text: `${facts.poNumbers.length} PO numbers on this invoice (${facts.poNumbers.join(', ')}): all of them are on the requisition.` });
     if (!facts.mentionsSicap) checks.push({ level: 'warning', text: '“SICAP” is not written on the invoice (checklist: PO Number and “SICAP” on Invoice).' });
 
     for (const item of facts.items) {
