@@ -77,6 +77,12 @@ const contactBtn = 'w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
 const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium shrink-0 whitespace-nowrap';
+// The flag as a count ("⚠ 2"): a red chip in a button as tall as the icon buttons
+const flagCountBtn = 'group/flag h-8 lg:h-6 min-w-8 lg:min-w-6 inline-flex items-center justify-center rounded-md';
+const flagCountChip = 'inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md bg-red-600 group-hover/flag:bg-red-700 text-white text-[11px] leading-none font-extrabold tabular-nums shadow-xs transition-colors';
+
+/** From this many flags (failed or missed courses) the card is marked red, not just the orange "!". */
+const MANY_FLAGS = 2;
 
 const EnrollmentCardBody = function EnrollmentCardBody({
     enrollment,
@@ -283,20 +289,34 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const scheduleNote = sessionShortNote(session);
     const scheduleTooltip = sessionTooltip(session);
 
-    const flagTooltip = studentFlags.length > 0
-        ? `⚠ Didn't pass:\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`
+    // Each flag is a course the student failed or didn't come to. One is a warning (the orange
+    // triangle); from MANY_FLAGS on, the flag shows the count and the whole card turns red.
+    const flagCount = studentFlags.length;
+    const manyFlags = flagCount >= MANY_FLAGS;
+    const flagTooltip = flagCount > 0
+        ? `⚠ Flagged ${flagCount === 1 ? 'once' : `${flagCount} times`} (failed or didn't attend):\n${studentFlags.map(f => `${f.courses?.name || 'Unknown'}${f.comment ? ` — ${f.comment}` : ''}`).join('\n')}`
         : 'Flag student (e.g. failed a course)';
     const flagButton = (className: string) => (
         <CustomTooltip content={flagTooltip}>
             <button
-                aria-label={studentFlags.length > 0 ? 'Student flags' : 'Flag student'}
+                aria-label={flagCount > 0 ? `Student flags: ${flagCount}` : 'Flag student'}
                 onClick={e => { e.stopPropagation(); onFlagClick?.(enrollment); }}
-                className={`${iconBtnBase} ${studentFlags.length > 0
-                    ? 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'
-                    : 'text-muted hover:text-orange-500 hover:bg-surface-elevated'
+                className={`${manyFlags
+                    ? flagCountBtn
+                    : `${iconBtnBase} ${flagCount > 0
+                        ? 'text-orange-500 hover:text-orange-600 hover:bg-orange-500/10'
+                        : 'text-muted hover:text-orange-500 hover:bg-surface-elevated'
+                    }`
                 } ${className}`}
             >
-                <AlertTriangle size={13} strokeWidth={studentFlags.length > 0 ? 2.5 : 2} />
+                {manyFlags ? (
+                    <span className={flagCountChip}>
+                        <AlertTriangle size={12} strokeWidth={2.5} />
+                        {flagCount}
+                    </span>
+                ) : (
+                    <AlertTriangle size={13} strokeWidth={flagCount > 0 ? 2.5 : 2} />
+                )}
             </button>
         </CustomTooltip>
     );
@@ -322,7 +342,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         ...(onMoveStatus ? [{ label: 'Move to…', icon: <ArrowRightLeft size={14} />, onSelect: () => openQuickMove(moreMenuRef.current) }] : []),
         { label: enrollment.notes ? 'Edit note' : 'Add note', icon: <Pencil size={14} />, onSelect: startEditNote },
         { label: 'Student details', icon: <Info size={14} />, onSelect: () => onShowDetail?.(enrollment) },
-        { label: studentFlags.length > 0 ? 'Student flags' : 'Flag student', icon: <AlertTriangle size={14} />, onSelect: () => onFlagClick?.(enrollment) },
+        { label: flagCount > 0 ? `Student flags (${flagCount})` : 'Flag student', icon: <AlertTriangle size={14} />, onSelect: () => onFlagClick?.(enrollment) },
     ];
 
     return (
@@ -343,8 +363,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 ? 'border-brand-500 bg-brand-50/80 dark:bg-brand-500/10 shadow-md ring-1 ring-brand-500'
                 : isDragging
                     ? 'border-border-subtle bg-surface/50'
-                    : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
-            } ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging || !playDropIn ? '' : 'animate-card-drop-in'}`}
+                    : manyFlags
+                        ? 'border-red-500/70 bg-red-50 dark:bg-red-500/10 hover:shadow-card hover:border-red-500'
+                        : 'border-border-subtle bg-surface hover:shadow-card hover:border-brand-500/30'
+            } ${manyFlags ? 'inset-shadow-[4px_0_0_var(--color-red-500)]' : ''} ${isOverlay ? '' : 'card-transition'} ${isOverlay || isDragging || !playDropIn ? '' : 'animate-card-drop-in'}`}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}

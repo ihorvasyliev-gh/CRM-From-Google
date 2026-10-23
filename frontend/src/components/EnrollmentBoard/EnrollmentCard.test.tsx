@@ -296,6 +296,41 @@ describe('EnrollmentCard Component', () => {
         expect(card).not.toHaveAttribute('tabindex');
     });
 
+    const flag = (id: string, course: string, comment: string | null = null) => ({
+        id, student_id: 'student-1', course_id: `course-${id}`, comment, created_at: '2026-09-01T10:00:00Z',
+        courses: { id: `course-${id}`, name: course, created_at: '2026-01-01T00:00:00Z' },
+    });
+
+    it('shows one flag as the orange "!" alone, with the count in its name, and leaves the card as it is', () => {
+        render(<EnrollmentCard {...defaultProps} studentFlags={[flag('a', 'Barista', "Didn't come")]} />);
+
+        const flags = screen.getAllByRole('button', { name: 'Student flags: 1' });
+        flags.forEach(button => {
+            expect(button.textContent).toBe('');
+            expect(button.className).toContain('text-orange-500');
+        });
+        const card = screen.getByRole('group', { name: 'John Doe' });
+        expect(card.className).toContain('border-border-subtle');
+        expect(card.className).not.toContain('red');
+    });
+
+    it('marks a student flagged twice or more: the count on the flag and the whole card in red', () => {
+        render(<EnrollmentCard {...defaultProps} studentFlags={[flag('a', 'Barista', "Didn't come"), flag('b', 'Forklift', 'Failed the test')]} />);
+
+        const flags = screen.getAllByRole('button', { name: 'Student flags: 2' });
+        expect(flags.length).toBeGreaterThan(0);
+        flags.forEach(button => {
+            expect(button).toHaveTextContent('2');
+            expect(button.querySelector('.bg-red-600')).not.toBeNull();
+        });
+        const card = screen.getByRole('group', { name: 'John Doe' });
+        expect(card.className).toContain('border-red-500/70');
+        expect(card.className).toContain('inset-shadow-');
+
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for John Doe' }));
+        expect(screen.getByRole('menuitem', { name: 'Student flags (2)' })).toBeInTheDocument();
+    });
+
     it('keeps the less used actions in a menu on touch screens, without selecting the card', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
