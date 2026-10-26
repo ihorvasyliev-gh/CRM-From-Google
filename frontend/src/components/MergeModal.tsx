@@ -217,7 +217,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={16} />
                             <input
                                 type="text"
-                                placeholder="Search by name, email, or phone number..."
+                                placeholder="Name, email or phone…"
                                 className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}

@@ -100,7 +100,7 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
                                 <span className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0 ${card.iconClass}`}>
                                     <Icon size={15} />
                                 </span>
-                                <span className="text-xs sm:text-xs font-semibold text-muted truncate">{card.label}</span>
+                                <span className="text-xs font-semibold text-muted truncate">{card.label}</span>
                             </span>
                             <ArrowUpRight
                                 size={15}
@@ -113,7 +113,7 @@ export default function DashboardKPIs({ stats, statusCounts, onNavigate, loading
                             {loading ? '—' : card.value}
                         </span>
 
-                        <span className={`mt-2 text-xs sm:text-xs truncate ${hint && !loading ? HINT_TONE[hint.tone ?? 'neutral'] : 'text-muted'}`}>
+                        <span className={`mt-2 text-xs line-clamp-2 ${hint && !loading ? HINT_TONE[hint.tone ?? 'neutral'] : 'text-muted'}`}>
                             {hint && !loading ? hint.text : card.subLabel}
                         </span>
                     </button>

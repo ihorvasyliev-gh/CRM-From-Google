@@ -161,7 +161,7 @@ const StatusColumn = function StatusColumn({
                                 {cfg.icon}
                             </span>
                             <h3 className={`text-[13px] md:text-sm font-semibold ${cfg.color}`}>{cfg.label}</h3>
-                            <span className={`text-xs md:text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-xs`}>
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-xs`}>
                                 {items.length}
                             </span>
                             {loadingOlder && (

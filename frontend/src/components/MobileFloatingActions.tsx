@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { useModalBehavior } from '../hooks/useModalBehavior';
 import { usePresence } from '../hooks/usePresence';
-import { Plus, UserPlus, Search, GraduationCap, X } from 'lucide-react';
+import { Plus, UserPlus, GraduationCap, X } from 'lucide-react';
 
 interface MobileFloatingActionsProps {
     onOpenAddStudent: () => void;
-    onOpenCommandPalette: () => void;
     onOpenEnrollment?: () => void;
     isViewer: boolean;
 }
 
+/** Phones: add a student or an enrollment. Search is in the top bar, so it is not repeated here. */
 export default function MobileFloatingActions({
     onOpenAddStudent,
-    onOpenCommandPalette,
     onOpenEnrollment,
     isViewer
 }: MobileFloatingActionsProps) {
@@ -39,19 +38,6 @@ export default function MobileFloatingActions({
                 {/* Speed Dial Menu Items */}
                 {mounted && (
                     <div inert={closing} className={`flex flex-col items-end gap-2 mb-1 ${closing ? 'animate-fadeOut pointer-events-none' : 'animate-slideUp'}`}>
-                        <button
-                            onClick={() => {
-                                setOpen(false);
-                                onOpenCommandPalette();
-                            }}
-                            className="flex items-center gap-2.5 px-3.5 py-2 bg-surface text-primary border border-border-subtle rounded-xl shadow-float text-xs font-semibold hover:bg-surface active:scale-95 transition-all"
-                        >
-                            <span>Quick Search</span>
-                            <div className="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
-                                <Search size={16} />
-                            </div>
-                        </button>
-
                         {onOpenEnrollment && (
                             <button
                                 onClick={() => {
@@ -92,6 +78,7 @@ export default function MobileFloatingActions({
                     }`}
                     title={open ? 'Close quick actions' : 'Open quick actions'}
                     aria-label="Quick Actions"
+                    aria-expanded={open}
                 >
                     {open ? <X size={20} /> : <Plus size={22} strokeWidth={2.5} />}
                 </button>

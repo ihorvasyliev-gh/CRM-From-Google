@@ -237,7 +237,7 @@ function GraduateOutcomes() {
                         wrapperClassName="flex-1 min-w-[200px]"
                                                 value={searchQuery}
                         onChange={setSearchQuery}
-                        placeholder="Search by name, email, or field..."
+                        placeholder="Name, email or field of work…"
                         aria-label="Search graduates"
                     />
 

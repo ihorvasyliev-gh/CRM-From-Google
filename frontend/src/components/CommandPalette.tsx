@@ -14,6 +14,7 @@ import {
     X, CornerDownLeft, Sparkles, Loader2, Receipt
 } from 'lucide-react';
 import type { NavigateFn } from '../lib/navigation';
+import { kbdLabel } from '../lib/platform';
 
 /** A row of the viewer students directory, as the palette's Student. */
 const directoryStudent = (s: ViewerStudentDirectoryItem): Student => ({
@@ -382,7 +383,7 @@ export default function CommandPalette({
                     type="text"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    placeholder="Search students, courses, navigation, or actions..."
+                    placeholder="Search students, courses, pages…"
                     className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-hidden focus-visible:shadow-none"
                 />
                 {loadingData && (
@@ -492,7 +493,7 @@ export default function CommandPalette({
                 </div>
                 <div className="flex items-center gap-1">
                     <span>Quick search</span>
-                    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
+                    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">{kbdLabel('Mod', 'K')}</kbd>
                 </div>
             </div>
         </DialogLayer>

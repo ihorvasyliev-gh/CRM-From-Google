@@ -505,9 +505,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                 {/* Row 2: Course (coloured text) & completed-courses badge */}
                 <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
+                    {/* Up to two lines: a long course name still shows its language */}
                     <span
                         title={getCoursePill(enrollment)}
-                        className={`min-w-0 truncate text-xs font-semibold ${cfg.color}`}
+                        className={`min-w-0 line-clamp-2 break-words text-xs font-semibold ${cfg.color}`}
                     >
                         {getCoursePill(enrollment)}
                     </span>
@@ -658,7 +659,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
             {/* Pending Completion Approval Highlight */}
             {enrollment.completion_request_status === 'pending' && (
-                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs md:text-xs font-semibold animate-pulse shadow-2xs">
+                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs">
                     <Clock size={11} className="shrink-0" />
                     <span className="truncate">
                         Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { MonthPicker } from './ui/DatePicker';
 import DialogLayer from './ui/DialogLayer';
+import ConfirmDialog from './ConfirmDialog';
 import { errorMessage } from '../lib/errors';
 
 /** Survey answer as stored for a graduate or an outreach list contact. */
@@ -33,6 +34,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
     const [employmentType, setEmploymentType] = useState<string>('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     // Load initial data when graduate changes
     useEffect(() => {
@@ -75,7 +77,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
     }
 
     async function handleDelete() {
-        if (!onDelete || !window.confirm(`${deleteLabel}: ${graduate!.first_name} ${graduate!.last_name}?`)) return;
+        if (!onDelete) return;
         setSaving(true);
         setError('');
         try {
@@ -86,6 +88,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
             setError(errorMessage(err, 'Failed to remove.'));
         } finally {
             setSaving(false);
+            setConfirmDelete(false);
         }
     }
 
@@ -264,7 +267,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                 {onDelete && (
                     <button
                         type="button"
-                        onClick={handleDelete}
+                        onClick={() => setConfirmDelete(true)}
                         disabled={saving}
                         className="mr-auto px-3 py-2.5 rounded-xl text-sm font-semibold text-status-rejected hover:bg-danger/10 flex items-center gap-1.5 transition-all disabled:opacity-50"
                     >
@@ -292,6 +295,16 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                     )}
                 </button>
             </div>
+            {onDelete && graduate && (
+                <ConfirmDialog
+                    open={confirmDelete}
+                    title={`${deleteLabel}: ${graduate.first_name} ${graduate.last_name}?`}
+                    message="Their row and answers come off this list. This cannot be undone."
+                    confirmLabel={deleteLabel}
+                    onConfirm={handleDelete}
+                    onCancel={() => setConfirmDelete(false)}
+                />
+            )}
         </DialogLayer>
     );
 }

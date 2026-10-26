@@ -29,6 +29,7 @@ import { useTabPrefetch } from './hooks/useTabPrefetch';
 import { useGlobalHotkeys } from './hooks/useGlobalHotkeys';
 import { useNotificationBanner } from './hooks/useNotificationBanner';
 import type { NavigateFn, NavState } from './lib/navigation';
+import { kbdLabel, shortcutLabel } from './lib/platform';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -67,14 +68,15 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
     { key: 'courses', label: 'Courses', icon: BookOpen, subtitle: 'View and manage the course catalog', group: 'Workspace' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, subtitle: 'Track and manage enrollments', group: 'Workspace' },
     { key: 'outcomes', label: 'Outcomes', icon: Briefcase, subtitle: 'Track graduate employment status', group: 'Insights' },
-    { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Insights' },
+    { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Tools' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
-    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Insights (number keys stop at 9)
-    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Insights' },
-    { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Insights' },
+    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Tools (number keys stop at 9)
+    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Tools' },
+    { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Tools' },
 ];
-const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
+// The sidebar shows the pages by group (the number keys follow NAV_ITEMS, so they stay put)
+const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
 
 /**
  * Admin pages kept alive once visited (React <Activity>): coming back shows them at once, with
@@ -167,6 +169,8 @@ function App() {
     const viewerDrawerMount = useDialogMount(!!viewerDrawer.currentId);
     const shownStudentDetail = useLastPresent(globalStudentDetail);
     const { mounted: overlayMounted, closing: overlayClosing, ref: overlayRef } = usePresence(sidebarOpen && !isViewer);
+
+    const showFab = !isViewer && activeTab === 'dashboard';
 
     // Kept pages: mounted on the first visit, then hidden and shown
     const keptPage = !isViewer && KEPT_PAGES.has(activeTab);
@@ -351,20 +355,6 @@ function App() {
 
                     {/* Nav */}
                     <nav className="flex-1 px-3 py-3 overflow-y-auto" aria-label="Main">
-                        <button
-                            onClick={() => setCommandPaletteOpen(true)}
-                            className="w-full mb-4 flex items-center justify-between h-9 px-2.5 bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl text-xs font-medium text-muted hover:text-primary transition-colors group"
-                            title="Quick search (Ctrl+K)"
-                        >
-                            <span className="flex items-center gap-2">
-                                <Search size={14} className="group-hover:text-brand-500 transition-colors" />
-                                Quick search
-                            </span>
-                            <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface border border-border-subtle rounded-md">
-                                ⌘K
-                            </kbd>
-                        </button>
-
                         {NAV_GROUPS.map(group => (
                             <div key={group} className="mb-4 last:mb-0">
                                 <p className="px-2.5 mb-1.5 text-xs font-semibold text-muted uppercase tracking-wider">{group}</p>
@@ -400,9 +390,9 @@ function App() {
                         ))}
                     </nav>
 
-                    {/* Preferences / user */}
+                    {/* Account, and on phones the preferences (the desktop top bar has them) */}
                     <div className="p-3 border-t border-border-subtle shrink-0 space-y-2">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 lg:hidden">
                             <IconButton size="sm" label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleDarkMode}>
                                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
                             </IconButton>
@@ -414,15 +404,8 @@ function App() {
                             >
                                 <Rows3 size={15} />
                             </IconButton>
-                            <IconButton size="sm" label="Keyboard shortcuts (?)" onClick={() => setShortcutsModalOpen(true)}>
-                                <HelpCircle size={15} />
-                            </IconButton>
-                            <span className="flex-1" />
-                            <IconButton size="sm" tone="danger" label="Sign out" onClick={signOut}>
-                                <LogOut size={15} />
-                            </IconButton>
                         </div>
-                        <div className="flex items-center gap-2.5 px-2 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
+                        <div className="flex items-center gap-2.5 pl-2 pr-1 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
                             <div className="w-8 h-8 bg-linear-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
@@ -433,6 +416,9 @@ function App() {
                                     <span className="text-xs text-muted font-medium">Administrator</span>
                                 </div>
                             </div>
+                            <IconButton size="sm" tone="danger" label="Sign out" onClick={signOut}>
+                                <LogOut size={15} />
+                            </IconButton>
                         </div>
                     </div>
                 </aside>
@@ -498,7 +484,7 @@ function App() {
                                 <span className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</span>
                             </div>
                             <div className="flex items-center gap-0.5">
-                                <IconButton label="Search (Ctrl+K)" onClick={() => setCommandPaletteOpen(true)}>
+                                <IconButton label="Search" onClick={() => setCommandPaletteOpen(true)}>
                                     <Search size={18} />
                                 </IconButton>
                                 <NetworkStatusIndicator />
@@ -544,12 +530,12 @@ function App() {
                                 <button
                                     onClick={() => setCommandPaletteOpen(true)}
                                     className="flex items-center gap-2 h-8 pl-2.5 pr-1.5 w-56 bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong text-muted hover:text-primary rounded-xl text-xs font-medium transition-colors group"
-                                    title="Quick search (Ctrl+K)"
+                                    title={`Search students, courses and pages (${shortcutLabel('Mod', 'K')})`}
                                 >
                                     <Search size={14} className="group-hover:text-brand-500 transition-colors" />
                                     <span className="flex-1 text-left">Search…</span>
                                     <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface-elevated border border-border-subtle rounded-md">
-                                        Ctrl K
+                                        {kbdLabel('Mod', 'K')}
                                     </kbd>
                                 </button>
 
@@ -576,7 +562,10 @@ function App() {
                     <main id="main-content" tabIndex={-1} className={`flex-1 w-full flex flex-col min-h-0 outline-hidden ${
                         activeTab === 'enrollments'
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
-                            : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'
+                            : `px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 lg:pb-8 ${showFab
+                                // Room for the bottom bar, and for the add button above it, so the last rows scroll clear of it
+                                ? 'pb-[calc(env(safe-area-inset-bottom)+8.5rem)]'
+                                : 'pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)]'}`
                     }`}>
                         {!isViewer && visitedPages.map(tab => (
                             <Activity key={tab} mode={tab === activeTab ? 'visible' : 'hidden'}>
@@ -617,13 +606,15 @@ function App() {
                 userEmail={user.email}
             />
 
-            {/* Mobile Floating Actions (FAB) */}
-            <MobileFloatingActions
-                onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
-                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-                onOpenEnrollment={isViewer ? undefined : () => setGlobalEnrollModalOpen(true)}
-                isViewer={isViewer}
-            />
+            {/* Mobile Floating Actions (FAB): the dashboard only; the board, Students and Courses
+                have their own add button, and the other pages are not about adding */}
+            {showFab && (
+                <MobileFloatingActions
+                    onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
+                    onOpenEnrollment={() => setGlobalEnrollModalOpen(true)}
+                    isViewer={isViewer}
+                />
+            )}
 
             {/* Admin Approvals Modal (lazy chunk — only mounted when opened so it never suspends the whole app) */}
             {approvalsMount.mounted && (

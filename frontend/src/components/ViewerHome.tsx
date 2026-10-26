@@ -5,7 +5,7 @@ import type { ViewerUpcomingCourse } from '../lib/types';
 import { formatDateLong, formatLocalDate, todayISO } from '../lib/dateUtils';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
-import { ErrorState, Kbd, StatusDistributionBar } from './Viewer/ViewerUI';
+import { ErrorState, StatusDistributionBar } from './Viewer/ViewerUI';
 import { daysFromToday, pluralize, relativeDay, weekdayDate } from './Viewer/viewerUtils';
 import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
 
@@ -80,7 +80,6 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                 >
                     <Search size={16} className="group-hover:text-brand-500" />
                     <span className="flex-1 text-left">Find a student or course…</span>
-                    <Kbd>Ctrl K</Kbd>
                 </button>
             </div>
 

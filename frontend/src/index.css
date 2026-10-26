@@ -618,6 +618,14 @@ textarea:focus-visible {
     border-color: oklch(var(--accent-primary));
 }
 
+/* A field with an error (useFieldErrors) stays red, focused or not */
+:is(input, select, textarea)[aria-invalid="true"] {
+    border-color: oklch(var(--status-danger));
+}
+:is(input, select, textarea)[aria-invalid="true"]:focus-visible {
+    box-shadow: 0 0 0 3px oklch(var(--status-danger) / 0.2);
+}
+
 /* ===== Smooth transitions for interactive elements =====
  * In the base layer, so an element's own transition-* / duration-* classes win over it. */
 @layer base {

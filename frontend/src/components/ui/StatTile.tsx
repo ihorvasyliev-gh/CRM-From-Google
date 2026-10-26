@@ -59,7 +59,7 @@ export default function StatTile({
                             <Icon size={14} />
                         </span>
                     )}
-                    <span className="text-xs sm:text-xs font-semibold text-muted truncate">{label}</span>
+                    <span className="text-xs font-semibold text-muted truncate">{label}</span>
                 </span>
                 {interactive && (
                     <ArrowUpRight
@@ -73,7 +73,7 @@ export default function StatTile({
                 {loading ? '—' : value}
             </span>
             {hint !== undefined && hint !== null && hint !== '' && (
-                <span className={`mt-1.5 text-xs truncate ${loading ? 'text-muted' : HINT[hintTone]}`}>{hint}</span>
+                <span className={`mt-1.5 text-xs line-clamp-2 ${loading ? 'text-muted' : HINT[hintTone]}`}>{hint}</span>
             )}
         </>
     );

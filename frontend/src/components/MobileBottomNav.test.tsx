@@ -26,15 +26,16 @@ describe('MobileBottomNav Component', () => {
         );
 
         // Check main tab labels
-        expect(screen.getByText('Overview')).toBeInTheDocument();
-        expect(screen.getByText('Board')).toBeInTheDocument();
+        // Same names as the sidebar
+        expect(screen.getByText('Dashboard')).toBeInTheDocument();
+        expect(screen.getByText('Enrollments')).toBeInTheDocument();
         expect(screen.getByText('Students')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
         // No "More": the burger menu has every other section and tool
         expect(screen.queryByText('More')).not.toBeInTheDocument();
 
-        // Click Board tab
-        fireEvent.click(screen.getByText('Board'));
+        // Click Enrollments tab
+        fireEvent.click(screen.getByText('Enrollments'));
         expect(handleNavigate).toHaveBeenCalledWith('enrollments');
 
         // Click Students tab

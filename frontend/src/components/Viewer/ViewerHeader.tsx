@@ -5,6 +5,7 @@ import NetworkStatusIndicator from '../ui/NetworkStatusIndicator';
 import { useViewerUpcoming } from './useViewerData';
 import { daysFromToday } from './viewerUtils';
 import { Kbd } from './ViewerUI';
+import { kbdLabel, shortcutLabel } from '../../lib/platform';
 
 interface ViewerHeaderProps {
     activeTab: ViewerTab;
@@ -81,11 +82,11 @@ export default function ViewerHeader({
                 type="button"
                 onClick={onOpenSearch}
                 className="hidden sm:flex items-center gap-2 h-9 pl-3 pr-2 w-56 xl:w-72 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted rounded-xl text-xs font-medium transition-all group"
-                title="Search students & courses (Ctrl+K)"
+                title={`Search students & courses (${shortcutLabel('Mod', 'K')})`}
             >
                 <Search size={14} className="group-hover:text-brand-500" />
                 <span className="flex-1 text-left">Search…</span>
-                <Kbd>Ctrl K</Kbd>
+                <Kbd>{kbdLabel('Mod', 'K')}</Kbd>
             </button>
             <button type="button" onClick={onOpenSearch} className="sm:hidden p-2 text-muted hover:text-primary rounded-lg" aria-label="Search">
                 <Search size={18} />
@@ -116,12 +117,12 @@ export default function ViewerHeader({
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDarkMode}>
                             {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-brand-500" />}
                             <span className="flex-1 text-left">{darkMode ? 'Light theme' : 'Dark theme'}</span>
-                            <Kbd>Ctrl ⇧ D</Kbd>
+                            <Kbd>{kbdLabel('Mod', 'Shift', 'D')}</Kbd>
                         </button>
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDensity}>
                             <Rows3 size={15} className="text-brand-500" />
                             <span className="flex-1 text-left">{density === 'compact' ? 'Comfortable view' : 'Compact view'}</span>
-                            <Kbd>Ctrl ⇧ C</Kbd>
+                            <Kbd>{kbdLabel('Mod', 'Shift', 'C')}</Kbd>
                         </button>
                         <button role="menuitem" type="button" className={menuItem} onClick={() => { setMenuOpen(false); onOpenShortcuts(); }}>
                             <HelpCircle size={15} className="text-muted" />

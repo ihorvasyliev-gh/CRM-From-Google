@@ -41,6 +41,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
         }
     };
 
+    // z-200: above every other dialog, since it is asked from inside them
     return (
         <DialogLayer
             open={open}
@@ -49,7 +50,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
             role="alertdialog"
             labelledBy="confirm-dialog-title"
             describedBy="confirm-dialog-message"
-            className="z-70 flex items-center justify-center p-4"
+            className="z-200 flex items-center justify-center p-4"
             panelClassName="w-full max-w-sm bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden"
         >
             <div className="p-6 flex items-start gap-4">
@@ -76,7 +77,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'De
                     disabled={busy}
                     className={`h-9 flex items-center justify-center gap-1.5 px-3.5 text-xs font-semibold text-white rounded-xl transition-colors shadow-xs disabled:opacity-70 disabled:cursor-wait ${isDanger
                         ? 'bg-red-600 hover:bg-red-700'
-                        : 'bg-amber-500 hover:bg-amber-600'
+                        : 'bg-amber-700 hover:bg-amber-800'
                         }`}
                 >
                     {busy && <Loader2 size={15} className="animate-spin" />}

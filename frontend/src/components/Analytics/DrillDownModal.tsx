@@ -108,7 +108,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                         setSearchQuery(v);
                         setCurrentPage(1);
                     }}
-                    placeholder="Search name, email, district, course…"
+                    placeholder="Name, email, district, course…"
                     aria-label="Search records"
                     wrapperClassName="flex-1 max-w-md"
                 />

@@ -192,26 +192,26 @@ export default function CourseList() {
         }
     }
 
-    async function handleToggleEnglish(course: Course, e: React.MouseEvent) {
-        e.stopPropagation();
-        const newRequiresEnglish = !course.requires_english;
+    /** The English chip switches the course in one click; the toast offers to switch it back */
+    async function setCourseEnglish(course: Course, requiresEnglish: boolean, offerUndo = true) {
         // Optimistic update
-        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: newRequiresEnglish } : c));
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: requiresEnglish } : c));
         try {
             const { error } = await supabase
                 .from('courses')
-                .update({ requires_english: newRequiresEnglish })
+                .update({ requires_english: requiresEnglish })
                 .eq('id', course.id);
             if (error) throw error;
-            updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: newRequiresEnglish }] });
+            updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: requiresEnglish }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             notify({
-                message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
-                type: 'success'
+                message: `${course.name}: ${requiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
+                type: 'success',
+                ...(offerUndo && { action: { label: 'Undo', onClick: () => void setCourseEnglish(course, !requiresEnglish, false) } }),
             });
         } catch {
             // Rollback on error
-            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !newRequiresEnglish } : c));
+            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !requiresEnglish } : c));
             notify({ message: 'Failed to update course template', type: 'error' });
         }
     }
@@ -319,7 +319,7 @@ export default function CourseList() {
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="text-[15px] font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
+                                                <h3 className="text-[15px] font-semibold text-primary line-clamp-2 break-words group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
                                                 <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                     <Users size={12} />
                                                     <span className="font-semibold text-primary tabular-nums">{counts?.total || 0}</span> students enrolled
@@ -342,8 +342,8 @@ export default function CourseList() {
                                 <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-t border-border-subtle">
                                     <button
                                         type="button"
-                                        onClick={(e) => handleToggleEnglish(course, e)}
-                                        title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
+                                        onClick={(e) => { e.stopPropagation(); void setCourseEnglish(course, !course.requires_english); }}
+                                        title={course.requires_english ? 'Invitations ask for good English. Click to switch to the Standard template' : 'Standard invitations. Click to switch to the High English template'}
                                         className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
                                             course.requires_english
                                                 ? 'bg-info/10 border-info/30 text-status-invited hover:bg-info/15'

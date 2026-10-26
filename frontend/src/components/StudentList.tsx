@@ -216,7 +216,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                     <SearchInput
                         wrapperClassName="flex-1 sm:w-80"
-                        placeholder="Search by name, email, phone or eircode..."
+                        placeholder="Name, email, phone, eircode…"
                         value={search}
                         onChange={setSearch}
                         loading={searchPending}

@@ -44,3 +44,35 @@ describe('StudentModal — Save and enroll', () => {
         expect(screen.queryByRole('button', { name: 'Save and enroll' })).toBeNull();
     });
 });
+
+describe('StudentModal — errors under the fields', () => {
+    it('says what is missing under the field and moves focus to it', async () => {
+        const onSave = vi.fn();
+        render(<StudentModal open student={null} onSave={onSave} onClose={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Olena' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add Student' }));
+
+        const lastName = screen.getByLabelText('Last Name *');
+        expect(await screen.findByText('Last Name is required')).toBeInTheDocument();
+        expect(lastName).toHaveFocus();
+        expect(lastName).toHaveAttribute('aria-invalid', 'true');
+        expect(lastName).toHaveAccessibleDescription('Last Name is required');
+        expect(onSave).not.toHaveBeenCalled();
+
+        // Typing in the field clears its message
+        fireEvent.input(lastName, { target: { value: 'K' } });
+        expect(screen.queryByText('Last Name is required')).toBeNull();
+        expect(lastName).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('asks in its own dialog before throwing away what was typed', async () => {
+        const onClose = vi.fn();
+        render(<StudentModal open student={null} onSave={vi.fn()} onClose={onClose} />);
+        fireEvent.change(screen.getByLabelText('First Name *'), { target: { value: 'Olena' } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        expect(onClose).not.toHaveBeenCalled();
+        fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+        expect(onClose).toHaveBeenCalled();
+    });
+});

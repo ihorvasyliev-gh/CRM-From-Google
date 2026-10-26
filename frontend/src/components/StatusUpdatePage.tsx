@@ -416,7 +416,7 @@ export default function StatusUpdatePage() {
                                     )}
                                 </button>
 
-                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs sm:text-xs text-muted leading-relaxed">
+                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs text-muted leading-relaxed">
                                     <ShieldCheck size={15} className="text-brand-400 shrink-0 mt-0.5" />
                                     <span>Your answers are confidential and only used, anonymously, to report on the results of our programmes.</span>
                                 </div>

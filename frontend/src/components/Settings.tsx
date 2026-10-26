@@ -5,6 +5,7 @@ import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type S
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import ConfirmDialog from './ConfirmDialog';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import UserRolesSection from './UserRolesSection';
 import EmailOptOutSection from './EmailOptOutSection';
@@ -17,6 +18,7 @@ import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls } from './ui/style
 import EmailEditor, { type EmailEditorHandle } from './EmailEditor/EmailEditor';
 import EmailStyleSection from './EmailEditor/EmailStyleSection';
 import { toast } from '../lib/toast';
+import { shortcutLabel } from '../lib/platform';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
 /** Placeholders replaced by a whole card or button — inserted on a line of their own. */
@@ -91,8 +93,8 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         setTimeout(() => setSaved(false), 2000);
     }, [config, isValidTemplate, isValidStatusTemplate]);
 
+    const [confirmReset, setConfirmReset] = useState(false);
     const handleReset = useCallback(() => {
-        if (!window.confirm('Reset all email templates and settings to their defaults?')) return;
         const defaults = resetConfig();
         setLocalConfig(defaults);
         setSavedSnapshot(JSON.stringify(defaults));
@@ -482,7 +484,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             <Info size={12} className="shrink-0 mt-0.5" />
                             Email and display settings are saved to your account and this browser.
                         </p>
-                        <Button variant="ghost" size="sm" onClick={handleReset} className="-ml-2.5 hover:!text-status-rejected">
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmReset(true)} className="-ml-2.5 hover:!text-status-rejected">
                             <RotateCcw size={13} />
                             Reset to defaults
                         </Button>
@@ -1020,7 +1022,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
 
                     <div className="lg:hidden flex items-center justify-between gap-3 text-xs text-muted px-1">
                         <span className="flex items-center gap-1.5"><Info size={12} /> Settings persist across sessions.</span>
-                        <Button variant="ghost" size="sm" onClick={handleReset}>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmReset(true)}>
                             <RotateCcw size={13} />
                             Reset to defaults
                         </Button>
@@ -1041,7 +1043,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                             <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
                                             <span className="font-semibold text-primary">Unsaved changes</span>
                                             <span className="hidden sm:inline text-muted truncate">
-                                                {canSave ? '· Ctrl+S to save' : '· fix the template warnings to save'}
+                                                {canSave ? `· ${shortcutLabel('Mod', 'S')} to save` : '· fix the template warnings to save'}
                                             </span>
                                         </>
                                     )}
@@ -1055,6 +1057,14 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                     )}
                 </div>
             </div>
+            <ConfirmDialog
+                open={confirmReset}
+                title="Reset to defaults?"
+                message="All email templates and settings go back to how they came. Your own wording is lost."
+                confirmLabel="Reset"
+                onConfirm={() => { setConfirmReset(false); handleReset(); }}
+                onCancel={() => setConfirmReset(false)}
+            />
         </div>
     );
 }

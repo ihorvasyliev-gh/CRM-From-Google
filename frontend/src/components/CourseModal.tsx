@@ -9,6 +9,9 @@ import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Segmented } from './ui/Tabs';
 import { fieldCls, labelCls } from './ui/styles';
+import FieldError from './ui/FieldError';
+import ConfirmDialog from './ConfirmDialog';
+import { useFieldErrors } from '../hooks/useFieldErrors';
 
 interface Props {
     open: boolean;
@@ -33,6 +36,8 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
     const [courseInfo, setCourseInfo] = useState<CourseEmailInfo>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const { errors, check, formProps, fieldProps } = useFieldErrors();
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -52,13 +57,16 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
             || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '')
             || templateIds.join() !== (course?.template_ids || []).join()
             || JSON.stringify(compactInfo(courseInfo)) !== JSON.stringify(compactInfo(course?.email_templates || {}));
-        if (dirty && !window.confirm('Discard unsaved changes?')) return;
+        if (dirty) {
+            setConfirmDiscard(true);
+            return;
+        }
         onClose();
     };
 
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        if (saving) return;
+        if (saving || !check(e.currentTarget)) return;
         if (!name.trim()) {
             setError('Course name is required');
             return;
@@ -153,7 +161,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 </>
             }
         >
-            <form id="course-form" onSubmit={handleSubmit} className="space-y-4">
+            <form id="course-form" onSubmit={handleSubmit} {...formProps} className="space-y-4">
                 {error && <FormError>{error}</FormError>}
 
                 <div>
@@ -167,7 +175,9 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                         onChange={e => setName(e.target.value)}
                         autoFocus
                         required
+                        {...fieldProps('course-name')}
                     />
+                    <FieldError id="course-name" message={errors['course-name']} />
                 </div>
 
                 <div>
@@ -184,8 +194,10 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                             className={`${fieldCls} pl-9`}
                             value={maxCapacity}
                             onChange={e => setMaxCapacity(e.target.value)}
+                            {...fieldProps('course-max-capacity')}
                         />
                     </div>
+                    <FieldError id="course-max-capacity" message={errors['course-max-capacity']} />
                     <p className="text-xs text-muted mt-1.5">
                         Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
                     </p>
@@ -253,6 +265,15 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                     )}
                 </div>
             </form>
+            <ConfirmDialog
+                open={confirmDiscard}
+                title="Discard changes?"
+                message="Your changes to this course will be lost."
+                confirmLabel="Discard"
+                variant="warning"
+                onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+                onCancel={() => setConfirmDiscard(false)}
+            />
         </Modal>
     );
 }

@@ -379,7 +379,7 @@ export default function OutreachLists() {
                         wrapperClassName="flex-1 min-w-[200px]"
                                                 value={searchQuery}
                         onChange={setSearchQuery}
-                        placeholder="Search by name, email, IRIS ID or field..."
+                        placeholder="Name, email, IRIS ID, field…"
                         aria-label="Search contacts"
                     />
                     <span className="text-xs text-muted font-medium">

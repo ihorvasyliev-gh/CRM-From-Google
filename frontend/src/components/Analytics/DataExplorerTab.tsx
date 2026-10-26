@@ -133,7 +133,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                             setSearchQuery(v);
                             setCurrentPage(1);
                         }}
-                        placeholder="Search name, email, phone, course…"
+                        placeholder="Name, email, phone, course…"
                         aria-label="Search participants"
                         wrapperClassName="flex-1 min-w-[220px]"
                     />

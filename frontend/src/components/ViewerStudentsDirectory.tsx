@@ -128,7 +128,7 @@ export default function ViewerStudentsDirectory() {
                     value={search.value}
                     onChange={search.setValue}
                     onClear={search.clear}
-                    placeholder="Search by name, email, phone or eircode…"
+                    placeholder="Name, email, phone, eircode…"
                     ariaLabel="Search students"
                     onEnter={() => { if (students.length === 1) drawer.open(students[0].student_id); }}
                 />

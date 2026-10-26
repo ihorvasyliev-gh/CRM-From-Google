@@ -313,7 +313,7 @@ export default function MultiCourseCompletersTab({
                             setSearchQuery(v);
                             setCurrentPage(1);
                         }}
-                        placeholder="Search name, email, phone, eircode…"
+                        placeholder="Name, email, phone, eircode…"
                         aria-label="Search graduates"
                         wrapperClassName="flex-1 min-w-[220px]"
                     />
