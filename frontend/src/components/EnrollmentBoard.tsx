@@ -721,7 +721,7 @@ export default function EnrollmentBoard({
                         >
                             <span className={c.color}>{c.icon}</span>
                             <span>{c.label}</span>
-                            <span className="text-[10px] font-mono opacity-80">({count})</span>
+                            <span className="text-xs font-mono">({count})</span>
                         </button>
                     );
                 })}
@@ -863,7 +863,7 @@ export default function EnrollmentBoard({
                                             <div className="flex items-center gap-2">
                                                 <span className={cfg.color}>{cfg.icon}</span>
                                                 <h3 className="text-sm font-bold text-primary">{cfg.label}</h3>
-                                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
                                                     {items.length}
                                                 </span>
                                                 <button
@@ -885,13 +885,13 @@ export default function EnrollmentBoard({
                                                         <p className="font-semibold text-primary text-[13px] truncate">
                                                             {enrollment.students?.first_name} {enrollment.students?.last_name}
                                                         </p>
-                                                        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
+                                                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
                                                             {getCoursePill(enrollment)}
                                                         </span>
                                                     </div>
                                                     <button
                                                         onClick={() => enrollmentsHook.updateStatus(enrollment.id, 'requested')}
-                                                        className="text-[11px] font-medium text-muted hover:text-brand-600 hover:bg-brand-500/10 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
+                                                        className="text-xs font-medium text-muted hover:text-brand-600 hover:bg-brand-500/10 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
                                                     >
                                                         Restore
                                                     </button>

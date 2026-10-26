@@ -156,7 +156,7 @@ function InlineEditField({
             <div className="p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20" onKeyDown={handleKeyDown}>
                 <div className="flex items-center gap-3 mb-2">
                     <span className="text-brand-500 shrink-0">{icon}</span>
-                    <p className="flex-1 text-[10px] text-muted font-medium">{label}</p>
+                    <p className="flex-1 text-xs text-muted font-medium">{label}</p>
                     {saving ? (
                         <Loader2 size={14} className="animate-spin text-brand-500" />
                     ) : (
@@ -175,7 +175,7 @@ function InlineEditField({
             <div className="flex items-center gap-3 p-2.5 rounded-xl bg-brand-500/5 border border-brand-500/20">
                 <span className="text-brand-500 shrink-0">{icon}</span>
                 <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-muted font-medium mb-1">{label}</p>
+                    <p className="text-xs text-muted font-medium mb-1">{label}</p>
                     <input
                         type={type}
                         value={editValue}
@@ -212,7 +212,7 @@ function InlineEditField({
         >
             <span className="text-muted">{icon}</span>
             <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted font-medium">{label}</p>
+                <p className="text-xs text-muted font-medium">{label}</p>
                 <p className="text-sm text-primary">{displayValue || value || <span className="text-muted italic">Not set</span>}</p>
             </div>
             {extraActions && (
@@ -614,11 +614,11 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                                                     <ExternalLink size={11} className="opacity-0 group-hover/link:opacity-60 transition-opacity" />
                                                 </button>
                                                 {en.course_variant && (
-                                                    <span className="text-[10px] text-muted block">{cleanVariant(en.courses?.name || '', en.course_variant)}</span>
+                                                    <span className="text-xs text-muted block">{cleanVariant(en.courses?.name || '', en.course_variant)}</span>
                                                 )}
                                                 <SessionLine session={sessionForEnrollment({ ...en, completed_date: en.completed_date ?? null }, courseSessions)} />
                                             </div>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
                                                 {STATUS_BADGE[en.status]?.icon} {STATUS_CONFIG[en.status]?.label || en.status}
                                             </span>
                                         </div>
@@ -643,7 +643,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                                                             }
                                                         }}
                                                         disabled={approveMutation.isPending}
-                                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-sm text-[10px] font-bold shadow-xs"
+                                                        className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-sm text-xs font-bold shadow-xs"
                                                     >
                                                         Approve
                                                     </button>
@@ -658,7 +658,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                                                             }
                                                         }}
                                                         disabled={rejectMutation.isPending}
-                                                        className="px-2 py-0.5 bg-danger/10 hover:bg-danger/20 text-status-rejected rounded-sm text-[10px] font-semibold"
+                                                        className="px-2 py-0.5 bg-danger/10 hover:bg-danger/20 text-status-rejected rounded-sm text-xs font-semibold"
                                                     >
                                                         Reject
                                                     </button>
@@ -735,7 +735,7 @@ function SessionLine({ session }: { session: CourseSession | null }) {
     const days = sessionDays(session);
     const time = days.length > 1 && hasDayOverrides(session) ? '' : formatTimeRange(session.start_time, session.end_time);
     return (
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted" title={sessionTooltip(session)} data-testid="student-session">
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted" title={sessionTooltip(session)} data-testid="student-session">
             <span className="inline-flex items-center gap-1"><Calendar size={11} />{formatDateLongWithWeekday(session.date)}{days.length > 1 ? ` · ${days.length} days` : ''}</span>
             {time && <span className="inline-flex items-center gap-1"><Clock size={11} />{time}</span>}
             {session.location && <span className="inline-flex items-center gap-1 min-w-0"><MapPin size={11} className="shrink-0" /><span className="truncate">{session.location}</span></span>}

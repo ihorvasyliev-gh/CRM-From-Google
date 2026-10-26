@@ -106,7 +106,7 @@ export default function StatusBreakdownCard({
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                             <span className="text-2xl font-bold text-primary tabular-nums leading-none">{centerValue}</span>
-                            <span className="text-[10px] font-semibold text-muted uppercase tracking-wide mt-1">{centerLabel}</span>
+                            <span className="text-xs font-semibold text-muted uppercase tracking-wide mt-1">{centerLabel}</span>
                         </div>
                     </div>
 
@@ -132,7 +132,7 @@ export default function StatusBreakdownCard({
                                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.color}`} />
                                     <span className="text-[13px] text-primary font-medium flex-1 truncate">{s.label}</span>
                                     <span className="text-[13px] font-semibold text-primary tabular-nums">{count}</span>
-                                    <span className="text-[11px] text-muted w-9 text-right tabular-nums">{pct}%</span>
+                                    <span className="text-xs text-muted w-9 text-right tabular-nums">{pct}%</span>
                                     <ChevronRight size={13} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity -mr-1" />
                                 </button>
                             );

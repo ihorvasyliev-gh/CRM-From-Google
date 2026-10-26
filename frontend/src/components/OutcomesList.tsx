@@ -274,7 +274,7 @@ function GraduateOutcomes() {
                                     <button
                                         key={s}
                                         onClick={() => setFilterStatus(s)}
-                                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                        className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
                                             filterStatus === s
                                                 ? 'bg-brand-500 text-white shadow-xs'
                                                 : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
@@ -340,12 +340,12 @@ function GraduateOutcomes() {
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Student</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Courses</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
-                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">Student</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Courses</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -379,7 +379,7 @@ function GraduateOutcomes() {
                                                         <p className="font-semibold text-primary text-[13px] truncate">
                                                             {grad.first_name} {grad.last_name}
                                                         </p>
-                                                        <p className="text-[11px] text-muted truncate">{grad.email}</p>
+                                                        <p className="text-xs text-muted truncate">{grad.email}</p>
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={grad.tracking_status} />
@@ -391,7 +391,7 @@ function GraduateOutcomes() {
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <div className="flex flex-wrap gap-1">
                                                     {grad.courses.map(c => (
-                                                        <span key={c} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 truncate max-w-[120px]">
+                                                        <span key={c} className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 truncate max-w-[120px]">
                                                             {c}
                                                         </span>
                                                     ))}
@@ -400,13 +400,13 @@ function GraduateOutcomes() {
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={grad.tracking_status} />
                                                 {grad.tracking_status === 'pending' && grad.last_sent_at && (
-                                                    <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
+                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={grad.tracking_status} row={grad} />
                                                 {grad.is_working && grad.started_month && (
-                                                    <p className="text-[10px] text-muted mt-0.5">
+                                                    <p className="text-xs text-muted mt-0.5">
                                                         Since {formatLocalDate(new Date(grad.started_month + '-01'), { month: 'short', year: 'numeric' }, 'en-GB')}
                                                     </p>
                                                 )}

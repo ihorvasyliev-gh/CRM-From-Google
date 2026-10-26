@@ -132,7 +132,7 @@ export default function UserRolesSection() {
                                 className={`px-2.5 h-7 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${filter === f ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
                             >
                                 {FILTER_LABELS[f]}
-                                <span className="text-[10px] text-muted tabular-nums">{counts[f]}</span>
+                                <span className="text-xs text-muted tabular-nums">{counts[f]}</span>
                             </button>
                         ))}
                     </div>
@@ -161,15 +161,15 @@ export default function UserRolesSection() {
                                     <div className="min-w-0 flex-1">
                                         <p className="text-[13px] font-semibold text-primary truncate">
                                             {u.email}
-                                            {isMe && <span className="ml-1.5 text-[10px] font-bold text-muted">(you)</span>}
+                                            {isMe && <span className="ml-1.5 text-xs font-bold text-muted">(you)</span>}
                                         </p>
-                                        <p className="text-[11px] text-muted">
+                                        <p className="text-xs text-muted">
                                             Joined {formatDateDMY(u.created_at)}
                                             {u.last_sign_in_at ? ` · last sign-in ${formatDateDMY(u.last_sign_in_at)}` : ' · never signed in'}
                                         </p>
                                     </div>
                                     {role === 'admin' ? (
-                                        <span className={`px-2 h-5 inline-flex items-center rounded-md text-[11px] font-semibold border ${ROLE_BADGE_CLS.admin}`}>
+                                        <span className={`px-2 h-5 inline-flex items-center rounded-md text-xs font-semibold border ${ROLE_BADGE_CLS.admin}`}>
                                             {ROLE_LABELS.admin}
                                         </span>
                                     ) : (
@@ -202,7 +202,7 @@ export default function UserRolesSection() {
                     </ul>
                 )}
 
-                <p className="text-[11px] text-muted flex items-start gap-1.5">
+                <p className="text-xs text-muted flex items-start gap-1.5">
                     <Info size={12} className="mt-0.5 shrink-0" />
                     Viewers also get External Lists. “External Lists” users see only Outcomes → External lists: they can create and delete lists, import, add and export people, and change their status. Promotion to admin is one-way — admins can't be changed back here. Role changes apply after the user signs in again (or within about an hour).
                 </p>

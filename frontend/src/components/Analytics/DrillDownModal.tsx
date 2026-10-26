@@ -159,7 +159,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                                 {s?.first_name} {s?.last_name}
                                                 {e.is_priority && <PriorityStar />}
                                             </button>
-                                            <div className="text-[11px] text-muted flex items-center gap-2 mt-0.5">
+                                            <div className="text-xs text-muted flex items-center gap-2 mt-0.5">
                                                 <span className="truncate max-w-[220px]">{s?.email || 'No email'}</span>
                                                 {s?.phone && <span className="tabular-nums">{s.phone}</span>}
                                             </div>
@@ -169,14 +169,14 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                                 <MapPin size={12} className="text-muted shrink-0" />
                                                 {norm.microDistrict}
                                             </div>
-                                            <div className="text-[11px] text-muted ml-4">{norm.macroRegion}</div>
+                                            <div className="text-xs text-muted ml-4">{norm.macroRegion}</div>
                                         </td>
                                         <td className={tdCls}>
                                             <div className="text-[13px] text-primary font-medium">{e.courses?.name || 'Unknown'}</div>
-                                            <div className="text-[11px] text-muted">{cleanVariant(e.courses?.name || '', e.course_variant)}</div>
+                                            <div className="text-xs text-muted">{cleanVariant(e.courses?.name || '', e.course_variant)}</div>
                                         </td>
                                         <td className={tdCls}>
-                                            <span className={`${statusCfg?.pillBg || 'status-pill-withdrawn'} inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap`}>
+                                            <span className={`${statusCfg?.pillBg || 'status-pill-withdrawn'} inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`}>
                                                 {statusCfg?.icon}
                                                 {statusCfg?.label || e.status}
                                             </span>

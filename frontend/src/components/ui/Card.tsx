@@ -58,7 +58,7 @@ export default function Card({
                         )}
                         <div className="min-w-0">
                             {title !== undefined && <h3 className="text-sm font-semibold text-primary tracking-tight truncate">{title}</h3>}
-                            {subtitle && <p className="text-[11px] text-muted truncate">{subtitle}</p>}
+                            {subtitle && <p className="text-xs text-muted truncate">{subtitle}</p>}
                         </div>
                     </div>
                     {action && <div className="flex items-center gap-2 shrink-0">{action}</div>}

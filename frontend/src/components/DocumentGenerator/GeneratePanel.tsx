@@ -257,7 +257,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                                                         </td>
                                                         <td className={`${tdCls} py-2.5!`}>
                                                             <p className="font-medium text-primary text-[13px]">{name}</p>
-                                                            <p className="text-[11px] text-muted truncate max-w-[240px]">{e.students?.email || '—'}</p>
+                                                            <p className="text-xs text-muted truncate max-w-[240px]">{e.students?.email || '—'}</p>
                                                         </td>
                                                         <td className={`${tdCls} py-2.5! text-muted text-xs tabular-nums hidden md:table-cell`}>{e.students?.phone || '—'}</td>
                                                         <td className={`${tdCls} py-2.5!`}>

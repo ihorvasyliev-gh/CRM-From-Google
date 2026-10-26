@@ -46,7 +46,7 @@ export default function EditNoteModal({ open, text, onTextChange, onSave, onClos
                 className="w-full px-4 py-3 border border-border-subtle rounded-xl text-sm text-primary focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 bg-surface min-h-[120px] resize-none"
                 autoFocus
             />
-            <p className="text-[10px] text-muted mt-1.5 text-right">Ctrl + Enter to save</p>
+            <p className="text-xs text-muted mt-1.5 text-right">Ctrl + Enter to save</p>
 
             <div className="flex gap-3 mt-6">
                 <button

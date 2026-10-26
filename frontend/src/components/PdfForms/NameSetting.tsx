@@ -69,7 +69,7 @@ export default function NameSetting({ value, onChange, columns, automatic, examp
                     </select>
                 </div>
             )}
-            <p className="flex items-center gap-1.5 text-[11px] text-muted">
+            <p className="flex items-center gap-1.5 text-xs text-muted">
                 <FileText size={12} className="shrink-0" />
                 {shown ? (
                     <span>
@@ -81,7 +81,7 @@ export default function NameSetting({ value, onChange, columns, automatic, examp
             </p>
             <button
                 type="button"
-                className="text-[11px] text-muted underline"
+                className="text-xs text-muted underline"
                 onClick={() => {
                     // Leaving the text box for a pattern the lists can't show starts again from "Automatic"
                     if (typing && value.trim() && !simple) onChange('');

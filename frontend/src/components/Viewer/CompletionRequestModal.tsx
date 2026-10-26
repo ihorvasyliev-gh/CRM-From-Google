@@ -104,15 +104,15 @@ export default function CompletionRequestModal({
 
                 <div className="flex flex-wrap gap-1.5">
                     {shown.map(t => (
-                        <span key={t.enrollmentId} className="px-2 py-0.5 rounded-full bg-surface-elevated border border-border-subtle text-[11px] font-medium text-primary">
+                        <span key={t.enrollmentId} className="px-2 py-0.5 rounded-full bg-surface-elevated border border-border-subtle text-xs font-medium text-primary">
                             {t.name}
                         </span>
                     ))}
-                    {rest > 0 && <span className="px-2 py-0.5 text-[11px] font-semibold text-muted">+{rest} more</span>}
+                    {rest > 0 && <span className="px-2 py-0.5 text-xs font-semibold text-muted">+{rest} more</span>}
                 </div>
 
                 <div className="space-y-2">
-                    <label htmlFor="completion-date-input" className="text-[11px] font-bold text-muted uppercase tracking-wider block">
+                    <label htmlFor="completion-date-input" className="text-xs font-bold text-muted uppercase tracking-wider block">
                         Completion date
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -138,11 +138,11 @@ export default function CompletionRequestModal({
                         className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     />
                     {inFuture ? (
-                        <p className="text-[11px] text-status-requested flex items-center gap-1">
+                        <p className="text-xs text-status-requested flex items-center gap-1">
                             <AlertTriangle size={12} /> This date is in the future — double-check before submitting.
                         </p>
                     ) : (
-                        <p className="text-[11px] text-muted">An admin reviews every request before the student is marked completed.</p>
+                        <p className="text-xs text-muted">An admin reviews every request before the student is marked completed.</p>
                     )}
                 </div>
 

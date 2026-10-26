@@ -152,7 +152,7 @@ export default function EmailOptOutSection() {
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[13px] font-semibold text-primary truncate">{o.email}</p>
-                                    <p className="text-[11px] text-muted truncate">
+                                    <p className="text-xs text-muted truncate">
                                         Unsubscribed {formatDateDMY(o.opted_out_at)}
                                         {o.note ? ` · ${o.note}` : ''}
                                     </p>
@@ -171,7 +171,7 @@ export default function EmailOptOutSection() {
                     </ul>
                 )}
 
-                <p className="text-[11px] text-muted flex items-start gap-1.5">
+                <p className="text-xs text-muted flex items-start gap-1.5">
                     <Info size={12} className="mt-0.5 shrink-0" />
                     Unsubscribed people are skipped when sending course invitations, outcome surveys and outreach surveys. If they register again through the Google Form, emails are turned back on automatically.
                 </p>

@@ -75,7 +75,7 @@ export default function EmailStyleSection({ id, value, onChange }: Props) {
                             <span className="font-mono text-xs text-muted">{value.textColor}</span>
                         </div>
                     </div>
-                    <p className="col-span-2 text-[11px] text-muted leading-relaxed">
+                    <p className="col-span-2 text-xs text-muted leading-relaxed">
                         Used for the text of all emails and the course cards. Text given its own font, size or colour in a template keeps it.
                     </p>
                 </div>

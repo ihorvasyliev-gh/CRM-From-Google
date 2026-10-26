@@ -193,7 +193,7 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
         >
             <RequisitionForm form={form} flags={flags} onChange={change} onAccept={unflag} onActive={setActive} />
             <div className="mt-5 pt-4 border-t border-border-subtle flex flex-wrap items-center justify-end gap-2">
-                {!historyAvailable && <p className="text-[11px] text-muted mr-auto">Not kept in a history until migration 88 is applied.</p>}
+                {!historyAvailable && <p className="text-xs text-muted mr-auto">Not kept in a history until migration 88 is applied.</p>}
                 <Button variant="primary" size="lg" loading={busy} onClick={() => (toCheck.length > 0 ? setConfirmDownload(true) : download())}>
                     {!busy && <Download size={16} />} Download the requisition (.docx)
                 </Button>
@@ -210,7 +210,7 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
                 {/* On a phone the title gets its own row under the buttons */}
                 <div className="min-w-0 basis-full order-last sm:order-none sm:basis-0 sm:flex-1">
                     <h2 className="text-lg font-semibold text-primary tracking-tight sm:truncate">{title}</h2>
-                    {invoice && <p className="text-[11px] text-muted truncate">{invoice.fileName}</p>}
+                    {invoice && <p className="text-xs text-muted truncate">{invoice.fileName}</p>}
                 </div>
                 {invoice && (
                     <Button className="lg:hidden ml-auto sm:ml-0" onClick={() => setShowInvoice(v => !v)}>

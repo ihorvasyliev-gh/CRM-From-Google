@@ -68,7 +68,7 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                 {segments.map(s => {
                     if (!alwaysShow.has(s.key) && s.count === 0) return null;
                     return (
-                        <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-muted font-medium tabular-nums">
+                        <span key={s.key} className="flex items-center gap-1.5 text-xs text-muted font-medium tabular-nums">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                             {s.count} {s.label}
                         </span>
@@ -259,7 +259,7 @@ export default function CourseList() {
                         onChange={setSearch}
                         aria-label="Search courses"
                     />
-                    <Button variant="primary" size="lg" onClick={openCreate}>
+                    <Button variant="primary" size="lg" onClick={openCreate} aria-label="Add Course">
                         <Plus size={16} /> <span className="hidden sm:inline">Add Course</span>
                     </Button>
                 </div>

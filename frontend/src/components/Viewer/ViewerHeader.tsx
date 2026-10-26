@@ -45,7 +45,7 @@ export default function ViewerHeader({
                 <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
                 <span className="hidden sm:block text-left leading-tight">
                     <span className="block text-sm font-bold text-primary tracking-tight">CCP CRM</span>
-                    <span className="block text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer</span>
+                    <span className="block text-xs text-muted font-semibold tracking-wide uppercase">Viewer</span>
                 </span>
                 <span className="sm:hidden text-sm font-bold text-primary">{activeLabel}</span>
             </button>
@@ -67,7 +67,7 @@ export default function ViewerHeader({
                             <Icon size={15} className={active ? 'text-brand-500' : ''} />
                             {tab.label}
                             {tab.key === 'home' && todayCount > 0 && (
-                                <span className="ml-0.5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold tabular-nums" title={`${todayCount} session(s) today`}>{todayCount}</span>
+                                <span className="ml-0.5 px-1.5 rounded-full bg-emerald-500 text-white text-xs font-bold tabular-nums" title={`${todayCount} session(s) today`}>{todayCount}</span>
                             )}
                             {active && <span className="absolute left-2 right-2 -bottom-px h-0.5 rounded-full bg-brand-500" />}
                         </button>
@@ -111,7 +111,7 @@ export default function ViewerHeader({
                     <div role="menu" className="absolute right-0 mt-2 w-64 p-1.5 bg-surface border border-border-subtle rounded-2xl shadow-float animate-popoverScaleIn origin-top-right">
                         <div className="px-3 py-2 mb-1 border-b border-border-subtle">
                             <p className="text-xs font-semibold text-primary truncate">{userEmail}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Viewer access</p>
+                            <p className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Viewer access</p>
                         </div>
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDarkMode}>
                             {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-brand-500" />}

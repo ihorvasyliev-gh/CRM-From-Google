@@ -297,6 +297,14 @@ function App() {
         <NetworkStatusProvider>
         <TooltipProvider delayDuration={100}>
             <div className="h-screen w-full bg-background text-primary flex relative overflow-hidden">
+                {/* First stop for Tab: past the sidebar and the top bar, straight to the page */}
+                <a
+                    href="#main-content"
+                    onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-100 focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-surface focus:text-primary focus:text-sm focus:font-semibold focus:shadow-float"
+                >
+                    Skip to content
+                </a>
                 {/* Subtle radial glow in Dark Mode */}
                 {darkMode && (
                     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -329,7 +337,7 @@ function App() {
                             </div>
                             <div className="min-w-0 leading-tight">
                                 <h1 className="text-sm font-bold text-primary tracking-tight truncate">CCP CRM</h1>
-                                <p className="text-[10px] text-muted font-medium truncate">Management system</p>
+                                <p className="text-xs text-muted font-medium truncate">Management system</p>
                             </div>
                         </div>
                         <button
@@ -359,7 +367,7 @@ function App() {
 
                         {NAV_GROUPS.map(group => (
                             <div key={group} className="mb-4 last:mb-0">
-                                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-muted uppercase tracking-wider">{group}</p>
+                                <p className="px-2.5 mb-1.5 text-xs font-semibold text-muted uppercase tracking-wider">{group}</p>
                                 <div className="space-y-0.5">
                                     {NAV_ITEMS.filter(item => item.group === group).map(item => {
                                         const Icon = item.icon;
@@ -383,7 +391,7 @@ function App() {
                                                 )}
                                                 <Icon size={17} className="shrink-0" />
                                                 <span className="flex-1 text-left truncate">{item.label}</span>
-                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
+                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-xs font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
                                             </button>
                                         );
                                     })}
@@ -422,7 +430,7 @@ function App() {
                                 <p className="text-xs font-medium text-primary truncate" title={user.email ?? undefined}>{user.email}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                                    <span className="text-[10px] text-muted font-medium">Administrator</span>
+                                    <span className="text-xs text-muted font-medium">Administrator</span>
                                 </div>
                             </div>
                         </div>
@@ -565,7 +573,7 @@ function App() {
                     )}
 
                     {/* Page Content */}
-                    <main className={`flex-1 w-full flex flex-col min-h-0 ${
+                    <main id="main-content" tabIndex={-1} className={`flex-1 w-full flex flex-col min-h-0 outline-hidden ${
                         activeTab === 'enrollments'
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
                             : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'

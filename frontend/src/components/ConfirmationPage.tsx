@@ -652,7 +652,7 @@ export default function ConfirmationPage() {
                                         <GraduationCap size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-[11px] font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
+                                        <span className="inline-block text-xs font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
                                             Course Invitation
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
@@ -722,7 +722,7 @@ export default function ConfirmationPage() {
                                                             {sessions[d] && <SessionDetails session={sessions[d]} showPlace={!sharedPlace} />}
                                                         </span>
                                                         {placesText && (
-                                                            <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                                                            <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md border ${
                                                                 isFull
                                                                     ? 'text-red-400 bg-red-500/10 border-red-500/25'
                                                                     : almostFull
@@ -787,7 +787,7 @@ export default function ConfirmationPage() {
                                         </div>
                                     )}
 
-                                    <p className="text-[11px] text-muted/80 mt-2 leading-normal">
+                                    <p className="text-xs text-muted/80 mt-2 leading-normal">
                                         Please use the same email address that received the invitation.
                                     </p>
                                 </div>
@@ -827,7 +827,7 @@ export default function ConfirmationPage() {
                                     )}
                                 </button>
                                 {isMultiDate && !courseDate && (
-                                    <p className="text-[11px] text-muted/80 text-center -mt-1">Choose a date above to continue.</p>
+                                    <p className="text-xs text-muted/80 text-center -mt-1">Choose a date above to continue.</p>
                                 )}
 
                                 {/* Decline / Reschedule Option */}
@@ -847,7 +847,7 @@ export default function ConfirmationPage() {
 
                                 {/* Organizer Contact footer */}
                                 <div className="pt-4 border-t border-border-subtle/70 text-center">
-                                    <p className="text-[11px] text-muted/80">
+                                    <p className="text-xs text-muted/80">
                                         Questions or difficulties?
                                     </p>
                                     <a
@@ -870,7 +870,7 @@ export default function ConfirmationPage() {
                                         <Users size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-[11px] font-semibold text-red-400 uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded-md mb-1 border border-red-500/25">
+                                        <span className="inline-block text-xs font-semibold text-red-400 uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded-md mb-1 border border-red-500/25">
                                             Fully Booked
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
@@ -964,12 +964,12 @@ export default function ConfirmationPage() {
                                     <Star size={18} className="text-white shrink-0" />
                                     <span>Get priority for the next course</span>
                                 </a>
-                                <p className="text-[11px] text-muted/80 leading-normal text-center -mt-1">
+                                <p className="text-xs text-muted/80 leading-normal text-center -mt-1">
                                     Opens a pre-filled email to {ORGANIZER_EMAIL}.
                                 </p>
 
                                 <div className="pt-4 border-t border-border-subtle/70 text-center">
-                                    <p className="text-[11px] text-muted/80">
+                                    <p className="text-xs text-muted/80">
                                         Questions or difficulties?
                                     </p>
                                     <a
@@ -1090,7 +1090,7 @@ export default function ConfirmationPage() {
 
                             {/* Manual copy fallback */}
                             <div className="mt-4 pt-3.5 border-t border-border-subtle/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                                <div className="text-[11px] text-muted">
+                                <div className="text-xs text-muted">
                                     <span>Email: </span>
                                     <span className="text-white font-medium">{ORGANIZER_EMAIL}</span>
                                 </div>
@@ -1232,7 +1232,7 @@ export default function ConfirmationPage() {
 
                             {/* Ticket Details Card */}
                             <div className="w-full p-4 bg-surface/90 rounded-xl border border-border-subtle text-left space-y-2 mt-1">
-                                <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">
+                                <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
                                     Confirmed Enrollment
                                 </div>
                                 <div className="text-sm sm:text-base font-bold text-white wrap-break-word">
@@ -1278,7 +1278,7 @@ export default function ConfirmationPage() {
                                     </div>
                                     {calendarDays.length > 1 && (
                                         <div className="space-y-1.5">
-                                            <p className="text-[11px] text-muted">Google Calendar — add each day:</p>
+                                            <p className="text-xs text-muted">Google Calendar — add each day:</p>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {calendarDays.map((d, i) => (
                                                     <a
@@ -1286,7 +1286,7 @@ export default function ConfirmationPage() {
                                                         href={getGoogleCalendarUrl({ ...calendarParams, courseDate: d.date, startTime: d.startTime, endTime: d.endTime, titleSuffix: `Day ${i + 1} of ${calendarDays.length}` })}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-brand-600/15 hover:bg-brand-600/30 border border-brand-500/25 text-brand-200 hover:text-white rounded-lg text-[11px] font-semibold transition-all touch-manipulation"
+                                                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-brand-600/15 hover:bg-brand-600/30 border border-brand-500/25 text-brand-200 hover:text-white rounded-lg text-xs font-semibold transition-all touch-manipulation"
                                                     >
                                                         <ExternalLink size={12} className="text-brand-400 shrink-0" />
                                                         <span>Day {i + 1} · {formatCourseDate(d.date).replace(/ \d{4}$/, '')}</span>
@@ -1300,7 +1300,7 @@ export default function ConfirmationPage() {
 
                             {/* Organizer Contact Info */}
                             <div className="w-full pt-3 text-center border-t border-border-subtle/70">
-                                <p className="text-[11px] text-muted/80">
+                                <p className="text-xs text-muted/80">
                                     Need to change plans or have any questions?
                                 </p>
                                 <a
@@ -1316,7 +1316,7 @@ export default function ConfirmationPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-[11px] text-muted/80 mt-4 text-center">
+                <div className="flex items-center justify-center gap-1 text-xs text-muted/80 mt-4 text-center">
                     <HelpCircle size={13} className="text-muted/60" />
                     <span>Cork City Partnership • Course Confirmation Portal</span>
                 </div>
@@ -1393,7 +1393,7 @@ function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
                 <div className={`h-full rounded-full ${barColor} transition-all duration-700`} style={{ width: `${pct}%` }} />
             </div>
             {almostFull && (
-                <p className="text-[11px] text-amber-300/90 mt-1.5">
+                <p className="text-xs text-amber-300/90 mt-1.5">
                     Places are filling up fast — confirm now to secure yours.
                 </p>
             )}
@@ -1429,9 +1429,9 @@ function SessionDetails({ session, showPlace = true }: { session: CourseSession;
                 <ol className="space-y-0.5">
                     {days.map((d, i) => (
                         <li key={d.date} className="flex items-baseline gap-2">
-                            <span className="w-11 shrink-0 text-[10px] font-bold text-muted uppercase tracking-wider">Day {i + 1}</span>
+                            <span className="w-11 shrink-0 text-xs font-bold text-muted uppercase tracking-wider">Day {i + 1}</span>
                             <span className={i === 0 ? 'font-semibold text-white' : 'text-primary/85'}>{formatCourseDate(d.date)}</span>
-                            {ownTimes && <span className="text-[11px] text-muted tabular-nums">{formatTimeRange(dayTime(session, d).start, dayTime(session, d).end)}</span>}
+                            {ownTimes && <span className="text-xs text-muted tabular-nums">{formatTimeRange(dayTime(session, d).start, dayTime(session, d).end)}</span>}
                         </li>
                     ))}
                 </ol>
@@ -1449,7 +1449,7 @@ function SessionDetails({ session, showPlace = true }: { session: CourseSession;
                 </p>
             )}
             {multiDay && (
-                <p className="text-[11px] font-semibold text-amber-300">Attendance on all {days.length} days is required.</p>
+                <p className="text-xs font-semibold text-amber-300">Attendance on all {days.length} days is required.</p>
             )}
         </div>
     );

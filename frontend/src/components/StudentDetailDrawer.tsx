@@ -92,7 +92,7 @@ function QuickAction({ href, onClick, icon, label, tone = 'default', external }:
         green: 'text-status-confirmed hover:border-emerald-500/40',
         blue: 'text-sky-700 dark:text-sky-300 hover:border-sky-500/40',
     }[tone];
-    const cls = `flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-surface-elevated/70 border border-border-subtle text-[11px] font-semibold transition-all active:scale-[0.97] ${tones}`;
+    const cls = `flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-surface-elevated/70 border border-border-subtle text-xs font-semibold transition-all active:scale-[0.97] ${tones}`;
     if (href) {
         return <a href={href} className={cls} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{icon}{label}</a>;
     }
@@ -107,7 +107,7 @@ function InfoField({ icon, label, value, copyValue, action }: {
         <div className="flex items-center gap-3 px-3 py-2.5 group">
             <span className="text-muted shrink-0">{icon}</span>
             <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-muted font-bold uppercase tracking-wider">{label}</p>
+                <p className="text-xs text-muted font-bold uppercase tracking-wider">{label}</p>
                 {value ? (
                     <button
                         type="button"
@@ -149,8 +149,8 @@ function Timeline({ en }: { en: EnrollmentDetail }) {
                         </span>
                         {i < steps.length - 1 && <span className={`h-0.5 flex-1 rounded-full ${steps[i + 1].done ? 'bg-brand-500' : 'bg-border-subtle'}`} />}
                     </div>
-                    <p className={`text-[10px] font-semibold mt-1 ${s.done ? 'text-primary' : 'text-muted'}`}>{s.label}</p>
-                    <p className="text-[10px] text-muted tabular-nums">{s.done && s.date ? formatDateDMY(s.date) : '—'}</p>
+                    <p className={`text-xs font-semibold mt-1 ${s.done ? 'text-primary' : 'text-muted'}`}>{s.label}</p>
+                    <p className="text-xs text-muted tabular-nums">{s.done && s.date ? formatDateDMY(s.date) : '—'}</p>
                 </li>
             ))}
         </ol>
@@ -232,7 +232,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                     <button type="button" onClick={onNext} disabled={!onNext} aria-label="Next student" title="Next (↓ / J)" className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated disabled:opacity-30">
                                         <ChevronDown size={18} />
                                     </button>
-                                    <span className="text-[11px] font-semibold text-muted tabular-nums ml-1">{position.index + 1} / {position.total}</span>
+                                    <span className="text-xs font-semibold text-muted tabular-nums ml-1">{position.index + 1} / {position.total}</span>
                                 </>
                             )}
                         </div>
@@ -296,14 +296,14 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                         <>
                             {student.flags?.length > 0 && (
                                 <section className="space-y-2">
-                                    <h3 className="text-[11px] font-bold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
+                                    <h3 className="text-xs font-bold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
                                         <AlertTriangle size={13} /> Notes & Flags ({student.flags.length})
                                     </h3>
                                     {student.flags.map(flag => (
                                         <div key={flag.id} className="p-3 rounded-xl bg-red-500/5 border border-red-500/15">
                                             <div className="flex items-center justify-between gap-2">
                                                 <p className="text-xs font-bold text-red-700 dark:text-red-400 truncate">{flag.course_name}</p>
-                                                {flag.created_at && <span className="text-[10px] text-muted shrink-0">{formatDateDMY(flag.created_at)}</span>}
+                                                {flag.created_at && <span className="text-xs text-muted shrink-0">{formatDateDMY(flag.created_at)}</span>}
                                             </div>
                                             {flag.comment && <p className="text-xs text-red-700/90 dark:text-red-300/80 mt-1 leading-relaxed">{flag.comment}</p>}
                                         </div>
@@ -312,7 +312,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                             )}
 
                             <section className="space-y-2">
-                                <h3 className="text-[11px] font-bold text-muted uppercase tracking-wider">Contact details</h3>
+                                <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Contact details</h3>
                                 <div className="rounded-xl border border-border-subtle bg-surface-elevated/30 divide-y divide-border-subtle">
                                     <InfoField icon={<Mail size={15} />} label="Email" value={student.email} />
                                     <InfoField icon={<Phone size={15} />} label="Phone" value={student.phone} />
@@ -343,7 +343,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                             </section>
 
                             <section className="space-y-2">
-                                <h3 className="text-[11px] font-bold text-muted uppercase tracking-wider">Course Enrollments ({enrollments.length})</h3>
+                                <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Course Enrollments ({enrollments.length})</h3>
                                 {enrollments.length === 0 ? (
                                     <p className="text-xs text-muted italic text-center py-6 bg-surface-elevated/40 rounded-xl border border-border-subtle">No course enrollments found for this student.</p>
                                 ) : (
@@ -361,7 +361,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                                             {en.is_priority && <PriorityStar />}
                                                         </div>
                                                         {en.course_variant && (
-                                                            <p className="text-[11px] text-muted mt-0.5">Variant: <span className="font-medium text-primary/80">{cleanVariant(en.course_name, en.course_variant)}</span></p>
+                                                            <p className="text-xs text-muted mt-0.5">Variant: <span className="font-medium text-primary/80">{cleanVariant(en.course_name, en.course_variant)}</span></p>
                                                         )}
                                                     </div>
                                                     <StatusBadge status={en.status} queuePosition={en.queue_position} pendingApproval={pending} />
@@ -379,14 +379,14 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                                 <Timeline en={en} />
 
                                                 {en.notes && (
-                                                    <div className="flex items-start gap-1.5 p-2 bg-surface rounded-lg border border-border-subtle text-[11px] text-primary/80">
+                                                    <div className="flex items-start gap-1.5 p-2 bg-surface rounded-lg border border-border-subtle text-xs text-primary/80">
                                                         <MessageSquare size={12} className="text-brand-500 shrink-0 mt-0.5" />
                                                         <p className="leading-snug whitespace-pre-line">{en.notes}</p>
                                                     </div>
                                                 )}
 
                                                 {declined && (
-                                                    <p className="text-[11px] text-status-rejected bg-red-500/5 border border-red-500/20 p-2 rounded-lg">
+                                                    <p className="text-xs text-status-rejected bg-red-500/5 border border-red-500/20 p-2 rounded-lg">
                                                         <strong>Completion Request Rejected:</strong> {en.completion_rejection_reason || 'No reason specified'}.
                                                     </p>
                                                 )}

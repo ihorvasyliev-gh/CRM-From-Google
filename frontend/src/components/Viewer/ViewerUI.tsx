@@ -27,7 +27,7 @@ export function StatusBadge({
     if (pendingApproval) {
         return (
             <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap status-pill-requested ${className}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap status-pill-requested ${className}`}
                 title="Completion request is waiting for admin approval"
             >
                 <Clock size={12} />
@@ -38,7 +38,7 @@ export function StatusBadge({
     if (!status) return null;
     const meta = STATUS_META[status];
     return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${meta?.pill ?? 'bg-surface-elevated border border-border-subtle text-muted'} ${className}`}>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${meta?.pill ?? 'bg-surface-elevated border border-border-subtle text-muted'} ${className}`}>
             {meta?.icon}
             <span className={meta ? '' : 'capitalize'}>{meta?.label ?? status}</span>
             {status === 'requested' && queuePosition != null && (
@@ -51,7 +51,7 @@ export function StatusBadge({
 export function PriorityStar({ withLabel = false }: { withLabel?: boolean }) {
     return (
         <span
-            className={`inline-flex items-center gap-1 ${withLabel ? 'priority-badge px-1.5 py-0.5 rounded-full text-[10px] font-bold' : 'text-amber-500'}`}
+            className={`inline-flex items-center gap-1 ${withLabel ? 'priority-badge px-1.5 py-0.5 rounded-full text-xs font-bold' : 'text-amber-500'}`}
             title="Priority student"
             aria-label="Priority"
         >
@@ -93,7 +93,7 @@ export function Avatar({
     person: { first_name?: string | null; last_name?: string | null };
     size?: 'sm' | 'md' | 'lg';
 }) {
-    const dims = size === 'sm' ? 'w-8 h-8 text-[11px]' : size === 'lg' ? 'w-12 h-12 text-sm' : 'w-9 h-9 text-xs';
+    const dims = size === 'sm' ? 'w-8 h-8 text-xs' : size === 'lg' ? 'w-12 h-12 text-sm' : 'w-9 h-9 text-xs';
     return (
         <div className={`${dims} rounded-full bg-linear-to-br ${getAvatarGradient(id)} flex items-center justify-center text-white font-bold shrink-0 shadow-xs select-none`}>
             {initials(person)}
@@ -272,7 +272,7 @@ export function SelectField({
 /** Removable chip describing an active filter. */
 export function FilterChip({ label, onRemove }: { label: React.ReactNode; onRemove: () => void }) {
     return (
-        <span className="inline-flex items-center gap-1 pl-2.5 pr-1 h-6 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/20 text-[11px] font-semibold">
+        <span className="inline-flex items-center gap-1 pl-2.5 pr-1 h-6 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/20 text-xs font-semibold">
             {label}
             <button type="button" onClick={onRemove} aria-label="Remove filter" className="p-0.5 rounded-full hover:bg-brand-500/20">
                 <X size={11} />

@@ -204,7 +204,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                                                             </span>
                                                             {r.isPriority && <PriorityStar />}
                                                         </div>
-                                                        <span className="block text-[11px] text-muted truncate max-w-[220px]">{r.email || '—'}</span>
+                                                        <span className="block text-xs text-muted truncate max-w-[220px]">{r.email || '—'}</span>
                                                     </div>
                                                 </div>
                                             </td>
@@ -214,10 +214,10 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                                             </td>
                                             <td className={tdCls}>
                                                 <span className="block text-[13px] font-medium text-primary">{r.courseName}</span>
-                                                <span className="block text-[11px] text-muted">{r.variant}</span>
+                                                <span className="block text-xs text-muted">{r.variant}</span>
                                             </td>
                                             <td className={tdCls}>
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${cfg.pillBg}`}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.pillBg}`}>
                                                     {cfg.label}
                                                 </span>
                                             </td>

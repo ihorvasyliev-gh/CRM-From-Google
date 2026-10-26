@@ -19,13 +19,13 @@ export const fieldCls = `${inputCls} h-9`;
 export const labelCls = 'block text-xs font-semibold text-muted mb-1.5';
 
 /** Small uppercase section label ("eyebrow"). */
-export const eyebrowCls = 'text-[11px] font-semibold uppercase tracking-wider text-muted';
+export const eyebrowCls = 'text-xs font-semibold uppercase tracking-wider text-muted';
 
 /** Table wrapper: horizontal scroll inside a card. */
 export const tableWrapCls = 'w-full overflow-x-auto';
 export const tableCls = 'w-full text-sm text-left';
 export const theadCls = 'bg-surface-elevated/60 border-b border-border-subtle';
-export const thCls = 'px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
+export const thCls = 'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted whitespace-nowrap';
 export const tbodyCls = 'divide-y divide-border-subtle';
 export const trCls = 'transition-colors hover:bg-surface-elevated/50';
 export const tdCls = 'px-4 py-3 align-middle';

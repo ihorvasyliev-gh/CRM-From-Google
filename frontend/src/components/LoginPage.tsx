@@ -202,7 +202,7 @@ export default function LoginPage() {
                                 </button>
                             </div>
                             {capsLockOn && (
-                                <p className="mt-1.5 text-[11px] font-medium text-status-requested">Caps Lock is on</p>
+                                <p className="mt-1.5 text-xs font-medium text-status-requested">Caps Lock is on</p>
                             )}
                         </div>
 

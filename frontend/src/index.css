@@ -936,6 +936,25 @@ a:focus-visible,
     outline-offset: 2px;
 }
 
+/* ===== Accessibility: tap targets bigger than the icon they show =====
+ * At least 24px (WCAG 2.5.8), 44px on touch screens (Apple HIG); the icon itself keeps its size. */
+.hit-area:not(.absolute, .fixed, .sticky) { position: relative; }
+.hit-area::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 24px);
+    height: max(100%, 24px);
+    transform: translate(-50%, -50%);
+}
+@media (pointer: coarse) {
+    .hit-area::after {
+        width: max(100%, 44px);
+        height: max(100%, 44px);
+    }
+}
+
 /* ===== Accessibility: respect reduced-motion preference ===== */
 @media (prefers-reduced-motion: reduce) {
     *,
@@ -980,6 +999,11 @@ a:focus-visible,
 .dark :where(.border-amber-200)   { border-color: rgb(245 158 11 / 0.3); }
 .dark :where(.border-red-200)     { border-color: rgb(239 68 68 / 0.3); }
 .dark :where(.border-rose-200)    { border-color: rgb(244 63 94 / 0.3); }
+
+/* Solid brand buttons: white text on the dark theme's brighter indigo was 3.1:1 (AA needs 4.5:1),
+ * so their fill stays a deeper indigo (5:1), and darkens on hover instead of lightening */
+.dark :where(.bg-brand-500.text-white)       { background-color: oklch(0.55 0.2 260); }
+.dark :where(.bg-brand-500.text-white:hover) { background-color: oklch(0.5 0.2 260); }
 
 .dark :where(.hover\:bg-brand-50:hover)   { background-color: oklch(var(--accent-primary) / 0.15); }
 .dark :where(.hover\:bg-blue-50:hover)    { background-color: rgb(59 130 246 / 0.15); }

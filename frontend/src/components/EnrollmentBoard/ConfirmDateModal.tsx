@@ -69,11 +69,11 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                             {stats.confirmed} confirmed
                                         </span>
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                             <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                             {stats.pending} pending
                                         </span>
@@ -96,13 +96,13 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
             />
             {date && !savedDates.includes(date) && (
                 <div className="flex items-center gap-2 mt-1.5 px-1">
-                    <span className="text-[11px] text-muted">On this date:</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
+                    <span className="text-xs text-muted">On this date:</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         {getDateStats(date).confirmed} confirmed
                     </span>
                     <span className="text-border-subtle">•</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited">
                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                         {getDateStats(date).pending} pending
                     </span>

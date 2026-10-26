@@ -126,9 +126,9 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                         {title}
-                        {active && <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400">Selected</span>}
+                        {active && <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Selected</span>}
                     </span>
-                    <span className="block text-[11px] text-muted mt-0.5">{desc}</span>
+                    <span className="block text-xs text-muted mt-0.5">{desc}</span>
                 </span>
             </button>
         );
@@ -186,7 +186,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                             onChange={e => setMaxCapacity(e.target.value)}
                         />
                     </div>
-                    <p className="text-[11px] text-muted mt-1.5">
+                    <p className="text-xs text-muted mt-1.5">
                         Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
                     </p>
                 </div>
@@ -202,7 +202,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 <div>
                     <span className={labelCls}>Document templates</span>
                     {templates.length === 0 ? (
-                        <p className="text-[11px] text-muted">No active templates — upload and switch them on in Documents.</p>
+                        <p className="text-xs text-muted">No active templates — upload and switch them on in Documents.</p>
                     ) : (
                         <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle max-h-56 overflow-y-auto">
                             {templates.map(t => (
@@ -218,19 +218,19 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                             ))}
                         </div>
                     )}
-                    <p className="text-[11px] text-muted mt-1.5">
+                    <p className="text-xs text-muted mt-1.5">
                         Used when generating documents for this course. Pick none to use all active templates; if everything picked is switched off later, the course gets no Word documents until you switch one back on.
                     </p>
                 </div>
 
                 <div className="space-y-3">
-                    <p className="text-[11px] text-muted">
+                    <p className="text-xs text-muted">
                         Shown in the course card of the invitation and reminder emails. The course name and date are filled in automatically.
                     </p>
                     {infoEditor('description', 'Under the course title', 'e.g. Overview: what the course covers')}
                     {infoEditor('details', 'Under the date', 'e.g. Duration, time, address, what to bring')}
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-muted">Preview:</span>
+                        <span className="text-xs text-muted">Preview:</span>
                         <Segmented<InviteEmailKind | 'none'>
                             ariaLabel="Email preview"
                             size="sm"

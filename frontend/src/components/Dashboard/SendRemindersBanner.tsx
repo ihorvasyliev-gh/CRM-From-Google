@@ -31,7 +31,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                     <p className="text-[13px] font-semibold text-primary">
                         Send reminders — {items.length} course date{items.length > 1 ? 's' : ''} in the next 7 days
                     </p>
-                    <p className="text-[11px] text-muted hidden sm:block">Remind confirmed people to come, then mark it as sent</p>
+                    <p className="text-xs text-muted hidden sm:block">Remind confirmed people to come, then mark it as sent</p>
                 </div>
             </div>
             <AnimatedList className="space-y-1.5">
@@ -42,7 +42,7 @@ export default function SendRemindersBanner({ items, onSend, onMarkSent }: SendR
                     >
                         <div className="min-w-0">
                             <p className="text-[13px] font-semibold text-primary truncate">{item.courseName}</p>
-                            <p className="text-[11px] text-muted">
+                            <p className="text-xs text-muted">
                                 {formatDateLongWithWeekday(item.date)} · <span className="font-semibold text-sky-700 dark:text-sky-400">{untilLabel(item.date)}</span> · {item.confirmedCount} confirmed
                                 {item.dayBefore && <> · day-before reminder</>}
                             </p>

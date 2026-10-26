@@ -416,7 +416,7 @@ export default function CommandPalette({
 
                         return (
                             <div key={cat} className="pt-2 first:pt-0">
-                                <div className="px-3 py-1.5 text-[11px] font-bold text-muted uppercase tracking-wider">
+                                <div className="px-3 py-1.5 text-xs font-bold text-muted uppercase tracking-wider">
                                     {cat}
                                 </div>
                                 <div className="space-y-0.5">
@@ -446,7 +446,7 @@ export default function CommandPalette({
                                                                 {item.title}
                                                             </span>
                                                             {item.badge && (
-                                                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-brand-500 text-white leading-tight">
+                                                                <span className="px-1.5 py-0.2 rounded-full text-xs font-bold bg-brand-500 text-white leading-tight">
                                                                     {item.badge}
                                                                 </span>
                                                             )}
@@ -480,7 +480,7 @@ export default function CommandPalette({
             </div>
 
             {/* Footer Tips */}
-            <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-[11px] text-muted">
+            <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-xs text-muted">
                 <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                         <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↑</kbd>

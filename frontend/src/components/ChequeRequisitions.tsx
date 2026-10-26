@@ -246,11 +246,11 @@ export default function ChequeRequisitions() {
                                         <td className={`${tdCls} whitespace-nowrap text-muted`}>{formatDateDMY(r.created_at)}</td>
                                         <td className={`${tdCls} max-w-[16rem]`}>
                                             <span className="block truncate font-medium text-primary">{r.supplier_name || '—'}</span>
-                                            <span className="block truncate text-[11px] text-muted">{r.form.description}</span>
+                                            <span className="block truncate text-xs text-muted">{r.form.description}</span>
                                         </td>
                                         <td className={`${tdCls} whitespace-nowrap`}>
                                             {r.invoice_number || '—'}
-                                            {r.invoice_date && <span className="block text-[11px] text-muted">{formatDateDMY(r.invoice_date)}</span>}
+                                            {r.invoice_date && <span className="block text-xs text-muted">{formatDateDMY(r.invoice_date)}</span>}
                                         </td>
                                         <td className={`${tdCls} text-right whitespace-nowrap tabular-nums`}>{r.amount !== null ? `€${formatAmount(r.amount)}` : '—'}</td>
                                         <td className={`${tdCls} text-right whitespace-nowrap`} onClick={e => e.stopPropagation()}>

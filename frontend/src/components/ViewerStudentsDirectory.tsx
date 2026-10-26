@@ -185,7 +185,7 @@ export default function ViewerStudentsDirectory() {
             ) : (
                 <>
                     <div className={`bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden transition-opacity ${isPlaceholderData ? 'opacity-60' : ''}`}>
-                        <div className="hidden md:flex items-center gap-3 px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-[11px] font-bold uppercase tracking-wider text-muted">
+                        <div className="hidden md:flex items-center gap-3 px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-xs font-bold uppercase tracking-wider text-muted">
                             <span className="flex-1 pl-12">Student</span>
                             <span className="hidden lg:block w-36">Phone</span>
                             <span className="w-[30%]">Course & status</span>
@@ -254,7 +254,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
                     <span className="font-semibold text-sm text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{name}</span>
                     {student.is_priority && <PriorityStar />}
                     {student.notes_count > 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-muted" title={`${pluralize(student.notes_count, 'note')}`}>
+                        <span className="inline-flex items-center gap-0.5 text-xs font-bold text-muted" title={`${pluralize(student.notes_count, 'note')}`}>
                             <MessageSquare size={11} className="text-brand-500" />{student.notes_count}
                         </span>
                     )}
@@ -266,8 +266,8 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
                 {/* Mobile: course & status */}
                 <div className="md:hidden flex items-center gap-1.5 mt-1.5 min-w-0">
                     <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
-                    <span className="text-[11px] text-muted truncate">{student.primary_course_name}</span>
-                    {student.total_enrollments > 1 && <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 shrink-0">+{student.total_enrollments - 1}</span>}
+                    <span className="text-xs text-muted truncate">{student.primary_course_name}</span>
+                    {student.total_enrollments > 1 && <span className="text-xs font-bold text-brand-600 dark:text-brand-400 shrink-0">+{student.total_enrollments - 1}</span>}
                 </div>
             </div>
 
@@ -278,12 +278,12 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
             <div className="hidden md:block w-[30%] min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-xs font-medium text-primary truncate">{student.primary_course_name || <span className="text-muted">No course</span>}</span>
-                    {variant && <span className="text-[10px] text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
+                    {variant && <span className="text-xs text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                     <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
                     {student.total_enrollments > 1 && (
-                        <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400" title="Enrolled in other courses too">
+                        <span className="text-xs font-bold text-brand-600 dark:text-brand-400" title="Enrolled in other courses too">
                             +{student.total_enrollments - 1} more
                         </span>
                     )}
@@ -292,7 +292,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
 
             <div className="hidden md:block w-28 text-xs">
                 <div className="text-primary inline-flex items-center gap-1"><Calendar size={11} className="text-muted" />{formatDateDMY(student.created_at)}</div>
-                <div className="text-[11px] text-muted">{relativeDay(student.created_at.slice(0, 10))}</div>
+                <div className="text-xs text-muted">{relativeDay(student.created_at.slice(0, 10))}</div>
             </div>
 
             <div className="flex items-center justify-end gap-1 md:w-[88px] shrink-0">

@@ -93,7 +93,7 @@ export function WordTemplatesCard({ setup, showToast, confirmDelete }: CardProps
                                 </button>
                                 <div className="min-w-0 flex-1">
                                     <p className={`text-[13px] font-medium truncate ${tpl.is_active ? 'text-primary' : 'text-muted'}`} title={tpl.name}>{tpl.name}</p>
-                                    <p className="text-[11px] text-muted">
+                                    <p className="text-xs text-muted">
                                         {busy === tpl.id ? 'Uploading…' : `Updated ${new Date(tpl.updated_at || tpl.created_at).toLocaleDateString()}`}
                                     </p>
                                 </div>
@@ -178,7 +178,7 @@ export function SingleTemplateCard({ kind, setup, showToast, confirmDelete }: Ca
                             </span>
                             <div className="min-w-0">
                                 <p className="text-[13px] font-medium text-primary truncate" title={tpl.name}>{tpl.name}</p>
-                                <p className="text-[11px] text-muted">Current template</p>
+                                <p className="text-xs text-muted">Current template</p>
                             </div>
                         </div>
                         <div className="flex items-center">
@@ -214,7 +214,7 @@ export function SingleTemplateCard({ kind, setup, showToast, confirmDelete }: Ca
                     title={`${tpl ? 'Replace' : 'Upload'} ${cfg.name} Template`}
                     hint="Drop a .docx here or click to browse · max 5MB · see “Attendance sheet & labels” in Available variables"
                 />
-                <p className="text-[11px] text-muted flex items-start gap-1.5">
+                <p className="text-xs text-muted flex items-start gap-1.5">
                     <Info size={13} className="shrink-0 mt-px" />
                     <span>
                         Groups over {cfg.slots} continue on extra pages. Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.

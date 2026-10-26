@@ -401,7 +401,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
             ) : (
                 <div className="bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden">
                     {/* Column header */}
-                    <div className="flex items-center gap-3 px-3 sm:px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-[11px] font-bold uppercase tracking-wider text-muted">
+                    <div className="flex items-center gap-3 px-3 sm:px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-xs font-bold uppercase tracking-wider text-muted">
                         <button
                             type="button"
                             role="checkbox"
@@ -503,7 +503,7 @@ function DateChip({ active, onClick, label, count, title, past, today }: { activ
             }`}
         >
             {label}
-            <span className={`tabular-nums text-[10px] font-bold ${active ? 'text-white/80' : 'text-muted'}`}>{count}</span>
+            <span className={`tabular-nums text-xs font-bold ${active ? 'text-white/80' : 'text-muted'}`}>{count}</span>
         </button>
     );
 }
@@ -570,7 +570,7 @@ function RosterRow({
                 <div className="flex items-center gap-1.5 min-w-0">
                     <span className="font-semibold text-sm text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{name}</span>
                     {item.is_priority && <PriorityStar />}
-                    {variant && <span className="hidden sm:inline text-[10px] font-medium text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
+                    {variant && <span className="hidden sm:inline text-xs font-medium text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
                 </div>
                 <div className="text-xs text-muted flex items-center gap-2 min-w-0">
                     <CopyText value={item.email} label="Email" className="min-w-0" />
@@ -579,11 +579,11 @@ function RosterRow({
                 {/* Mobile meta */}
                 <div className="md:hidden flex items-center flex-wrap gap-1.5 mt-1.5">
                     <StatusBadge status={item.status} queuePosition={item.queue_position} pendingApproval={pending} />
-                    {session && <span className="text-[11px] text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
-                    {variant && <span className="sm:hidden text-[10px] text-muted">{variant}</span>}
+                    {session && <span className="text-xs text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
+                    {variant && <span className="sm:hidden text-xs text-muted">{variant}</span>}
                 </div>
                 {declined && (
-                    <p className="mt-1 text-[11px] text-status-rejected line-clamp-2">
+                    <p className="mt-1 text-xs text-status-rejected line-clamp-2">
                         <strong>Completion declined:</strong> {item.completion_rejection_reason || 'no reason given'}
                     </p>
                 )}
@@ -605,7 +605,7 @@ function RosterRow({
                 ) : session ? (
                     <>
                         <div className="font-semibold text-primary">{weekdayDate(session)}</div>
-                        <div className={`text-[11px] ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
+                        <div className={`text-xs ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
                     </>
                 ) : (
                     <span className="text-muted" title="Registered on">Reg. {formatDateDMY(item.created_at)}</span>

@@ -198,7 +198,7 @@ export function CustomVariablesCard({ setup, showToast, confirmDelete }: CardPro
                         </>
                     )}
                 </div>
-                <p className="text-[11px] text-muted">
+                <p className="text-xs text-muted">
                     Use <code className="text-status-confirmed bg-success/10 px-1 py-0.5 rounded-sm font-mono">{'{VariableName}'}</code> (single braces) in your Word templates. Names use letters, digits and _.
                 </p>
             </div>
@@ -240,7 +240,7 @@ export function ExcelColumnsCard({ setup, showToast }: Omit<CardProps, 'confirmD
                     <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
                         {excelColumns.map((col, idx) => (
                             <li key={`${col.placeholder}-${idx}`} className="flex items-center gap-2.5 px-3 py-2">
-                                <span className="text-[11px] tabular-nums text-muted w-4 text-right shrink-0">{idx + 1}</span>
+                                <span className="text-xs tabular-nums text-muted w-4 text-right shrink-0">{idx + 1}</span>
                                 <span className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                     <span className="text-[13px] font-medium text-primary truncate max-w-full">{col.header}</span>
                                     <span className="flex items-center gap-2 min-w-0 max-w-full">
@@ -307,7 +307,7 @@ export function ExcelColumnsCard({ setup, showToast }: Omit<CardProps, 'confirmD
                         Add
                     </Button>
                 </div>
-                <p className="text-[11px] text-muted flex items-start gap-1.5">
+                <p className="text-xs text-muted flex items-start gap-1.5">
                     {excelShared ? <Users size={13} className="shrink-0 mt-px" /> : <Info size={13} className="shrink-0 mt-px" />}
                     <span>
                         Rows are sorted by surname. The header row is frozen and filterable.{' '}

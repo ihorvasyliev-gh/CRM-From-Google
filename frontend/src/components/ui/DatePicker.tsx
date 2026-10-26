@@ -111,7 +111,7 @@ export function CalendarPanel({ mode, value, onChange, min, max, label, classNam
         grid = (
             <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map(d => (
-                    <span key={d} className="text-center text-[10px] font-semibold uppercase text-muted pb-1">{d}</span>
+                    <span key={d} className="text-center text-xs font-semibold uppercase text-muted pb-1">{d}</span>
                 ))}
                 {Array.from({ length: lead }, (_, i) => <span key={`x${i}`} />)}
                 {Array.from({ length: days }, (_, i) => {

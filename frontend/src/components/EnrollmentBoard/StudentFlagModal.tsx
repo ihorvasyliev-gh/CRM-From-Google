@@ -52,7 +52,7 @@ export default function StudentFlagModal({ open, target, flags, courses, onAddFl
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-semibold text-primary">{flag.courses?.name || 'Unknown course'}</p>
                                         {flag.comment && (
-                                            <p className="text-[11px] text-muted mt-0.5">{flag.comment}</p>
+                                            <p className="text-xs text-muted mt-0.5">{flag.comment}</p>
                                         )}
                                     </div>
                                     <button

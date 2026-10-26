@@ -1,10 +1,10 @@
 const PALETTE = [
     'bg-brand-500/15 text-brand-600 dark:text-brand-400',
-    'bg-info/15 text-info',
-    'bg-success/15 text-success',
-    'bg-warning/20 text-amber-700 dark:text-warning',
-    'bg-[oklch(var(--status-completed)/0.15)] text-[oklch(var(--status-completed))]',
-    'bg-danger/15 text-danger',
+    'bg-info/15 text-status-invited',
+    'bg-success/15 text-status-confirmed',
+    'bg-warning/20 text-status-requested',
+    'bg-[oklch(var(--status-completed)/0.15)] text-status-completed',
+    'bg-danger/15 text-status-rejected',
 ];
 
 function initialsOf(name: string): string {

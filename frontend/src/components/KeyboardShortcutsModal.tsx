@@ -123,7 +123,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
                                         {sc.keys.map((k, kIdx) => (
                                             <kbd
                                                 key={kIdx}
-                                                className="px-2 py-0.5 text-[11px] font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-2xs"
+                                                className="px-2 py-0.5 text-xs font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-2xs"
                                             >
                                                 {k}
                                             </kbd>

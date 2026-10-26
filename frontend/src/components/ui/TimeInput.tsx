@@ -216,7 +216,7 @@ export function TimeInput({ value, onChange, id, ariaLabel, placeholder = '--:--
                                 } ${selected ? 'font-bold text-brand-500' : fullHour ? 'text-primary font-medium' : 'text-muted'}`}
                             >
                                 <span>{slot}</span>
-                                {from && <span className="text-[11px] font-normal text-muted">{formatDuration(minutesOf(slot) - minutesOf(from))}</span>}
+                                {from && <span className="text-xs font-normal text-muted">{formatDuration(minutesOf(slot) - minutesOf(from))}</span>}
                             </li>
                         );
                     })}

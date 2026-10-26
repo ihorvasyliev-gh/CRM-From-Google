@@ -338,7 +338,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                             }));
                                                         }}
                                                         title={`Copy "${duplicateVal}" to primary profile`}
-                                                        className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-brand-500 text-white hover:bg-brand-600 rounded-sm transition-all shadow-xs"
+                                                        className="ml-2 px-1.5 py-0.5 text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 rounded-sm transition-all shadow-xs"
                                                     >
                                                         {isAPrimary ? '← Copy' : 'Copy →'}
                                                     </button>
@@ -350,12 +350,12 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                                     <td className="p-3 font-medium text-muted flex items-center justify-between">
                                                         <span>{label}</span>
                                                         {hasDiff && !isModified && (
-                                                            <span className="text-[10px] bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded-sm font-semibold uppercase">
+                                                            <span className="text-xs bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded-sm font-semibold uppercase">
                                                                 Differs
                                                             </span>
                                                         )}
                                                         {isModified && (
-                                                            <span className="text-[10px] bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded-sm font-semibold uppercase">
+                                                            <span className="text-xs bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded-sm font-semibold uppercase">
                                                                 Updated
                                                             </span>
                                                         )}

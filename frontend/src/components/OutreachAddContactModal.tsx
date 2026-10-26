@@ -99,7 +99,7 @@ export default function OutreachAddContactModal({ open, listId, listName, existi
                         <input id="oc-ref" value={form.external_ref} onChange={set('external_ref')} className={fieldCls} />
                     </div>
                 </div>
-                <p className="text-[11px] text-muted">If this email is already on the list, only the name, phone and IRIS ID are refreshed — status and answers are kept.</p>
+                <p className="text-xs text-muted">If this email is already on the list, only the name, phone and IRIS ID are refreshed — status and answers are kept.</p>
                 {error && (
                     <div role="alert" className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3">
                         <AlertCircle size={16} className="shrink-0" />

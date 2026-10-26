@@ -72,7 +72,7 @@ export default function MobileBottomNav({
                                     <div className={`p-1 rounded-lg transition-transform ${active ? 'bg-brand-500/10 scale-110' : ''}`}>
                                         <Icon size={19} />
                                     </div>
-                                    <span className="text-[10px] tracking-tight mt-0.5">{item.label}</span>
+                                    <span className="text-xs tracking-tight mt-0.5">{item.label}</span>
                                 </button>
                             );
                         })}
@@ -84,7 +84,7 @@ export default function MobileBottomNav({
                             <div className="p-1">
                                 <Search size={19} />
                             </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">Search</span>
+                            <span className="text-xs tracking-tight mt-0.5">Search</span>
                         </button>
 
                         <button
@@ -94,7 +94,7 @@ export default function MobileBottomNav({
                             <div className="p-1">
                                 <MoreHorizontal size={19} />
                             </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">More</span>
+                            <span className="text-xs tracking-tight mt-0.5">More</span>
                         </button>
                     </div>
                 </nav>
@@ -186,7 +186,7 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'dashboard' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <LayoutDashboard size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Overview</span>
+                    <span className="text-xs tracking-tight mt-0.5">Overview</span>
                 </button>
 
                 <button
@@ -200,7 +200,7 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'enrollments' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <GraduationCap size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Board</span>
+                    <span className="text-xs tracking-tight mt-0.5">Board</span>
                 </button>
 
                 <button
@@ -214,7 +214,7 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'students' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <Users size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Students</span>
+                    <span className="text-xs tracking-tight mt-0.5">Students</span>
                 </button>
 
                 <button
@@ -228,7 +228,7 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'courses' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <BookOpen size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Courses</span>
+                    <span className="text-xs tracking-tight mt-0.5">Courses</span>
                 </button>
             </div>
         </nav>

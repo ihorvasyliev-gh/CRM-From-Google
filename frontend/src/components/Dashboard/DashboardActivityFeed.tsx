@@ -60,7 +60,7 @@ function CoursePill({ en, small = false, onNavigate }: { en: Enrollment; small?:
             type="button"
             onClick={() => (en.courseId ? onNavigate?.('enrollments', { courseId: en.courseId }) : onNavigate?.('enrollments'))}
             className={`status-pill-${en.status} inline-flex items-center gap-1.5 max-w-full rounded-full whitespace-nowrap hover:ring-2 hover:ring-brand-500/30 active:scale-95 transition-all cursor-pointer touch-manipulation ${
-                small ? 'text-[10.5px] px-2 py-0.5 font-medium' : 'text-[11px] px-2 py-0.5 font-semibold'
+                small ? 'text-xs px-2 py-0.5 font-medium' : 'text-xs px-2 py-0.5 font-semibold'
             }`}
             title={`Filter board by ${en.courseName} (${en.status})`}
         >
@@ -117,7 +117,7 @@ function ActivityRow({
                             {group.studentName}
                         </button>
                         {group.isNew && (
-                            <span className="inline-flex items-center px-1 py-px rounded-sm text-[9px] font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider shrink-0 select-none">
+                            <span className="inline-flex items-center px-1 py-px rounded-sm text-xs font-bold bg-brand-500/10 text-brand-500 border border-brand-500/20 tracking-wider shrink-0 select-none">
                                 NEW
                             </span>
                         )}
@@ -135,7 +135,7 @@ function ActivityRow({
                             onClick={() => setExpanded(v => !v)}
                             aria-expanded={expanded}
                             title={expanded ? 'Hide history' : `Show ${history.length} earlier enrollments`}
-                            className={`inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                            className={`inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs font-medium whitespace-nowrap cursor-pointer transition-colors ${
                                 expanded ? 'bg-brand-500/10 text-brand-500' : 'text-muted hover:text-primary hover:bg-surface-elevated'
                             }`}
                         >
@@ -153,7 +153,7 @@ function ActivityRow({
                     {Array.from(historyByDate.entries()).map(([date, ens]) => (
                         <li key={date} className="relative flex items-start gap-2.5">
                             <span aria-hidden className="absolute left-[-19px] top-[5px] w-2 h-2 rounded-full bg-surface border-2 border-border-strong" />
-                            <span className="text-[10.5px] font-medium text-muted w-12 pt-0.5 shrink-0 tabular-nums">{date}</span>
+                            <span className="text-xs font-medium text-muted w-12 pt-0.5 shrink-0 tabular-nums">{date}</span>
                             <div className="flex flex-wrap gap-1 min-w-0">
                                 {ens.map(en => (
                                     <CoursePill key={en.id} en={en} small onNavigate={onNavigate} />
@@ -299,11 +299,11 @@ export default function DashboardActivityFeed({
                     {sections.map(section => (
                         <div key={section.date}>
                             <div className="sticky top-0 z-10 flex items-center gap-2 px-2 pt-2 pb-1 bg-surface">
-                                <span className="text-[11px] font-semibold text-primary" title={section.date}>
+                                <span className="text-xs font-semibold text-primary" title={section.date}>
                                     {section.label}
                                 </span>
                                 <span className="flex-1 h-px bg-border-subtle" />
-                                <span className="text-[10px] text-muted tabular-nums">
+                                <span className="text-xs text-muted tabular-nums">
                                     {section.groups.length} {section.groups.length === 1 ? 'student' : 'students'}
                                 </span>
                             </div>

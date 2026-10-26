@@ -40,7 +40,7 @@ export default function DateRuleFields({ rule, onChange }: { rule: DateRule; onC
                     {DATE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
             </div>
-            <p className="text-[11px] text-muted flex items-center gap-1.5">
+            <p className="text-xs text-muted flex items-center gap-1.5">
                 <CalendarClock size={13} className="shrink-0" />
                 <span>
                     Worked out for each participant. E.g. {baseLabel} {formatRuleDate({ ...rule, amount: 0 }, example)} →{' '}

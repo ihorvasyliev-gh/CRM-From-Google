@@ -198,7 +198,7 @@ export default function WordConverter({ admin }: WordConverterProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-primary truncate" title={form.title}>{form.title}</p>
-                    <p className="text-[11px] text-muted truncate">
+                    <p className="text-xs text-muted truncate">
                         {form.fileName} · {form.pages.length} {form.pages.length === 1 ? 'page' : 'pages'} · {withPlaceholders} of {textCount} blanks with a placeholder
                     </p>
                 </div>
@@ -280,10 +280,10 @@ export default function WordConverter({ admin }: WordConverterProps) {
                         <Button variant="primary" className="w-full" onClick={download}>
                             <Download size={15} /> Download Word template (.docx)
                         </Button>
-                        <p className="mt-3 text-[11px] text-muted">
+                        <p className="mt-3 text-xs text-muted">
                             Add it in <b>Documents → Word templates</b>: each student gets a copy with their details in place of the placeholders. Text typed without braces is the same on every form.
                         </p>
-                        <p className="mt-2 text-[11px] text-muted flex gap-1.5">
+                        <p className="mt-2 text-xs text-muted flex gap-1.5">
                             <ShieldCheck size={13} className="shrink-0 mt-px text-success" />
                             Made on this computer: the PDF is not uploaded or kept.
                         </p>

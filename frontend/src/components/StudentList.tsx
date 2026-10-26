@@ -222,7 +222,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                         loading={searchPending}
                         aria-label="Search students"
                     />
-                    <Button variant="primary" size="lg" onClick={openCreate}>
+                    <Button variant="primary" size="lg" onClick={openCreate} aria-label="Add Student">
                         <Plus size={16} /> <span className="hidden xs:inline sm:inline">Add Student</span>
                     </Button>
                 </div>
@@ -285,7 +285,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 </p>
                                                 <p className="text-xs text-muted truncate mt-0.5">{student.email}</p>
                                                 {student.created_at && (
-                                                    <span className="text-[11px] text-muted block mt-0.5">
+                                                    <span className="text-xs text-muted block mt-0.5">
                                                         Joined {formatDateLong(student.created_at)}
                                                     </span>
                                                 )}
@@ -326,7 +326,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                             href={formatPhoneForWhatsApp(student.phone)!}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
+                                                            className="hit-area inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
                                                             title="Chat on WhatsApp"
                                                         >
                                                             <MessageSquare size={12} />
@@ -381,7 +381,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                                 href={formatPhoneForWhatsApp(student.phone)!}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="inline-flex items-center justify-center w-6 h-6 text-muted hover:text-status-confirmed hover:bg-success/10 rounded-md transition-colors"
+                                                                className="hit-area inline-flex items-center justify-center w-6 h-6 text-muted hover:text-status-confirmed hover:bg-success/10 rounded-md transition-colors"
                                                                 title="Chat on WhatsApp"
                                                             >
                                                                 <MessageSquare size={12} />

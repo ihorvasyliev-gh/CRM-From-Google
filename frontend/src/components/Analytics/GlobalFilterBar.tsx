@@ -238,7 +238,7 @@ export default function GlobalFilterBar({
                 </div>
                 <div className="flex items-center gap-3 ml-auto">
                     {allEnrollments.length > 0 && (
-                        <div className="flex items-center gap-2 text-[11px] text-muted">
+                        <div className="flex items-center gap-2 text-xs text-muted">
                             <span className="hidden sm:block w-16 h-1.5 rounded-full bg-border-subtle overflow-hidden">
                                 <span className="block h-full bg-brand-500 rounded-full" style={{ width: `${share}%` }} />
                             </span>

@@ -353,7 +353,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                     ) : (
                                         <>
                                             {!debouncedSearch && (
-                                                <div className="px-3.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted">Recently added</div>
+                                                <div className="px-3.5 pt-2 pb-1 text-xs font-bold uppercase tracking-wider text-muted">Recently added</div>
                                             )}
                                             {studentResults.map((s, idx) => (
                                                 <button

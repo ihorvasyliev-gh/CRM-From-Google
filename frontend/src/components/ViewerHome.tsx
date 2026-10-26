@@ -119,7 +119,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                         <div className="space-y-4">
                             {groups.map(({ bucket, sessions }) => (
                                 <div key={bucket} className="space-y-1.5">
-                                    <h3 className={`text-[11px] font-bold uppercase tracking-wider ${bucket === 'Today' ? 'text-status-confirmed' : 'text-muted'}`}>
+                                    <h3 className={`text-xs font-bold uppercase tracking-wider ${bucket === 'Today' ? 'text-status-confirmed' : 'text-muted'}`}>
                                         {bucket} <span className="text-muted font-semibold normal-case tracking-normal">· {pluralize(sessions.length, 'session')}</span>
                                     </h3>
                                     <div className="bg-surface rounded-2xl border border-border-subtle divide-y divide-border-subtle shadow-card overflow-hidden">
@@ -142,7 +142,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                                 {attention.map(c => (
                                     <button key={c.id} type="button" onClick={() => navigate(`/courses/${c.id}?status=awaiting`)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-surface-elevated/60 transition-colors group">
                                         <span className="flex-1 min-w-0 text-sm font-medium text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{c.name}</span>
-                                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold status-pill-requested tabular-nums">{c.pending_approval_count}</span>
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-bold status-pill-requested tabular-nums">{c.pending_approval_count}</span>
                                     </button>
                                 ))}
                             </div>
@@ -163,7 +163,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                                     <button key={c.id} type="button" onClick={() => navigate(`/courses/${c.id}`)} className="w-full px-4 py-3 text-left hover:bg-surface-elevated/60 transition-colors group space-y-1.5">
                                         <div className="flex items-center gap-2">
                                             <span className="flex-1 min-w-0 text-sm font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{c.name}</span>
-                                            <span className="text-[11px] text-muted tabular-nums">{c.total_count}</span>
+                                            <span className="text-xs text-muted tabular-nums">{c.total_count}</span>
                                             <ArrowRight size={13} className="text-muted group-hover:translate-x-0.5 transition-transform" />
                                         </div>
                                         <StatusDistributionBar counts={{ confirmed: c.confirmed_count, invited: c.invited_count, requested: c.requested_count, completed: c.completed_count }} />
@@ -172,7 +172,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                             </div>
                         )}
                         {pinnedCourses.length === 0 && courses.length > 0 && (
-                            <p className="text-[11px] text-muted">Tip: pin courses on the Courses page to keep them here.</p>
+                            <p className="text-xs text-muted">Tip: pin courses on the Courses page to keep them here.</p>
                         )}
                     </section>
                 </aside>
@@ -198,7 +198,7 @@ function StatTile({ label, value, icon, tone, loading, hint, onClick }: {
             className={`text-left bg-surface rounded-2xl border border-border-subtle p-4 shadow-card ${onClick ? 'hover:border-brand-500/40 hover:shadow-card-hover transition-all' : ''}`}
         >
             <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-muted leading-tight">{label}</span>
+                <span className="text-xs font-semibold text-muted leading-tight">{label}</span>
                 <span className={`p-1.5 rounded-lg shrink-0 ${TONES[tone]}`}>{icon}</span>
             </div>
             {loading ? (
@@ -206,7 +206,7 @@ function StatTile({ label, value, icon, tone, loading, hint, onClick }: {
             ) : (
                 <div className="text-2xl font-bold text-primary tabular-nums mt-1">{value}</div>
             )}
-            {hint && !loading && <div className="text-[11px] text-muted mt-0.5">{hint}</div>}
+            {hint && !loading && <div className="text-xs text-muted mt-0.5">{hint}</div>}
         </Tag>
     );
 }
@@ -226,7 +226,7 @@ function SessionRow({ session, onOpen }: { session: ViewerUpcomingCourse; onOpen
                 <div className="text-sm font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{session.course_name}</div>
                 <div className="text-xs text-muted">{weekdayDate(session.course_date)} · {relativeDay(session.course_date)}</div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-bold tabular-nums">
+            <div className="flex items-center gap-1.5 shrink-0 text-xs font-bold tabular-nums">
                 {session.max_capacity != null ? (
                     <span
                         className={`px-2 py-0.5 rounded-full ${session.is_full ? 'status-pill-rejected' : 'status-pill-confirmed'}`}

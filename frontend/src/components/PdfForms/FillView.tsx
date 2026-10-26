@@ -439,7 +439,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                             </td>
                                             <td className={`${tdCls} min-w-[200px]`}>
                                                 <span className="block text-sm font-medium text-primary truncate max-w-[340px]">{p.title}</span>
-                                                <span className="block text-[11px] text-muted">
+                                                <span className="block text-xs text-muted">
                                                     {p.title === `Row ${p.rowNumber}` ? 'No name found for this row' : `Row ${p.rowNumber}`}
                                                     {rowDays[p.index] ? ` · sent in ${rowDays[p.index]!.split('-').reverse().join('/')}` : ''}
                                                 </span>
@@ -452,14 +452,14 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                                 ) : (
                                                     <ul className="space-y-0.5">
                                                         {p.notes.slice(0, 2).map(n => (
-                                                            <li key={n.fieldId + n.message} className="text-[11px] text-status-requested flex items-start gap-1">
+                                                            <li key={n.fieldId + n.message} className="text-xs text-status-requested flex items-start gap-1">
                                                                 <AlertTriangle size={11} className="shrink-0 mt-0.5" />
                                                                 <span className="line-clamp-2">
                                                                     <b>{n.field}:</b> {n.message}
                                                                 </span>
                                                             </li>
                                                         ))}
-                                                        {p.notes.length > 2 && <li className="text-[11px] text-muted">and {p.notes.length - 2} more</li>}
+                                                        {p.notes.length > 2 && <li className="text-xs text-muted">and {p.notes.length - 2} more</li>}
                                                     </ul>
                                                 )}
                                             </td>
