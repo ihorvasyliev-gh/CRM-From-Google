@@ -35,6 +35,13 @@ describe('description wording', () => {
         // A course run on separate days lists them all
         expect(buildDescription('First Aid', '2026-09-01', '{item} course {date} for IP and TP Clients', ['2026-09-01', '2026-09-02'])).toBe('First Aid course 01.09.2026, 02.09.2026 for IP and TP Clients');
     });
+
+    it('does not repeat a date the invoice line already gives', () => {
+        expect(buildDescription('Manual Handling course 14.10.2026', '2026-10-14', null)).toBe('Manual Handling course 14.10.2026');
+        expect(buildDescription('Manual Handling 14/10/2026', '2026-10-14', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling 14/10/2026 course for IP and TP Clients');
+        // Only the days it doesn't name are added
+        expect(buildDescription('First Aid 01.09.2026', '2026-09-01', null, ['2026-09-01', '2026-09-02'])).toBe('First Aid 01.09.2026 02.09.2026');
+    });
 });
 
 describe('suppliers', () => {

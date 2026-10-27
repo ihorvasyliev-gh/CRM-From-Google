@@ -1,6 +1,6 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, FilePlus2, FileText, Receipt, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, FilePlus2, FileText, Link2, Receipt, Trash2 } from 'lucide-react';
 import Card, { SectionHeader } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import Badge from './ui/Badge';
@@ -8,28 +8,18 @@ import FileDropzone from './ui/FileDropzone';
 import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import { calloutCls, tableCls, tableWrapCls, tbodyCls, tdCls, thCls, theadCls, trCls } from './ui/styles';
 import ConfirmDialog from './ConfirmDialog';
-import ChequeReqEditor, { type EditorSession, type LoadedInvoice } from './ChequeRequisitions/Editor';
-import { loadPdf } from './PdfForms/pdfHooks';
+import ChequeReqEditor, { type EditorSession } from './ChequeRequisitions/Editor';
+import { blankSession, closeInvoice, NO_FACTS, useOpenInvoice } from './ChequeRequisitions/useOpenInvoice';
 import { toast } from '../lib/toast';
 import { downloadBlob } from '../lib/download';
 import { todayISO, formatDisplayDate } from '../lib/dateUtils';
-import { useChequeReqHistory, useDeleteChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
+import { useChequeReqHistory, useDeleteChequeReq, useSaveChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
 import { useFormUserName } from '../hooks/usePdfForms';
-import { extractInvoice } from '../lib/chequeReq/extract';
 import { draftFromInvoice, netOfPayment, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
 import { chequeReqFileName, renderChequeReq } from '../lib/chequeReq/docx';
 import { formatAmount } from '../lib/chequeReq/parse';
-import { INVOICE_ACCEPT, invoiceKind, MAX_INVOICE_BYTES, readDocxInvoice } from '../lib/chequeReq/read';
-import { ocrPhrases, photoPage, readScan, scannedPdfPages, type OcrPage } from '../lib/chequeReq/ocr';
-import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from '../lib/chequeReq/types';
-import type { Phrase } from '../lib/pdfForms/types';
-
-const NO_FACTS: InvoiceFacts = { hasText: false, supplier: {}, items: [], people: [], mentionsSicap: false };
-
-/** A PDF with hardly any text is a scan (perhaps with a scanner's stamp): its pages are pictures to read */
-function looksScanned(phrases: Phrase[]): boolean {
-    return phrases.map(p => p.text).join('').replace(/[^\p{L}\p{N}]/gu, '').length < 100;
-}
+import { INVOICE_ACCEPT } from '../lib/chequeReq/read';
+import type { SavedChequeReq } from '../lib/chequeReq/types';
 
 /** This year's payments per supplier (excl. VAT), largest first: the €5,000 single-quote limit */
 function yearTotals(rows: SavedChequeReq[], year: string) {
@@ -57,10 +47,9 @@ export default function ChequeRequisitions() {
     const queryClient = useQueryClient();
     const { data: history, isLoading, error, refetch } = useChequeReqHistory();
     const remove = useDeleteChequeReq();
+    const save = useSaveChequeReq();
     const userName = useFormUserName();
     const [session, setSession] = useState<EditorSession | null>(null);
-    /** What is being done while an invoice is read, e.g. "Reading the scan… 40%" */
-    const [reading, setReading] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<SavedChequeReq | null>(null);
     const rows = useMemo(() => history?.rows ?? [], [history]);
     const year = todayISO().slice(0, 4);
@@ -76,75 +65,24 @@ export default function ChequeRequisitions() {
         };
     };
 
-    const openInvoice = async (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        e.target.value = '';
-        if (!file) return;
-        const kind = invoiceKind(file);
-        if (!kind) {
-            toast.error('Choose the invoice as a PDF, a Word file (.docx) or a photo');
-            return;
-        }
-        if (file.size > MAX_INVOICE_BYTES) {
-            toast.error('The file is larger than 25 MB');
-            return;
-        }
-        setReading('Reading the invoice…');
-        try {
-            let invoice: LoadedInvoice;
-            let phrases: Phrase[] = [];
-            let scanned = false;
-            // Pictures (a scanned PDF's pages, a photo) are read by OCR; if that fails the
-            // invoice still opens beside an empty requisition to fill in by hand
-            let angles: number[] = [];
-            const readPictures = async (pages: OcrPage[]) => {
-                scanned = true;
-                try {
-                    const read = await readScan(pages, done => setReading(`Reading the scan… ${Math.round(done * 100)}%`));
-                    angles = read.angles;
-                    return ocrPhrases(read.pageSizes, read.items);
-                } catch (err) {
-                    toast.error(err instanceof Error ? `The scan could not be read: ${err.message}` : 'The scan could not be read');
-                    return [];
-                }
-            };
-            if (kind === 'pdf') {
-                const pdf = await loadPdf(new Uint8Array(await file.arrayBuffer()));
-                phrases = pdf.layout.phrases;
-                if (looksScanned(phrases)) {
-                    setReading('Reading the scan…');
-                    phrases = await readPictures(await scannedPdfPages(pdf.doc));
-                }
-                invoice = { kind, pdf, fileName: file.name, angles };
-            } else if (kind === 'docx') {
-                phrases = await readDocxInvoice(await file.arrayBuffer());
-                invoice = { kind, phrases, fileName: file.name };
-            } else {
-                setReading('Reading the photo…');
-                const page = await photoPage(file);
-                phrases = await readPictures([page]);
-                invoice = { kind, url: URL.createObjectURL(file), fileName: file.name, size: { w: page.width, h: page.height }, angle: angles[0] ?? 0 };
-            }
-            // Earlier requisitions first: they hold this supplier's details from last time
-            const hist = await queryClient.fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 }).catch(() => undefined);
-            const facts: InvoiceFacts = { ...extractInvoice(phrases), scanned };
-            const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName: file.name });
-            setSession({ key: crypto.randomUUID(), invoice, facts, draft });
-        } catch (err) {
-            toast.error(err instanceof Error ? `The invoice could not be read: ${err.message}` : 'The invoice could not be read');
-        } finally {
-            setReading(null);
-        }
-    };
+    const { reading, open: openInvoice } = useOpenInvoice(async (invoice, facts, fileName) => {
+        // Earlier requisitions first: they hold this supplier's details from last time
+        const hist = await queryClient.fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 }).catch(() => undefined);
+        const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName });
+        setSession({ key: crypto.randomUUID(), invoice, facts, draft });
+    });
 
-    const startBlank = () => {
-        const defaults = defaultsFor(history);
-        setSession({
-            key: crypto.randomUUID(),
-            invoice: null,
-            facts: NO_FACTS,
-            draft: { form: { ...structuredClone(EMPTY_FORM), actionNumber: defaults.actionNumber, requestedBy: defaults.requestedBy }, flags: {}, meta: { ...EMPTY_META } },
-        });
+    const startBlank = () => setSession(blankSession(defaultsFor(history)));
+
+    // The same page without signing in (main.tsx): nothing made there is kept, nothing from here is shown
+    const copyPublicLink = async () => {
+        const link = `${window.location.origin}/cheque`;
+        try {
+            await navigator.clipboard.writeText(link);
+            toast.success('Link copied. Anyone with it can make a requisition without signing in; nothing they add is saved, and they see nothing from the CRM.');
+        } catch {
+            toast.error(`Could not copy the link: it is ${link}`);
+        }
     };
 
     const openSaved = (r: SavedChequeReq) => {
@@ -160,8 +98,7 @@ export default function ChequeRequisitions() {
     };
 
     const closeSession = () => {
-        if (session?.invoice?.kind === 'pdf') void session.invoice.pdf.doc.loadingTask.destroy();
-        if (session?.invoice?.kind === 'image') URL.revokeObjectURL(session.invoice.url);
+        closeInvoice(session?.invoice ?? null);
         setSession(null);
     };
 
@@ -172,6 +109,7 @@ export default function ChequeRequisitions() {
                 session={session}
                 history={rows}
                 historyAvailable={history?.available ?? false}
+                keep={input => save.mutateAsync(input)}
                 onBack={closeSession}
             />
         );
@@ -184,9 +122,14 @@ export default function ChequeRequisitions() {
                 title="Cheque requisitions"
                 description="Drop a supplier invoice: the SICAP cheque requisition is filled in from it for you to check, edit and download."
                 actions={
-                    <Button onClick={startBlank}>
-                        <FilePlus2 size={15} /> Blank requisition
-                    </Button>
+                    <>
+                        <Button variant="ghost" onClick={copyPublicLink} title="A link to this page without signing in, to share: it saves nothing and shows nothing from the CRM">
+                            <Link2 size={15} /> Copy the public link
+                        </Button>
+                        <Button onClick={startBlank}>
+                            <FilePlus2 size={15} /> Blank requisition
+                        </Button>
+                    </>
                 }
             />
 

@@ -20,10 +20,12 @@ export interface ChequeReqDefaults {
 export const EMPTY_DEFAULTS: ChequeReqDefaults = { actionNumber: '', requestedBy: '', descriptionPattern: '' };
 
 const DEFAULTS_KEY = 'cheque_req_defaults';
+/** The public page (/cheque) keeps its own: a coordinator's details never start a stranger's requisition */
+export const PUBLIC_DEFAULTS_KEY = 'cheque_req_public_defaults';
 
-export function readDefaults(): ChequeReqDefaults {
+export function readDefaults(key = DEFAULTS_KEY): ChequeReqDefaults {
     try {
-        const stored = JSON.parse(localStorage.getItem(DEFAULTS_KEY) ?? 'null') as Partial<ChequeReqDefaults> | null;
+        const stored = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<ChequeReqDefaults> | null;
         if (!stored || typeof stored !== 'object') return { ...EMPTY_DEFAULTS };
         return {
             actionNumber: typeof stored.actionNumber === 'string' ? stored.actionNumber : '',
@@ -36,15 +38,15 @@ export function readDefaults(): ChequeReqDefaults {
 }
 
 /** After a download: this requisition's action number, name and description wording start the next one */
-export function rememberDefaults(form: ChequeReqForm, meta: ChequeReqMeta): void {
-    const previous = readDefaults();
+export function rememberDefaults(form: ChequeReqForm, meta: ChequeReqMeta, key = DEFAULTS_KEY): void {
+    const previous = readDefaults(key);
     const next: ChequeReqDefaults = {
         actionNumber: form.actionNumber.trim() || previous.actionNumber,
         requestedBy: form.requestedBy.trim() || previous.requestedBy,
         descriptionPattern: descriptionPattern(form.description, meta.item, meta.serviceDate) ?? previous.descriptionPattern,
     };
     try {
-        localStorage.setItem(DEFAULTS_KEY, JSON.stringify(next));
+        localStorage.setItem(key, JSON.stringify(next));
     } catch {
         // storage unavailable: the next requisition just starts emptier
     }
@@ -103,7 +105,10 @@ export function descriptionPattern(description: string, item: string, serviceDat
 
 /** `days`: a course run on separate days, all of them listed */
 export function buildDescription(item: string, serviceDate: string, pattern: string | null, days: string[] = []): string {
-    const date = days.length > 1 ? days.map(dottedDate).join(', ') : serviceDate ? dottedDate(serviceDate) : '';
+    // A date the invoice line already gives ("Manual Handling course 14.10.2026") is not added again
+    const named = new Set(findDates(item).map(d => d.iso));
+    const dates = (days.length > 1 ? days : serviceDate ? [serviceDate] : []).filter(d => !named.has(d));
+    const date = dates.map(dottedDate).join(', ');
     if (pattern && item) {
         return collapseSpaces(pattern.replace('{item}', item).replace('{date}', date)).replace(/\s+([,.;])/g, '$1');
     }

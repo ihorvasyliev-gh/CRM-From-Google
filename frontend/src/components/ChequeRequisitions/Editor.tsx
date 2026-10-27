@@ -9,7 +9,7 @@ import RequisitionForm from './RequisitionForm';
 import { toast } from '../../lib/toast';
 import { downloadBlob } from '../../lib/download';
 import { todayISO } from '../../lib/dateUtils';
-import { useSaveChequeReq } from '../../hooks/useChequeRequisitions';
+import type { SaveChequeReqInput } from '../../hooks/useChequeRequisitions';
 import { historyChecks, invoiceChecks, rememberDefaults, type Draft } from '../../lib/chequeReq/draft';
 import { chequeReqFileName, renderChequeReq } from '../../lib/chequeReq/docx';
 import { formatAmount, slashDate } from '../../lib/chequeReq/parse';
@@ -31,6 +31,14 @@ interface Props {
     session: EditorSession;
     history: SavedChequeReq[];
     historyAvailable: boolean;
+    /**
+     * Keeps a downloaded requisition in the history: resolves to its id, or null when it isn't
+     * kept. Left out on the public page, where nothing is kept anywhere.
+     */
+    keep?: (input: SaveChequeReqInput) => Promise<string | null>;
+    /** Where this computer remembers the action number, name and description wording */
+    defaultsKey?: string;
+    backLabel?: string;
     onBack: () => void;
 }
 
@@ -113,7 +121,7 @@ function InvoiceFactsList({ facts }: { facts: InvoiceFacts }) {
 }
 
 /** One requisition: the invoice on one side, the form on the other, checks on top */
-export default function ChequeReqEditor({ session, history, historyAvailable, onBack }: Props) {
+export default function ChequeReqEditor({ session, history, historyAvailable, keep, defaultsKey, backLabel = 'All requisitions', onBack }: Props) {
     const { invoice, facts, draft } = session;
     const [form, setForm] = useState<ChequeReqForm>(draft.form);
     const [flags, setFlags] = useState<FieldFlags>(draft.flags);
@@ -125,7 +133,6 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [busy, setBusy] = useState(false);
     const [showInvoice, setShowInvoice] = useState(false);
-    const save = useSaveChequeReq();
     const meta = draft.meta;
     const today = todayISO();
 
@@ -166,9 +173,9 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
             setBusy(false);
             return;
         }
-        rememberDefaults(form, meta);
+        rememberDefaults(form, meta, defaultsKey);
         try {
-            const id = await save.mutateAsync({ id: savedId, form, meta });
+            const id = keep ? await keep({ id: savedId, form, meta }) : null;
             if (id) setSavedId(id);
             setDownloaded(true);
             setTouched(false);
@@ -193,7 +200,11 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
         >
             <RequisitionForm form={form} flags={flags} onChange={change} onAccept={unflag} onActive={setActive} />
             <div className="mt-5 pt-4 border-t border-border-subtle flex flex-wrap items-center justify-end gap-2">
-                {!historyAvailable && <p className="text-xs text-muted mr-auto">Not kept in a history until migration 88 is applied.</p>}
+                {!keep ? (
+                    <p className="text-xs text-muted mr-auto">Nothing is saved: you only get the file you download.</p>
+                ) : !historyAvailable && (
+                    <p className="text-xs text-muted mr-auto">Not kept in a history until migration 88 is applied.</p>
+                )}
                 <Button variant="primary" size="lg" loading={busy} onClick={() => (toCheck.length > 0 ? setConfirmDownload(true) : download())}>
                     {!busy && <Download size={16} />} Download the requisition (.docx)
                 </Button>
@@ -204,8 +215,8 @@ export default function ChequeReqEditor({ session, history, historyAvailable, on
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-                <Button variant="ghost" aria-label="All requisitions" onClick={() => (unsaved ? setConfirmLeave(true) : onBack())}>
-                    <ArrowLeft size={15} /> <span className="sm:hidden">Back</span><span className="hidden sm:inline">All requisitions</span>
+                <Button variant="ghost" aria-label={backLabel} onClick={() => (unsaved ? setConfirmLeave(true) : onBack())}>
+                    <ArrowLeft size={15} /> <span className="sm:hidden">Back</span><span className="hidden sm:inline">{backLabel}</span>
                 </Button>
                 {/* On a phone the title gets its own row under the buttons */}
                 <div className="min-w-0 basis-full order-last sm:order-none sm:basis-0 sm:flex-1">

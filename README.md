@@ -175,7 +175,7 @@ The spreadsheet and the PDF never leave the browser.
 <td colspan="2" valign="top">
 
 ### 🧾 Cheque requisitions
-Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requisition is filled in from it, ready to check, edit and download as Word. Admins only.
+Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requisition is filled in from it, ready to check, edit and download as Word. For admins, plus a public link that saves nothing (below).
 
 - **Any invoice layout:** the invoice number, dates, PO number, total, supplier name and address, VAT number, IBAN and the invoice lines are found next to their labels, wherever they sit on the page.
 - **Shows what to check:** each field says where it came from. Orange is a guess, red was not found, blue is as last time for this supplier; click a field to see it highlighted on the invoice.
@@ -183,6 +183,7 @@ Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requ
 - **Checks before you submit:** a missing PO number or "SICAP" on the invoice, lines that don't add up to the total, people named against the quantity charged, an invoice already done, and the €5,000 a year (excl. VAT) three-quotations rule.
 - **Kept to download again:** every requisition is kept (migration 88), with each supplier's total for the year.
 - **Scans and photos too:** a scanned PDF or a phone photo is read by OCR (Tesseract, in the browser): the lighting is evened out and a tilted photo is levelled first. Everything read off a picture is marked to check, since a letter or digit can be misread.
+- **A link without signing in:** `/cheque` (**Copy the public link** on the page) does the same for anyone with the link: read the invoice, check the form, download it. Nothing is saved, and nothing from the CRM is shown: no history, supplier memory or totals for the year.
 
 The invoice is read in the browser and never uploaded; the OCR engine and its English model ship with the app (the CSP allows WebAssembly with `'wasm-unsafe-eval'`).
 
@@ -262,7 +263,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | 🧾 **PDF Forms** | PDF Forms | Set up PDF form templates (forms, new revisions, column links) and fill them |
 
 > [!NOTE]
-> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else.
+> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else. The public cheque requisition page (`/cheque`) makes no database calls at all.
 
 ---
 
