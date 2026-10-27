@@ -45,9 +45,6 @@ export function isEnrollmentStatus(value: unknown): value is EnrollmentStatus {
     return (ALL_STATUSES as readonly unknown[]).includes(value);
 }
 
-/** What a student answered to "Can't make it?" on the confirmation page */
-export type DeclineReason = 'other_date' | 'not_interested';
-
 export interface Enrollment {
     id: string;
     student_id: string;
@@ -72,9 +69,6 @@ export interface Enrollment {
     completion_rejection_reason?: string | null;
     /** Left out of Analytics and the one-page report (course run marked "Ignore in reports", migration 82) */
     exclude_from_reports?: boolean | null;
-    /** The student said on the confirmation page they can't attend (migration 89); cleared when the card moves */
-    decline_reason?: DeclineReason | null;
-    declined_at?: string | null;
     created_at: string;
     updated_at: string;
 }

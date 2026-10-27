@@ -24,8 +24,7 @@ import { getGoogleCalendarUrl, downloadIcsFile, type CalendarEventParams } from 
 import { dayTime, formatTimeRange, hasDayOverrides, isMultiDay, sessionDays, sessionFromRow, sessionHasSchedule, weeklySummary, type CourseSession } from '../lib/courseSessions';
 import { placeHref } from '../lib/maps';
 import { emailProblem } from '../lib/emailValidation';
-import { fullName, type DeclineReason } from '../lib/types';
-import FieldError from './ui/FieldError';
+import { fullName } from '../lib/types';
 import {
     ContactFooter,
     ORGANIZER_EMAIL,
@@ -39,8 +38,8 @@ import {
     secondaryButtonCls,
 } from './PublicPage';
 
-type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline' | 'declined' | 'full';
-type Field = 'email' | 'reason' | 'person';
+type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline' | 'full';
+type Field = 'email';
 
 interface CapacityInfo {
     max: number;
@@ -56,11 +55,6 @@ interface MatchedStudent {
     first_name: string;
     last_name: string;
 }
-
-const DECLINE_CHOICES: { value: DeclineReason; label: string; hint: string }[] = [
-    { value: 'other_date', label: 'Keep me for a later date', hint: "We'll invite you again when there's a new date." },
-    { value: 'not_interested', label: "I'm no longer interested", hint: "We'll take you off the list for this course." },
-];
 
 const NETWORK_ERROR = 'Could not connect. Please check your internet connection and try again.';
 const SERVER_ERROR = 'Something went wrong on our side. Please try again in a moment.';
@@ -78,17 +72,12 @@ function formatCourseDate(dateStr: string): string {
     }
 }
 
-/** "Olena", "Olena and Taras", "Olena, Taras and Ivan" */
-function joinNames(names: string[]): string {
-    return names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
 /** Moves focus to a field once the error under it is on screen */
 function focusField(selector: string) {
     setTimeout(() => document.querySelector<HTMLElement>(selector)?.focus(), 0);
 }
 
-/** A choice drawn as a card: dates, people, "what would you like" */
+/** A choice drawn as a card: a date, a person */
 function optionCardCls(selected: boolean, disabled = false) {
     return `flex gap-3 p-3.5 rounded-xl border-2 transition-colors touch-manipulation has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand-500/40 ${
         disabled
@@ -126,13 +115,6 @@ export default function ConfirmationPage() {
     // Time, place and days of each offered date (empty when none are set)
     const [sessions, setSessions] = useState<Record<string, CourseSession>>({});
     const anyMultiDay = Object.values(sessions).some(isMultiDay);
-    // "Can't make it?": the answer, who it is for when several people share the email,
-    // and whether to offer email instead (migration 89 not applied yet)
-    const [declineReason, setDeclineReason] = useState<DeclineReason | ''>('');
-    const [declinePeople, setDeclinePeople] = useState<MatchedStudent[]>([]);
-    const [declineIds, setDeclineIds] = useState<Set<string>>(new Set());
-    const [declineByEmail, setDeclineByEmail] = useState(false);
-    const [declinedName, setDeclinedName] = useState('');
 
     // Guard against double-click race conditions
     const submittingRef = useRef(false);
@@ -392,12 +374,6 @@ export default function ConfirmationPage() {
         if (value === email) return;
         setEmail(value);
         clearError('email');
-        // The people found for the old address don't apply to the new one
-        if (declinePeople.length) {
-            setDeclinePeople([]);
-            setDeclineIds(new Set());
-            clearError('person');
-        }
     }
 
     async function handleSubmit(e?: React.FormEvent) {
@@ -603,88 +579,6 @@ export default function ConfirmationPage() {
         }
     }
 
-    function openDecline() {
-        setDeclinePeople([]);
-        setDeclineIds(new Set());
-        goTo('decline');
-    }
-
-    function toggleDeclinePerson(studentId: string) {
-        setDeclineIds(prev => {
-            const next = new Set(prev);
-            if (next.has(studentId)) next.delete(studentId);
-            else next.add(studentId);
-            return next;
-        });
-        clearError('person');
-    }
-
-    /** "Can't make it?": records the answer on the invitation for the organizer (migration 89). */
-    async function handleReportCantAttend(e?: React.FormEvent) {
-        e?.preventDefault();
-        if (submittingRef.current) return;
-
-        const found: Partial<Record<Field, string>> = {};
-        if (!declineReason) found.reason = 'Choose one of the options';
-        const badEmail = emailProblem(email);
-        if (badEmail) found.email = badEmail;
-        if (declinePeople.length > 1 && declineIds.size === 0) found.person = "Tick who can't come";
-        setErrors(found);
-        if (found.reason) { focusField('input[name="decline-reason"]'); return; }
-        if (found.email) { focusField('#decline-email'); return; }
-        if (found.person) { focusField('input[name="decline-person"]'); return; }
-
-        const trimmedEmail = email.trim().toLowerCase();
-        // Several people share the email: one answer for each person ticked
-        const targets: (string | null)[] = declinePeople.length > 1 ? [...declineIds] : [null];
-        submittingRef.current = true;
-        setIsSubmitting(true);
-        showError('');
-        try {
-            const names: string[] = [];
-            for (const studentId of targets) {
-                const { data, error } = await supabase.rpc('public_report_cant_attend', {
-                    p_email: trimmedEmail,
-                    p_course_id: courseId,
-                    p_reason: declineReason,
-                    p_student_id: studentId,
-                });
-                if (error) {
-                    // Most likely the database doesn't have this yet: offer email instead
-                    console.error('public_report_cant_attend error:', error);
-                    setDeclineByEmail(true);
-                    return;
-                }
-                if (data?.code === 'choose_person' && Array.isArray(data.people)) {
-                    setDeclinePeople(data.people);
-                    setDeclineIds(new Set());
-                    focusField('input[name="decline-person"]');
-                    return;
-                }
-                if (data?.code === 'not_found') {
-                    setErrors({ email: data.message || 'We could not find an invitation for this course with this email.' });
-                    focusField('#decline-email');
-                    return;
-                }
-                if (!data?.success) {
-                    showError(data?.message || 'We could not save your answer. Please try again.');
-                    return;
-                }
-                const person = declinePeople.find(p => p.student_id === studentId);
-                const name = person?.first_name || data.first_name;
-                if (name) names.push(name);
-            }
-            setDeclinedName(joinNames(names));
-            goTo('declined');
-        } catch (err) {
-            console.error('public_report_cant_attend exception:', err);
-            showError(NETWORK_ERROR, true);
-        } finally {
-            setIsSubmitting(false);
-            submittingRef.current = false;
-        }
-    }
-
     function handleCopyCoordinatorEmail() {
         Promise.resolve(navigator.clipboard?.writeText(ORGANIZER_EMAIL)).catch(() => {});
         setCopiedCoordinatorEmail(true);
@@ -705,11 +599,6 @@ export default function ConfirmationPage() {
         `I received an invitation for "${courseName}" on ${invitationDatesLabel()}, but all places were already taken when I tried to confirm.\n\nI am still interested — please give me priority for the next available course date.`);
     const getWithdrawMailtoUrl = () => coordinatorMailto('Cancel registration',
         `I am no longer interested in attending "${courseName}" on ${invitationDatesLabel()}.\n\nPlease cancel my registration and remove me from the waiting list.`);
-    const getCantAttendMailtoUrl = () => declineReason === 'other_date'
-        ? getRescheduleMailtoUrl()
-        : declineReason === 'not_interested'
-            ? getWithdrawMailtoUrl()
-            : coordinatorMailto("Can't attend", `I can't attend "${courseName}" on ${invitationDatesLabel()}.`);
 
     const needsDate = isMultiDate && !courseDate;
 
@@ -904,7 +793,7 @@ export default function ConfirmationPage() {
                             )}
                         </div>
 
-                        <button type="button" onClick={openDecline} className={secondaryButtonCls}>
+                        <button type="button" onClick={() => goTo('decline')} className={secondaryButtonCls}>
                             <CalendarX size={16} className="text-status-requested shrink-0" aria-hidden="true" />
                             <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
                         </button>
@@ -988,7 +877,7 @@ export default function ConfirmationPage() {
                 </div>
             )}
 
-            {/* ─── Can't make it ─── */}
+            {/* ─── Can't make it: by email, from the person's own address ─── */}
             {state === 'decline' && (
                 <div className="flex flex-col animate-fadeIn">
                     <PublicCardHeader
@@ -1000,24 +889,31 @@ export default function ConfirmationPage() {
                         <p className="text-sm text-muted">{invitationDatesLabel()}</p>
                     </PublicCardHeader>
 
-                    {declineByEmail ? (
-                        <div className="p-5 sm:p-6 space-y-4">
-                            <PublicAlert>We couldn't save your answer here. Please send it by email instead, it's ready to go.</PublicAlert>
+                    <div className="p-5 sm:p-6 space-y-4">
+                        <p className="text-sm text-muted leading-relaxed">
+                            Let the organizer know by email. Please send it from the address that received the invitation, so we know it's really you.
+                        </p>
 
-                            <div className="space-y-2.5">
-                                <MailOption
-                                    href={getRescheduleMailtoUrl()}
-                                    icon={Calendar}
-                                    title="Keep me on the waiting list for future dates"
-                                />
-                                <MailOption
-                                    href={getWithdrawMailtoUrl()}
-                                    icon={CalendarX}
-                                    title="I'm no longer interested in this course"
-                                />
-                            </div>
+                        <div className="space-y-2.5">
+                            <MailOption
+                                href={getRescheduleMailtoUrl()}
+                                icon={Calendar}
+                                title="Keep me on the waiting list for future dates"
+                                hint="We'll invite you again when there's a new date."
+                            />
+                            <MailOption
+                                href={getWithdrawMailtoUrl()}
+                                icon={CalendarX}
+                                title="I'm no longer interested in this course"
+                                hint="We'll take you off the list for this course."
+                            />
+                        </div>
 
-                            <div className="pt-3.5 border-t border-border-subtle flex flex-wrap items-center justify-between gap-2">
+                        <div className="pt-3.5 border-t border-border-subtle space-y-2">
+                            <p className="text-sm text-muted">
+                                Each option opens a ready-to-send email. No email app on this device? Write to us from your usual email instead.
+                            </p>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-sm text-muted">
                                     Email: <span className="text-primary font-medium">{ORGANIZER_EMAIL}</span>
                                 </p>
@@ -1039,123 +935,13 @@ export default function ConfirmationPage() {
                                     )}
                                 </button>
                             </div>
-
-                            <button type="button" onClick={() => goTo('form')} className={secondaryButtonCls}>
-                                <ArrowLeft size={15} aria-hidden="true" /> Back to confirmation
-                            </button>
                         </div>
-                    ) : (
-                        <form onSubmit={handleReportCantAttend} noValidate className="p-5 sm:p-6 space-y-5">
-                            <p className="text-sm text-muted leading-relaxed -mt-1">
-                                Let us know, and the organizer will take it from here.
-                            </p>
 
-                            <fieldset>
-                                <legend className={publicLabelCls}>What would you like?</legend>
-                                <div className="space-y-2">
-                                    {DECLINE_CHOICES.map(choice => (
-                                        <label key={choice.value} className={`${optionCardCls(declineReason === choice.value)} items-start`}>
-                                            <input
-                                                type="radio"
-                                                name="decline-reason"
-                                                value={choice.value}
-                                                checked={declineReason === choice.value}
-                                                disabled={isSubmitting}
-                                                onChange={() => { setDeclineReason(choice.value); clearError('reason'); }}
-                                                aria-invalid={errors.reason ? true : undefined}
-                                                aria-describedby={errors.reason ? 'decline-reason-error' : undefined}
-                                                className="w-4 h-4 mt-0.5 accent-emerald-700 shrink-0"
-                                            />
-                                            <span className="min-w-0">
-                                                <span className="block text-sm font-semibold text-primary">{choice.label}</span>
-                                                <span className="block text-sm text-muted mt-0.5 leading-snug">{choice.hint}</span>
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <FieldError id="decline-reason" message={errors.reason} />
-                            </fieldset>
-
-                            <PublicEmailField
-                                id="decline-email"
-                                label="Your email"
-                                value={email}
-                                disabled={isSubmitting}
-                                onChange={handleEmailChange}
-                                error={errors.email}
-                                hint="The address that received the invitation."
-                            />
-
-                            {declinePeople.length > 1 && (
-                                <fieldset className="animate-fadeIn">
-                                    <legend className={publicLabelCls}>Who can't come?</legend>
-                                    <p className="text-sm text-muted -mt-1 mb-2.5">More than one person is registered with this email.</p>
-                                    <div className="space-y-2">
-                                        {declinePeople.map(person => (
-                                            <label key={person.student_id} className={`${optionCardCls(declineIds.has(person.student_id))} items-center`}>
-                                                <input
-                                                    type="checkbox"
-                                                    name="decline-person"
-                                                    checked={declineIds.has(person.student_id)}
-                                                    disabled={isSubmitting}
-                                                    onChange={() => toggleDeclinePerson(person.student_id)}
-                                                    aria-invalid={errors.person ? true : undefined}
-                                                    aria-describedby={errors.person ? 'decline-person-error' : undefined}
-                                                    className="w-5 h-5 accent-emerald-700 shrink-0"
-                                                />
-                                                <span className="text-base font-semibold text-primary">{fullName(person)}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <FieldError id="decline-person" message={errors.person} />
-                                </fieldset>
-                            )}
-
-                            <div className="space-y-2.5">
-                                {inlineError && <PublicAlert action={retryable && <RetryButton onClick={() => handleReportCantAttend()} />}>{inlineError}</PublicAlert>}
-                                <button type="submit" disabled={isSubmitting} className={primaryButtonCls}>
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-                                            <span>Sending...</span>
-                                        </>
-                                    ) : (
-                                        <span>Send my answer</span>
-                                    )}
-                                </button>
-                                <p className="text-sm text-muted text-center">
-                                    Prefer email?{' '}
-                                    <a href={getCantAttendMailtoUrl()} className="hit-area text-brand-700 dark:text-brand-300 font-medium underline underline-offset-2">
-                                        Write to the organizer
-                                    </a>
-                                </p>
-                            </div>
-
-                            <button type="button" onClick={() => goTo('form')} disabled={isSubmitting} className={secondaryButtonCls}>
-                                <ArrowLeft size={15} aria-hidden="true" /> Back to confirmation
-                            </button>
-                        </form>
-                    )}
+                        <button type="button" onClick={() => goTo('form')} className={secondaryButtonCls}>
+                            <ArrowLeft size={15} aria-hidden="true" /> Back to confirmation
+                        </button>
+                    </div>
                 </div>
-            )}
-
-            {/* ─── Answer to "Can't make it?" saved ─── */}
-            {state === 'declined' && (
-                <PublicMessage icon={CheckCircle} tone="success" title={`Thanks for letting us know${declinedName ? `, ${declinedName}` : ''}`}>
-                    <p className="text-muted text-sm leading-relaxed max-w-xs -mt-1">
-                        {declineReason === 'other_date'
-                            ? "We've passed it on to the organizer. You'll get a new invitation when there's another date."
-                            : "We've passed it on to the organizer, who will take you off the list for this course."}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => goTo('form')}
-                        className="hit-area text-sm text-muted hover:text-primary underline underline-offset-2 transition-colors touch-manipulation py-1"
-                    >
-                        Changed your mind? Confirm your place instead
-                    </button>
-                    <ContactFooter prompt="Anything else?" subject={`Question about ${courseName}`} />
-                </PublicMessage>
             )}
 
             {/* ─── Shared email: who is coming ─── */}
@@ -1323,8 +1109,8 @@ const calendarButtonCls =
     'flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border border-border-strong bg-surface hover:bg-surface-elevated ' +
     'text-primary text-sm font-semibold transition-colors active:scale-[0.98] touch-manipulation text-center';
 
-/** One of the ready-to-send emails offered when the answer can't be saved on the page */
-function MailOption({ href, icon: Icon, title }: { href: string; icon: typeof Mail; title: string }) {
+/** One of the ready-to-send emails on "Can't make it?" */
+function MailOption({ href, icon: Icon, title, hint }: { href: string; icon: typeof Mail; title: string; hint: string }) {
     return (
         <a
             href={href}
@@ -1338,7 +1124,7 @@ function MailOption({ href, icon: Icon, title }: { href: string; icon: typeof Ma
                     <span className="text-sm font-bold text-primary">{title}</span>
                     <Mail size={14} className="text-muted shrink-0 mt-0.5" aria-hidden="true" />
                 </span>
-                <span className="block text-sm text-muted mt-1 leading-snug">Opens an email to the organizer, ready to send.</span>
+                <span className="block text-sm text-muted mt-1 leading-snug">{hint}</span>
             </span>
         </a>
     );

@@ -37,123 +37,68 @@ describe('ConfirmationPage Component', () => {
         expect(screen.queryByText('CCP CRM')).not.toBeInTheDocument();
     });
 
-    function mockDecline(report: (args: any) => any) {
-        (supabase.rpc as any).mockImplementation(async (name: string, args: any) => {
+    function mockCourse() {
+        (supabase.rpc as any).mockImplementation(async (name: string) => {
             if (name === 'get_public_course_info') {
                 return { data: [{ course_name: 'Python for Beginners', course_id: 'test-course-123' }], error: null } as any;
             }
-            if (name === 'public_report_cant_attend') return report(args);
             return { data: null, error: null } as any;
         });
     }
 
-    async function openDecline() {
+    it('answers "can\'t make it" only by email, so an address alone changes nothing', async () => {
+        mockCourse();
         render(<ConfirmationPage />);
-        fireEvent.click(await screen.findByRole('button', { name: /can't make it to this date/i }));
+        const declineBtn = await screen.findByRole('button', { name: /can't make it to this date/i });
+        const callsBefore = (supabase.rpc as any).mock.calls.length;
+
+        fireEvent.click(declineBtn);
+
         expect(screen.getByRole('heading', { level: 1, name: /can't make it\?/i })).toBeInTheDocument();
-    }
-
-    it('records "can\'t make it" for the organizer without changing the place', async () => {
-        mockDecline(() => ({ data: { success: true, first_name: 'Olena' }, error: null }));
-        await openDecline();
-
-        fireEvent.click(screen.getByLabelText(/keep me for a later date/i));
-        fireEvent.change(screen.getByLabelText(/your email/i), { target: { value: 'olena@example.com' } });
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        expect(await screen.findByRole('heading', { name: /thanks for letting us know, olena/i })).toBeInTheDocument();
-        expect(screen.getByText(/new invitation when there's another date/i)).toBeInTheDocument();
-        expect(supabase.rpc).toHaveBeenCalledWith('public_report_cant_attend', {
-            p_email: 'olena@example.com',
-            p_course_id: 'test-course-123',
-            p_reason: 'other_date',
-            p_student_id: null,
-        });
-        // The old RPC changed the status itself and stays closed (migrations 53, 64)
-        expect(supabase.rpc).not.toHaveBeenCalledWith('public_decline_enrollment', expect.anything());
-    });
-
-    it('asks for an answer and an email before sending', async () => {
-        mockDecline(() => ({ data: { success: true }, error: null }));
-        await openDecline();
-
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        expect(screen.getByText('Choose one of the options')).toBeInTheDocument();
-        expect(screen.getByText('Enter your email address')).toBeInTheDocument();
-        expect(screen.getByLabelText(/your email/i)).toHaveAttribute('aria-invalid', 'true');
-        await waitFor(() => expect(screen.getByLabelText(/keep me for a later date/i)).toHaveFocus());
-        expect(supabase.rpc).not.toHaveBeenCalledWith('public_report_cant_attend', expect.anything());
-    });
-
-    it('asks who can\'t come when several people share the email', async () => {
-        mockDecline((args) => args.p_student_id
-            ? { data: { success: true, first_name: args.p_student_id === 's2' ? 'Taras' : 'Olena' }, error: null }
-            : { data: { success: false, code: 'choose_person', people: [
-                { student_id: 's1', first_name: 'Olena', last_name: 'Melnyk' },
-                { student_id: 's2', first_name: 'Taras', last_name: 'Melnyk' },
-            ] }, error: null });
-        await openDecline();
-
-        fireEvent.click(screen.getByLabelText(/no longer interested/i));
-        fireEvent.change(screen.getByLabelText(/your email/i), { target: { value: 'melnyk@example.com' } });
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        fireEvent.click(await screen.findByLabelText('Taras Melnyk'));
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        expect(await screen.findByRole('heading', { name: /thanks for letting us know, taras/i })).toBeInTheDocument();
-        expect(supabase.rpc).toHaveBeenCalledWith('public_report_cant_attend', {
-            p_email: 'melnyk@example.com',
-            p_course_id: 'test-course-123',
-            p_reason: 'not_interested',
-            p_student_id: 's2',
-        });
-        expect(supabase.rpc).not.toHaveBeenCalledWith('public_report_cant_attend', expect.objectContaining({ p_student_id: 's1' }));
-    });
-
-    it('says so under the email when it has no invitation for the course', async () => {
-        mockDecline(() => ({ data: { success: false, code: 'not_found', message: 'We could not find an invitation for this course with this email.' }, error: null }));
-        await openDecline();
-
-        fireEvent.click(screen.getByLabelText(/keep me for a later date/i));
-        fireEvent.change(screen.getByLabelText(/your email/i), { target: { value: 'other@example.com' } });
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        expect(await screen.findByText(/could not find an invitation/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/your email/i)).toHaveAttribute('aria-invalid', 'true');
-        expect(screen.queryByText(/thanks for letting us know/i)).not.toBeInTheDocument();
-    });
-
-    it('offers ready-to-send emails when the answer can\'t be saved (migration 89 not applied)', async () => {
-        const mockWriteText = vi.fn();
-        Object.assign(navigator, { clipboard: { writeText: mockWriteText } });
-        mockDecline(() => ({ data: null, error: { message: 'Could not find the function public.public_report_cant_attend' } }));
-        await openDecline();
-
-        fireEvent.click(screen.getByLabelText(/keep me for a later date/i));
-        fireEvent.change(screen.getByLabelText(/your email/i), { target: { value: 'student@example.com' } });
-        fireEvent.click(screen.getByRole('button', { name: /send my answer/i }));
-
-        const waitlistLink = await screen.findByRole('link', { name: /keep me on the waiting list/i });
-        const cancelLink = screen.getByRole('link', { name: /no longer interested in this course/i });
+        const waitlistLink = screen.getByRole('link', { name: /keep me on the waiting list/i });
+        const cancelLink = screen.getByRole('link', { name: /no longer interested/i });
         expect(waitlistLink.getAttribute('href')).toContain('mailto:ivasyliev@partnershipcork.ie');
         expect(waitlistLink.getAttribute('href')).toContain('Waiting%20list');
         expect(cancelLink.getAttribute('href')).toContain('mailto:ivasyliev@partnershipcork.ie');
         expect(cancelLink.getAttribute('href')).toContain('Cancel');
-        expect(decodeURIComponent(waitlistLink.getAttribute('href') || '')).toContain('student@example.com');
+        expect(screen.getByText(/from the address that received the invitation/i)).toBeInTheDocument();
 
+        // Nothing is sent from the page: no email field, no call to the database
+        expect(screen.queryByLabelText(/your email/i)).not.toBeInTheDocument();
+        expect((supabase.rpc as any).mock.calls.length).toBe(callsBefore);
+        expect(supabase.rpc).not.toHaveBeenCalledWith('public_decline_enrollment', expect.anything());
+    });
+
+    it('prefills entered email into mailto URLs', async () => {
+        mockCourse();
+        render(<ConfirmationPage />);
+
+        fireEvent.change(await screen.findByLabelText(/your email/i), { target: { value: 'student@example.com' } });
+        fireEvent.click(screen.getByRole('button', { name: /can't make it to this date/i }));
+
+        const waitlistHref = decodeURIComponent(screen.getByRole('link', { name: /keep me on the waiting list/i }).getAttribute('href') || '');
+        expect(waitlistHref).toContain('student@example.com');
+        expect(waitlistHref).toContain('ivasyliev@partnershipcork.ie');
+    });
+
+    it('copies coordinator email to clipboard and allows going back to confirmation form', async () => {
+        const mockWriteText = vi.fn();
+        Object.assign(navigator, { clipboard: { writeText: mockWriteText } });
+        mockCourse();
+        render(<ConfirmationPage />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /can't make it to this date/i }));
         fireEvent.click(screen.getByRole('button', { name: /copy address/i }));
+
         expect(mockWriteText).toHaveBeenCalledWith('ivasyliev@partnershipcork.ie');
         expect(screen.getByText('Copied!')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: /back to confirmation/i }));
         expect(screen.getByRole('button', { name: /confirm my participation/i })).toBeInTheDocument();
-        expect(screen.getByLabelText(/your email/i)).toHaveValue('student@example.com');
     });
 
     it('shows what to fix under the email instead of sending', async () => {
-        mockDecline(() => ({ data: null, error: null }));
+        mockCourse();
         render(<ConfirmationPage />);
 
         const input = await screen.findByLabelText(/your email/i);

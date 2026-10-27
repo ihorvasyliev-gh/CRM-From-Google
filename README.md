@@ -74,7 +74,6 @@ Everyone on the team sees the same board, live. Nothing is copied between spread
 - Short links (`/c/:token`) to confirm in one tap
 - **Several dates in one invite**: the student picks a session
 - **Capacity**: a live "places left" count, and the form closes when the course is full
-- **Can't make it?** The student says so on the page (another date, or not interested) and the card on the board shows it until you move it
 - Google Calendar and `.ics` once confirmed; the place links to Google Maps
 - A reminder on the dashboard 7 days before a session
 
@@ -394,7 +393,6 @@ Security headers, the CSP and cache rules ship from [`frontend/public/_headers`]
 | `401` / RLS errors | Session expired, or the role lacks access | Sign in again; check the role in **Settings → Users & Roles** |
 | Invitation link says **expired** | Past the `response_days` window | Resend the invitation from the board |
 | Confirmation page says **course full** | Capacity reached | Raise `max_capacity` on the course, or offer another date |
-| **Can't make it?** on the confirmation page offers an email instead of saving | Migration 89 not applied | Run [`supabase/89_cant_attend_from_confirmation_page.sql`](supabase/89_cant_attend_from_confirmation_page.sql) in the SQL Editor |
 | Apps Script timeout | A very large backfill | Use **Export ALL answers**; it batches and resumes on its own |
 | Template placeholders left empty | A misspelled tag | Upload and generation list unknown placeholders; use a name from **Documents → Available variables** (e.g. `{firstName}`, `{courseTitle}`, `{courseDate}`) or add a custom variable |
 | Student missing from a bulk email | They unsubscribed | See **Settings → Unsubscribed emails** |

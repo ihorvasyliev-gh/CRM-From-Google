@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal, CalendarX } from 'lucide-react';
+import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal } from 'lucide-react';
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
@@ -531,20 +531,6 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         </button>
                     )}
                 </div>
-
-                {/* The student answered "Can't make it?" on the confirmation page (migration 89);
-                    the mark goes away when the card is moved or invited again */}
-                {enrollment.decline_reason && (
-                    <CustomTooltip content={`Told us on the confirmation page${enrollment.declined_at ? ` on ${formatLocalDate(new Date(enrollment.declined_at), { day: 'numeric', month: 'short' })}` : ''}. Move the card once it's dealt with.`}>
-                        <p
-                            data-testid="card-declined"
-                            className={`mt-1 flex items-center gap-1 text-xs font-semibold ${enrollment.decline_reason === 'other_date' ? 'text-status-requested' : 'text-status-rejected'}`}
-                        >
-                            <CalendarX size={11} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
-                            <span className="truncate">{enrollment.decline_reason === 'other_date' ? "Can't attend · wants another date" : "Can't attend · not interested"}</span>
-                        </p>
-                    </CustomTooltip>
-                )}
 
                 {/* Row 3: Contacts & date; in a narrow card the date wraps under the phone rather than cutting it off */}
                 <div className="card-contact mt-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1.5 text-xs min-w-0">
