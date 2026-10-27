@@ -394,3 +394,62 @@ export function quickbooksLikeInvoice(): Phrase[] {
         ph(0, 25, 409.5, 'IBAN: IE29AIBK93115212345678', 8.3),
     ];
 }
+
+/**
+ * The letterhead centred in a box beside the customer's address, its lines interleaved with the
+ * customer's; an items table whose "Net Amount" column header sits over the first line's amount;
+ * and the totals in a box, each amount set a little lower than its label, ending "Gross Amount".
+ */
+export function boxedLetterheadInvoice(): Phrase[] {
+    const centred = (y: number, text: string, h = 8, mid = 307) => ph(0, mid - (text.length * h * 0.48) / 2, y, text, h);
+    return [
+        ph(0, 68.4, 751.6, 'Cork City Partnership SICAP'),
+        // Printed bold, so a little off the middle of the lines under it
+        centred(753.5, 'Lee Valley Kitchen CLG', 14, 301),
+        ph(0, 490, 752.4, 'CCPSI', 8),
+        centred(740.3, 'The Daily Grind Cafe'),
+        ph(0, 68.4, 734.4, 'Heron house', 8),
+        centred(728.3, 'Glasheen Community Enterprise &'),
+        ph(0, 68.4, 722.4, 'Blackpool Retail Park', 8),
+        centred(716.3, 'Training Centre,'),
+        ph(0, 68.4, 710.4, 'Cork', 8),
+        centred(704.3, 'Glasheen Rd, Cork.'),
+        centred(692.3, '021 4000000'),
+        ph(0, 494.4, 692.4, '02/10/2026', 8),
+        ph(0, 416.4, 672.6, 'Inv/Cr Note No', 9.9),
+        ph(0, 510.7, 674.4, '7001', 8),
+        ph(0, 416.4, 650.3, 'Delivery No.', 8),
+        ph(0, 488.4, 650.4, 'PO: 9300', 8),
+        ph(0, 293.2, 634.6, 'Invoice', 12),
+        ph(0, 416.4, 632.3, 'Vat Reg. No.', 8),
+        ph(0, 488.4, 632.4, '1234567 O', 8),
+        ph(0, 104.4, 614.4, 'Mary', 8),
+        ph(0, 46.1, 590.9, 'Code', 9.9),
+        ph(0, 136.2, 590.9, 'Product Description', 9.9),
+        ph(0, 264.5, 590.9, 'Quantity', 9.9),
+        ph(0, 320.2, 590.9, 'Price', 9.9),
+        ph(0, 360.6, 590.9, 'Disc. Rate', 9.9),
+        ph(0, 417.1, 590.9, 'VAT Rate', 9.9),
+        ph(0, 473.9, 590.9, 'Net Amount', 9.9),
+        ph(0, 14.4, 571.6, '021', 8),
+        ph(0, 102.2, 571.6, 'Platter of wraps 4', 8),
+        ph(0, 293.4, 571.6, '1.00', 8),
+        ph(0, 328.8, 571.6, '120.00', 8),
+        ph(0, 395.4, 571.6, '0.00', 8),
+        ph(0, 438.6, 571.6, 'B 13.50', 8),
+        ph(0, 509.5, 571.6, '120.00', 8),
+        ph(0, 14.4, 556.6, '038', 8),
+        ph(0, 102.2, 556.6, 'Delivery', 8),
+        ph(0, 293.4, 556.6, '1.00', 8),
+        ph(0, 337, 556.6, '8.13', 8),
+        ph(0, 395.4, 556.6, '0.00', 8),
+        ph(0, 438.4, 556.6, 'A 23.00', 8),
+        ph(0, 517.7, 556.6, '8.13', 8),
+        ph(0, 307.7, 114.4, 'Net Total', 8),
+        ph(0, 483.2, 107.6, '128.13', 8),
+        ph(0, 308.4, 89.6, 'VAT Total', 8),
+        ph(0, 487.3, 83.6, '18.07', 8),
+        ph(0, 308.4, 59.6, 'Gross Amount', 8),
+        ph(0, 483.2, 59.6, '146.20', 8),
+    ];
+}

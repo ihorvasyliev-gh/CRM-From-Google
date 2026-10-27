@@ -149,10 +149,32 @@ export interface ChequeReqMeta {
     supplierIban: string;
     /** "acme" from info@acme.ie */
     supplierDomain: string;
+    /** The supplier's email address and phone number as on the invoice: they tell the supplier too (a gmail address, a name read differently) */
+    supplierEmail: string;
+    supplierPhone: string;
     /** The item and date the description was built from, to build the next one the same way */
     item: string;
     serviceDate: string;
     fileName: string;
+    /** Where values were picked on the invoice by hand: read there on this supplier's next invoice */
+    places: Partial<Record<PlaceField, InvoicePlace>>;
+}
+
+/** Values that change from invoice to invoice, read again where they were picked last time */
+export type PlaceField = 'poNumber' | 'amount' | 'description';
+
+/** Where a value was picked on an invoice */
+export interface InvoicePlace {
+    /** Around the picked text (PDF points, origin bottom-left) */
+    rect: Rect;
+    /** The size of its page: the place is scaled onto a page of another size (a photo) */
+    pageSize?: { w: number; h: number };
+    /**
+     * Labels by it, where they were, best first: its own ("PO: 9300", `inside`), the one left of
+     * it ("Gross Amount"), the column header above it. Found by one, the value is still read
+     * when more lines above push it down.
+     */
+    anchors?: { text: string; page: number; x: number; y: number; h: number; inside?: boolean }[];
 }
 
 export const EMPTY_META: ChequeReqMeta = {
@@ -163,9 +185,12 @@ export const EMPTY_META: ChequeReqMeta = {
     supplierVat: '',
     supplierIban: '',
     supplierDomain: '',
+    supplierEmail: '',
+    supplierPhone: '',
     item: '',
     serviceDate: '',
     fileName: '',
+    places: {},
 };
 
 /** A requisition kept in the history (table cheque_requisitions, migration 88) */

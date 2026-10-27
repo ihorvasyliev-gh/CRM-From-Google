@@ -9,13 +9,13 @@ import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import { calloutCls, tableCls, tableWrapCls, tbodyCls, tdCls, thCls, theadCls, trCls } from './ui/styles';
 import ConfirmDialog from './ConfirmDialog';
 import ChequeReqEditor, { type EditorSession } from './ChequeRequisitions/Editor';
-import { blankSession, closeInvoice, NO_FACTS, useOpenInvoice } from './ChequeRequisitions/useOpenInvoice';
+import { blankSession, closeInvoice, invoicePageSizes, NO_FACTS, useOpenInvoice } from './ChequeRequisitions/useOpenInvoice';
 import { toast } from '../lib/toast';
 import { downloadBlob } from '../lib/download';
 import { todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { useChequeReqHistory, useDeleteChequeReq, useSaveChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
 import { useFormUserName } from '../hooks/usePdfForms';
-import { draftFromInvoice, netOfPayment, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
+import { draftFromInvoice, idsOfSaved, netOfPayment, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
 import { chequeReqFileName, renderChequeReq } from '../lib/chequeReq/docx';
 import { formatAmount } from '../lib/chequeReq/parse';
 import { INVOICE_ACCEPT } from '../lib/chequeReq/read';
@@ -26,8 +26,8 @@ function yearTotals(rows: SavedChequeReq[], year: string) {
     const groups: { name: string; total: number; count: number; sample: SavedChequeReq }[] = [];
     for (const r of rows) {
         if ((r.invoice_date ?? r.created_at).slice(0, 4) !== year) continue;
-        const ids = { name: r.supplier_name, vat: r.meta.supplierVat, iban: r.meta.supplierIban, domain: r.meta.supplierDomain };
-        const group = groups.find(g => sameSupplier(ids, { name: g.sample.supplier_name, vat: g.sample.meta.supplierVat, iban: g.sample.meta.supplierIban, domain: g.sample.meta.supplierDomain }));
+        const ids = idsOfSaved(r);
+        const group = groups.find(g => sameSupplier(ids, idsOfSaved(g.sample)));
         const value = netOfPayment(r.amount, r.net_amount) ?? 0;
         if (group) {
             group.total += value;
@@ -68,7 +68,7 @@ export default function ChequeRequisitions() {
     const { reading, open: openInvoice } = useOpenInvoice(async (invoice, facts, fileName) => {
         // Earlier requisitions first: they hold this supplier's details from last time
         const hist = await queryClient.fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 }).catch(() => undefined);
-        const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName });
+        const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName, phrases: invoice.phrases, pageSizes: invoicePageSizes(invoice) });
         setSession({ key: crypto.randomUUID(), invoice, facts, draft });
     });
 

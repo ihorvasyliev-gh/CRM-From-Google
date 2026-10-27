@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { Check, CircleAlert, History, TriangleAlert } from 'lucide-react';
+import { Check, CircleAlert, History, MousePointerClick, TriangleAlert } from 'lucide-react';
 import { DateInput } from '../ui/DatePicker';
 import { labelCls, eyebrowCls } from '../ui/styles';
 import { todayISO } from '../../lib/dateUtils';
+import { MULTI_PICK, PICKABLE } from '../../lib/chequeReq/pick';
 import type { ChecklistItem, ChequeReqForm, FieldFlag, FieldFlags, FieldKey, QuoteMethod } from '../../lib/chequeReq/types';
 
 interface Props {
@@ -13,6 +14,10 @@ interface Props {
     onAccept: (key: FieldKey) => void;
     /** The field being edited (its source is outlined on the invoice) */
     onActive: (key: FieldKey | null) => void;
+    /** Starts (or stops) picking a field's value on the invoice: only with an invoice beside the form */
+    onPick?: (key: FieldKey) => void;
+    /** The field being picked */
+    picking?: FieldKey | null;
 }
 
 const INPUT = 'w-full px-3 border rounded-xl text-sm text-primary placeholder:text-muted/70 focus:outline-hidden focus:ring-2 transition-colors';
@@ -75,10 +80,13 @@ const CHECKLIST: { item: ChecklistItem; label: string }[] = [
 ];
 
 /** The SICAP cheque requisition, field by field, with every guess marked */
-export default function RequisitionForm({ form, flags, onChange, onAccept, onActive }: Props) {
+export default function RequisitionForm({ form, flags, onChange, onAccept, onActive, onPick, picking }: Props) {
     const text = (key: FieldKey, label: string, opts: { multiline?: boolean; prefix?: string; placeholder?: string; type?: string; className?: string } = {}) => {
         const flag = flags[key];
         const id = `cr-${key}`;
+        const pickable = !!onPick && PICKABLE.has(key);
+        const picked = picking === key;
+        const tone = picked ? 'bg-surface border-brand-500 ring-2 ring-brand-500/25 focus:border-brand-500 focus:ring-brand-500/25' : inputTone(flag);
         const common = {
             id,
             value: form[key] as string,
@@ -93,12 +101,30 @@ export default function RequisitionForm({ form, flags, onChange, onAccept, onAct
                 <div className="relative">
                     {opts.prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted pointer-events-none">{opts.prefix}</span>}
                     {opts.multiline ? (
-                        <textarea {...common} rows={2} onChange={e => onChange(key, e.target.value)} className={`${INPUT} ${inputTone(flag)} py-2 resize-y min-h-16 field-sizing-content`} />
+                        <textarea {...common} rows={2} onChange={e => onChange(key, e.target.value)} className={`${INPUT} ${tone} py-2 resize-y min-h-16 field-sizing-content ${pickable ? 'pr-9' : ''}`} />
                     ) : (
-                        <input {...common} type={opts.type ?? 'text'} onChange={e => onChange(key, e.target.value)} className={`${INPUT} ${inputTone(flag)} h-9 ${opts.prefix ? 'pl-7' : ''}`} />
+                        <input {...common} type={opts.type ?? 'text'} onChange={e => onChange(key, e.target.value)} className={`${INPUT} ${tone} h-9 ${opts.prefix ? 'pl-7' : ''} ${pickable ? 'pr-9' : ''}`} />
+                    )}
+                    {pickable && (
+                        <button
+                            type="button"
+                            onClick={() => onPick(key)}
+                            aria-pressed={picked}
+                            aria-label={`Pick the ${label.replace(/^\p{Lu}(?=\p{Ll})/u, c => c.toLowerCase())} on the invoice`}
+                            title="Pick it on the invoice"
+                            className={`absolute right-1.5 ${opts.multiline ? 'top-1.5' : 'top-1/2 -translate-y-1/2'} w-6 h-6 rounded-md inline-flex items-center justify-center transition-colors ${picked ? 'bg-brand-500 text-white' : 'text-muted hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-500/10'}`}
+                        >
+                            <MousePointerClick size={14} />
+                        </button>
                     )}
                 </div>
-                {flag && <FlagNote flag={flag} onAccept={() => onAccept(key)} />}
+                {picked ? (
+                    <p className="mt-1 text-xs text-brand-600 dark:text-brand-400">
+                        {MULTI_PICK.has(key) ? 'Click each piece of it on the invoice, then Done.' : 'Click it on the invoice.'} Esc stops.
+                    </p>
+                ) : (
+                    flag && <FlagNote flag={flag} onAccept={() => onAccept(key)} />
+                )}
             </div>
         );
     };

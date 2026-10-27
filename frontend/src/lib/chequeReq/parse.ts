@@ -203,6 +203,15 @@ export function domainWord(emailOrSite: string): string | null {
     return word.length >= 3 ? word : null;
 }
 
+/** "+353 (0)21 422 8155", "021 4228155" → "214228155": the same number however it is written */
+export function phoneKey(phone: string): string {
+    let digits = phone.replace(/\(0\)/g, '').replace(/\D/g, '');
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.startsWith('353')) digits = digits.slice(3);
+    digits = digits.replace(/^0+/, '');
+    return digits.length >= 7 ? digits : '';
+}
+
 /** Letters and digits only, lowercase: for comparing names and codes */
 export function squash(text: string): string {
     return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');

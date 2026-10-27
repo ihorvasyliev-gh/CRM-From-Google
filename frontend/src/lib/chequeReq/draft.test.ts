@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildDescription, descriptionPattern, draftFromInvoice, EMPTY_DEFAULTS, historyChecks, invoiceChecks, netOfPayment, readDefaults, rememberDefaults, sameSupplier } from './draft';
 import { extractInvoice } from './extract';
-import { formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { placeOf } from './pick';
+import { boxedLetterheadInvoice, formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from './types';
 
 function saved(over: Partial<Omit<SavedChequeReq, 'form' | 'meta'>> & { form?: Partial<SavedChequeReq['form']>; meta?: Partial<SavedChequeReq['meta']> }): SavedChequeReq {
@@ -51,6 +52,15 @@ describe('suppliers', () => {
         expect(sameSupplier({ ...base, vat: 'IE1234567T' }, { ...base, name: 'Other', vat: '1234567T' })).toBe(true);
         expect(sameSupplier({ ...base, domain: 'acme' }, { name: 'Different', vat: '', iban: '', domain: 'acme' })).toBe(true);
         expect(sameSupplier(base, { ...base, name: 'Greenleaf Catering' })).toBe(false);
+    });
+
+    it('recognises one with a free mail address or a name read differently by its email address or phone number', () => {
+        const base = { name: 'Event Expert', vat: '', iban: '', domain: '' };
+        expect(sameSupplier({ ...base, email: 'eventexpert.ie@gmail.com' }, { ...base, name: 'EE Events', email: 'EventExpert.ie@gmail.com' })).toBe(true);
+        expect(sameSupplier({ ...base, phone: '+353 (0)21 422 8155' }, { ...base, name: 'EE Events', phone: '021 4228155' })).toBe(true);
+        expect(sameSupplier({ ...base, phone: '021 4228155' }, { ...base, name: 'EE Events', phone: '021 4228156' })).toBe(false);
+        // Another VAT number is another supplier, whatever else they share
+        expect(sameSupplier({ ...base, vat: '1234567T', email: 'office@gmail.com' }, { ...base, name: 'EE Events', vat: '7654321T', email: 'office@gmail.com' })).toBe(false);
     });
 });
 
@@ -130,6 +140,41 @@ describe('draftFromInvoice', () => {
         expect(flags.description?.level).toBe('memory');
         expect(flags.actionNumber?.level).toBe('memory');
         expect(flags.requestedBy).toBeUndefined();
+    });
+
+    it('reads the amount, PO number and item where they were picked on the supplier\'s last invoice', () => {
+        const phrases = boxedLetterheadInvoice();
+        const at = (text: string) => phrases.find(p => p.text === text)!;
+        const places = {
+            amount: placeOf('amount', [at('146.20')], phrases)!,
+            poNumber: placeOf('poNumber', [at('PO: 9300')], phrases)!,
+            description: placeOf('description', [at('Platter of wraps 4')], phrases)!,
+        };
+        const previous = saved({
+            supplier_name: 'Lee Valley Kitchen CLG',
+            invoice_number: '6990',
+            form: { payeeName: 'Lee Valley Kitchen CLG', description: 'Platter of wraps 4 for the SICAP launch' },
+            meta: { item: 'Platter of wraps 4', places },
+        });
+        // Read wrong this time: the net taken for the total, the PO missed, the delivery taken for the item
+        const facts: InvoiceFacts = { ...extractInvoice(phrases), total: { value: 128.13, sure: true }, poNumber: undefined, poNumbers: undefined, items: [{ description: 'Delivery', details: [], amount: 8.13 }] };
+        const { form, flags, meta } = draftFromInvoice({ facts, history: [previous], defaults: EMPTY_DEFAULTS, fileName: 'inv.pdf', phrases });
+        expect(form.amount).toBe('146.20');
+        expect(form.amountQuoted).toBe('146.20');
+        expect(flags.amount).toMatchObject({ level: 'memory', note: 'Read where you picked it on your requisition for 6990 (the invoice reading found €128.13)' });
+        expect(form.poNumber).toBe('9300');
+        expect(flags.poNumber).toMatchObject({ level: 'memory', note: 'Read where you picked it on your requisition for 6990' });
+        expect(form.description).toBe('Platter of wraps 4 for the SICAP launch');
+        expect(flags.description).toMatchObject({ level: 'memory', note: 'The item where you picked it on your requisition for 6990, worded like that requisition' });
+        // Kept for the invoice after this one
+        expect(meta.places).toEqual(places);
+        expect(meta.item).toBe('Platter of wraps 4');
+
+        // Read right: as found on the invoice
+        const right = draftFromInvoice({ facts: extractInvoice(phrases), history: [previous], defaults: EMPTY_DEFAULTS, fileName: 'inv.pdf', phrases });
+        expect(right.form.amount).toBe('146.20');
+        expect(right.flags.amount?.level).toBe('found');
+        expect(right.flags.poNumber?.level).toBe('found');
     });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractInvoice, joinAddress, numberedPeople } from './extract';
 import { docxPhrases } from './read';
-import { centredCellInvoice, formInvoiceScan, letterheadInvoice, quickbooksLikeInvoice, rightLetterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { boxedLetterheadInvoice, centredCellInvoice, formInvoiceScan, letterheadInvoice, quickbooksLikeInvoice, rightLetterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 
 describe('extractInvoice: a Xero-style invoice over two pages', () => {
     const facts = extractInvoice(xeroLikeInvoice());
@@ -202,6 +202,23 @@ describe('extractInvoice: laid out like QuickBooks', () => {
     });
 });
 
+describe('extractInvoice: a letterhead centred in a box, totals set lower than their labels', () => {
+    const facts = extractInvoice(boxedLetterheadInvoice());
+
+    it('takes the name printed big over the centred lines, and those lines as the address', () => {
+        expect(facts.supplier.name?.value).toBe('Lee Valley Kitchen CLG');
+        expect(facts.supplier.address?.value).toBe('The Daily Grind Cafe, Glasheen Community Enterprise & Training Centre, Glasheen Rd, Cork');
+        expect(facts.supplier.phone).toBe('021 4000000');
+    });
+
+    it('pays the gross amount, not the net, and reads the net and VAT beside their labels', () => {
+        expect(facts.subtotal?.value).toBe(128.13);
+        expect(facts.vat?.value).toBe(18.07);
+        expect(facts.total).toMatchObject({ value: 146.2, sure: true });
+        expect(facts.poNumber?.value).toBe('9300');
+    });
+});
+
 describe('extractInvoice: nothing to read', () => {
     it('says so for a scan', () => {
         const facts = extractInvoice([]);
@@ -218,6 +235,7 @@ describe('helpers', () => {
 
     it('joins address lines, mending a wrapped Eircode', () => {
         expect(joinAddress(['UNIT 7,', 'CORK CITY CORK T12', 'R2KX', 'IRELAND'])).toBe('UNIT 7, CORK CITY CORK T12 R2KX, IRELAND');
+        expect(joinAddress(['Mill Education &', 'Training Centre,', 'Mill Rd, Cork.'])).toBe('Mill Education & Training Centre, Mill Rd, Cork');
     });
 });
 
