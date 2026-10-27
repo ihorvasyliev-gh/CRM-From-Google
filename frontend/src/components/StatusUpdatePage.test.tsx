@@ -39,8 +39,32 @@ describe('StatusUpdatePage', () => {
         fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
         fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
 
-        expect(await screen.findByRole('alert')).toHaveTextContent(/month and year/i);
+        // Each missing answer is explained under its own question
+        expect(await screen.findByText(/month and year you started/i)).toBeInTheDocument();
+        expect(screen.getByText(/where you work/i)).toBeInTheDocument();
+        expect(screen.getByText(/full-time or part-time/i, { selector: 'p' })).toBeInTheDocument();
+        expect(screen.getByLabelText(/start month/i)).toHaveAttribute('aria-invalid', 'true');
+        expect(screen.getByLabelText(/start month/i)).toHaveFocus();
         expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('does not accept a start month that has not come yet', () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-03-15T12:00:00'));
+        try {
+            render(<StatusUpdatePage />);
+            fillEmail();
+            fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
+            fireEvent.change(screen.getByLabelText(/start month/i), { target: { value: '5' } });
+            fireEvent.change(screen.getByLabelText(/start year/i), { target: { value: '2026' } });
+            fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
+
+            expect(screen.getByText(/hasn't started yet/i)).toBeInTheDocument();
+            expect(screen.queryByRole('option', { name: '2027' })).not.toBeInTheDocument();
+            expect(rpc).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('submits a working status and shows a summary', async () => {
@@ -54,10 +78,8 @@ describe('StatusUpdatePage', () => {
         render(<StatusUpdatePage />);
         fillEmail('Anna@Example.com');
         fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
-        for (let y = new Date().getFullYear(); y > 2024; y--) {
-            fireEvent.click(screen.getByRole('button', { name: /previous year/i }));
-        }
-        fireEvent.click(screen.getByRole('button', { name: 'March 2024' }));
+        fireEvent.change(screen.getByLabelText(/start month/i), { target: { value: '3' } });
+        fireEvent.change(screen.getByLabelText(/start year/i), { target: { value: '2024' } });
         fireEvent.change(screen.getByLabelText(/where do you work/i), { target: { value: 'Retail' } });
         fireEvent.click(screen.getByRole('button', { name: /^part-time$/i }));
         fireEvent.click(screen.getByRole('button', { name: /send my update/i }));

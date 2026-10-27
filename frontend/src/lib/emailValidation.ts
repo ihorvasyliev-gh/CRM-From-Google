@@ -75,3 +75,13 @@ export function suggestEmailCorrection(email: string): string | null {
     }
     return null;
 }
+
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** What is wrong with an email someone typed on a public page, or undefined when it looks fine */
+export function emailProblem(value: string): string | undefined {
+    const trimmed = value.trim();
+    if (!trimmed) return 'Enter your email address';
+    if (!EMAIL_SHAPE.test(trimmed)) return 'Enter an email address like name@example.com';
+    return undefined;
+}
