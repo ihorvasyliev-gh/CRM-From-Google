@@ -59,6 +59,27 @@ describe('buildLayout', () => {
         expect(lastRect.x).toBeGreaterThan(388);
     });
 
+    it('puts commas drawn on their own over the spaces back after their words', () => {
+        const l = buildLayout(
+            [{ w: 595, h: 842 }],
+            [
+                // "Glenbrook, Cork, P43 XX99", the words first and then each comma over its space
+                { page: 0, x: 100, y: 700, str: 'Glenbrook Cork P43 XX99', w: 100, h: 9 },
+                { page: 0, x: 136, y: 700, str: ',', w: 2.5, h: 9 },
+                { page: 0, x: 158, y: 700, str: ',', w: 2.5, h: 9 },
+                // A comma inside a word with no space to take it goes last
+                { page: 0, x: 100, y: 680, str: 'T45XX99', w: 30, h: 9 },
+                { page: 0, x: 110, y: 680, str: ',', w: 2.5, h: 9 },
+                // A comma after the text, set apart from it, stays where it is
+                { page: 0, x: 100, y: 660, str: 'No. 123456', w: 40, h: 9 },
+                { page: 0, x: 142, y: 660, str: ',', w: 2.5, h: 9 },
+                { page: 0, x: 147, y: 660, str: 'VAT IE 1234567AB', w: 60, h: 9 },
+            ],
+            [],
+        );
+        expect(l.phrases.map(p => p.text)).toEqual(['Glenbrook, Cork, P43 XX99', 'T45XX99,', 'No. 123456 , VAT IE 1234567AB']);
+    });
+
     it('pads cells so text does not touch the borders', () => {
         const inset = insetCell({ page: 0, x: 10, y: 10, w: 100, h: 20 });
         expect(inset).toEqual({ page: 0, x: 13, y: 13, w: 94, h: 14 });

@@ -136,6 +136,7 @@ export default function InvoicePreview({ invoice, highlight }: Props) {
                                 page={i}
                                 size={size}
                                 width={width}
+                                selectableText
                                 overlay={scale => (
                                     <>
                                         {shown?.filter(r => r.page === i).map((r, k) => (

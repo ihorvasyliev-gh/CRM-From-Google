@@ -365,9 +365,23 @@ export function numberedPeople(details: string[]): string[] {
 
 // ─── Supplier ──────────────────────────────────────────────────
 
+type Align = 'left' | 'right';
+
 interface Block {
     x: number;
+    /** How its lines line up; unknown while it has one line */
+    align?: Align;
     lines: Phrase[];
+}
+
+function sameSize(a: Phrase, b: Phrase): boolean {
+    return Math.abs(a.h - b.h) <= Math.max(1.5, Math.min(a.h, b.h) * 0.25);
+}
+
+/** p starts (left) or ends (right) where q does */
+function linesUp(q: Phrase, p: Phrase, align: Align): boolean {
+    const tolerance = Math.max(3, p.h * 0.4);
+    return align === 'left' ? Math.abs(q.x - p.x) <= tolerance : Math.abs(q.x + q.w - (p.x + p.w)) <= tolerance;
 }
 
 const INLINE_LABEL = /^((?:to|from|supplier|vendor|payee|pay(?:able)?\s*to|remit\s*to|bill\s*to|invoice\s*to)\s*:)\s*(\S.*)$/i;
@@ -389,20 +403,28 @@ function splitLabel(p: Phrase, lines: TextLine[]): Phrase[] {
     ];
 }
 
-/** Left-aligned stacks of lines: address blocks, label/value boxes, paragraphs */
+/**
+ * Stacks of lines: address blocks, label/value boxes, paragraphs. Left-aligned, or
+ * right-aligned like a letterhead set in the top right corner.
+ */
 function buildBlocks(lines: TextLine[]): Block[] {
     const blocks: Block[] = [];
     for (const line of lines) {
         for (const p of line.phrases) {
-            const block = blocks.find(b => {
+            const fits = (b: Block, align: Align) => {
                 const last = b.lines[b.lines.length - 1];
                 const gap = last.y - p.y;
                 // A title in a bigger font starts its own block
-                const sameSize = Math.abs(last.h - p.h) <= Math.max(1.5, Math.min(last.h, p.h) * 0.25);
-                return last.page === p.page && sameSize && Math.abs(b.x - p.x) <= Math.max(3, p.h * 0.4) && gap > 0 && gap <= Math.max(last.h, p.h) * 1.9;
-            });
-            if (block) block.lines.push(p);
-            else blocks.push({ x: p.x, lines: [p] });
+                return last.page === p.page && sameSize(last, p) && (b.align ?? align) === align && linesUp(b.lines[0], p, align) && gap > 0 && gap <= Math.max(last.h, p.h) * 1.9;
+            };
+            const left = blocks.find(b => fits(b, 'left'));
+            const block = left ?? blocks.find(b => fits(b, 'right'));
+            if (block) {
+                block.align = left ? 'left' : 'right';
+                block.lines.push(p);
+            } else {
+                blocks.push({ x: p.x, lines: [p] });
+            }
         }
     }
     return blocks;
@@ -412,12 +434,18 @@ function isAllCaps(s: string): boolean {
     return /[A-Z]/.test(s) && s === s.toUpperCase();
 }
 
-/** Where the name of a supplier block ends and its address begins */
-function splitNameAndAddress(texts: string[]): { name: string; nameLines: number; address: string[] } {
-    const name = [texts[0]];
-    let i = 1;
+/** Where the name of a supplier block ends and its address begins; a two-line title is all name */
+function splitNameAndAddress(texts: string[], titleLines: number): { name: string; nameLines: number; address: string[] } {
+    const name = texts.slice(0, Math.max(1, titleLines));
+    let i = name.length;
     const next = texts[1];
-    if (
+    if (i > 1) {
+        // the title said it all
+    } else if (next && /^(?:t\/a|trading\s+as)\b/i.test(next)) {
+        // "Acme Ltd" + "T/A Acme Catering": the company and the name it trades under
+        name.push(next);
+        i = 2;
+    } else if (
         next &&
         !/\d/.test(next) &&
         !ADDRESS_HINT.test(next) &&
@@ -570,12 +598,20 @@ function supplierForm(lines: TextLine[]): { name?: Found; address?: Found } {
 }
 
 /** "Posh Burger" in a bigger font right above "Bloom Food & Co, 611 Harbour Point…": the name over its address */
-function titleAbove(lines: TextLine[], top: Phrase): Phrase | undefined {
-    const above = lines[lines.findIndex(l => l.phrases.includes(top)) - 1];
-    const title = above?.phrases.length === 1 ? above.phrases[0] : undefined;
-    if (!title || title.page !== top.page || HEADING.test(title.text) || OUR_ORGANISATION.test(title.text) || /\d|:\s*$/.test(title.text)) return undefined;
-    const gap = title.y - top.y;
-    return Math.abs(title.x - top.x) <= Math.max(3, top.h * 0.4) && title.h >= top.h * 1.25 && gap > 0 && gap <= title.h * 1.9 ? title : undefined;
+/** A letterhead: the name printed bigger right above its address, on a line or two */
+function titleAbove(lines: TextLine[], top: Phrase): Phrase[] {
+    const titles: Phrase[] = [];
+    let below = top;
+    for (let i = lines.findIndex(l => l.phrases.includes(top)) - 1; i >= 0 && titles.length < 2; i--) {
+        const title = lines[i].phrases.length === 1 ? lines[i].phrases[0] : undefined;
+        if (!title || title.page !== top.page || HEADING.test(title.text) || OUR_ORGANISATION.test(title.text) || /\d|:\s*$/.test(title.text)) break;
+        const gap = title.y - below.y;
+        const bigger = titles.length ? sameSize(title, titles[0]) : title.h >= top.h * 1.25;
+        if (!bigger || !(linesUp(top, title, 'left') || linesUp(top, title, 'right')) || gap <= 0 || gap > title.h * 1.9) break;
+        titles.unshift(title);
+        below = title;
+    }
+    return titles;
 }
 
 function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
@@ -604,7 +640,7 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     }, l => OUR_ORGANISATION.test(l.text)))?.value;
 
     // Score every block that could be the supplier's name and address
-    let bestBlock: { score: number; lines: Phrase[]; labelSure: boolean } | null = null;
+    let bestBlock: { score: number; lines: Phrase[]; titleLines: number; labelSure: boolean } | null = null;
     const pageTop = new Map<number, number>();
     for (const l of lines) pageTop.set(l.page, Math.max(pageTop.get(l.page) ?? -Infinity, l.y));
     for (const block of buildBlocks(lines)) {
@@ -631,15 +667,14 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
         if (HEADING.test(first) || /:\s*$/.test(first) || /^(?:registered\b|dates?\b)/i.test(first) || IDENTIFIER_LINE.test(first) || /^\d+[.)]\s/.test(first)) continue;
         if (findAmounts(first).length > 0 || parseDate(first)) continue;
         if (first.replace(/[^\p{L}]/gu, '').length < 3) continue;
-        // A letterhead: the name printed bigger right above its address
-        const title = titleAbove(lines, blockLines[0]);
-        if (title) blockLines = [title, ...blockLines];
+        const titles = titleAbove(lines, blockLines[0]);
+        blockLines = [...titles, ...blockLines];
         const texts = blockLines.map(p => p.text);
 
         // A label left of the first line: "To:" in a payment advice is the supplier, elsewhere the customer
         const firstLine = lines.find(l => l.phrases.includes(blockLines[0]));
-        const label = firstLine?.phrases.filter(p => p.x < block.x).map(p => p.text).join(' ').trim() ?? '';
         const top = blockLines[0];
+        const label = firstLine?.phrases.filter(p => p !== top && p.x < block.x).map(p => p.text).join(' ').trim() ?? '';
         const inPaymentAdvice = lines.some(l => l.page === top.page && l.y > top.y && l.y - top.y < top.h * 8 && /payment\s+advice|remittance/i.test(l.text));
         const adviceTo = inPaymentAdvice && /^to\b/i.test(label);
         if (CUSTOMER_LABEL.test(label) && !adviceTo) continue;
@@ -653,12 +688,12 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
         if (labelSure) score += 3;
         if (top.page === 0 && (pageTop.get(0) ?? 0) - top.y < 140) score += 1;
         if (texts.length === 1) score -= 1;
-        if (!bestBlock || score > bestBlock.score) bestBlock = { score, lines: blockLines, labelSure };
+        if (!bestBlock || score > bestBlock.score) bestBlock = { score, lines: blockLines, titleLines: titles.length, labelSure };
     }
 
     if (bestBlock && bestBlock.score >= 3) {
         const texts = bestBlock.lines.map(p => p.text);
-        const { name, nameLines, address } = splitNameAndAddress(texts);
+        const { name, nameLines, address } = splitNameAndAddress(texts, bestBlock.titleLines);
         const domainMatch = domains.some(d => squash(name).includes(d));
         const sure = bestBlock.labelSure || (domainMatch && bestBlock.score >= 6);
         supplier.name = { value: name, sure, source: bestBlock.lines.slice(0, nameLines).map(rectOf), from: texts.slice(0, nameLines).join(' / ') };
