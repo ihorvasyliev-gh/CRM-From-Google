@@ -294,3 +294,103 @@ export function rightLetterheadInvoice(): Phrase[] {
         ph(0, 28, 44.6, 'Registered Address Unit 4, Glenmore Business Park, Carrigaline, Cork, P43 XX99, Ireland', 7.5),
     ];
 }
+
+/**
+ * A one-page invoice whose items table centres each cell: the "Item" header sits over the
+ * middle of a wide column, each description runs over three centred lines with its numbers on
+ * the middle one, and who booked it is named with the order number ("Booked by Mary 6123.").
+ * The supplier signs off at the bottom, set flush right, with a free mail address.
+ */
+export function centredCellInvoice(): Phrase[] {
+    const centred = (y: number, text: string) => ph(0, 181 - (text.length * 14 * 0.48) / 2, y, text, 14);
+    const right = (y: number, text: string) => ph(0, 255 - text.length * 14 * 0.48, y, text, 14);
+    return [
+        ph(0, 436, 682.7, 'INVOICE', 26),
+        ph(0, 74, 636.7, 'SOUND & LIGHT HIRE', 11),
+        ph(0, 53, 597.4, 'BILL TO:', 14),
+        ph(0, 433, 589.7, 'Invoice #: 2026-03-1-1', 12),
+        ph(0, 419, 575.2, 'Invoice Date: 1-Mar-2026', 12),
+        ph(0, 53, 564.2, 'Cork City Partnership SICAP', 13),
+        ph(0, 428, 564.2, 'Due Date: 20-Mar-2026', 13),
+        ph(0, 53, 548.9, 'Heron House, Blackpool, Cork City', 13),
+        ph(0, 167, 507.1, 'Item', 14),
+        ph(0, 329, 507.1, 'Quantity', 14),
+        ph(0, 416, 507.1, 'Rate', 14),
+        ph(0, 487, 507.1, 'Amount', 14),
+        centred(476.9, 'Hire of a PA system and stage lighting'),
+        centred(457.1, 'with delivery and set up for the summer'),
+        ph(0, 351, 457.1, '1', 14),
+        ph(0, 415, 457.1, '€400.00', 14),
+        ph(0, 500, 457.1, '€400.00', 14),
+        centred(437.6, 'festival at the City Hall. Booked by Mary 6123.'),
+        centred(400, 'Hire of two radio microphones for'),
+        centred(380.2, 'the community awards night, with a'),
+        ph(0, 351, 380.2, '1', 14),
+        ph(0, 415, 380.2, '€150.00', 14),
+        ph(0, 500, 380.2, '€150.00', 14),
+        centred(360.7, 'technician on site.'),
+        ph(0, 49, 328, 'FIVE HUNDRED FIFTY EUR AND ZERO CENTS', 14),
+        ph(0, 409, 298, 'Subtotal:', 14),
+        ph(0, 500, 298, '€550.00', 14),
+        ph(0, 409, 269, 'Tax (0%):', 14),
+        ph(0, 514, 269, '€0.00', 14),
+        ph(0, 427, 240, 'Total:', 14),
+        ph(0, 500, 240, '€550.00', 14),
+        ph(0, 49, 204.8, 'Please pay into attached bank account, via IBAN transfer', 14),
+        right(169.6, 'BRIGHT SOUND'),
+        ph(0, 347, 169.6, 'PAYMENT DETAILS:', 14),
+        right(152.3, 'Coolnagarrane, Ballyvourney,'),
+        right(135.3, 'Macroom, Co. Cork,'),
+        ph(0, 347, 135.3, 'IBAN: IE29AIBK93115212345678', 14),
+        ph(0, 98, 118.3, 'P12 XX00,', 14),
+        right(118.3, '085 00 00 000'),
+        ph(0, 347, 118.3, 'BIC: AIBKIE2D', 14),
+        right(101, 'brightsound.ie@gmail.com'),
+        ph(0, 347, 101, 'NAME: BRIGHT SOUND', 14),
+    ];
+}
+
+/**
+ * Laid out like a QuickBooks invoice: the invoice number beside the word "INVOICE" in a box of
+ * labels, an Activity column before the Description, and a description wrapped over three lines
+ * ending with who booked it and the PO.
+ */
+export function quickbooksLikeInvoice(): Phrase[] {
+    return [
+        ph(0, 18, 747, 'Murphy Coaches Ltd', 10),
+        ph(0, 18, 732.8, 'Unit 5 Riverside Ind Estate', 6.7),
+        ph(0, 18, 721.5, 'Glanmire, Cork T45XX00 IE', 6.7),
+        ph(0, 18, 709.5, '+353870000000', 6.7),
+        ph(0, 18, 698.3, 'murphycoachesbookings@gmail.com', 6.7),
+        ph(0, 18, 652.5, 'INVOICE', 12.5),
+        ph(0, 18, 632.3, 'BILL TO', 8.3),
+        ph(0, 402, 632.3, 'INVOICE', 8.3),
+        ph(0, 489, 632.3, '1234', 8.3),
+        ph(0, 18, 620.3, 'Cork City Partnership SICAP', 8.3),
+        ph(0, 402, 620.3, 'DATE', 8.3),
+        ph(0, 489, 620.3, '01-04-2026', 8.3),
+        ph(0, 18, 607.5, 'Heron House', 8.3),
+        ph(0, 402, 607.5, 'TERMS', 8.3),
+        ph(0, 489, 607.5, 'Due on receipt', 8.3),
+        ph(0, 18, 594.8, 'Blackpool', 8.3),
+        ph(0, 402, 594.8, 'DUE DATE', 8.3),
+        ph(0, 489, 594.8, '01-04-2026', 8.3),
+        ph(0, 18, 582.8, 'Cork City', 8.3),
+        ph(0, 22, 551.3, 'DATE', 8.3),
+        ph(0, 108, 551.3, 'ACTIVITY', 8.3),
+        ph(0, 223, 551.3, 'DESCRIPTION', 8.3),
+        ph(0, 554, 551.3, 'AMOUNT', 8.3),
+        ph(0, 22, 527.3, '31-03-2026', 9.2),
+        ph(0, 108, 527.3, 'Services', 9.2),
+        ph(0, 223, 527.3, 'Ref 12 Hire of a 30 seater bus from Main Street to the', 9.2),
+        ph(0, 562, 527.3, '300.00', 9.2),
+        ph(0, 223, 516, 'Community Garden in Ballincollig and return. Booked', 9.2),
+        ph(0, 223, 504.8, 'Mary Murphy PO 9123', 9.2),
+        ph(0, 298, 468, 'BALANCE DUE', 12.8),
+        ph(0, 523, 468, 'EUR 300.00', 12.8),
+        ph(0, 25, 441, 'Bank Details:', 8.3),
+        ph(0, 25, 430.5, 'Bank Of Ireland, Glanmire, Cork', 8.3),
+        ph(0, 25, 420, 'BIC: BOFIIE2D', 8.3),
+        ph(0, 25, 409.5, 'IBAN: IE29AIBK93115212345678', 8.3),
+    ];
+}

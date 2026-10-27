@@ -76,6 +76,9 @@ describe('references and contacts', () => {
         expect(referenceToken(': 9001 (please quote)')).toBe('9001');
         expect(referenceToken('on this invoice')).toBeNull();
         expect(referenceToken('21/10/2026')).toBeNull();
+        expect(referenceToken('21/10/2026-')).toBeNull();
+        // Only starts like a date
+        expect(referenceToken('2025-08-1-1')).toBe('2025-08-1-1');
         expect(referenceToken('4,260.00')).toBeNull();
     });
 
