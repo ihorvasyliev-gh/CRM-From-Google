@@ -703,7 +703,13 @@ function readSupplier(textLines: TextLine[], allText: string, itemLines: Set<Tex
     const names = (t: string) => domains.some(d => squash(t).includes(d)) || (squash(t).length >= 5 && mailboxes.some(m => m.includes(squash(t))));
     const itemPhrases = new Set([...itemLines].flatMap(l => l.phrases));
 
-    const phones = lines.filter(l => PHONE_LABEL.test(l.text) && !OUR_ORGANISATION.test(l.text)).flatMap(l => l.text.match(PHONE_RE) ?? []);
+    // A number in our own address block ("Bill to: Cork City Partnership … Tel: …") is ours
+    const blocks = buildBlocks(lines);
+    const ours = new Set(blocks.filter(b => b.lines.some(p => OUR_ORGANISATION.test(p.text))).flatMap(b => b.lines));
+    const phones = lines.flatMap(l => {
+        const text = l.phrases.filter(p => !ours.has(p)).map(p => p.text).join(' ');
+        return PHONE_LABEL.test(text) && !OUR_ORGANISATION.test(text) ? text.match(PHONE_RE) ?? [] : [];
+    });
     supplier.phone = phones[0];
 
     const iban = allText.match(IBAN_RE)?.[0];
@@ -721,7 +727,7 @@ function readSupplier(textLines: TextLine[], allText: string, itemLines: Set<Tex
     let bestBlock: { score: number; lines: Phrase[]; titleLines: number; labelSure: boolean } | null = null;
     const pageTop = new Map<number, number>();
     for (const l of lines) pageTop.set(l.page, Math.max(pageTop.get(l.page) ?? -Infinity, l.y));
-    for (const block of buildBlocks(lines)) {
+    for (const block of blocks) {
         // The lines of the items table describe what was bought, not who sold it
         const firstItem = block.lines.findIndex(p => itemPhrases.has(p));
         let blockLines = firstItem < 0 ? block.lines : block.lines.slice(0, firstItem);

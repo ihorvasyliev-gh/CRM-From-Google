@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CircleCheck, Download, Eye, EyeOff, FileText, Info, TriangleAlert, Users } from 'lucide-react';
 import { Button } from '../ui/Button';
 import Badge from '../ui/Badge';
@@ -6,14 +6,17 @@ import Card from '../ui/Card';
 import ConfirmDialog from '../ConfirmDialog';
 import InvoicePreview, { type LoadedInvoice } from './InvoicePreview';
 import RequisitionForm from './RequisitionForm';
+import { invoicePageSizes } from './useOpenInvoice';
 import { toast } from '../../lib/toast';
 import { downloadBlob } from '../../lib/download';
 import { todayISO } from '../../lib/dateUtils';
 import type { SaveChequeReqInput } from '../../hooks/useChequeRequisitions';
 import { historyChecks, invoiceChecks, rememberDefaults, type Draft } from '../../lib/chequeReq/draft';
 import { chequeReqFileName, renderChequeReq } from '../../lib/chequeReq/docx';
+import { rectOf } from '../../lib/chequeReq/extract';
 import { formatAmount, slashDate } from '../../lib/chequeReq/parse';
-import type { Check, ChequeReqForm, FieldFlags, FieldKey, InvoiceFacts, SavedChequeReq } from '../../lib/chequeReq/types';
+import { isPlaceField, MULTI_PICK, NOTHING_PICKED, pickedValue, placeOf, type Picked } from '../../lib/chequeReq/pick';
+import type { Check, ChequeReqForm, ChequeReqMeta, FieldFlags, FieldKey, InvoiceFacts, SavedChequeReq } from '../../lib/chequeReq/types';
 
 export type { LoadedInvoice };
 
@@ -133,7 +136,9 @@ export default function ChequeReqEditor({ session, history, historyAvailable, ke
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [busy, setBusy] = useState(false);
     const [showInvoice, setShowInvoice] = useState(false);
-    const meta = draft.meta;
+    /** The field whose value is being picked on the invoice, and what was picked so far */
+    const [picking, setPicking] = useState<{ key: FieldKey; picked: Picked } | null>(null);
+    const [meta, setMeta] = useState<ChequeReqMeta>(draft.meta);
     const today = todayISO();
 
     const checks = useMemo(
@@ -163,6 +168,48 @@ export default function ChequeReqEditor({ session, history, historyAvailable, ke
         setTouched(true);
     };
 
+    // Esc stops picking
+    const isPicking = !!picking;
+    useEffect(() => {
+        if (!isPicking) return;
+        const stop = (e: KeyboardEvent) => e.key === 'Escape' && setPicking(null);
+        window.addEventListener('keydown', stop);
+        return () => window.removeEventListener('keydown', stop);
+    }, [isPicking]);
+
+    const startPick = (key: FieldKey) => {
+        setPicking(p => (p?.key === key ? null : { key, picked: NOTHING_PICKED }));
+        setShowInvoice(true);
+    };
+
+    /** Text picked on the invoice fills the field; where it was is kept for the supplier's next invoice */
+    const pick = (picked: Picked) => {
+        if (!picking || !invoice) return;
+        const { key } = picking;
+        const multi = MULTI_PICK.has(key);
+        setPicking(multi ? { key, picked } : null);
+        const value = pickedValue(key, picked.texts);
+        change(key, value);
+        // Kept only where requisitions are (not on the public page)
+        const place = keep && isPlaceField(key) && value ? placeOf(key, picked.phrases, invoice.phrases, invoicePageSizes(invoice)?.[picked.phrases[0]?.page ?? 0]) : null;
+        if (isPlaceField(key)) {
+            setMeta(m => {
+                const places = { ...m.places };
+                if (place) places[key] = place;
+                else delete places[key];
+                return { ...m, places, ...(key === 'description' ? { item: value } : {}) };
+            });
+        }
+        if (value) {
+            setFlags(f => ({
+                ...f,
+                [key]: { level: 'found', note: place ? 'Picked on the invoice: the supplier’s next invoice is read in the same place' : 'Picked on the invoice', source: picked.phrases.map(rectOf) },
+            }));
+        }
+        // On a phone the form is under the invoice: back to the field
+        if (!multi && window.matchMedia?.('(max-width: 1023px)').matches) document.getElementById(`cr-${key}`)?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    };
+
     const download = async () => {
         setConfirmDownload(false);
         setBusy(true);
@@ -187,7 +234,7 @@ export default function ChequeReqEditor({ session, history, historyAvailable, ke
         }
     };
 
-    const highlight = active ? flags[active]?.source : undefined;
+    const highlight = !picking && active ? flags[active]?.source : undefined;
     const title = [form.payeeName.trim() || 'New requisition', meta.invoiceNumber].filter(Boolean).join(' · ');
 
     const formCard = (
@@ -198,7 +245,7 @@ export default function ChequeReqEditor({ session, history, historyAvailable, ke
             action={toCheck.length > 0 ? <Badge tone="warning">{toCheck.length} to check</Badge> : <Badge tone="success">Ready</Badge>}
             divided
         >
-            <RequisitionForm form={form} flags={flags} onChange={change} onAccept={unflag} onActive={setActive} />
+            <RequisitionForm form={form} flags={flags} onChange={change} onAccept={unflag} onActive={setActive} onPick={invoice ? startPick : undefined} picking={picking?.key} />
             <div className="mt-5 pt-4 border-t border-border-subtle flex flex-wrap items-center justify-end gap-2">
                 {!keep ? (
                     <p className="text-xs text-muted mr-auto">Nothing is saved: you only get the file you download.</p>
@@ -245,7 +292,11 @@ export default function ChequeReqEditor({ session, history, historyAvailable, ke
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
                     <div className={`space-y-3 lg:sticky lg:top-18 ${showInvoice ? '' : 'hidden lg:block'}`}>
                         <InvoiceFactsList facts={facts} />
-                        <InvoicePreview invoice={invoice} highlight={highlight} />
+                        <InvoicePreview
+                            invoice={invoice}
+                            highlight={highlight}
+                            pick={picking ? { label: FIELD_LABELS[picking.key], multi: MULTI_PICK.has(picking.key), picked: picking.picked, onPick: pick, onDone: () => setPicking(null) } : undefined}
+                        />
                     </div>
                     {formCard}
                 </div>

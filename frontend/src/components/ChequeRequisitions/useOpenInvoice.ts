@@ -65,7 +65,7 @@ export function useOpenInvoice(onRead: (invoice: LoadedInvoice, facts: InvoiceFa
                     setReading('Reading the scan…');
                     phrases = await readPictures(await scannedPdfPages(pdf.doc));
                 }
-                invoice = { kind, pdf, fileName: file.name, angles };
+                invoice = { kind, pdf, fileName: file.name, phrases, angles };
             } else if (kind === 'docx') {
                 phrases = await readDocxInvoice(await file.arrayBuffer());
                 invoice = { kind, file, phrases, fileName: file.name };
@@ -73,7 +73,7 @@ export function useOpenInvoice(onRead: (invoice: LoadedInvoice, facts: InvoiceFa
                 setReading('Reading the photo…');
                 const page = await photoPage(file);
                 phrases = await readPictures([page]);
-                invoice = { kind, url: URL.createObjectURL(file), fileName: file.name, size: { w: page.width, h: page.height }, angle: angles[0] ?? 0 };
+                invoice = { kind, url: URL.createObjectURL(file), fileName: file.name, phrases, size: { w: page.width, h: page.height }, angle: angles[0] ?? 0 };
             }
             await onRead(invoice, { ...extractInvoice(phrases), scanned }, file.name);
         } catch (err) {
@@ -84,6 +84,13 @@ export function useOpenInvoice(onRead: (invoice: LoadedInvoice, facts: InvoiceFa
     };
 
     return { reading, open };
+}
+
+/** The size of each page the invoice's text was read on (none for Word: its text is laid out by the reader) */
+export function invoicePageSizes(invoice: LoadedInvoice): { w: number; h: number }[] | undefined {
+    if (invoice.kind === 'pdf') return invoice.pdf.layout.pages;
+    if (invoice.kind === 'image') return [invoice.size];
+    return undefined;
 }
 
 /** A requisition to fill in by hand, starting from the remembered action number and name */

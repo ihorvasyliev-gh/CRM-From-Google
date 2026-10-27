@@ -3,7 +3,9 @@
 // draft. Every value carries a note: where it came from, or why it needs a look.
 
 import { bigramSimilarity } from '../pdfForms/text';
-import { collapseSpaces, domainWord, dottedDate, findDates, formatAmount, parseAmount, slashDate, squash } from './parse';
+import type { Phrase } from '../pdfForms/types';
+import { collapseSpaces, domainWord, dottedDate, findDates, formatAmount, parseAmount, phoneKey, slashDate, squash } from './parse';
+import { readPlaces } from './pick';
 import { EMPTY_FORM, EMPTY_META, type ChequeReqForm, type ChequeReqMeta, type Check, type FieldFlags, type FieldKey, type InvoiceFacts, type SavedChequeReq } from './types';
 
 /** Payments to one supplier in a year from which three quotations are needed (excl. VAT) */
@@ -60,29 +62,46 @@ export function supplierKey(name: string): string {
     return squash(name.replace(COMPANY_WORDS, ' '));
 }
 
-interface SupplierIds {
+export interface SupplierIds {
     name: string;
     vat: string;
     iban: string;
     domain: string;
+    email?: string;
+    phone?: string;
 }
 
 export function sameSupplier(a: SupplierIds, b: SupplierIds): boolean {
     if (a.vat && b.vat && squash(a.vat).replace(/^ie/, '') === squash(b.vat).replace(/^ie/, '')) return true;
     if (a.iban && b.iban && squash(a.iban) === squash(b.iban)) return true;
     if (a.domain && b.domain && a.domain === b.domain) return true;
+    // The same email address or phone number (a gmail address, a name read differently),
+    // unless a VAT number or IBAN says they are two suppliers
+    if (!(a.vat && b.vat) && !(a.iban && b.iban)) {
+        if (a.email && b.email && a.email.trim().toLowerCase() === b.email.trim().toLowerCase()) return true;
+        const phone = phoneKey(a.phone ?? '');
+        if (phone && phone === phoneKey(b.phone ?? '')) return true;
+    }
     const ka = supplierKey(a.name);
     const kb = supplierKey(b.name);
     if (!ka || !kb) return false;
     return ka === kb || bigramSimilarity(ka, kb) >= 0.8;
 }
 
-function idsOfSaved(r: SavedChequeReq): SupplierIds {
-    return { name: r.supplier_name || r.form.payeeName, vat: r.meta?.supplierVat ?? '', iban: r.meta?.supplierIban ?? '', domain: r.meta?.supplierDomain ?? '' };
+export function idsOfSaved(r: SavedChequeReq): SupplierIds {
+    return { ...idsOf(r.form, r.meta ?? EMPTY_META), name: r.supplier_name || r.form.payeeName };
 }
 
+/** The quote's email and phone are the supplier's too (on requisitions kept before their own were) */
 export function idsOf(form: ChequeReqForm, meta: ChequeReqMeta): SupplierIds {
-    return { name: form.payeeName, vat: meta.supplierVat, iban: meta.supplierIban, domain: meta.supplierDomain };
+    return {
+        name: form.payeeName,
+        vat: meta.supplierVat ?? '',
+        iban: meta.supplierIban ?? '',
+        domain: meta.supplierDomain ?? '',
+        email: meta.supplierEmail || form.quoteEmail,
+        phone: meta.supplierPhone || form.quotePhone,
+    };
 }
 
 /** The most recent requisition for this supplier (history is newest first) */
@@ -122,6 +141,9 @@ export interface DraftInput {
     history: SavedChequeReq[];
     defaults: ChequeReqDefaults;
     fileName: string;
+    /** The invoice's text, to read values where they were picked on the supplier's last invoice */
+    phrases?: Phrase[];
+    pageSizes?: { w: number; h: number }[];
 }
 
 export interface Draft {
@@ -136,7 +158,7 @@ function sinceLabel(r: SavedChequeReq): string {
     return r.invoice_number ? `your requisition for ${r.invoice_number}` : 'your last requisition for this supplier';
 }
 
-export function draftFromInvoice({ facts, history, defaults, fileName }: DraftInput): Draft {
+export function draftFromInvoice({ facts, history, defaults, fileName, phrases, pageSizes }: DraftInput): Draft {
     const form: ChequeReqForm = structuredClone(EMPTY_FORM);
     const flags: FieldFlags = {};
     const s = facts.supplier;
@@ -151,13 +173,20 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
         supplierVat: s.vatNumber ?? '',
         supplierIban: s.iban ?? '',
         supplierDomain: domainWord(s.email ?? s.website ?? '') ?? '',
+        supplierEmail: s.email ?? '',
+        supplierPhone: s.phone ?? '',
         item: firstItem,
         serviceDate: facts.serviceDates?.start ?? '',
         fileName,
     };
 
-    const previous = previousForSupplier({ name: s.name?.value ?? '', vat: meta.supplierVat, iban: meta.supplierIban, domain: meta.supplierDomain }, history);
+    const previous = previousForSupplier({ name: s.name?.value ?? '', vat: meta.supplierVat, iban: meta.supplierIban, domain: meta.supplierDomain, email: meta.supplierEmail, phone: meta.supplierPhone }, history);
     const fromLast = previous ? `As on ${sinceLabel(previous)}` : '';
+    // What was picked by hand on the supplier's last invoice is read in the same places on this one
+    meta.places = previous?.meta?.places ?? {};
+    const picked = previous && phrases ? readPlaces(meta.places, phrases, pageSizes) : {};
+    const pickedNote = previous ? `Read where you picked it on ${sinceLabel(previous)}` : '';
+    const pickedLevel = facts.scanned ? 'check' : 'memory';
 
     // Payee: last time's spelling wins (it was checked then); else the invoice's
     if (previous?.form.payeeName) {
@@ -182,14 +211,23 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
         }
     }
 
-    if (facts.poNumber) {
+    const pickedPo = picked.poNumber;
+    if (pickedPo && !(facts.poNumbers ?? [facts.poNumber?.value ?? '']).some(n => squash(n) === squash(pickedPo.value))) {
+        form.poNumber = pickedPo.value;
+        flags.poNumber = { level: pickedLevel, note: facts.poNumber ? `${pickedNote} (the invoice reading found “${facts.poNumber.value}”)` : pickedNote, source: pickedPo.source };
+    } else if (facts.poNumber) {
         form.poNumber = facts.poNumber.value;
         flags.poNumber = { level: 'found', note: `From the invoice: “${facts.poNumber.from ?? facts.poNumber.value}”`, source: facts.poNumber.source };
     } else {
         flags.poNumber = { level: 'missing', note: 'No PO number on the invoice' };
     }
 
-    if (facts.total) {
+    const pickedAmount = picked.amount ? parseAmount(picked.amount.value) : null;
+    if (pickedAmount !== null && (!facts.total || Math.abs(facts.total.value - pickedAmount) > 0.005)) {
+        form.amount = formatAmount(pickedAmount);
+        form.amountQuoted = form.amount;
+        flags.amount = { level: pickedLevel, note: facts.total ? `${pickedNote} (the invoice reading found €${formatAmount(facts.total.value)})` : pickedNote, source: picked.amount?.source };
+    } else if (facts.total) {
         form.amount = formatAmount(facts.total.value);
         form.amountQuoted = form.amount;
         flags.amount = facts.total.sure
@@ -202,8 +240,11 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
     // Description: built the way the last one was ({item} course {date} for …)
     const ownPattern = previous ? descriptionPattern(previous.form.description, previous.meta?.item ?? '', previous.meta?.serviceDate ?? '') : null;
     const pattern = ownPattern ?? (defaults.descriptionPattern || null);
-    form.description = buildDescription(firstItem, meta.serviceDate, pattern, facts.serviceDates?.days);
-    if (!form.description) flags.description = { level: 'missing', note: 'Say what was bought: the course or service, and its date' };
+    const pickedItem = picked.description && squash(picked.description.value) !== squash(firstItem) ? picked.description : undefined;
+    if (pickedItem) meta.item = pickedItem.value;
+    form.description = buildDescription(meta.item, meta.serviceDate, pattern, facts.serviceDates?.days);
+    if (pickedItem) flags.description = { level: pickedLevel, note: `The item where you picked it on ${sinceLabel(previous!)}${ownPattern ? ', worded like that requisition' : ''}`, source: pickedItem.source };
+    else if (!form.description) flags.description = { level: 'missing', note: 'Say what was bought: the course or service, and its date' };
     else if (ownPattern) flags.description = { level: 'memory', note: `Worded like ${sinceLabel(previous!)}`, source: facts.items[0]?.source };
     else flags.description = { level: 'check', note: pattern ? 'Worded like your last requisition: check it fits' : 'From the invoice lines: add what it was for, if needed', source: facts.items[0]?.source };
 
@@ -324,7 +365,7 @@ export function invoiceChecks(facts: InvoiceFacts, today: string): Check[] {
 export function historyChecks(form: ChequeReqForm, meta: ChequeReqMeta, history: SavedChequeReq[], editingId: string | undefined, today: string): Check[] {
     const checks: Check[] = [];
     const ids = idsOf(form, meta);
-    if (!ids.name && !ids.vat && !ids.iban && !ids.domain) return checks;
+    if (!ids.name && !ids.vat && !ids.iban && !ids.domain && !ids.email && !ids.phone) return checks;
     const others = history.filter(r => r.id !== editingId && sameSupplier(ids, idsOfSaved(r)));
     const invoice = squash(meta.invoiceNumber);
     const twin = invoice ? others.find(r => squash(r.invoice_number ?? '') === invoice) : undefined;

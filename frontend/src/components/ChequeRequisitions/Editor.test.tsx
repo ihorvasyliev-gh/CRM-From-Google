@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import ChequeReqEditor, { type EditorSession } from './Editor';
+import ChequeReqEditor, { type EditorSession, type LoadedInvoice } from './Editor';
 import { EMPTY_FORM, EMPTY_META, type SavedChequeReq } from '../../lib/chequeReq/types';
+import type { Phrase } from '../../lib/pdfForms/types';
 
 const keep = vi.fn();
 const renderChequeReq = vi.fn();
@@ -11,6 +12,32 @@ vi.mock('../../lib/chequeReq/docx', async importOriginal => ({
 }));
 const downloadBlob = vi.fn();
 vi.mock('../../lib/download', () => ({ downloadBlob: (...args: unknown[]) => downloadBlob(...args) }));
+// jsdom lays nothing out: the invoice panel is 600 px wide
+vi.mock('../PdfForms/pdfHooks', async importOriginal => ({
+    ...(await importOriginal<typeof import('../PdfForms/pdfHooks')>()),
+    useElementWidth: () => [() => {}, 600],
+}));
+
+function ph(x: number, y: number, text: string, h = 9): Phrase {
+    return { page: 0, x, y, w: text.length * h * 0.48, h, text };
+}
+
+/** A photo of an invoice, 600 × 800 pixels, already level */
+const photo: LoadedInvoice = {
+    kind: 'image',
+    url: 'blob:invoice',
+    fileName: 'invoice.jpg',
+    size: { w: 600, h: 800 },
+    angle: 0,
+    phrases: [ph(40, 760, 'Riverbank Hall Hire', 16), ph(40, 740, '12 Quay Street,'), ph(40, 728, 'Cork'), ph(330, 300, 'Total due'), ph(470, 300, '€350.00')],
+};
+
+/** Where a phrase shows in the panel (1 CSS px a pixel; jsdom puts the panel at 0, 0) */
+const pointAt = (p: Phrase) => ({ clientX: p.x + p.w / 2, clientY: 800 - p.y - p.h * 0.3, button: 0, pointerId: 1 });
+const click = (layer: HTMLElement, p: Phrase) => {
+    fireEvent.pointerDown(layer, pointAt(p));
+    fireEvent.pointerUp(layer, pointAt(p));
+};
 
 function session(over: Partial<EditorSession['draft']> = {}): EditorSession {
     return {
@@ -106,6 +133,52 @@ describe('ChequeReqEditor', () => {
     it('warns when the invoice already has a requisition', () => {
         render(<ChequeReqEditor session={session()} history={[earlier]} historyAvailable keep={keep} onBack={vi.fn()} />);
         expect(screen.getByText(/already made a requisition for INV-0101/)).toBeInTheDocument();
+    });
+
+    it('fills a field with text picked on the invoice, and keeps where it was for the supplier', async () => {
+        render(<ChequeReqEditor session={{ ...session(), invoice: photo }} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Pick the payment amount on the invoice' }));
+        expect(screen.getByRole('status')).toHaveTextContent('Payment amount: click it on the invoice, or draw a box round it.');
+        click(screen.getByTestId('pick-page-0'), photo.phrases[4]);
+        expect(screen.getByLabelText('Payment amount')).toHaveValue('350.00');
+        expect(screen.getByLabelText('Amount quoted')).toHaveValue('350.00');
+        expect(screen.getByText('Picked on the invoice: the supplier’s next invoice is read in the same place')).toBeInTheDocument();
+        // One click is all an amount takes
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+        // An address takes a piece at a time; a second click on a piece takes it out
+        fireEvent.click(screen.getByRole('button', { name: 'Pick the payee address on the invoice' }));
+        const layer = screen.getByTestId('pick-page-0');
+        click(layer, photo.phrases[2]);
+        click(layer, photo.phrases[1]);
+        click(layer, photo.phrases[0]);
+        expect(screen.getByLabelText('Payee address')).toHaveValue('Riverbank Hall Hire, 12 Quay Street, Cork');
+        click(layer, photo.phrases[0]);
+        expect(screen.getByLabelText('Payee address')).toHaveValue('12 Quay Street, Cork');
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+        expect(screen.queryByTestId('pick-page-0')).not.toBeInTheDocument();
+
+        // A box drawn round the name takes it
+        fireEvent.click(screen.getByRole('button', { name: 'Pick the payee name on the invoice' }));
+        fireEvent.pointerDown(screen.getByTestId('pick-page-0'), { clientX: 30, clientY: 30, button: 0, pointerId: 1 });
+        fireEvent.pointerMove(screen.getByTestId('pick-page-0'), { clientX: 400, clientY: 50, button: 0, pointerId: 1 });
+        fireEvent.pointerUp(screen.getByTestId('pick-page-0'), { clientX: 400, clientY: 50, button: 0, pointerId: 1 });
+        expect(screen.getByLabelText('Payee name')).toHaveValue('Riverbank Hall Hire');
+
+        fireEvent.click(screen.getByRole('button', { name: /Download the requisition/ }));
+        fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Download anyway' }));
+        await waitFor(() => expect(keep).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ places: { amount: expect.objectContaining({ anchors: [expect.objectContaining({ text: 'Total due' })] }) } }) })));
+    });
+
+    it('stops picking on Esc, and offers no picking without an invoice', () => {
+        const { unmount } = render(<ChequeReqEditor session={{ ...session(), invoice: photo }} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Pick the PO number on the invoice' }));
+        expect(screen.getByRole('status')).toBeInTheDocument();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        unmount();
+        render(<ChequeReqEditor session={session()} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
+        expect(screen.queryByRole('button', { name: /on the invoice$/ })).not.toBeInTheDocument();
     });
 
     it('asks before leaving work that was not downloaded', async () => {
