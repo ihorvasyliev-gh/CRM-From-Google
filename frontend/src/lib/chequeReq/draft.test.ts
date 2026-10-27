@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildDescription, descriptionPattern, draftFromInvoice, EMPTY_DEFAULTS, historyChecks, invoiceChecks, readDefaults, rememberDefaults, sameSupplier } from './draft';
+import { buildDescription, descriptionPattern, draftFromInvoice, EMPTY_DEFAULTS, historyChecks, invoiceChecks, netOfPayment, readDefaults, rememberDefaults, sameSupplier } from './draft';
 import { extractInvoice } from './extract';
 import { formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from './types';
@@ -168,10 +168,10 @@ describe('checks', () => {
         const form = { ...EMPTY_FORM, payeeName: 'Brightway Safety Training Services', amount: '1,200.00' };
         const meta = { ...EMPTY_META, invoiceNumber: 'INV-0101', invoiceDate: '2026-10-21', netAmount: 1200 };
         const history = [
-            saved({ id: 'a', invoice_number: 'INV-0101', net_amount: 1200, created_at: '2026-10-21T09:00:00Z' }),
-            saved({ id: 'b', invoice_number: 'INV-0090', net_amount: 3000 }),
-            saved({ id: 'c', invoice_number: 'INV-0050', net_amount: 900, invoice_date: '2025-05-01' }),
-            saved({ id: 'd', supplier_name: 'Greenleaf Catering', invoice_number: 'GC-1', net_amount: 4000 }),
+            saved({ id: 'a', invoice_number: 'INV-0101', amount: 1200, net_amount: 1200, created_at: '2026-10-21T09:00:00Z' }),
+            saved({ id: 'b', invoice_number: 'INV-0090', amount: 3000, net_amount: 3000 }),
+            saved({ id: 'c', invoice_number: 'INV-0050', amount: 900, net_amount: 900, invoice_date: '2025-05-01' }),
+            saved({ id: 'd', supplier_name: 'Greenleaf Catering', invoice_number: 'GC-1', amount: 4000, net_amount: 4000 }),
         ];
         const checks = historyChecks(form, meta, history, undefined, today).map(c => c.text).join(' ');
         expect(checks).toMatch(/already made a requisition for INV-0101/);
@@ -183,6 +183,22 @@ describe('checks', () => {
 
         // Editing a kept requisition: it is not its own duplicate
         expect(historyChecks(form, meta, history, 'a', today).some(c => /already made/.test(c.text))).toBe(false);
+    });
+
+    it('counts the payment excl. VAT, or the payment itself when it was typed over a misread total', () => {
+        // €800 with €66.05 VAT: the net counts
+        expect(netOfPayment(800, 733.95)).toBe(733.95);
+        // "€4" read off a handwritten scan, €1,096.08 typed in: the payment counts
+        expect(netOfPayment(1096.08, 4)).toBe(1096.08);
+        // A net above the payment is not its net either
+        expect(netOfPayment(500, 1000)).toBe(500);
+        expect(netOfPayment(null, 733.95)).toBe(733.95);
+        expect(netOfPayment(1096.08, null)).toBe(1096.08);
+
+        const history = [saved({ id: 'a', supplier_name: 'Fabrice Fortune', invoice_number: '1', amount: 1096.08, net_amount: 4 })];
+        const form = { ...EMPTY_FORM, payeeName: 'Fabrice Fortune', amount: '1,096.08' };
+        const checks = historyChecks(form, { ...EMPTY_META, invoiceNumber: '2', invoiceDate: '2026-10-27', netAmount: 4 }, history, undefined, today);
+        expect(checks.map(c => c.text).join(' ')).toMatch(/€2,192.16 excl. VAT with this invoice/);
     });
 });
 

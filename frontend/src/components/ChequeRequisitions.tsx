@@ -16,7 +16,7 @@ import { todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { useChequeReqHistory, useDeleteChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
 import { useFormUserName } from '../hooks/usePdfForms';
 import { extractInvoice } from '../lib/chequeReq/extract';
-import { draftFromInvoice, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
+import { draftFromInvoice, netOfPayment, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
 import { chequeReqFileName, renderChequeReq } from '../lib/chequeReq/docx';
 import { formatAmount } from '../lib/chequeReq/parse';
 import { INVOICE_ACCEPT, invoiceKind, MAX_INVOICE_BYTES, readDocxInvoice } from '../lib/chequeReq/read';
@@ -38,7 +38,7 @@ function yearTotals(rows: SavedChequeReq[], year: string) {
         if ((r.invoice_date ?? r.created_at).slice(0, 4) !== year) continue;
         const ids = { name: r.supplier_name, vat: r.meta.supplierVat, iban: r.meta.supplierIban, domain: r.meta.supplierDomain };
         const group = groups.find(g => sameSupplier(ids, { name: g.sample.supplier_name, vat: g.sample.meta.supplierVat, iban: g.sample.meta.supplierIban, domain: g.sample.meta.supplierDomain }));
-        const value = r.net_amount ?? r.amount ?? 0;
+        const value = netOfPayment(r.amount, r.net_amount) ?? 0;
         if (group) {
             group.total += value;
             group.count += 1;

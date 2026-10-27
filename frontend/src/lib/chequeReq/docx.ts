@@ -10,8 +10,13 @@ import type { ChequeReqForm, ChequeReqMeta } from './types';
 
 const CHECKED = '☒';
 const UNCHECKED = '☐';
-/** Width (pt) of the description's first ruled line after its label: 145.5pt to 394.5pt, less the space before the text */
-const DESCRIPTION_FIRST_LINE = 244;
+/**
+ * Room (pt) for the description's first line: from 146.5pt (the tab stop at 144pt and a space)
+ * to the Checklist box. The box floats at the right margin (370.95pt, text keeps 9pt from it)
+ * and, when the payee's name and address take a line each, it sits beside this line: about
+ * 215pt, less a little so Word never wraps a last word under the label.
+ */
+const DESCRIPTION_FIRST_LINE = 212;
 /** A blank payee name or address line, to fill in by hand: about as wide as the room beside the checklist */
 const BLANK_LINE = '_'.repeat(44);
 
@@ -54,6 +59,16 @@ export function splitFirstLine(text: string, maxWidth = DESCRIPTION_FIRST_LINE):
     return [first, ''];
 }
 
+/**
+ * The description over its two ruled lines. A line break typed in the editor starts the second
+ * line when the first fits; what doesn't fit the first line goes on the second, before the rest.
+ */
+export function descriptionLines(text: string, maxWidth = DESCRIPTION_FIRST_LINE): [string, string] {
+    const [first = '', ...rest] = text.split(/\s*\n\s*/).filter(Boolean);
+    const [line1, overflow] = splitFirstLine(first, maxWidth);
+    return [line1, [overflow, ...rest].filter(Boolean).join(', ')];
+}
+
 function money(value: string): string {
     const n = parseAmount(value);
     return n === null ? value.trim() : formatAmount(n);
@@ -66,7 +81,7 @@ function oneLine(value: string): string {
 /** Placeholder values; blanks keep the form's ruled underscores so they can be filled by hand */
 export function templateData(form: ChequeReqForm): Record<string, string> {
     const box = (on: boolean) => (on ? CHECKED : UNCHECKED);
-    const [description1, description2] = splitFirstLine(oneLine(form.description));
+    const [description1, description2] = descriptionLines(form.description);
     return {
         actionNumber: form.actionNumber.trim(),
         nonSicapFunding: form.nonSicapFunding.trim(),

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { netOfPayment } from '../lib/chequeReq/draft';
 import { parseAmount } from '../lib/chequeReq/parse';
 import { EMPTY_FORM, EMPTY_META, type ChequeReqForm, type ChequeReqMeta, type SavedChequeReq } from '../lib/chequeReq/types';
 
@@ -61,7 +62,7 @@ export function useSaveChequeReq() {
                 invoice_number: meta.invoiceNumber.trim() || null,
                 invoice_date: meta.invoiceDate || null,
                 amount: parseAmount(form.amount),
-                net_amount: meta.netAmount ?? parseAmount(form.amount),
+                net_amount: netOfPayment(parseAmount(form.amount), meta.netAmount),
                 form,
                 meta,
             };

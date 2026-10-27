@@ -254,6 +254,19 @@ export function draftFromInvoice({ facts, history, defaults, fileName }: DraftIn
 
 // ─── Checks ────────────────────────────────────────────────────
 
+/** The highest VAT rate in Ireland */
+const MAX_VAT = 0.23;
+
+/**
+ * What counts toward the €5,000 a year (excl. VAT): the invoice's net while it can be the net of
+ * the payment (no more than it, no less than it less 23% VAT); else the payment itself, typed
+ * over a misread total.
+ */
+export function netOfPayment(amount: number | null, net: number | null): number | null {
+    if (amount === null || net === null) return net ?? amount;
+    return net <= amount + 0.005 && net >= amount / (1 + MAX_VAT) - 0.005 ? net : amount;
+}
+
 function euro(value: number): string {
     return `€${formatAmount(value)}`;
 }
@@ -314,10 +327,10 @@ export function historyChecks(form: ChequeReqForm, meta: ChequeReqMeta, history:
         checks.push({ level: 'warning', text: `You already made a requisition for ${twin.invoice_number} from this supplier (${slashDate(twin.created_at.slice(0, 10))}).` });
     }
 
-    const net = meta.netAmount ?? parseAmount(form.amount);
+    const net = netOfPayment(parseAmount(form.amount), meta.netAmount);
     const year = (meta.invoiceDate || today).slice(0, 4);
     const sameYear = others.filter(r => r !== twin && (r.invoice_date ?? r.created_at).slice(0, 4) === year);
-    const before = sameYear.reduce((s, r) => s + (r.net_amount ?? r.amount ?? 0), 0);
+    const before = sameYear.reduce((s, r) => s + (netOfPayment(r.amount, r.net_amount) ?? 0), 0);
     const total = before + (net ?? 0);
     if (net !== null && net >= THREE_QUOTES_FROM) {
         checks.push({ level: 'warning', text: `This invoice is ${euro(net)} excl. VAT: from ${euro(THREE_QUOTES_FROM)} a year to one supplier you need three quotations and the 3 quotes form.` });

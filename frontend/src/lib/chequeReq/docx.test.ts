@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import PizZip from 'pizzip';
 import template from '../../assets/templates/sicap-cheque-requisition.docx?inline';
-import { chequeReqFileName, renderChequeReqDocx, splitFirstLine, syncCheckboxes, templateData, textWidth } from './docx';
+import { chequeReqFileName, descriptionLines, renderChequeReqDocx, splitFirstLine, syncCheckboxes, templateData, textWidth } from './docx';
 import { EMPTY_FORM, type ChequeReqForm } from './types';
 
 function templateBytes(): ArrayBuffer {
@@ -42,16 +42,30 @@ describe('the requisition template', () => {
     it('splits a long description over its two ruled lines', () => {
         expect(splitFirstLine('short')).toEqual(['short', '']);
         const [a, b] = splitFirstLine(FORM.description);
-        expect(a).toBe('Manual Handling QQI Level 5 course 03.11.2026 for');
-        expect(textWidth(a)).toBeLessThanOrEqual(244);
+        // The first line stops short of the Checklist box, which can sit beside it
+        expect(a).toBe('Manual Handling QQI Level 5 course');
+        expect(textWidth(a)).toBeLessThanOrEqual(212);
         expect(`${a} ${b}`).toBe(FORM.description);
         // Capitals fill the line sooner
-        const [caps] = splitFirstLine(FORM.description.toUpperCase());
-        expect(caps.length).toBeLessThan(a.length);
+        const words = 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen';
+        expect(splitFirstLine(words.toUpperCase())[0].length).toBeLessThan(splitFirstLine(words)[0].length);
         // A word longer than the line is cut
         const [long, rest] = splitFirstLine('x'.repeat(80));
         expect(long.length + rest.length).toBe(80);
-        expect(textWidth(long)).toBeLessThanOrEqual(244);
+        expect(textWidth(long)).toBeLessThanOrEqual(212);
+    });
+
+    it('starts the second line where the editor did, when the first fits', () => {
+        // Not "…Centre, 24 classes" with "classes" pushed under the label by the Checklist box
+        expect(descriptionLines('Esol classes for the Cork Migrant Centre\n24 classes x45.67')).toEqual(['Esol classes for the Cork Migrant Centre', '24 classes x45.67']);
+        expect(templateData({ ...FORM, description: 'Esol classes for the Cork Migrant Centre\n24 classes x45.67' })).toMatchObject({
+            description1: 'Esol classes for the Cork Migrant Centre',
+            description2: '24 classes x45.67',
+        });
+        // A first line too long for its room goes on before the rest
+        expect(descriptionLines(`${FORM.description}\n3 people`)).toEqual(['Manual Handling QQI Level 5 course', '03.11.2026 for International Protection and Temporary Protection Clients, 3 people']);
+        expect(descriptionLines('  One line  ')).toEqual(['One line', '']);
+        expect(descriptionLines('')).toEqual(['', '']);
     });
 
     it('keeps blank lines to fill in by hand', () => {
