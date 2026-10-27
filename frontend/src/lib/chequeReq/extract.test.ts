@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractInvoice, joinAddress, numberedPeople } from './extract';
 import { docxPhrases } from './read';
-import { formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { formInvoiceScan, letterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 
 describe('extractInvoice: a Xero-style invoice over two pages', () => {
     const facts = extractInvoice(xeroLikeInvoice());
@@ -110,6 +110,30 @@ describe('extractInvoice: a sole trader\'s form, read off a scan', () => {
         expect(facts.invoiceNumber?.value).toBe('0007');
         expect(facts.invoiceDate?.value).toBe('2026-08-28');
         expect(facts.poNumber?.value).toBe('8264');
+    });
+});
+
+describe('extractInvoice: a letterhead, with the registration in the footer', () => {
+    const facts = extractInvoice(letterheadInvoice());
+
+    it('takes the name printed big over the address, not the registration line', () => {
+        expect(facts.supplier.name?.value).toBe('Grill Shack');
+        expect(facts.supplier.address?.value).toBe('Hearth Foods & Co, 12 Quayside Business Park, Ballybrack, Little Island Cork T45 XX12, Ireland');
+        expect(facts.supplier.phone).toBe('0214000000');
+    });
+
+    it('reads each total beside its own label, so they add up', () => {
+        expect(facts.subtotal?.value).toBe(733.95);
+        expect(facts.vat?.value).toBe(66.05);
+        expect(facts.total).toMatchObject({ value: 800, sure: true });
+        expect(facts.poNumber?.value).toBe('8724');
+        expect(facts.invoiceNumber?.value).toBe('SI-100');
+    });
+
+    it('falls back on the registered address, without its label', () => {
+        const noLetterhead = extractInvoice(letterheadInvoice().filter(p => p.y < 730));
+        expect(noLetterhead.supplier.name).toBeUndefined();
+        expect(noLetterhead.supplier.address?.value).toBe('12 Quayside Business Park, Ballybrack Little Island, Cork, Cork, T45XX12');
     });
 });
 

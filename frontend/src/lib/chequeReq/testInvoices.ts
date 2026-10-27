@@ -167,3 +167,77 @@ export function formInvoiceScan(): Phrase[] {
         ph(0, 144, 140, 'OKSANA BONDAR', 12),
     ];
 }
+
+/**
+ * Two pages from an online invoicing system: the trading name in big letters over the legal
+ * name and address, the customer boxed beside the invoice details, a VAT table whose header
+ * row mixes labels and totals, and the company's registration in the footer of every page.
+ */
+export function letterheadInvoice(): Phrase[] {
+    const letterhead = (page: number) => [
+        ph(page, 28, 798.6, 'Grill Shack', 14.4),
+        ph(page, 28, 785.9, 'Hearth Foods & Co, 12 Quayside Business Park, Ballybrack'),
+        // The commas are drawn over spaces, so they come out at the end
+        ph(page, 28, 776.9, 'Little Island Cork T45 XX12,,'),
+        ph(page, 28, 767.9, 'Ireland'),
+        ph(page, 28, 755.1, 'Telephone: 0214000000'),
+        ph(page, 28, 746.1, 'Mobile 0870000000'),
+        ph(page, 28, 737.1, 'Email orders@hearthfoods.example'),
+    ];
+    const customer = (page: number, x: number, h: number, ys: number[]) =>
+        ['Mary Murphy', 'Cork City Partnership', 'Heron House', 'Blackpool Retail Park', 'Blackpool', 'Cork', 'T23 R50R'].map((text, i) => ph(page, x, ys[i], text, h));
+    const footer = (page: number) => [
+        ph(page, 28, 53.6, 'Registered in Republic of Ireland No. 123456 , VAT Registration Number IE 1234567AB', 7.5),
+        ph(page, 28, 44.6, 'Registered Address 12 Quayside Business Park, Ballybrack Little Island, Cork, Cork, T45XX12', 7.5),
+        ph(page, 528, 24.4, `Page ${page + 1} of 2`, 7.5),
+    ];
+    return [
+        ...letterhead(0),
+        ph(0, 28, 686.6, 'Invoice To:', 11.7),
+        ph(0, 392, 686.6, 'SALES INVOICE', 11.7),
+        ph(0, 308, 676, 'Invoice Date'),
+        ph(0, 470, 676, '26/10/2026'),
+        ph(0, 308, 663, 'Due Date'),
+        ph(0, 470, 663, '04/12/2026'),
+        ph(0, 308, 647.1, 'Reference'),
+        ph(0, 470, 647.1, 'PO : 8724'),
+        ph(0, 308, 633.8, 'Invoice Number'),
+        ph(0, 470, 633.8, 'SI-100'),
+        ...customer(0, 52, 9.8, [663, 653.3, 643.5, 633.8, 624, 614.3, 604.5]),
+        ph(0, 32, 543.9, 'Description'),
+        ph(0, 500, 543.9, 'VAT %'),
+        ph(0, 549, 543.9, 'Net'),
+        ph(0, 32, 528.5, 'Catering-Community Sports Day'),
+        ph(0, 511, 528.5, '9.00'),
+        ph(0, 536, 528.5, '733.95'),
+        ph(0, 32, 485.4, 'VAT Rate'),
+        ph(0, 282, 485.4, 'Net'),
+        ph(0, 330, 485.4, 'VAT'),
+        ph(0, 413, 485.4, 'Total Net'),
+        ph(0, 532, 485.4, '733.95'),
+        ph(0, 32, 470.7, 'Second Reduced Rate 9.00% (9.00%)'),
+        ph(0, 261, 470.7, '€ 733.95'),
+        ph(0, 317, 470.7, '€ 66.05'),
+        ph(0, 409, 470.7, 'Total VAT'),
+        ph(0, 537, 470.7, '66.05'),
+        ph(0, 419, 457.7, 'TOTAL'),
+        ph(0, 524, 457.7, '€ 800.00'),
+        ph(0, 88, 419.6, "We accept online payments. It's a fast, secure and very easy way to pay.", 8.3),
+        ph(0, 409, 419.6, 'Ready to pay?', 8.3),
+        ph(0, 35, 414.2, 'Pay Now', 8.3),
+        ph(0, 28, 328.1, 'Notes:'),
+        ...customer(0, 28, 9, [311.9, 293.9, 284.9, 275.9, 266.9, 257.9, 248.9]),
+        ph(0, 28, 302.9, 'SICAP'),
+        ph(0, 28, 214.1, 'Terms and Conditions:'),
+        ph(0, 28, 197.9, 'AIB Bank-Blackpool-Cork'),
+        ph(0, 28, 181.4, 'Hearth Foods & Co-T/A Grill Shack'),
+        ph(0, 28, 164.9, 'IBAN : IE29AIBK93115212345678'),
+        ph(0, 28, 155.9, 'Sort : 931152'),
+        ph(0, 28, 146.9, 'Acc No : 12345678'),
+        ...footer(0),
+        ...letterhead(1),
+        ph(1, 28, 685.5, 'Deliver To:'),
+        ...customer(1, 52, 9.8, [663, 653.3, 643.5, 633.8, 624, 614.3, 604.5]),
+        ...footer(1),
+    ];
+}

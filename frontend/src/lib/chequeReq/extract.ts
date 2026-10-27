@@ -569,6 +569,15 @@ function supplierForm(lines: TextLine[]): { name?: Found; address?: Found } {
     return form;
 }
 
+/** "Posh Burger" in a bigger font right above "Bloom Food & Co, 611 Harbour Point…": the name over its address */
+function titleAbove(lines: TextLine[], top: Phrase): Phrase | undefined {
+    const above = lines[lines.findIndex(l => l.phrases.includes(top)) - 1];
+    const title = above?.phrases.length === 1 ? above.phrases[0] : undefined;
+    if (!title || title.page !== top.page || HEADING.test(title.text) || OUR_ORGANISATION.test(title.text) || /\d|:\s*$/.test(title.text)) return undefined;
+    const gap = title.y - top.y;
+    return Math.abs(title.x - top.x) <= Math.max(3, top.h * 0.4) && title.h >= top.h * 1.25 && gap > 0 && gap <= title.h * 1.9 ? title : undefined;
+}
+
 function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     const supplier: SupplierFacts = {};
     const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
@@ -616,11 +625,16 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
             blockLines = blockLines.slice(1);
             labelSure = true;
         }
-        const texts = blockLines.map(p => p.text);
-        const first = texts[0];
-        if (HEADING.test(first) || /^(?:registered\s+office|dates?\b)/i.test(first) || /^\d+[.)]\s/.test(first)) continue;
+        const first = blockLines[0].text;
+        // Not a name: a heading or label ("Terms and Conditions:"), the company's registration
+        // in the footer ("Registered in Ireland No. 772805, VAT …"), a numbered line
+        if (HEADING.test(first) || /:\s*$/.test(first) || /^(?:registered\b|dates?\b)/i.test(first) || IDENTIFIER_LINE.test(first) || /^\d+[.)]\s/.test(first)) continue;
         if (findAmounts(first).length > 0 || parseDate(first)) continue;
         if (first.replace(/[^\p{L}]/gu, '').length < 3) continue;
+        // A letterhead: the name printed bigger right above its address
+        const title = titleAbove(lines, blockLines[0]);
+        if (title) blockLines = [title, ...blockLines];
+        const texts = blockLines.map(p => p.text);
 
         // A label left of the first line: "To:" in a payment advice is the supplier, elsewhere the customer
         const firstLine = lines.find(l => l.phrases.includes(blockLines[0]));
@@ -665,14 +679,17 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     }
     if (payable) supplier.name = payable;
 
-    // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345."
+    // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345.",
+    // or only its address: "Registered Address 611 Harbour Point Business Park, Cork, T45YK68"
     if (!supplier.address) {
-        const office = lines.find(l => /registered\s+office\s*:/i.test(l.text) && !OUR_ORGANISATION.test(l.text));
-        if (office) {
-            const parts = office.text.replace(/^.*registered\s+office\s*:\s*/i, '').split(/\s*,\s*/).filter(Boolean);
+        const office = lines.find(l => /registered\s+(?:office\s*:|address\b)/i.test(l.text) && !OUR_ORGANISATION.test(l.text));
+        const m = office && /registered\s+(office|address)\s*:?\s*(.*)$/i.exec(office.text);
+        if (office && m) {
+            const parts = m[2].split(/\s*,\s*/).filter(Boolean);
+            const named = /office/i.test(m[1]);
             if (parts.length >= 2) {
-                if (!supplier.name) supplier.name = { value: collapseSpaces(parts[0]), sure: false, source: office.phrases.map(rectOf), from: office.text };
-                supplier.address = { value: joinAddress(parts.slice(1)), sure: false, source: office.phrases.map(rectOf), from: office.text };
+                if (named && !supplier.name) supplier.name = { value: collapseSpaces(parts[0]), sure: false, source: office.phrases.map(rectOf), from: office.text };
+                supplier.address = { value: joinAddress(named ? parts.slice(1) : parts), sure: false, source: office.phrases.map(rectOf), from: office.text };
             }
         }
     }
@@ -692,6 +709,8 @@ function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Ca
             const own = findAmounts(p.text.slice(m.index + m[0].length));
             if (own.length) hit = { value: own[own.length - 1].value, score: 3, rects: [rectOf(p)], from: p.text };
             for (const r of line.phrases.slice(pi + 1)) {
+                // What follows the next label is that one's: "VAT | Total Net 733.95"
+                if (ANY_TOTAL.test(r.text) || VAT.test(r.text)) break;
                 const a = findAmounts(r.text);
                 if (a.length) hit = { value: a[a.length - 1].value, score: 3, rects: [rectOf(p), rectOf(r)], from: `${p.text} ${r.text}` };
             }
