@@ -317,11 +317,11 @@ function App() {
                     </div>
                 )}
 
-                {/* Mobile overlay */}
+                {/* Mobile overlay: above the bottom tab bar (z-40) and action bars (z-50), so the open menu covers them */}
                 {overlayMounted && (
                     <div
                         ref={overlayRef}
-                        className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-35 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
+                        className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-55 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
@@ -329,7 +329,7 @@ function App() {
                 {/* Sidebar */}
                 {!isViewer && (
                     <aside aria-label="Sidebar" className={`
-                    fixed lg:sticky top-0 left-0 h-screen w-[224px] z-40
+                    fixed lg:sticky top-0 left-0 h-screen w-[224px] z-60 lg:z-40
                     flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                     bg-surface border-r border-border-subtle
                     ${sidebarOpen ? 'translate-x-0 shadow-float' : '-translate-x-full lg:translate-x-0'}
