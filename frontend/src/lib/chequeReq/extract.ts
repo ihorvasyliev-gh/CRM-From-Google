@@ -123,7 +123,7 @@ const INVOICE_DATE = /\b(?:invoice|tax\s*point|issue|issued|document|bill(?:ing)
 const DUE_DATE = /\bdue\s*date\b|\bpayment\s*due\b|\bdue\s*(?:by|on)\b|\bpay\s*by\b/i;
 const PO_NUMBER = /\b(?:p\.?\s?o\.?(?!\s*box)\s*(?:number|no\.?|num|#|ref(?:erence)?)?|purchase\s*order\s*(?:number|no\.?|num|#|ref)?|order\s*(?:number|no\.?|num|#))(?![a-z])/i;
 
-const TOTAL_STRONG = /\b(?:amount|balance|total)\s*(?:due|payable|owing|outstanding)\b|\bgrand\s*total\b|\binvoice\s*total\b|^\s*total\s*(?:eur|€|amount|incl\.?(?:uding)?\s*vat|\(eur\)|\(€\))/i;
+const TOTAL_STRONG = /\b(?:amount|balance|total)\s*(?:due|payable|owing|outstanding)\b|\bgrand\s*total\b|\binvoice\s*total\b|\bgross\s*(?:amount|total)\b|^\s*total\s*(?:eur|€|amount|incl\.?(?:uding)?\s*vat|\(eur\)|\(€\))/i;
 const TOTAL_WEAK = /^\s*total\b(?!\s*(?:vat|tax|net|ex|excl|before|hours|qty|quantity|units|discount))/i;
 const SUBTOTAL = /^\s*(?:sub[\s-]?total|net(?:\s*(?:total|amount|value))?|total\s*(?:net|excl\.?|exclusive|ex\.?|before)|amount\s*(?:excl|ex)\.?|goods(?:\s*total)?)\b/i;
 const VAT = /^\s*(?:total\s+)?(?:vat|tax)\b(?!\s*(?:no|number|reg|registration|id|on\s+sales|rate\s*$))/i;
@@ -236,6 +236,8 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
     if (!first) return { items, itemLines };
     const repeated = repeatedLines(lines);
     let table = first.table;
+    // The header's "Net Amount" is a column, not the subtotal
+    itemLines.add(table.header);
     let current: InvoiceItem | null = null;
     // The last line of description text, and how far the column's text reaches
     let above: { line: TextLine; text: string; span: Span; starts: number[] } | null = null;
@@ -250,6 +252,7 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
             const next = findItemTable(lines, i);
             if (next && next.table.header.page === line.page && next.index <= i + 2) {
                 table = next.table;
+                itemLines.add(table.header);
                 i = next.index;
                 continue;
             }
@@ -409,7 +412,7 @@ export function numberedPeople(details: string[]): string[] {
 
 // ─── Supplier ──────────────────────────────────────────────────
 
-type Align = 'left' | 'right';
+type Align = 'left' | 'right' | 'centre';
 
 interface Block {
     x: number;
@@ -422,10 +425,11 @@ function sameSize(a: Phrase, b: Phrase): boolean {
     return Math.abs(a.h - b.h) <= Math.max(1.5, Math.min(a.h, b.h) * 0.25);
 }
 
-/** p starts (left) or ends (right) where q does */
-function linesUp(q: Phrase, p: Phrase, align: Align): boolean {
-    const tolerance = Math.max(3, p.h * 0.4);
-    return align === 'left' ? Math.abs(q.x - p.x) <= tolerance : Math.abs(q.x + q.w - (p.x + p.w)) <= tolerance;
+/** p starts (left), ends (right) or has its middle (centre) where q does */
+function linesUp(q: Phrase, p: Phrase, align: Align, tolerance = Math.max(3, p.h * 0.4)): boolean {
+    if (align === 'left') return Math.abs(q.x - p.x) <= tolerance;
+    if (align === 'right') return Math.abs(q.x + q.w - (p.x + p.w)) <= tolerance;
+    return Math.abs(q.x + q.w / 2 - (p.x + p.w / 2)) <= tolerance;
 }
 
 const INLINE_LABEL = /^((?:to|from|supplier|vendor|payee|pay(?:able)?\s*to|remit\s*to|bill\s*to|invoice\s*to)\s*:)\s*(\S.*)$/i;
@@ -448,8 +452,8 @@ function splitLabel(p: Phrase, lines: TextLine[]): Phrase[] {
 }
 
 /**
- * Stacks of lines: address blocks, label/value boxes, paragraphs. Left-aligned, or
- * right-aligned like a letterhead set in the top right corner.
+ * Stacks of lines: address blocks, label/value boxes, paragraphs. Left-aligned, or right-aligned
+ * like a letterhead set in the top right corner, or centred like one in a box.
  */
 function buildBlocks(lines: TextLine[]): Block[] {
     const blocks: Block[] = [];
@@ -462,10 +466,13 @@ function buildBlocks(lines: TextLine[]): Block[] {
                 return last.page === p.page && sameSize(last, p) && (b.align ?? align) === align && linesUp(b.lines[0], p, align) && gap > 0 && gap <= Math.max(last.h, p.h) * 1.9;
             };
             const left = blocks.find(b => fits(b, 'left'));
-            const block = left ?? blocks.find(b => fits(b, 'right'));
-            if (block && left) {
-                block.align = 'left';
-                block.lines.push(p);
+            const right = left ? undefined : blocks.find(b => fits(b, 'right'));
+            const centre = left || right ? undefined : blocks.find(b => fits(b, 'centre'));
+            const block = left ?? right;
+            if (left || centre) {
+                const stack = (left ?? centre)!;
+                stack.align = left ? 'left' : 'centre';
+                stack.lines.push(p);
             } else if (block) {
                 // Flush right, the line can start with more than this phrase: "F45 EV78,   085 18 19 400"
                 const from = Math.min(...block.lines.map(q => q.x)) - Math.max(3, p.h * 0.4);
@@ -493,14 +500,14 @@ function isAllCaps(s: string): boolean {
 function splitNameAndAddress(texts: string[], titleLines: number): { name: string; nameLines: number; address: string[] } {
     const name = texts.slice(0, Math.max(1, titleLines));
     let i = name.length;
-    const next = texts[1];
-    if (i > 1) {
-        // the title said it all
-    } else if (next && /^(?:t\/a|trading\s+as)\b/i.test(next)) {
+    const next = texts[i];
+    if (next && /^(?:t\/a|trading\s+as)\b/i.test(next)) {
         // "Acme Ltd" + "T/A Acme Catering": the company and the name it trades under
         name.push(next);
-        i = 2;
+        i++;
     } else if (
+        // Under a name printed bigger, the small lines are the address
+        !titleLines &&
         next &&
         !/\d/.test(next) &&
         !ADDRESS_HINT.test(next) &&
@@ -534,8 +541,10 @@ export function joinAddress(lines: string[]): string {
     for (const raw of lines) {
         const line = raw.trim().replace(/[,.]+$/, '');
         if (!line) continue;
-        // An Eircode wrapped after its routing key: "CORK CITY CORK T12" + "R2KX"
-        if (parts.length && /\b[AC-FHKNPRTV-Y]\d{2}$/i.test(parts[parts.length - 1]) && /^[AC-FHKNPRTV-Y0-9]{4}$/i.test(line)) {
+        // An Eircode wrapped after its routing key: "CORK CITY CORK T12" + "R2KX";
+        // a name wrapped after "&": "Farranferris Education &" + "Training Campus"
+        const last = parts[parts.length - 1];
+        if (parts.length && ((/\b[AC-FHKNPRTV-Y]\d{2}$/i.test(last) && /^[AC-FHKNPRTV-Y0-9]{4}$/i.test(line)) || /(?:&|\band)$/i.test(last))) {
             parts[parts.length - 1] += ` ${line}`;
         } else {
             parts.push(line);
@@ -665,11 +674,14 @@ function titleAbove(lines: TextLine[], top: Phrase): Phrase[] {
     const titles: Phrase[] = [];
     let below = top;
     for (let i = lines.findIndex(l => l.phrases.includes(top)) - 1; i >= 0 && titles.length < 2; i--) {
-        const title = lines[i].phrases.length === 1 ? lines[i].phrases[0] : undefined;
+        // Over the block, with nothing close beside it on its line (the customer's block can share it)
+        const phrases = lines[i].phrases;
+        const aligned = (t: Phrase) => linesUp(top, t, 'left') || linesUp(top, t, 'right') || linesUp(top, t, 'centre', Math.max(3, t.h * 0.5));
+        const title = phrases.find(t => aligned(t) && phrases.every(o => o === t || o.x > t.x + t.w + 12 || o.x + o.w < t.x - 12));
         if (!title || title.page !== top.page || HEADING.test(title.text) || OUR_ORGANISATION.test(title.text) || /\d|:\s*$/.test(title.text)) break;
         const gap = title.y - below.y;
         const bigger = titles.length ? sameSize(title, titles[0]) : title.h >= top.h * 1.25;
-        if (!bigger || !(linesUp(top, title, 'left') || linesUp(top, title, 'right')) || gap <= 0 || gap > title.h * 1.9) break;
+        if (!bigger || gap <= 0 || gap > title.h * 1.9) break;
         titles.unshift(title);
         below = title;
     }
@@ -821,6 +833,12 @@ function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Ca
                 const below = phraseBelow(lines, li, p);
                 const a = below ? findAmounts(below.text) : [];
                 if (below && a.length) hit = { value: a[0].value, score: 2, rects: [rectOf(p), rectOf(below)], from: `${p.text} ${below.text}` };
+            }
+            // "Net Total" with its amount right of it, set a little lower: the next line, alone there
+            const next = lines[li + 1];
+            if (!hit && next && next.page === line.page && line.y - next.y <= Math.max(p.h, next.h) * 1.2 && next.phrases.every(q => q.x > p.x + p.w && !ANY_TOTAL.test(q.text) && !VAT.test(q.text))) {
+                const a = findAmounts(next.text);
+                if (a.length === 1) hit = { value: a[0].value, score: 2, rects: [rectOf(p), ...next.phrases.map(rectOf)], from: `${p.text} ${next.text}` };
             }
             if (hit) found.push(hit);
         });
