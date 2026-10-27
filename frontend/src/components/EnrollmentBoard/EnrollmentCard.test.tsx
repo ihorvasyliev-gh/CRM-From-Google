@@ -92,6 +92,18 @@ describe('EnrollmentCard Component', () => {
         expect(screen.queryByTestId('card-schedule')).not.toBeInTheDocument();
     });
 
+    it('shows when the student told us they can\'t make it', () => {
+        render(<EnrollmentCard {...defaultProps} status="invited" enrollment={{ ...sampleEnrollment, status: 'invited', decline_reason: 'other_date', declined_at: '2026-10-20T09:00:00Z' }} />);
+        expect(screen.getByTestId('card-declined')).toHaveTextContent("Can't attend · wants another date");
+    });
+
+    it('marks "not interested" differently and shows nothing without an answer', () => {
+        const { rerender } = render(<EnrollmentCard {...defaultProps} enrollment={{ ...sampleEnrollment, decline_reason: 'not_interested', declined_at: '2026-10-20T09:00:00Z' }} />);
+        expect(screen.getByTestId('card-declined')).toHaveTextContent("Can't attend · not interested");
+        rerender(<EnrollmentCard {...defaultProps} />);
+        expect(screen.queryByTestId('card-declined')).not.toBeInTheDocument();
+    });
+
     it('renders phone link directly for calling without duplicate phone button', () => {
         render(<EnrollmentCard {...defaultProps} />);
 

@@ -1,20 +1,17 @@
 /** Suspense fallbacks shown while a route's code chunk is loading. */
 
-// Public confirmation pages are always dark-branded (forced .dark subtree → dark theme tokens)
+// Pages opened from our emails: the same logo and card as the page that is loading
+// (they follow the phone's light/dark setting, which index.html applies before first paint)
 export function PublicPageFallback() {
     return (
-        <div className="dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-start sm:justify-center p-4 pt-10 sm:pt-4">
-            <div className="flex items-center justify-center gap-3 mb-8">
-                <div className="w-10 h-10 bg-linear-to-br from-brand-500 via-brand-600 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-brand-500/25">
-                    C
+        <div className="min-h-screen min-h-dvh bg-background flex flex-col items-center p-4 sm:p-6">
+            <div className="w-full max-w-md my-auto py-2 sm:py-4">
+                <div className="rounded-2xl bg-white px-5 py-3.5 shadow-card ring-1 ring-black/5 mb-4">
+                    <img src="/logos-banner-sm.webp" alt="Cork City Partnership · SICAP" width={800} height={154} className="w-full h-auto" />
                 </div>
-                <div>
-                    <h1 className="text-lg font-bold tracking-tight">Cork City Partnership</h1>
-                    <p className="text-xs text-muted/80 font-medium -mt-0.5 tracking-wide uppercase">Course Portal</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle shadow-card min-h-[360px] flex items-center justify-center p-6">
+                    <div role="status" aria-label="Loading" className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
                 </div>
-            </div>
-            <div className="w-full max-w-md bg-surface rounded-2xl border border-border-subtle shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex items-center justify-center p-6">
-                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
             </div>
         </div>
     );

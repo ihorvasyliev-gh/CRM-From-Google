@@ -13,21 +13,34 @@ import {
     Download,
     ExternalLink,
     ArrowLeft,
-    Sparkles,
-    HelpCircle,
     Copy,
     Check,
-    ShieldCheck,
     Star,
     Clock,
-    MapPin
+    MapPin,
+    Link2Off,
 } from 'lucide-react';
-import { suggestEmailCorrection } from '../lib/emailValidation';
 import { getGoogleCalendarUrl, downloadIcsFile, type CalendarEventParams } from '../lib/calendarUtils';
 import { dayTime, formatTimeRange, hasDayOverrides, isMultiDay, sessionDays, sessionFromRow, sessionHasSchedule, weeklySummary, type CourseSession } from '../lib/courseSessions';
-import { fullName } from '../lib/types';
+import { placeHref } from '../lib/maps';
+import { emailProblem } from '../lib/emailValidation';
+import { fullName, type DeclineReason } from '../lib/types';
+import FieldError from './ui/FieldError';
+import {
+    ContactFooter,
+    ORGANIZER_EMAIL,
+    PublicAlert,
+    PublicCardHeader,
+    PublicEmailField,
+    PublicLayout,
+    PublicMessage,
+    primaryButtonCls,
+    publicLabelCls,
+    secondaryButtonCls,
+} from './PublicPage';
 
-type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline_confirm' | 'full';
+type PageState = 'loading' | 'form' | 'pick' | 'success' | 'invalid' | 'error' | 'decline' | 'declined' | 'full';
+type Field = 'email' | 'reason' | 'person';
 
 interface CapacityInfo {
     max: number;
@@ -44,7 +57,13 @@ interface MatchedStudent {
     last_name: string;
 }
 
-const ORGANIZER_EMAIL = 'ivasyliev@partnershipcork.ie';
+const DECLINE_CHOICES: { value: DeclineReason; label: string; hint: string }[] = [
+    { value: 'other_date', label: 'Keep me for a later date', hint: "We'll invite you again when there's a new date." },
+    { value: 'not_interested', label: "I'm no longer interested", hint: "We'll take you off the list for this course." },
+];
+
+const NETWORK_ERROR = 'Could not connect. Please check your internet connection and try again.';
+const SERVER_ERROR = 'Something went wrong on our side. Please try again in a moment.';
 
 function formatCourseDate(dateStr: string): string {
     try {
@@ -59,16 +78,42 @@ function formatCourseDate(dateStr: string): string {
     }
 }
 
+/** "Olena", "Olena and Taras", "Olena, Taras and Ivan" */
+function joinNames(names: string[]): string {
+    return names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** Moves focus to a field once the error under it is on screen */
+function focusField(selector: string) {
+    setTimeout(() => document.querySelector<HTMLElement>(selector)?.focus(), 0);
+}
+
+/** A choice drawn as a card: dates, people, "what would you like" */
+function optionCardCls(selected: boolean, disabled = false) {
+    return `flex gap-3 p-3.5 rounded-xl border-2 transition-colors touch-manipulation has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-brand-500/40 ${
+        disabled
+            ? 'border-border-subtle bg-surface-elevated/40 opacity-60 cursor-not-allowed'
+            : selected
+                ? 'border-emerald-600 bg-success/10 cursor-pointer'
+                : 'border-border-strong bg-surface hover:border-brand-500/50 cursor-pointer'
+    }`;
+}
+
 export default function ConfirmationPage() {
     const [state, setState] = useState<PageState>('loading');
     const [courseName, setCourseName] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseDate, setCourseDate] = useState('');
     const [email, setEmail] = useState('');
-    const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
     const [resultMessage, setResultMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // Under a field ("Enter your email address")
+    const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+    // About the whole form: the server said no, or the connection dropped (`retryable`)
     const [inlineError, setInlineError] = useState('');
+    const [retryable, setRetryable] = useState(false);
+    // Multi-date: the chosen date filled up, or none chosen yet
+    const [dateError, setDateError] = useState('');
     const [matchedStudents, setMatchedStudents] = useState<MatchedStudent[]>([]);
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [copiedCoordinatorEmail, setCopiedCoordinatorEmail] = useState(false);
@@ -81,6 +126,13 @@ export default function ConfirmationPage() {
     // Time, place and days of each offered date (empty when none are set)
     const [sessions, setSessions] = useState<Record<string, CourseSession>>({});
     const anyMultiDay = Object.values(sessions).some(isMultiDay);
+    // "Can't make it?": the answer, who it is for when several people share the email,
+    // and whether to offer email instead (migration 89 not applied yet)
+    const [declineReason, setDeclineReason] = useState<DeclineReason | ''>('');
+    const [declinePeople, setDeclinePeople] = useState<MatchedStudent[]>([]);
+    const [declineIds, setDeclineIds] = useState<Set<string>>(new Set());
+    const [declineByEmail, setDeclineByEmail] = useState(false);
+    const [declinedName, setDeclinedName] = useState('');
 
     // Guard against double-click race conditions
     const submittingRef = useRef(false);
@@ -242,11 +294,34 @@ export default function ConfirmationPage() {
             if (allDatesFull(courseDates, byDate)) { setState('full'); return; }
             if (courseDate && byDate[courseDate]?.isFull) {
                 setCourseDate('');
-                setInlineError('Sorry, the date you selected has just filled up. Please choose another date.');
+                setDateError('Sorry, the date you selected has just filled up. Please choose another date.');
             }
         }, CAPACITY_REFRESH_MS);
         return () => clearInterval(timer);
     }, [state, courseId, courseDate, courseDates, isMultiDate, hasLimitedDates, fetchDateCapacities]);
+
+    function showError(message: string, canRetry = false) {
+        setInlineError(message);
+        setRetryable(canRetry);
+    }
+
+    function clearError(field: Field) {
+        setInlineError('');
+        setErrors(prev => {
+            if (!prev[field]) return prev;
+            const rest = { ...prev };
+            delete rest[field];
+            return rest;
+        });
+    }
+
+    /** Switches screens, leaving the previous screen's messages behind */
+    function goTo(next: PageState) {
+        setErrors({});
+        showError('');
+        setDateError('');
+        setState(next);
+    }
 
     /** Server rejected a confirmation because the course date filled up. */
     async function handleCourseFull() {
@@ -258,18 +333,16 @@ export default function ConfirmationPage() {
                 setDateCapacity({ ...byDate });
             }
             if (allDatesFull(courseDates, byDate)) {
-                setInlineError('');
-                setState('full');
+                goTo('full');
                 return;
             }
             setCourseDate('');
-            setInlineError('Sorry, the date you selected has just filled up. Please choose another date.');
-            setState('form');
+            goTo('form');
+            setDateError('Sorry, the date you selected has just filled up. Please choose another date.');
             return;
         }
         setCapacity(prev => prev ? { ...prev, confirmed: Math.max(prev.confirmed, prev.max), isFull: true } : prev);
-        setInlineError('');
-        setState('full');
+        goTo('full');
     }
 
     /** Extra RPC argument: the date picked from a multi-date invite. */
@@ -315,39 +388,38 @@ export default function ConfirmationPage() {
         }
     }
 
-    function handleEmailInputChange(val: string) {
-        const lower = val.toLowerCase();
-        setEmail(lower);
-        const suggestion = suggestEmailCorrection(lower);
-        setEmailSuggestion(suggestion && suggestion !== lower ? suggestion : null);
-    }
-
-    function applyEmailSuggestion() {
-        if (emailSuggestion) {
-            setEmail(emailSuggestion);
-            setEmailSuggestion(null);
-            setInlineError('');
+    function handleEmailChange(value: string) {
+        if (value === email) return;
+        setEmail(value);
+        clearError('email');
+        // The people found for the old address don't apply to the new one
+        if (declinePeople.length) {
+            setDeclinePeople([]);
+            setDeclineIds(new Set());
+            clearError('person');
         }
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
+    async function handleSubmit(e?: React.FormEvent) {
+        e?.preventDefault();
+        if (submittingRef.current) return;
+
+        const badEmail = emailProblem(email);
+        if (badEmail) {
+            setErrors({ email: badEmail });
+            focusField('#student-email');
+            return;
+        }
+        if (isMultiDate && !courseDate) {
+            setDateError('Choose the date you would like to attend.');
+            focusField('input[name="course-date"]:not(:disabled)');
+            return;
+        }
 
         const trimmedEmail = email.trim().toLowerCase();
-        if (!trimmedEmail || !trimmedEmail.includes('@')) {
-            setInlineError('Please enter a valid email address.');
-            return;
-        }
-
-        if (isMultiDate && !courseDate) {
-            setInlineError('Please choose the date you would like to attend.');
-            return;
-        }
-
-        if (submittingRef.current) return;
         submittingRef.current = true;
         setIsSubmitting(true);
-        setInlineError('');
+        showError('');
         try {
             let students: MatchedStudent[] | null = null;
             try {
@@ -371,28 +443,29 @@ export default function ConfirmationPage() {
                     ...chosenDateArg(),
                 });
                 if (error) {
-                    setInlineError(error.message || 'Something went wrong. Please try again.');
+                    console.error('public_confirm_enrollment error:', error);
+                    showError(SERVER_ERROR);
                     return;
                 }
                 if (data && data.success) {
                     setResultMessage(data.message || 'Your attendance has been confirmed! We look forward to seeing you.');
                     await loadConfirmedSession(trimmedEmail, students?.[0]?.student_id ?? null);
-                    setState('success');
+                    goTo('success');
                 } else if (data?.code === 'course_full') {
                     await handleCourseFull();
                 } else {
-                    setInlineError(data?.message || 'Confirmation failed.');
+                    showError(data?.message || 'We could not confirm your place. Please try again.');
                 }
                 return;
             }
 
-            // Multiple matches -> show picker
+            // Several people share this email: ask who is coming
             setMatchedStudents(students);
             setSelectedStudentIds(new Set());
-            setState('pick');
+            goTo('pick');
         } catch (err) {
             console.error('Submit error:', err);
-            setInlineError('Network error. Please check your connection and try again.');
+            showError(NETWORK_ERROR, true);
         } finally {
             setIsSubmitting(false);
             submittingRef.current = false;
@@ -400,19 +473,21 @@ export default function ConfirmationPage() {
     }
 
     /** Fully booked view: someone who already has a place (e.g. added by the organizer) checks it by email. */
-    async function handleCheckPlace(e: React.FormEvent) {
-        e.preventDefault();
+    async function handleCheckPlace(e?: React.FormEvent) {
+        e?.preventDefault();
+        if (submittingRef.current) return;
 
-        const trimmedEmail = email.trim().toLowerCase();
-        if (!trimmedEmail || !trimmedEmail.includes('@')) {
-            setInlineError('Please enter a valid email address.');
+        const badEmail = emailProblem(email);
+        if (badEmail) {
+            setErrors({ email: badEmail });
+            focusField('#check-email');
             return;
         }
 
-        if (submittingRef.current) return;
+        const trimmedEmail = email.trim().toLowerCase();
         submittingRef.current = true;
         setIsSubmitting(true);
-        setInlineError('');
+        showError('');
         try {
             // Returns only pending invitations, i.e. people who have no place yet
             const { data: pending, error: findError } = await supabase.rpc('find_students_by_email', {
@@ -420,7 +495,7 @@ export default function ConfirmationPage() {
                 p_course_id: courseId,
             });
             if (findError) {
-                setInlineError('Something went wrong. Please try again.');
+                showError(SERVER_ERROR);
                 return;
             }
             if (pending && pending.length > 0) {
@@ -429,9 +504,9 @@ export default function ConfirmationPage() {
                     ? allDatesFull(courseDates, await fetchDateCapacities(courseId, courseDates))
                     : await fetchCapacity(courseId, courseDate);
                 if (stillFull) {
-                    setInlineError("This email doesn't have a place in this group yet, and all places are taken.");
+                    showError("This email doesn't have a place in this group yet, and all places are taken.");
                 } else {
-                    setState('form');
+                    goTo('form');
                 }
                 return;
             }
@@ -444,19 +519,20 @@ export default function ConfirmationPage() {
                 p_student_id: null,
             });
             if (error) {
-                setInlineError(error.message || 'Something went wrong. Please try again.');
+                console.error('public_confirm_enrollment error:', error);
+                showError(SERVER_ERROR);
                 return;
             }
             if (data?.success) {
                 setResultMessage(data.message || 'You have a place on this course. We look forward to seeing you!');
                 await loadConfirmedSession(trimmedEmail, null);
-                setState('success');
+                goTo('success');
             } else {
-                setInlineError(data?.message || 'No place found for this email.');
+                showError(data?.message || 'No place found for this email.');
             }
         } catch (err) {
             console.error('Check place error:', err);
-            setInlineError('Network error. Please check your connection and try again.');
+            showError(NETWORK_ERROR, true);
         } finally {
             setIsSubmitting(false);
             submittingRef.current = false;
@@ -470,6 +546,7 @@ export default function ConfirmationPage() {
             else next.add(studentId);
             return next;
         });
+        setInlineError('');
     }
 
     async function handleConfirmSelected() {
@@ -477,7 +554,7 @@ export default function ConfirmationPage() {
         if (submittingRef.current) return;
         submittingRef.current = true;
         setIsSubmitting(true);
-        setInlineError('');
+        showError('');
 
         try {
             const trimmedEmail = email.trim().toLowerCase();
@@ -494,7 +571,7 @@ export default function ConfirmationPage() {
                 results.push({
                     id: studentId,
                     success: !error && (data?.success ?? false),
-                    message: error?.message || data?.message || '',
+                    message: error ? SERVER_ERROR : data?.message || '',
                     code: data?.code
                 });
             }
@@ -511,15 +588,97 @@ export default function ConfirmationPage() {
                         : '';
                 setResultMessage(`Attendance confirmed for: ${confirmedNames}.${note}`);
                 await loadConfirmedSession(trimmedEmail, results.find(r => r.success)?.id ?? null);
-                setState('success');
+                goTo('success');
             } else if (results.some(r => r.code === 'course_full')) {
                 await handleCourseFull();
             } else {
-                setInlineError(results[0]?.message || 'Operation failed.');
+                showError(results[0]?.message || 'We could not confirm your place. Please try again.');
             }
         } catch (err) {
             console.error('Confirm selected error:', err);
-            setInlineError('Network error. Please check your connection and try again.');
+            showError(NETWORK_ERROR, true);
+        } finally {
+            setIsSubmitting(false);
+            submittingRef.current = false;
+        }
+    }
+
+    function openDecline() {
+        setDeclinePeople([]);
+        setDeclineIds(new Set());
+        goTo('decline');
+    }
+
+    function toggleDeclinePerson(studentId: string) {
+        setDeclineIds(prev => {
+            const next = new Set(prev);
+            if (next.has(studentId)) next.delete(studentId);
+            else next.add(studentId);
+            return next;
+        });
+        clearError('person');
+    }
+
+    /** "Can't make it?": records the answer on the invitation for the organizer (migration 89). */
+    async function handleReportCantAttend(e?: React.FormEvent) {
+        e?.preventDefault();
+        if (submittingRef.current) return;
+
+        const found: Partial<Record<Field, string>> = {};
+        if (!declineReason) found.reason = 'Choose one of the options';
+        const badEmail = emailProblem(email);
+        if (badEmail) found.email = badEmail;
+        if (declinePeople.length > 1 && declineIds.size === 0) found.person = "Tick who can't come";
+        setErrors(found);
+        if (found.reason) { focusField('input[name="decline-reason"]'); return; }
+        if (found.email) { focusField('#decline-email'); return; }
+        if (found.person) { focusField('input[name="decline-person"]'); return; }
+
+        const trimmedEmail = email.trim().toLowerCase();
+        // Several people share the email: one answer for each person ticked
+        const targets: (string | null)[] = declinePeople.length > 1 ? [...declineIds] : [null];
+        submittingRef.current = true;
+        setIsSubmitting(true);
+        showError('');
+        try {
+            const names: string[] = [];
+            for (const studentId of targets) {
+                const { data, error } = await supabase.rpc('public_report_cant_attend', {
+                    p_email: trimmedEmail,
+                    p_course_id: courseId,
+                    p_reason: declineReason,
+                    p_student_id: studentId,
+                });
+                if (error) {
+                    // Most likely the database doesn't have this yet: offer email instead
+                    console.error('public_report_cant_attend error:', error);
+                    setDeclineByEmail(true);
+                    return;
+                }
+                if (data?.code === 'choose_person' && Array.isArray(data.people)) {
+                    setDeclinePeople(data.people);
+                    setDeclineIds(new Set());
+                    focusField('input[name="decline-person"]');
+                    return;
+                }
+                if (data?.code === 'not_found') {
+                    setErrors({ email: data.message || 'We could not find an invitation for this course with this email.' });
+                    focusField('#decline-email');
+                    return;
+                }
+                if (!data?.success) {
+                    showError(data?.message || 'We could not save your answer. Please try again.');
+                    return;
+                }
+                const person = declinePeople.find(p => p.student_id === studentId);
+                const name = person?.first_name || data.first_name;
+                if (name) names.push(name);
+            }
+            setDeclinedName(joinNames(names));
+            goTo('declined');
+        } catch (err) {
+            console.error('public_report_cant_attend exception:', err);
+            showError(NETWORK_ERROR, true);
         } finally {
             setIsSubmitting(false);
             submittingRef.current = false;
@@ -527,7 +686,7 @@ export default function ConfirmationPage() {
     }
 
     function handleCopyCoordinatorEmail() {
-        navigator.clipboard.writeText(ORGANIZER_EMAIL);
+        Promise.resolve(navigator.clipboard?.writeText(ORGANIZER_EMAIL)).catch(() => {});
         setCopiedCoordinatorEmail(true);
         setTimeout(() => setCopiedCoordinatorEmail(false), 2000);
     }
@@ -546,785 +705,642 @@ export default function ConfirmationPage() {
         `I received an invitation for "${courseName}" on ${invitationDatesLabel()}, but all places were already taken when I tried to confirm.\n\nI am still interested — please give me priority for the next available course date.`);
     const getWithdrawMailtoUrl = () => coordinatorMailto('Cancel registration',
         `I am no longer interested in attending "${courseName}" on ${invitationDatesLabel()}.\n\nPlease cancel my registration and remove me from the waiting list.`);
+    const getCantAttendMailtoUrl = () => declineReason === 'other_date'
+        ? getRescheduleMailtoUrl()
+        : declineReason === 'not_interested'
+            ? getWithdrawMailtoUrl()
+            : coordinatorMailto("Can't attend", `I can't attend "${courseName}" on ${invitationDatesLabel()}.`);
+
+    const needsDate = isMultiDate && !courseDate;
 
     // ─── Render ─────────────────────────────────────────────
 
     return (
-        <div className="dark scheme-dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
-            {/* Ambient background glow optimized for mobile GPU */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/9" />
-                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/6.5" />
-            </div>
-
-            {/* Main Card */}
-            <div className="w-full max-w-md relative z-10 my-auto py-4">
-                <div className="bg-surface/95 rounded-2xl border border-border-subtle/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
-
-                    {/* ─── Loading Skeleton ─── */}
-                    {state === 'loading' && (
-                        <div className="p-6 sm:p-8 space-y-6 animate-pulse">
-                            <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 bg-surface-elevated/80 rounded-xl" />
-                                <div className="space-y-2 flex-1">
-                                    <div className="h-3 w-28 bg-surface-elevated/80 rounded-sm" />
-                                    <div className="h-5 w-48 bg-border-strong/60 rounded-sm" />
-                                </div>
-                            </div>
-                            <div className="space-y-3 pt-2">
-                                <div className="h-3 w-32 bg-surface-elevated/70 rounded-sm" />
-                                <div className="h-12 w-full bg-surface-elevated/50 rounded-xl border border-border-subtle" />
-                            </div>
-                            <div className="h-13 w-full bg-emerald-600/20 rounded-xl flex items-center justify-center gap-2">
-                                <Loader2 size={20} className="animate-spin text-emerald-400/70" />
-                                <span className="text-sm font-medium text-emerald-400/70">Loading course invitation...</span>
-                            </div>
+        <PublicLayout title="Confirm your place" footer="Cork City Partnership · Course confirmation">
+            {/* ─── Loading ─── */}
+            {state === 'loading' && (
+                <div className="p-6 sm:p-8 space-y-6" aria-busy="true">
+                    <div className="flex items-center gap-3 animate-pulse" aria-hidden="true">
+                        <div className="w-11 h-11 bg-surface-elevated rounded-xl" />
+                        <div className="space-y-2 flex-1">
+                            <div className="h-3 w-28 bg-surface-elevated rounded-sm" />
+                            <div className="h-5 w-48 bg-border-strong/60 rounded-sm" />
                         </div>
-                    )}
+                    </div>
+                    <div className="space-y-3 pt-2 animate-pulse" aria-hidden="true">
+                        <div className="h-3 w-32 bg-surface-elevated rounded-sm" />
+                        <div className="h-12 w-full bg-surface-elevated/70 rounded-xl border border-border-subtle" />
+                    </div>
+                    <div role="status" className="h-13 w-full bg-success/10 rounded-xl flex items-center justify-center gap-2 text-status-confirmed">
+                        <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                        <span className="text-sm font-medium">Loading course invitation...</span>
+                    </div>
+                </div>
+            )}
 
-                    {/* ─── Network Error ─── */}
-                    {state === 'error' && (
-                        <div className="p-8 sm:p-10 flex flex-col items-center gap-4 text-center">
-                            <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
-                                <AlertCircle size={30} className="text-amber-400" />
-                            </div>
-                            <h2 className="text-xl font-bold text-white">Connection Error</h2>
-                            <p className="text-muted text-sm leading-relaxed max-w-xs">
-                                Could not load course details. Please check your internet connection.
+            {/* ─── Could not load ─── */}
+            {state === 'error' && (
+                <PublicMessage icon={AlertCircle} tone="warning" title="Connection problem">
+                    <p className="text-muted text-sm leading-relaxed max-w-xs -mt-1">
+                        We couldn't load the course details. Please check your internet connection and try again.
+                    </p>
+                    <div className="w-full flex flex-col gap-2.5 mt-1">
+                        <button type="button" onClick={handleRetry} className={primaryButtonCls}>
+                            <RefreshCw size={18} aria-hidden="true" /> Try again
+                        </button>
+                        <button type="button" onClick={() => window.location.reload()} className={secondaryButtonCls}>
+                            Reload page
+                        </button>
+                    </div>
+                    <ContactFooter prompt="Still not working?" subject="Course confirmation page not loading" />
+                </PublicMessage>
+            )}
+
+            {/* ─── Invalid Link ─── */}
+            {state === 'invalid' && (
+                <PublicMessage icon={Link2Off} tone="danger" title="This link has expired">
+                    <p className="text-muted text-sm leading-relaxed max-w-xs -mt-1">
+                        This confirmation link is no longer valid. Ask the organizer and they'll send you a new invitation.
+                    </p>
+                    <a
+                        href={`mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent('Expired confirmation link')}`}
+                        className={`${secondaryButtonCls} mt-1`}
+                    >
+                        <Mail size={16} aria-hidden="true" /> Ask for a new invitation
+                    </a>
+                    <p className="text-xs text-muted">{ORGANIZER_EMAIL}</p>
+                </PublicMessage>
+            )}
+
+            {/* ─── Form State (Main Confirmation) ─── */}
+            {state === 'form' && (
+                <form onSubmit={handleSubmit} noValidate className="flex flex-col">
+                    <PublicCardHeader
+                        icon={GraduationCap}
+                        eyebrow="Course invitation"
+                        title={courseName}
+                        below={!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
+                    >
+                        {isMultiDate ? (
+                            <p className="flex items-center gap-1.5 text-sm text-primary font-medium mt-1.5">
+                                <Calendar size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                <span>{courseDates.length} {anyMultiDay ? 'options' : 'dates'} available — choose one below</span>
                             </p>
-                            <div className="mt-2 flex flex-col sm:flex-row items-center gap-3 w-full">
-                                <button
-                                    onClick={handleRetry}
-                                    className="w-full flex items-center justify-center gap-2 py-3 px-5 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-semibold rounded-xl transition-all shadow-md shadow-brand-600/25 touch-manipulation"
-                                >
-                                    <RefreshCw size={18} />
-                                    Try Again
-                                </button>
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-surface-elevated hover:bg-border-strong active:scale-[0.98] text-primary/85 hover:text-white font-medium rounded-xl transition-all touch-manipulation"
-                                >
-                                    Reload Page
-                                </button>
-                            </div>
-                            {/* Organizer contact */}
-                            <div className="pt-4 border-t border-border-subtle/80 w-full text-center">
-                                <p className="text-xs text-muted/80">Need immediate assistance?</p>
-                                <a
-                                    href={`mailto:${ORGANIZER_EMAIL}?subject=Course%20Portal%20Connection%20Issue`}
-                                    className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline"
-                                >
-                                    <Mail size={12} /> {ORGANIZER_EMAIL}
-                                </a>
-                            </div>
-                        </div>
-                    )}
+                        ) : courseDate && (
+                            <>
+                                <p className="flex items-center gap-1.5 text-sm text-primary font-medium mt-1.5">
+                                    <Calendar size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                    <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
+                                </p>
+                                {sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
+                            </>
+                        )}
+                    </PublicCardHeader>
 
-                    {/* ─── Invalid Link ─── */}
-                    {state === 'invalid' && (
-                        <div className="p-8 sm:p-10 flex flex-col items-center gap-4 text-center">
-                            <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center border border-red-500/20">
-                                <AlertCircle size={30} className="text-red-400" />
-                            </div>
-                            <h2 className="text-xl font-bold text-white">Invalid or Expired Link</h2>
-                            <p className="text-muted text-sm leading-relaxed max-w-xs">
-                                This confirmation link is no longer valid or has already expired.
-                            </p>
-                            <div className="p-4 bg-surface/90 rounded-xl border border-border-subtle w-full text-center mt-2">
-                                <p className="text-xs text-muted mb-2">Please contact the organizer to receive an updated invitation:</p>
-                                <a
-                                    href={`mailto:${ORGANIZER_EMAIL}?subject=Expired%20Confirmation%20Link`}
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-elevated hover:bg-border-strong text-brand-300 hover:text-white rounded-lg text-xs font-semibold transition-colors w-full"
-                                >
-                                    <Mail size={14} /> Contact {ORGANIZER_EMAIL}
-                                </a>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Form State (Main Confirmation) ─── */}
-                    {state === 'form' && (
-                        <form onSubmit={handleSubmit} className="flex flex-col">
-                            {/* Course Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
-                                <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
-                                        <GraduationCap size={22} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-xs font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
-                                            Course Invitation
-                                        </span>
-                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
-                                            {courseName}
-                                        </h2>
-                                        {isMultiDate ? (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                <span>{courseDates.length} {anyMultiDay ? 'options' : 'dates'} available — choose one below</span>
-                                            </div>
-                                        ) : courseDate && (
-                                            <>
-                                                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
-                                                    <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                    <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
-                                                </div>
-                                                {sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                {!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
-                            </div>
-
-                            {/* Form Body */}
-                            <div className="p-5 sm:p-6 space-y-4">
-                                {isMultiDate && (
-                                    <fieldset>
-                                        <legend className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                            {anyMultiDay ? 'Choose Your Option' : 'Choose Your Date'}
-                                        </legend>
-                                        <div className="space-y-2" role="radiogroup" aria-label="Course date">
-                                            {courseDates.map((d, i) => {
-                                                const info = dateCapacity[d];
-                                                const isFull = Boolean(info?.isFull);
-                                                const isSelected = courseDate === d;
-                                                const placesText = placesLeftText(info);
-                                                const left = info ? Math.max(info.max - info.confirmed, 0) : null;
-                                                const almostFull = !isFull && left !== null && info && (left <= 3 || left / info.max <= 0.25);
-                                                return (
-                                                    <label
-                                                        key={d}
-                                                        data-testid="date-option"
-                                                        className={`flex ${sessions[d] ? 'items-start' : 'items-center'} gap-3 p-3.5 rounded-xl border transition-all touch-manipulation ${
-                                                            isFull
-                                                                ? 'border-border-subtle bg-surface/40 opacity-60 cursor-not-allowed'
-                                                                : isSelected
-                                                                    ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20 cursor-pointer'
-                                                                    : 'border-border-subtle bg-background hover:border-border-strong cursor-pointer'
-                                                        }`}
-                                                    >
-                                                        <input
-                                                            type="radio"
-                                                            name="course-date"
-                                                            value={d}
-                                                            checked={isSelected}
-                                                            disabled={isFull || isSubmitting}
-                                                            onChange={() => { setCourseDate(d); setInlineError(''); }}
-                                                            className="w-4 h-4 border-border-strong bg-surface text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0"
-                                                        />
-                                                        <span className="flex-1 min-w-0">
-                                                            <span className={`block text-sm font-semibold ${isFull ? 'text-muted/80 line-through' : 'text-white'}`}>
-                                                                {sessions[d] && isMultiDay(sessions[d]) ? `Option ${i + 1}` : (
-                                                                    <>{anyMultiDay && <span className="text-muted font-medium">Option {i + 1} · </span>}{formatCourseDate(d)}</>
-                                                                )}
-                                                            </span>
-                                                            {sessions[d] && <SessionDetails session={sessions[d]} showPlace={!sharedPlace} />}
-                                                        </span>
-                                                        {placesText && (
-                                                            <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md border ${
-                                                                isFull
-                                                                    ? 'text-red-400 bg-red-500/10 border-red-500/25'
-                                                                    : almostFull
-                                                                        ? 'text-amber-300 bg-amber-500/10 border-amber-500/25'
-                                                                        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
-                                                            }`}>
-                                                                {placesText}
-                                                            </span>
-                                                        )}
-                                                    </label>
-                                                );
-                                            })}
-                                        </div>
-                                        {sharedPlace && (
-                                            <p className="flex items-start gap-1.5 mt-2.5 text-xs sm:text-sm text-primary/85">
-                                                <MapPin size={14} className="text-brand-400 shrink-0 mt-0.5" />
-                                                <span className="wrap-break-word">{sharedPlace}</span>
-                                            </p>
-                                        )}
-                                    </fieldset>
-                                )}
-
-                                <div>
-                                    <label htmlFor="student-email" className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                        Confirm Your Email
-                                    </label>
-                                    <div className="relative">
-                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
-                                        <input
-                                            id="student-email"
-                                            type="email"
-                                            inputMode="email"
-                                            autoComplete="email"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            required
-                                            value={email}
-                                            disabled={isSubmitting}
-                                            onChange={(e) => handleEmailInputChange(e.target.value)}
-                                            onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
-                                            placeholder="Enter registered email address"
-                                            className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
-                                        />
-                                    </div>
-
-                                    {/* Email Typo Helper Suggestion */}
-                                    {emailSuggestion && (
-                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200 animate-fadeIn">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <Sparkles size={15} className="text-brand-400 shrink-0" />
-                                                <p className="truncate">
-                                                    Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-xs shadow-brand-600/40"
+                    <div className="p-5 sm:p-6 space-y-5">
+                        {isMultiDate && (
+                            <fieldset>
+                                <legend className={publicLabelCls}>
+                                    {anyMultiDay ? 'Choose your option' : 'Choose your date'}
+                                </legend>
+                                <div className="space-y-2">
+                                    {courseDates.map((d, i) => {
+                                        const info = dateCapacity[d];
+                                        const isFull = Boolean(info?.isFull);
+                                        const isSelected = courseDate === d;
+                                        const placesText = placesLeftText(info);
+                                        const left = info ? Math.max(info.max - info.confirmed, 0) : null;
+                                        const almostFull = !isFull && left !== null && info && (left <= 3 || left / info.max <= 0.25);
+                                        return (
+                                            <label
+                                                key={d}
+                                                data-testid="date-option"
+                                                className={`${optionCardCls(isSelected, isFull)} ${sessions[d] ? 'items-start' : 'items-center'}`}
                                             >
-                                                Fix
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <p className="text-xs text-muted/80 mt-2 leading-normal">
-                                        Please use the same email address that received the invitation.
-                                    </p>
+                                                <input
+                                                    type="radio"
+                                                    name="course-date"
+                                                    value={d}
+                                                    checked={isSelected}
+                                                    disabled={isFull || isSubmitting}
+                                                    onChange={() => { setCourseDate(d); setDateError(''); setInlineError(''); }}
+                                                    aria-describedby={dateError ? 'course-date-error' : undefined}
+                                                    className={`w-4 h-4 accent-emerald-700 shrink-0 ${sessions[d] ? 'mt-0.5' : ''}`}
+                                                />
+                                                <span className="flex-1 min-w-0">
+                                                    <span className={`block text-sm font-semibold ${isFull ? 'text-muted line-through' : 'text-primary'}`}>
+                                                        {sessions[d] && isMultiDay(sessions[d]) ? `Option ${i + 1}` : (
+                                                            <>{anyMultiDay && <span className="text-muted font-medium">Option {i + 1} · </span>}{formatCourseDate(d)}</>
+                                                        )}
+                                                    </span>
+                                                    {sessions[d] && <SessionDetails session={sessions[d]} showPlace={!sharedPlace} />}
+                                                </span>
+                                                {placesText && (
+                                                    <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-md border ${
+                                                        isFull
+                                                            ? 'text-status-rejected bg-danger/10 border-danger/25'
+                                                            : almostFull
+                                                                ? 'text-status-requested bg-warning/15 border-warning/30'
+                                                                : 'text-status-confirmed bg-success/10 border-success/25'
+                                                    }`}>
+                                                        {placesText}
+                                                    </span>
+                                                )}
+                                            </label>
+                                        );
+                                    })}
                                 </div>
-
-                                {inlineError && (
-                                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start justify-between gap-2 animate-fadeIn">
-                                        <div className="flex items-start gap-2.5 min-w-0">
-                                            <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-400" />
-                                            <p className="wrap-break-word leading-relaxed">{inlineError}</p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleSubmit}
-                                            className="text-xs font-semibold underline text-red-300 hover:text-white shrink-0 ml-1 touch-manipulation"
-                                        >
-                                            Retry
-                                        </button>
+                                {sharedPlace && (
+                                    <div className="mt-2.5 text-sm">
+                                        <PlaceLine place={sharedPlace} />
                                     </div>
                                 )}
+                                {dateError && (
+                                    <div id="course-date-error" className="mt-2.5">
+                                        <PublicAlert>{dateError}</PublicAlert>
+                                    </div>
+                                )}
+                            </fieldset>
+                        )}
 
-                                {/* Main Confirm CTA */}
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting || (isMultiDate && !courseDate)}
-                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer mt-2"
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 size={20} className="animate-spin text-white/80" />
-                                            <span>Confirming Attendance...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle size={19} className="text-white" />
+                        <PublicEmailField
+                            id="student-email"
+                            label="Your email"
+                            value={email}
+                            disabled={isSubmitting}
+                            onChange={handleEmailChange}
+                            error={errors.email}
+                            hint="Please use the same email address that received the invitation."
+                        />
+
+                        <div className="space-y-2.5">
+                            {inlineError && <PublicAlert action={retryable && <RetryButton onClick={() => handleSubmit()} />}>{inlineError}</PublicAlert>}
+
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || needsDate}
+                                aria-describedby={needsDate ? 'confirm-needs-date' : undefined}
+                                className={primaryButtonCls}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                                        <span>Confirming...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle size={19} className="shrink-0" aria-hidden="true" />
+                                        <span className="flex flex-col items-center leading-tight">
                                             <span>Confirm My Participation</span>
-                                        </>
-                                    )}
-                                </button>
-                                {isMultiDate && !courseDate && (
-                                    <p className="text-xs text-muted/80 text-center -mt-1">Choose a date above to continue.</p>
-                                )}
-
-                                {/* Decline / Reschedule Option */}
-                                <div className="pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setInlineError('');
-                                            setState('decline_confirm');
-                                        }}
-                                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border border-border-strong/80 bg-surface/60 hover:bg-surface-elevated/80 hover:border-border-strong text-primary/85 hover:text-white text-xs sm:text-sm font-semibold transition-all shadow-xs active:scale-[0.99] touch-manipulation cursor-pointer"
-                                    >
-                                        <CalendarX size={16} className="text-amber-400 shrink-0" />
-                                        <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
-                                    </button>
-                                </div>
-
-                                {/* Organizer Contact footer */}
-                                <div className="pt-4 border-t border-border-subtle/70 text-center">
-                                    <p className="text-xs text-muted/80">
-                                        Questions or difficulties?
-                                    </p>
-                                    <a
-                                        href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
-                                        className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
-                                    >
-                                        <Mail size={12} /> {ORGANIZER_EMAIL}
-                                    </a>
-                                </div>
-                            </div>
-                        </form>
-                    )}
-
-                    {/* ─── Course Fully Booked ─── */}
-                    {state === 'full' && (
-                        <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-red-950/20 to-transparent">
-                                <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-red-500/15 rounded-xl border border-red-500/25 text-red-400 shrink-0 mt-0.5">
-                                        <Users size={22} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-xs font-semibold text-red-400 uppercase tracking-wider bg-red-500/10 px-2 py-0.5 rounded-md mb-1 border border-red-500/25">
-                                            Fully Booked
+                                            {isMultiDate && courseDate && (
+                                                <span className="text-sm font-medium text-white/90 mt-0.5">{courseDateLine(courseDate, sessions[courseDate])}</span>
+                                            )}
                                         </span>
-                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug wrap-break-word">
-                                            {courseName}
-                                        </h2>
-                                        {isMultiDate ? (
-                                            <div className="space-y-1 mt-1.5">
-                                                {courseDates.map(d => (
-                                                    <div key={d} className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium">
-                                                        <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                        <span>{formatCourseDate(d)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : courseDate && (
-                                            <div className="flex items-center gap-1.5 text-xs sm:text-sm text-primary/85 font-medium mt-1.5">
-                                                <Calendar size={14} className="text-brand-400 shrink-0" />
-                                                <span>{formatCourseDate(courseDate)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                {!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
-                            </div>
-
-                            <div className="p-5 sm:p-6 space-y-4">
-                                <div>
-                                    <h3 className="text-base font-bold text-white">
-                                        {isMultiDate ? 'All places for these dates have been taken' : 'All places for this date have been taken'}
-                                    </h3>
-                                    <p className="text-sm text-muted mt-1.5 leading-relaxed">
-                                        {isMultiDate ? 'Sorry — all offered dates are now full' : 'Sorry — this course date is now full'}, so confirmations are closed.
-                                    </p>
-                                </div>
-
-                                {/* People already in the group (confirmed earlier or added by the organizer) see their place here */}
-                                <form onSubmit={handleCheckPlace} className="p-4 rounded-xl bg-surface/80 border border-border-subtle space-y-3">
-                                    <div className="flex items-start gap-2.5">
-                                        <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-white">Already have a place?</p>
-                                            <p className="text-xs text-muted mt-0.5 leading-relaxed">
-                                                If you confirmed earlier or the organizer added you to the group, enter your email to see your place.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <label htmlFor="check-email" className="sr-only">Your email</label>
-                                        <div className="relative flex-1 min-w-0">
-                                            <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
-                                            <input
-                                                id="check-email"
-                                                type="email"
-                                                inputMode="email"
-                                                autoComplete="email"
-                                                autoCapitalize="none"
-                                                spellCheck={false}
-                                                required
-                                                value={email}
-                                                disabled={isSubmitting}
-                                                onChange={(e) => handleEmailInputChange(e.target.value)}
-                                                onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
-                                                placeholder="Your email address"
-                                                className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner"
-                                            />
-                                        </div>
-                                        <button
-                                            type="submit"
-                                            disabled={isSubmitting}
-                                            className="shrink-0 flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation cursor-pointer"
-                                        >
-                                            {isSubmitting && <Loader2 size={16} className="animate-spin shrink-0" />}
-                                            <span>Check my place</span>
-                                        </button>
-                                    </div>
-                                    {inlineError && (
-                                        <p role="alert" className="flex items-start gap-2 text-xs text-amber-300 leading-relaxed animate-fadeIn">
-                                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                                            <span className="wrap-break-word">{inlineError}</span>
-                                        </p>
-                                    )}
-                                </form>
-
-                                <p className="text-sm text-muted leading-relaxed">
-                                    No place yet? If you're still interested, email {ORGANIZER_EMAIL} and you'll be given <strong className="text-primary">priority for the next course</strong>.
-                                </p>
-                                <a
-                                    href={getPriorityMailtoUrl()}
-                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 active:scale-[0.98] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-brand-600/30 transition-all touch-manipulation"
-                                >
-                                    <Star size={18} className="text-white shrink-0" />
-                                    <span>Get priority for the next course</span>
-                                </a>
-                                <p className="text-xs text-muted/80 leading-normal text-center -mt-1">
-                                    Opens a pre-filled email to {ORGANIZER_EMAIL}.
-                                </p>
-
-                                <div className="pt-4 border-t border-border-subtle/70 text-center">
-                                    <p className="text-xs text-muted/80">
-                                        Questions or difficulties?
-                                    </p>
-                                    <a
-                                        href={`mailto:${ORGANIZER_EMAIL}?subject=Question%20about%20${encodeURIComponent(courseName)}`}
-                                        className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
-                                    >
-                                        <Mail size={12} /> {ORGANIZER_EMAIL}
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Decline / Reschedule Screen ─── */}
-                    {state === 'decline_confirm' && (
-                        <div className="p-5 sm:p-6 flex flex-col animate-fadeIn">
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border-subtle">
-                                <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 shrink-0">
-                                    <CalendarX size={22} />
-                                </div>
-                                <div>
-                                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Can't attend this session?</h2>
-                                    <p className="text-xs text-muted mt-0.5">
-                                        Let us know by email so we can update your enrollment and free up this seat.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Security Notice */}
-                            <div className="mb-4 p-3 rounded-xl bg-brand-950/30 border border-brand-500/25 flex items-start gap-2.5 text-xs text-brand-200 leading-relaxed">
-                                <ShieldCheck size={16} className="text-brand-400 shrink-0 mt-0.5" />
-                                <div>
-                                    <span className="font-semibold text-white">Security notice: </span>
-                                    To protect registrations from unauthorized cancellation, requests to reschedule or cancel must be sent from your email address. Clicking an option below will open your email client with a pre-filled message.
-                                </div>
-                            </div>
-
-                            {/* Registered Email helper */}
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wider">
-                                    Your Registered Email (included in draft)
-                                </label>
-                                <div className="relative">
-                                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/80" />
-                                    <input
-                                        type="email"
-                                        inputMode="email"
-                                        value={email}
-                                        onChange={(e) => handleEmailInputChange(e.target.value)}
-                                        onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
-                                        placeholder="Enter registered email"
-                                        className="w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle pl-10 pr-4 py-2.5 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
-                                    />
-                                </div>
-                                {emailSuggestion && (
-                                    <div className="mt-2 flex items-center justify-between gap-2 p-2 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200">
-                                        <span className="truncate">Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?</span>
-                                        <button
-                                            type="button"
-                                            onClick={applyEmailSuggestion}
-                                            className="px-2 py-0.5 bg-brand-600 text-white rounded-sm text-xs font-semibold"
-                                        >
-                                            Fix
-                                        </button>
-                                    </div>
+                                    </>
                                 )}
-                            </div>
+                            </button>
+                            {needsDate && (
+                                <p id="confirm-needs-date" className="text-xs text-muted text-center">Choose a date above to continue.</p>
+                            )}
+                        </div>
 
-                            {/* Choice Actions */}
-                            <div className="space-y-3">
-                                <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
-                                    Choose an option:
+                        <button type="button" onClick={openDecline} className={secondaryButtonCls}>
+                            <CalendarX size={16} className="text-status-requested shrink-0" aria-hidden="true" />
+                            <span>{isMultiDate ? 'None of these dates work for me? Let us know' : "Can't make it to this date? Let us know"}</span>
+                        </button>
+
+                        <ContactFooter prompt="Questions or difficulties?" subject={`Question about ${courseName}`} />
+                    </div>
+                </form>
+            )}
+
+            {/* ─── Course Fully Booked ─── */}
+            {state === 'full' && (
+                <div className="flex flex-col animate-fadeIn">
+                    <PublicCardHeader
+                        icon={Users}
+                        eyebrow="Fully booked"
+                        tone="danger"
+                        title={courseName}
+                        below={!isMultiDate && capacity && <CapacityMeter capacity={capacity} />}
+                    >
+                        <div className="space-y-1 mt-1.5">
+                            {(isMultiDate ? courseDates : courseDate ? [courseDate] : []).map(d => (
+                                <p key={d} className="flex items-center gap-1.5 text-sm text-primary font-medium">
+                                    <Calendar size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                    <span>{formatCourseDate(d)}</span>
                                 </p>
+                            ))}
+                        </div>
+                    </PublicCardHeader>
 
-                                {/* Option 1: Keep on Waiting List (Reschedule) */}
-                                <a
+                    <div className="p-5 sm:p-6 space-y-5">
+                        <div>
+                            <h2 className="text-base font-bold text-primary">
+                                {isMultiDate ? 'All places for these dates have been taken' : 'All places for this date have been taken'}
+                            </h2>
+                            <p className="text-sm text-muted mt-1.5 leading-relaxed">
+                                {isMultiDate ? 'Sorry, all offered dates are now full' : 'Sorry, this course date is now full'}, so confirmations are closed.
+                            </p>
+                        </div>
+
+                        {/* People already in the group (confirmed earlier or added by the organizer) see their place here */}
+                        <form onSubmit={handleCheckPlace} noValidate className="p-4 rounded-xl bg-surface-elevated/50 border border-border-subtle space-y-3">
+                            <div>
+                                <h2 className="text-sm font-bold text-primary">Already have a place?</h2>
+                                <p className="text-sm text-muted mt-0.5 leading-relaxed">
+                                    If you confirmed earlier or the organizer added you to the group, enter your email to see your place.
+                                </p>
+                            </div>
+                            <PublicEmailField
+                                id="check-email"
+                                label="Your email"
+                                value={email}
+                                disabled={isSubmitting}
+                                onChange={handleEmailChange}
+                                error={errors.email}
+                            />
+                            {inlineError && <PublicAlert action={retryable && <RetryButton onClick={() => handleCheckPlace()} />}>{inlineError}</PublicAlert>}
+                            <button type="submit" disabled={isSubmitting} className={secondaryButtonCls}>
+                                {isSubmitting && <Loader2 size={16} className="animate-spin shrink-0" aria-hidden="true" />}
+                                <span>Check my place</span>
+                            </button>
+                        </form>
+
+                        <div className="space-y-2.5">
+                            <p className="text-sm text-muted leading-relaxed">
+                                No place yet? If you're still interested, email the organizer and you'll get <strong className="text-primary">priority for the next course</strong>.
+                            </p>
+                            <a
+                                href={getPriorityMailtoUrl()}
+                                className="w-full flex items-center justify-center gap-2 bg-brand-700 hover:bg-brand-800 active:scale-[0.98] text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-md shadow-brand-700/20 transition-all touch-manipulation"
+                            >
+                                <Star size={18} className="shrink-0" aria-hidden="true" />
+                                <span>Get priority for the next course</span>
+                            </a>
+                            <p className="text-xs text-muted leading-normal text-center">
+                                Opens an email to {ORGANIZER_EMAIL}, ready to send.
+                            </p>
+                        </div>
+
+                        <ContactFooter prompt="Questions or difficulties?" subject={`Question about ${courseName}`} />
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Can't make it ─── */}
+            {state === 'decline' && (
+                <div className="flex flex-col animate-fadeIn">
+                    <PublicCardHeader
+                        icon={CalendarX}
+                        tone="warning"
+                        title={isMultiDate ? 'None of these dates work?' : "Can't make it?"}
+                    >
+                        <p className="text-sm text-primary font-medium mt-1 wrap-break-word">{courseName}</p>
+                        <p className="text-sm text-muted">{invitationDatesLabel()}</p>
+                    </PublicCardHeader>
+
+                    {declineByEmail ? (
+                        <div className="p-5 sm:p-6 space-y-4">
+                            <PublicAlert>We couldn't save your answer here. Please send it by email instead, it's ready to go.</PublicAlert>
+
+                            <div className="space-y-2.5">
+                                <MailOption
                                     href={getRescheduleMailtoUrl()}
-                                    className="w-full text-left p-4 rounded-xl border border-brand-500/40 bg-brand-950/20 hover:bg-brand-900/30 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
-                                >
-                                    <div className="p-2.5 bg-brand-500/20 text-brand-300 rounded-lg shrink-0 mt-0.5 group-hover:bg-brand-500/30 transition-colors">
-                                        <Calendar size={18} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <h3 className="text-sm font-bold text-white group-hover:text-brand-300 transition-colors">
-                                                Keep me on the waiting list for future dates
-                                            </h3>
-                                            <Mail size={14} className="text-brand-400 shrink-0 opacity-80" />
-                                        </div>
-                                        <p className="text-xs text-muted mt-1 leading-relaxed">
-                                            Opens a pre-filled email to remain on the waiting list for the next course session.
-                                        </p>
-                                    </div>
-                                </a>
-
-                                {/* Option 2: Withdraw completely */}
-                                <a
+                                    icon={Calendar}
+                                    title="Keep me on the waiting list for future dates"
+                                />
+                                <MailOption
                                     href={getWithdrawMailtoUrl()}
-                                    className="w-full text-left p-4 rounded-xl border border-border-subtle bg-background hover:border-red-500/40 hover:bg-red-950/15 active:scale-[0.98] transition-all touch-manipulation group flex items-start gap-3.5 block"
-                                >
-                                    <div className="p-2.5 bg-surface-elevated text-muted group-hover:text-red-400 group-hover:bg-red-950/30 rounded-lg shrink-0 mt-0.5 transition-colors">
-                                        <CalendarX size={18} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <h3 className="text-sm font-bold text-primary/85 group-hover:text-red-300 transition-colors">
-                                                I'm no longer interested in this course
-                                            </h3>
-                                            <Mail size={14} className="text-muted/80 group-hover:text-red-400 shrink-0 opacity-80" />
-                                        </div>
-                                        <p className="text-xs text-muted/80 mt-1 leading-relaxed">
-                                            Opens a pre-filled email to cancel your registration completely.
-                                        </p>
-                                    </div>
-                                </a>
+                                    icon={CalendarX}
+                                    title="I'm no longer interested in this course"
+                                />
                             </div>
 
-                            {/* Manual copy fallback */}
-                            <div className="mt-4 pt-3.5 border-t border-border-subtle/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                                <div className="text-xs text-muted">
-                                    <span>Email: </span>
-                                    <span className="text-white font-medium">{ORGANIZER_EMAIL}</span>
-                                </div>
+                            <div className="pt-3.5 border-t border-border-subtle flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm text-muted">
+                                    Email: <span className="text-primary font-medium">{ORGANIZER_EMAIL}</span>
+                                </p>
                                 <button
                                     type="button"
                                     onClick={handleCopyCoordinatorEmail}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-primary/85 hover:text-white bg-surface-elevated hover:bg-border-strong rounded-lg transition active:scale-95 touch-manipulation cursor-pointer"
+                                    className="hit-area inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-primary bg-surface-elevated hover:bg-border-strong/60 rounded-lg transition-colors active:scale-95 touch-manipulation cursor-pointer"
                                 >
                                     {copiedCoordinatorEmail ? (
                                         <>
-                                            <Check size={13} className="text-emerald-400" />
-                                            <span className="text-emerald-400">Copied!</span>
+                                            <Check size={14} className="text-status-confirmed" aria-hidden="true" />
+                                            <span className="text-status-confirmed">Copied!</span>
                                         </>
                                     ) : (
                                         <>
-                                            <Copy size={13} className="text-muted" />
+                                            <Copy size={14} className="text-muted" aria-hidden="true" />
                                             <span>Copy address</span>
                                         </>
                                     )}
                                 </button>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setInlineError('');
-                                    setState('form');
-                                }}
-                                className="w-full flex items-center justify-center gap-1.5 text-xs text-muted hover:text-white py-3 mt-3 transition-colors touch-manipulation cursor-pointer"
-                            >
-                                <ArrowLeft size={14} /> Back to confirmation
+                            <button type="button" onClick={() => goTo('form')} className={secondaryButtonCls}>
+                                <ArrowLeft size={15} aria-hidden="true" /> Back to confirmation
                             </button>
                         </div>
-                    )}
-
-                    {/* ─── Name Picker (Multiple Registrations with same Email) ─── */}
-                    {state === 'pick' && (
-                        <div className="p-5 sm:p-6 animate-fadeIn">
-                            <div className="flex items-center gap-3 mb-3 pb-3 border-b border-border-subtle">
-                                <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400 shrink-0">
-                                    <Users size={22} />
-                                </div>
-                                <div>
-                                    <h2 className="text-base sm:text-lg font-bold text-white leading-tight">Multiple Registrations Found</h2>
-                                    <p className="text-xs text-muted mt-0.5">
-                                        Multiple people are registered with <span className="text-white font-medium">{email}</span>.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {isMultiDate && courseDate && (
-                                <div className="flex items-center gap-1.5 text-xs text-primary/85 font-medium mb-3">
-                                    <Calendar size={14} className="text-brand-400 shrink-0" />
-                                    <span>Date: <span className="text-white">{formatCourseDate(courseDate)}</span></span>
-                                </div>
-                            )}
-
-                            <p className="text-xs text-muted mb-3">
-                                Select who is confirming attendance:
+                    ) : (
+                        <form onSubmit={handleReportCantAttend} noValidate className="p-5 sm:p-6 space-y-5">
+                            <p className="text-sm text-muted leading-relaxed -mt-1">
+                                Let us know, and the organizer will take it from here.
                             </p>
 
-                            {/* Student List */}
-                            <div className="space-y-2.5 mb-4">
+                            <fieldset>
+                                <legend className={publicLabelCls}>What would you like?</legend>
+                                <div className="space-y-2">
+                                    {DECLINE_CHOICES.map(choice => (
+                                        <label key={choice.value} className={`${optionCardCls(declineReason === choice.value)} items-start`}>
+                                            <input
+                                                type="radio"
+                                                name="decline-reason"
+                                                value={choice.value}
+                                                checked={declineReason === choice.value}
+                                                disabled={isSubmitting}
+                                                onChange={() => { setDeclineReason(choice.value); clearError('reason'); }}
+                                                aria-invalid={errors.reason ? true : undefined}
+                                                aria-describedby={errors.reason ? 'decline-reason-error' : undefined}
+                                                className="w-4 h-4 mt-0.5 accent-emerald-700 shrink-0"
+                                            />
+                                            <span className="min-w-0">
+                                                <span className="block text-sm font-semibold text-primary">{choice.label}</span>
+                                                <span className="block text-sm text-muted mt-0.5 leading-snug">{choice.hint}</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <FieldError id="decline-reason" message={errors.reason} />
+                            </fieldset>
+
+                            <PublicEmailField
+                                id="decline-email"
+                                label="Your email"
+                                value={email}
+                                disabled={isSubmitting}
+                                onChange={handleEmailChange}
+                                error={errors.email}
+                                hint="The address that received the invitation."
+                            />
+
+                            {declinePeople.length > 1 && (
+                                <fieldset className="animate-fadeIn">
+                                    <legend className={publicLabelCls}>Who can't come?</legend>
+                                    <p className="text-sm text-muted -mt-1 mb-2.5">More than one person is registered with this email.</p>
+                                    <div className="space-y-2">
+                                        {declinePeople.map(person => (
+                                            <label key={person.student_id} className={`${optionCardCls(declineIds.has(person.student_id))} items-center`}>
+                                                <input
+                                                    type="checkbox"
+                                                    name="decline-person"
+                                                    checked={declineIds.has(person.student_id)}
+                                                    disabled={isSubmitting}
+                                                    onChange={() => toggleDeclinePerson(person.student_id)}
+                                                    aria-invalid={errors.person ? true : undefined}
+                                                    aria-describedby={errors.person ? 'decline-person-error' : undefined}
+                                                    className="w-5 h-5 accent-emerald-700 shrink-0"
+                                                />
+                                                <span className="text-base font-semibold text-primary">{fullName(person)}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <FieldError id="decline-person" message={errors.person} />
+                                </fieldset>
+                            )}
+
+                            <div className="space-y-2.5">
+                                {inlineError && <PublicAlert action={retryable && <RetryButton onClick={() => handleReportCantAttend()} />}>{inlineError}</PublicAlert>}
+                                <button type="submit" disabled={isSubmitting} className={primaryButtonCls}>
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                                            <span>Sending...</span>
+                                        </>
+                                    ) : (
+                                        <span>Send my answer</span>
+                                    )}
+                                </button>
+                                <p className="text-sm text-muted text-center">
+                                    Prefer email?{' '}
+                                    <a href={getCantAttendMailtoUrl()} className="hit-area text-brand-700 dark:text-brand-300 font-medium underline underline-offset-2">
+                                        Write to the organizer
+                                    </a>
+                                </p>
+                            </div>
+
+                            <button type="button" onClick={() => goTo('form')} disabled={isSubmitting} className={secondaryButtonCls}>
+                                <ArrowLeft size={15} aria-hidden="true" /> Back to confirmation
+                            </button>
+                        </form>
+                    )}
+                </div>
+            )}
+
+            {/* ─── Answer to "Can't make it?" saved ─── */}
+            {state === 'declined' && (
+                <PublicMessage icon={CheckCircle} tone="success" title={`Thanks for letting us know${declinedName ? `, ${declinedName}` : ''}`}>
+                    <p className="text-muted text-sm leading-relaxed max-w-xs -mt-1">
+                        {declineReason === 'other_date'
+                            ? "We've passed it on to the organizer. You'll get a new invitation when there's another date."
+                            : "We've passed it on to the organizer, who will take you off the list for this course."}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => goTo('form')}
+                        className="hit-area text-sm text-muted hover:text-primary underline underline-offset-2 transition-colors touch-manipulation py-1"
+                    >
+                        Changed your mind? Confirm your place instead
+                    </button>
+                    <ContactFooter prompt="Anything else?" subject={`Question about ${courseName}`} />
+                </PublicMessage>
+            )}
+
+            {/* ─── Shared email: who is coming ─── */}
+            {state === 'pick' && (
+                <div className="flex flex-col animate-fadeIn">
+                    <PublicCardHeader icon={Users} title="Who is coming?">
+                        <p className="text-sm text-muted mt-1 leading-relaxed">
+                            More than one person is registered with <strong className="text-primary break-all">{email}</strong>. Tick everyone who is coming.
+                        </p>
+                        {isMultiDate && courseDate && (
+                            <p className="flex items-center gap-1.5 text-sm text-primary font-medium mt-1.5">
+                                <Calendar size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
+                            </p>
+                        )}
+                    </PublicCardHeader>
+
+                    <div className="p-5 sm:p-6 space-y-4">
+                        <fieldset>
+                            <legend className="sr-only">People registered with this email</legend>
+                            <div className="space-y-2">
                                 {matchedStudents.map((student) => (
-                                    <label
-                                        key={student.student_id}
-                                        className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all touch-manipulation ${
-                                            selectedStudentIds.has(student.student_id)
-                                                ? 'border-brand-500 bg-brand-500/10'
-                                                : 'border-border-subtle bg-background hover:border-border-strong'
-                                        }`}
-                                    >
+                                    <label key={student.student_id} className={`${optionCardCls(selectedStudentIds.has(student.student_id))} items-center`}>
                                         <input
                                             type="checkbox"
                                             checked={selectedStudentIds.has(student.student_id)}
+                                            disabled={isSubmitting}
                                             onChange={() => toggleStudent(student.student_id)}
-                                            className="w-5 h-5 rounded-sm border-border-strong bg-surface text-brand-500 focus:ring-brand-500/30 focus:ring-offset-0 cursor-pointer touch-manipulation"
+                                            className="w-5 h-5 accent-emerald-700 shrink-0"
                                         />
-                                        <span className="text-white font-medium text-sm">
-                                            {student.first_name} {student.last_name}
-                                        </span>
+                                        <span className="text-base font-semibold text-primary">{fullName(student)}</span>
                                     </label>
                                 ))}
                             </div>
+                        </fieldset>
 
-                            {inlineError && (
-                                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl flex items-center gap-2 mb-3">
-                                    <AlertCircle size={15} className="shrink-0" />
-                                    <p>{inlineError}</p>
-                                </div>
-                            )}
-
+                        <div className="space-y-2.5">
+                            {inlineError && <PublicAlert action={retryable && <RetryButton onClick={() => handleConfirmSelected()} />}>{inlineError}</PublicAlert>}
                             <button
                                 type="button"
                                 onClick={handleConfirmSelected}
                                 disabled={isSubmitting || selectedStudentIds.size === 0}
-                                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 active:scale-[0.98] transition-all touch-manipulation disabled:cursor-not-allowed"
+                                aria-describedby={selectedStudentIds.size === 0 ? 'pick-hint' : undefined}
+                                className={primaryButtonCls}
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 size={18} className="animate-spin text-white/80" />
-                                        <span>Saving...</span>
+                                        <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                                        <span>Confirming...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <CheckCircle size={18} />
-                                        <span>Confirm Selected ({selectedStudentIds.size})</span>
+                                        <CheckCircle size={18} aria-hidden="true" />
+                                        <span>
+                                            {selectedStudentIds.size === 0
+                                                ? 'Confirm'
+                                                : `Confirm ${selectedStudentIds.size} ${selectedStudentIds.size === 1 ? 'person' : 'people'}`}
+                                        </span>
                                     </>
                                 )}
                             </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setState('form');
-                                    setInlineError('');
-                                }}
-                                className="w-full text-xs text-muted/80 hover:text-primary py-3 mt-2 transition-colors touch-manipulation cursor-pointer"
-                            >
-                                ← Back to email
-                            </button>
+                            {selectedStudentIds.size === 0 && (
+                                <p id="pick-hint" className="text-xs text-muted text-center">Tick at least one name.</p>
+                            )}
                         </div>
-                    )}
 
-                    {/* ─── Success Screen with Calendar Integration ─── */}
-                    {state === 'success' && (
-                        <div className="p-6 sm:p-8 flex flex-col items-center gap-4 text-center animate-fadeIn">
-                            {/* Animated Success Badge */}
-                            <div className="w-16 h-16 bg-linear-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/15">
-                                <CheckCircle size={34} className="text-emerald-400" />
-                            </div>
+                        <button type="button" onClick={() => goTo('form')} disabled={isSubmitting} className={secondaryButtonCls}>
+                            <ArrowLeft size={15} aria-hidden="true" /> Back to email
+                        </button>
+                    </div>
+                </div>
+            )}
 
-                            <div className="space-y-1">
-                                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">You're All Set!</h2>
-                                <p className="text-primary/85 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
-                                    {resultMessage || "Your attendance has been confirmed! We look forward to seeing you at the course."}
-                                </p>
-                            </div>
+            {/* ─── Success Screen with Calendar Integration ─── */}
+            {state === 'success' && (
+                <PublicMessage icon={CheckCircle} tone="success" title="You're All Set!">
+                    <p className="text-muted text-sm leading-relaxed max-w-xs -mt-1">
+                        {resultMessage || 'Your attendance has been confirmed! We look forward to seeing you at the course.'}
+                    </p>
 
-                            {/* Ticket Details Card */}
-                            <div className="w-full p-4 bg-surface/90 rounded-xl border border-border-subtle text-left space-y-2 mt-1">
-                                <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-                                    Confirmed Enrollment
-                                </div>
-                                <div className="text-sm sm:text-base font-bold text-white wrap-break-word">
-                                    {courseName}
-                                </div>
-                                {courseDate && (
-                                    <div className="flex items-center gap-2 text-xs sm:text-sm text-brand-300 font-medium pt-1 border-t border-border-subtle/80">
-                                        <Calendar size={15} className="text-brand-400 shrink-0" />
-                                        <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
-                                    </div>
+                    {/* Ticket */}
+                    <div className="w-full p-4 bg-surface-elevated/50 rounded-xl border border-border-subtle text-left space-y-2">
+                        <p className="text-xs font-semibold text-status-confirmed uppercase tracking-wider">Your place</p>
+                        <p className="text-base font-bold text-primary wrap-break-word">{courseName}</p>
+                        {courseDate && (
+                            <p className="flex items-center gap-2 text-sm text-primary font-medium pt-2 border-t border-border-subtle">
+                                <Calendar size={15} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                <span>{courseDateLine(courseDate, sessions[courseDate])}</span>
+                            </p>
+                        )}
+                        {courseDate && sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
+                    </div>
+
+                    {/* ─── Add to Calendar ─── */}
+                    {courseDate && (
+                        <div className="w-full text-left space-y-2.5">
+                            <h2 className="text-sm font-bold text-primary">Add to your calendar</h2>
+                            <p className="text-sm text-muted leading-normal -mt-1">
+                                {calendarDays.length > 1 ? 'Save all course days' : 'Save the course date'} so you don't miss {calendarDays.length > 1 ? 'any of them' : 'it'}.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {calendarDays.length <= 1 && (
+                                    <a
+                                        href={getGoogleCalendarUrl(calendarParams)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={calendarButtonCls}
+                                    >
+                                        <ExternalLink size={15} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                        <span>Google Calendar</span>
+                                    </a>
                                 )}
-                                {courseDate && sessions[courseDate] && <SessionDetails session={sessions[courseDate]} />}
+                                <button
+                                    type="button"
+                                    onClick={() => downloadIcsFile(calendarParams)}
+                                    className={`${calendarButtonCls} ${calendarDays.length > 1 ? 'sm:col-span-2' : ''}`}
+                                >
+                                    <Download size={15} className="text-status-confirmed shrink-0" aria-hidden="true" />
+                                    <span>Apple / Outlook (.ics){calendarDays.length > 1 ? ` — all ${calendarDays.length} days` : ''}</span>
+                                </button>
                             </div>
-
-                            {/* ─── Add to Calendar Section ─── */}
-                            {courseDate && (
-                                <div className="w-full p-4 bg-surface/60 rounded-xl border border-border-subtle/80 text-left space-y-3 mt-1">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-primary/85 uppercase tracking-wider">
-                                        <Calendar size={14} className="text-brand-400" />
-                                        <span>Add to Calendar</span>
+                            {calendarDays.length > 1 && (
+                                <div className="space-y-1.5">
+                                    <p className="text-sm text-muted">Google Calendar: add each day</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {calendarDays.map((d, i) => (
+                                            <a
+                                                key={d.date}
+                                                href={getGoogleCalendarUrl({ ...calendarParams, courseDate: d.date, startTime: d.startTime, endTime: d.endTime, titleSuffix: `Day ${i + 1} of ${calendarDays.length}` })}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`${calendarButtonCls} min-h-11 py-2 text-xs`}
+                                            >
+                                                <ExternalLink size={12} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                                                <span>Day {i + 1} · {formatCourseDate(d.date).replace(/ \d{4}$/, '')}</span>
+                                            </a>
+                                        ))}
                                     </div>
-                                    <p className="text-xs text-muted leading-normal">
-                                        {calendarDays.length > 1 ? 'Save all course days' : 'Save the course date'} to your phone so you don't miss {calendarDays.length > 1 ? 'any of them' : 'it'}:
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                                        {calendarDays.length <= 1 && <a
-                                            href={getGoogleCalendarUrl(calendarParams)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center justify-center gap-2 py-3 px-3.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 text-brand-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs"
-                                        >
-                                            <ExternalLink size={14} className="text-brand-400 shrink-0" />
-                                            <span>Google Calendar</span>
-                                        </a>}
-                                        <button
-                                            type="button"
-                                            onClick={() => downloadIcsFile(calendarParams)}
-                                            className={`${calendarDays.length > 1 ? 'sm:col-span-2 ' : ''}flex items-center justify-center gap-2 py-3 px-3.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:text-white rounded-xl text-xs font-semibold transition-all active:scale-[0.98] touch-manipulation text-center shadow-xs`}
-                                        >
-                                            <Download size={14} className="text-emerald-400 shrink-0" />
-                                            <span>Apple / Outlook (.ics){calendarDays.length > 1 ? ` — all ${calendarDays.length} days` : ''}</span>
-                                        </button>
-                                    </div>
-                                    {calendarDays.length > 1 && (
-                                        <div className="space-y-1.5">
-                                            <p className="text-xs text-muted">Google Calendar — add each day:</p>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {calendarDays.map((d, i) => (
-                                                    <a
-                                                        key={d.date}
-                                                        href={getGoogleCalendarUrl({ ...calendarParams, courseDate: d.date, startTime: d.startTime, endTime: d.endTime, titleSuffix: `Day ${i + 1} of ${calendarDays.length}` })}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-brand-600/15 hover:bg-brand-600/30 border border-brand-500/25 text-brand-200 hover:text-white rounded-lg text-xs font-semibold transition-all touch-manipulation"
-                                                    >
-                                                        <ExternalLink size={12} className="text-brand-400 shrink-0" />
-                                                        <span>Day {i + 1} · {formatCourseDate(d.date).replace(/ \d{4}$/, '')}</span>
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
-
-                            {/* Organizer Contact Info */}
-                            <div className="w-full pt-3 text-center border-t border-border-subtle/70">
-                                <p className="text-xs text-muted/80">
-                                    Need to change plans or have any questions?
-                                </p>
-                                <a
-                                    href={`mailto:${ORGANIZER_EMAIL}?subject=Confirmed%20Course%20Question%20-%20${encodeURIComponent(courseName)}`}
-                                    className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
-                                >
-                                    <Mail size={12} /> {ORGANIZER_EMAIL}
-                                </a>
-                            </div>
                         </div>
                     )}
 
-                </div>
+                    <ContactFooter prompt="Need to change plans or have any questions?" subject={`Confirmed course question - ${courseName}`} />
+                </PublicMessage>
+            )}
+        </PublicLayout>
+    );
+}
 
-                {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-xs text-muted/80 mt-4 text-center">
-                    <HelpCircle size={13} className="text-muted/60" />
-                    <span>Cork City Partnership • Course Confirmation Portal</span>
-                </div>
-            </div>
+/** Next to a "Could not connect" message */
+function RetryButton({ onClick }: { onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="hit-area shrink-0 text-sm font-semibold underline underline-offset-2 touch-manipulation"
+        >
+            Try again
+        </button>
+    );
+}
 
-            {/* Bottom spacer on mobile */}
-            <div className="w-full h-2 relative z-0" aria-hidden="true" />
-        </div>
+const calendarButtonCls =
+    'flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl border border-border-strong bg-surface hover:bg-surface-elevated ' +
+    'text-primary text-sm font-semibold transition-colors active:scale-[0.98] touch-manipulation text-center';
+
+/** One of the ready-to-send emails offered when the answer can't be saved on the page */
+function MailOption({ href, icon: Icon, title }: { href: string; icon: typeof Mail; title: string }) {
+    return (
+        <a
+            href={href}
+            className="flex items-start gap-3.5 p-4 rounded-xl border-2 border-border-strong bg-surface hover:border-brand-500/50 transition-colors touch-manipulation active:scale-[0.99]"
+        >
+            <span className="p-2.5 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true">
+                <Icon size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-primary">{title}</span>
+                    <Mail size={14} className="text-muted shrink-0 mt-0.5" aria-hidden="true" />
+                </span>
+                <span className="block text-sm text-muted mt-1 leading-snug">Opens an email to the organizer, ready to send.</span>
+            </span>
+        </a>
     );
 }
 
@@ -1367,18 +1383,18 @@ function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
     // Nudge people to act fast once the course is mostly booked
     const almostFull = !isFull && (left <= 3 || pct >= 75);
 
-    const barColor = isFull ? 'bg-red-500' : almostFull ? 'bg-amber-400' : 'bg-emerald-500';
+    const barColor = isFull ? 'bg-danger' : almostFull ? 'bg-warning' : 'bg-success';
     const statusText = isFull
         ? 'No places left'
         : `${left} ${left === 1 ? 'place' : 'places'} left`;
-    const statusColor = isFull ? 'text-red-400' : almostFull ? 'text-amber-300' : 'text-emerald-400';
+    const statusColor = isFull ? 'text-status-rejected' : almostFull ? 'text-status-requested' : 'text-status-confirmed';
 
     return (
         <div className="mt-4" data-testid="capacity-meter">
-            <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
-                <span className="flex items-center gap-1.5 text-primary/85 font-medium">
-                    <Users size={13} className="text-brand-400 shrink-0" />
-                    <span><strong className="text-white">{taken}</strong> of <strong className="text-white">{max}</strong> places confirmed</span>
+            <div className="flex items-center justify-between gap-2 text-sm mb-1.5">
+                <span className="flex items-center gap-1.5 text-muted">
+                    <Users size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
+                    <span><strong className="text-primary">{taken}</strong> of <strong className="text-primary">{max}</strong> places confirmed</span>
                 </span>
                 <span className={`font-semibold ${statusColor}`}>{statusText}</span>
             </div>
@@ -1393,8 +1409,8 @@ function CapacityMeter({ capacity }: { capacity: CapacityInfo }) {
                 <div className={`h-full rounded-full ${barColor} transition-all duration-700`} style={{ width: `${pct}%` }} />
             </div>
             {almostFull && (
-                <p className="text-xs text-amber-300/90 mt-1.5">
-                    Places are filling up fast — confirm now to secure yours.
+                <p className="text-sm font-medium text-status-requested mt-1.5">
+                    Places are filling up fast. Confirm now to secure yours.
                 </p>
             )}
         </div>
@@ -1409,6 +1425,35 @@ function courseDateLine(date: string, session: CourseSession | undefined): strin
     return days > 1 ? `${days} days · starts ${formatCourseDate(date)}` : formatCourseDate(date);
 }
 
+/** The course's place, with a link to find it (Google Maps, or the place's own link) */
+function PlaceLine({ place }: { place: string }) {
+    const href = placeHref(place);
+    const isMap = href?.startsWith('https://www.google.com/maps/');
+    return (
+        <p className="flex items-start gap-1.5 text-primary">
+            <MapPin size={14} className="text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <span className="min-w-0">
+                <span className="wrap-break-word">{place}</span>
+                {href && (
+                    <>
+                        {' '}
+                        <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={isMap ? `Directions to ${place} (opens Google Maps)` : 'Open link (opens in a new tab)'}
+                            className="hit-area inline-flex items-center gap-1 ml-0.5 whitespace-nowrap font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 underline underline-offset-2"
+                        >
+                            {isMap ? 'Directions' : 'Open link'}
+                            <ExternalLink size={12} aria-hidden="true" />
+                        </a>
+                    </>
+                )}
+            </span>
+        </p>
+    );
+}
+
 /** Days, time and place of a course date (Day 1 highlighted; long weekly courses summed up). */
 function SessionDetails({ session, showPlace = true }: { session: CourseSession; showPlace?: boolean }) {
     const days = sessionDays(session);
@@ -1419,10 +1464,10 @@ function SessionDetails({ session, showPlace = true }: { session: CourseSession;
     const shortDate = (d: string) => formatCourseDate(d).replace(/ \d{4}$/, '');
 
     return (
-        <div className="mt-2 space-y-1.5 text-xs sm:text-sm" data-testid="session-details">
+        <div className="mt-2 space-y-1.5 text-sm" data-testid="session-details">
             {multiDay && (weekly ? (
-                <p className="text-primary/85">
-                    <span className="font-semibold text-white">Every {weekly.weekday} for {weekly.weeks} weeks</span>
+                <p className="text-primary">
+                    <span className="font-semibold">Every {weekly.weekday} for {weekly.weeks} weeks</span>
                     {' '}· {shortDate(weekly.first)} – {formatCourseDate(weekly.last)}
                 </p>
             ) : (
@@ -1430,26 +1475,21 @@ function SessionDetails({ session, showPlace = true }: { session: CourseSession;
                     {days.map((d, i) => (
                         <li key={d.date} className="flex items-baseline gap-2">
                             <span className="w-11 shrink-0 text-xs font-bold text-muted uppercase tracking-wider">Day {i + 1}</span>
-                            <span className={i === 0 ? 'font-semibold text-white' : 'text-primary/85'}>{formatCourseDate(d.date)}</span>
+                            <span className={i === 0 ? 'font-semibold text-primary' : 'text-primary'}>{formatCourseDate(d.date)}</span>
                             {ownTimes && <span className="text-xs text-muted tabular-nums">{formatTimeRange(dayTime(session, d).start, dayTime(session, d).end)}</span>}
                         </li>
                     ))}
                 </ol>
             ))}
             {time && (
-                <p className="flex items-center gap-1.5 text-primary/85">
-                    <Clock size={14} className="text-brand-400 shrink-0" />
+                <p className="flex items-center gap-1.5 text-primary">
+                    <Clock size={14} className="text-brand-600 dark:text-brand-400 shrink-0" aria-hidden="true" />
                     <span className="tabular-nums">{time}</span>
                 </p>
             )}
-            {showPlace && session.location && (
-                <p className="flex items-start gap-1.5 text-primary/85">
-                    <MapPin size={14} className="text-brand-400 shrink-0 mt-0.5" />
-                    <span className="wrap-break-word">{session.location}</span>
-                </p>
-            )}
+            {showPlace && session.location && <PlaceLine place={session.location} />}
             {multiDay && (
-                <p className="text-xs font-semibold text-amber-300">Attendance on all {days.length} days is required.</p>
+                <p className="text-sm font-semibold text-status-requested">Attendance on all {days.length} days is required.</p>
             )}
         </div>
     );

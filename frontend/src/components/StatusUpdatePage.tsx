@@ -1,26 +1,33 @@
 import { useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-    AlertCircle,
+    ArrowLeft,
     Briefcase,
-    Building2,
-    CalendarDays,
     CheckCircle,
-    Clock,
-    HelpCircle,
+    ChevronDown,
     Loader2,
-    Mail,
     ShieldCheck,
-    Sparkles,
     User,
     XCircle,
 } from 'lucide-react';
-import { suggestEmailCorrection } from '../lib/emailValidation';
 import { todayISO } from '../lib/dateUtils';
-import { MonthPicker } from './ui/DatePicker';
+import { emailProblem } from '../lib/emailValidation';
+import FieldError from './ui/FieldError';
+import {
+    ContactFooter,
+    PublicAlert,
+    PublicCardHeader,
+    PublicEmailField,
+    PublicLayout,
+    primaryButtonCls,
+    publicInputCls,
+    publicLabelCls,
+    secondaryButtonCls,
+} from './PublicPage';
 
 type PageState = 'form' | 'pick' | 'success';
 type EmploymentType = 'full_time' | 'part_time';
+type Field = 'email' | 'working' | 'started' | 'field' | 'hours';
 
 interface StudentMatch {
     student_id: string;
@@ -28,27 +35,22 @@ interface StudentMatch {
     last_name: string;
 }
 
-const ORGANIZER_EMAIL = 'ivasyliev@partnershipcork.ie';
-
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-/** How many years back the "started" year picker goes. */
+/** How many years back the "started" year list goes. */
 const YEARS_BACK = 10;
 
-const inputClass =
-    'w-full bg-background text-white text-[16px] sm:text-sm rounded-xl border border-border-subtle px-4 py-3 placeholder:text-muted/60 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation shadow-inner';
-
-function choiceClass(selected: boolean, tone: 'emerald' | 'amber' | 'indigo') {
+function choiceClass(selected: boolean, tone: 'success' | 'warning' | 'brand') {
     const active = {
-        emerald: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/50 shadow-xs shadow-emerald-500/10',
-        amber: 'bg-amber-500/15 text-amber-300 border-amber-500/50 shadow-xs shadow-amber-500/10',
-        indigo: 'bg-brand-500/15 text-brand-300 border-brand-500/50 shadow-xs shadow-brand-500/10',
+        success: 'bg-success/15 text-status-confirmed border-success/60',
+        warning: 'bg-warning/15 text-status-requested border-warning/60',
+        brand: 'bg-brand-500/10 text-brand-700 dark:text-brand-300 border-brand-500/60',
     }[tone];
-    return `flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-semibold border transition-all active:scale-[0.98] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
-        selected ? active : 'bg-background text-muted border-border-subtle hover:border-border-strong hover:text-primary'
+    return `flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-sm font-semibold border-2 transition-all active:scale-[0.98] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
+        selected ? active : 'bg-surface text-primary border-border-strong hover:border-brand-500/50'
     }`;
 }
 
@@ -64,49 +66,50 @@ export default function StatusUpdatePage() {
     const [listId] = useState(() => new URLSearchParams(window.location.search).get('list'));
     const [state, setState] = useState<PageState>('form');
     const [email, setEmail] = useState('');
-    const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
     const [isWorking, setIsWorking] = useState<boolean | null>(null);
-    const [startedMonthValue, setStartedMonthValue] = useState('');
+    const [startedMonth, setStartedMonth] = useState('');
+    const [startedYear, setStartedYear] = useState('');
     const [fieldOfWork, setFieldOfWork] = useState('');
     const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
     const [inlineError, setInlineError] = useState('');
     const [matchingStudents, setMatchingStudents] = useState<StudentMatch[]>([]);
     const [submittedName, setSubmittedName] = useState('');
 
     // Guard against double-submit
     const submittingRef = useRef(false);
+    // Where to move focus when a field needs fixing
+    const fieldRefs = useRef<Partial<Record<Field, HTMLElement | null>>>({});
 
     // Don't allow a start month in the future
     const thisMonth = todayISO().slice(0, 7);
-    const earliestMonth = `${Number(thisMonth.slice(0, 4)) - YEARS_BACK}-01`;
+    const thisYear = Number(thisMonth.slice(0, 4));
+    const years = Array.from({ length: YEARS_BACK + 1 }, (_, i) => String(thisYear - i));
+    const startedMonthValue = startedYear && startedMonth ? `${startedYear}-${startedMonth.padStart(2, '0')}` : '';
 
-    function handleEmailInputChange(val: string) {
-        const lower = val.toLowerCase();
-        setEmail(lower);
+    function clearError(field: Field) {
         setInlineError('');
-        const suggestion = suggestEmailCorrection(lower);
-        setEmailSuggestion(suggestion && suggestion !== lower ? suggestion : null);
+        setErrors(prev => {
+            if (!prev[field]) return prev;
+            const rest = { ...prev };
+            delete rest[field];
+            return rest;
+        });
     }
 
-    function applyEmailSuggestion() {
-        if (emailSuggestion) {
-            setEmail(emailSuggestion);
-            setEmailSuggestion(null);
-            setInlineError('');
-        }
-    }
-
-    function validate(): string | null {
-        const trimmed = email.trim();
-        if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Please enter a valid email address.';
-        if (isWorking === null) return 'Please tell us whether you are currently working.';
+    function validate(): Partial<Record<Field, string>> {
+        const found: Partial<Record<Field, string>> = {};
+        const badEmail = emailProblem(email);
+        if (badEmail) found.email = badEmail;
+        if (isWorking === null) found.working = 'Choose Yes or Not yet';
         if (isWorking) {
-            if (!startedMonthValue) return 'Please select the month and year you started working.';
-            if (!fieldOfWork.trim()) return 'Please tell us where you work (company or sector).';
-            if (!employmentType) return 'Please select Full-time or Part-time.';
+            if (!startedMonthValue) found.started = 'Choose the month and year you started working';
+            else if (startedMonthValue > thisMonth) found.started = "That month hasn't started yet";
+            if (!fieldOfWork.trim()) found.field = 'Tell us where you work (company or sector)';
+            if (!employmentType) found.hours = 'Choose Full-time or Part-time';
         }
-        return null;
+        return found;
     }
 
     async function executeSubmission(targetStudentId: string | null) {
@@ -138,9 +141,11 @@ export default function StatusUpdatePage() {
         e?.preventDefault();
         if (submittingRef.current) return;
 
-        const problem = validate();
-        if (problem) {
-            setInlineError(problem);
+        const found = validate();
+        setErrors(found);
+        const first = (['email', 'working', 'started', 'field', 'hours'] as Field[]).find(f => found[f]);
+        if (first) {
+            fieldRefs.current[first]?.focus();
             return;
         }
 
@@ -206,336 +211,278 @@ export default function StatusUpdatePage() {
         setInlineError('');
     }
 
-    const contactFooter = (subject: string, prompt: string) => (
-        <div className="pt-4 border-t border-border-subtle/70 text-center w-full">
-            <p className="text-xs text-muted/80">{prompt}</p>
-            <a
-                href={`mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}`}
-                className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
-            >
-                <Mail size={12} /> {ORGANIZER_EMAIL}
-            </a>
-        </div>
-    );
+    const errorProps = (field: Field, id: string) => errors[field]
+        ? { 'aria-invalid': true as const, 'aria-describedby': `${id}-error` }
+        : {};
 
     return (
-        <div className="dark scheme-dark min-h-screen min-h-dvh bg-background text-primary flex flex-col items-center justify-between p-4 sm:p-6 relative overflow-x-hidden selection:bg-brand-500/30 selection:text-brand-200">
-            {/* Ambient background glow optimized for mobile GPU */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden transform-gpu" aria-hidden="true">
-                <div className="orb absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[460px] sm:w-[780px] sm:h-[780px] text-brand-500/9" />
-                <div className="orb absolute bottom-1/4 right-1/4 w-[340px] h-[340px] sm:w-[560px] sm:h-[560px] text-purple-500/6.5" />
-            </div>
+        <PublicLayout title="Participant update" footer="Cork City Partnership · Participant update">
+            {/* ─── Form ─── */}
+            {state === 'form' && (
+                <form onSubmit={handleSubmit} noValidate className="flex flex-col">
+                    <PublicCardHeader
+                        icon={Briefcase}
+                        eyebrow="Participant update"
+                        title={listId ? 'How are things going?' : 'How are things going since your course?'}
+                    >
+                        <p className="text-sm text-muted mt-1.5 leading-relaxed">
+                            A few quick questions. It takes less than a minute.
+                        </p>
+                    </PublicCardHeader>
 
-            <div className="w-full max-w-md relative z-10 my-auto py-4">
-                <div className="bg-surface/95 rounded-2xl border border-border-subtle/90 shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-300">
+                    <div className="p-5 sm:p-6 space-y-6">
+                        <div ref={el => { fieldRefs.current.email = el?.querySelector('input') ?? null; }}>
+                            <PublicEmailField
+                                id="status-email"
+                                label="Your email"
+                                value={email}
+                                disabled={isSubmitting}
+                                onChange={v => { setEmail(v); clearError('email'); }}
+                                error={errors.email}
+                                hint="Please use the same email address that received our email."
+                            />
+                        </div>
 
-                    {/* ─── Form ─── */}
-                    {state === 'form' && (
-                        <form onSubmit={handleSubmit} noValidate className="flex flex-col">
-                            {/* Header Banner */}
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
-                                <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
-                                        <Briefcase size={22} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-xs font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
-                                            Participant Update
-                                        </span>
-                                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug">
-                                            {listId ? 'How are things going?' : 'How are things going since your course?'}
-                                        </h2>
-                                        <p className="text-xs sm:text-sm text-muted mt-1.5 leading-relaxed">
-                                            Four quick questions — it takes less than a minute.
-                                        </p>
-                                    </div>
-                                </div>
+                        <fieldset>
+                            <legend className={publicLabelCls}>Are you working at the moment?</legend>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <button
+                                    type="button"
+                                    ref={el => { fieldRefs.current.working = el; }}
+                                    aria-pressed={isWorking === true}
+                                    disabled={isSubmitting}
+                                    onClick={() => { setIsWorking(true); clearError('working'); }}
+                                    className={choiceClass(isWorking === true, 'success')}
+                                    {...errorProps('working', 'status-working')}
+                                >
+                                    <CheckCircle size={16} aria-hidden="true" /> Yes, I am
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-pressed={isWorking === false}
+                                    disabled={isSubmitting}
+                                    onClick={() => { setIsWorking(false); clearError('working'); }}
+                                    className={choiceClass(isWorking === false, 'warning')}
+                                >
+                                    <XCircle size={16} aria-hidden="true" /> Not yet
+                                </button>
                             </div>
+                            <FieldError id="status-working" message={errors.working} />
+                        </fieldset>
 
-                            {/* Form Body */}
-                            <div className="p-5 sm:p-6 space-y-5">
-                                {/* 1. Email */}
-                                <div>
-                                    <label htmlFor="status-email" className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                        Your Email
-                                    </label>
-                                    <div className="relative">
-                                        <Mail size={17} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${isSubmitting ? 'text-muted/60' : 'text-muted'}`} />
-                                        <input
-                                            id="status-email"
-                                            type="email"
-                                            inputMode="email"
-                                            autoComplete="email"
-                                            autoCapitalize="none"
-                                            spellCheck={false}
-                                            required
-                                            value={email}
+                        {isWorking === true && (
+                            <div className="space-y-6 animate-fadeIn">
+                                <fieldset>
+                                    <legend className={publicLabelCls}>When did you start?</legend>
+                                    <div className="grid grid-cols-[3fr_2fr] gap-2.5">
+                                        <SelectBox
+                                            selectRef={el => { fieldRefs.current.started = el; }}
+                                            label="Start month"
+                                            value={startedMonth}
                                             disabled={isSubmitting}
-                                            onChange={(e) => handleEmailInputChange(e.target.value)}
-                                            onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
-                                            placeholder="Enter registered email address"
-                                            className={`${inputClass} pl-10`}
+                                            onChange={v => { setStartedMonth(v); clearError('started'); }}
+                                            placeholder="Month"
+                                            options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+                                            {...errorProps('started', 'status-started')}
+                                        />
+                                        <SelectBox
+                                            label="Start year"
+                                            value={startedYear}
+                                            disabled={isSubmitting}
+                                            onChange={v => { setStartedYear(v); clearError('started'); }}
+                                            placeholder="Year"
+                                            options={years.map(y => ({ value: y, label: y }))}
+                                            {...errorProps('started', 'status-started')}
                                         />
                                     </div>
+                                    <FieldError id="status-started" message={errors.started} />
+                                </fieldset>
 
-                                    {emailSuggestion && (
-                                        <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 bg-brand-950/40 border border-brand-500/30 rounded-xl text-xs text-brand-200 animate-fadeIn">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <Sparkles size={15} className="text-brand-400 shrink-0" />
-                                                <p className="truncate">
-                                                    Did you mean <strong className="text-white underline">{emailSuggestion}</strong>?
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={applyEmailSuggestion}
-                                                className="shrink-0 px-2.5 py-1 bg-brand-600 hover:bg-brand-500 active:scale-95 text-white font-semibold rounded-lg text-xs transition-all touch-manipulation shadow-xs shadow-brand-600/40"
-                                            >
-                                                Fix
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <p className="text-xs text-muted/80 mt-2 leading-normal">
-                                        Please use the same email address that received our email.
-                                    </p>
+                                <div>
+                                    <label htmlFor="status-field" className={publicLabelCls}>Where do you work?</label>
+                                    <input
+                                        id="status-field"
+                                        ref={el => { fieldRefs.current.field = el; }}
+                                        type="text"
+                                        autoComplete="organization"
+                                        maxLength={120}
+                                        value={fieldOfWork}
+                                        disabled={isSubmitting}
+                                        onChange={e => { setFieldOfWork(e.target.value); clearError('field'); }}
+                                        placeholder="Company or sector, e.g. Retail, IT"
+                                        className={publicInputCls}
+                                        {...errorProps('field', 'status-field')}
+                                    />
+                                    <FieldError id="status-field" message={errors.field} />
                                 </div>
 
-                                {/* 2. Working? */}
                                 <fieldset>
-                                    <legend className="block text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                        Are you working at the moment?
-                                    </legend>
+                                    <legend className={publicLabelCls}>Full-time or part-time?</legend>
                                     <div className="grid grid-cols-2 gap-2.5">
                                         <button
                                             type="button"
-                                            aria-pressed={isWorking === true}
+                                            ref={el => { fieldRefs.current.hours = el; }}
+                                            aria-pressed={employmentType === 'full_time'}
                                             disabled={isSubmitting}
-                                            onClick={() => { setIsWorking(true); setInlineError(''); }}
-                                            className={choiceClass(isWorking === true, 'emerald')}
+                                            onClick={() => { setEmploymentType('full_time'); clearError('hours'); }}
+                                            className={choiceClass(employmentType === 'full_time', 'brand')}
+                                            {...errorProps('hours', 'status-hours')}
                                         >
-                                            <CheckCircle size={16} /> Yes, I am
+                                            Full-time
                                         </button>
                                         <button
                                             type="button"
-                                            aria-pressed={isWorking === false}
+                                            aria-pressed={employmentType === 'part_time'}
                                             disabled={isSubmitting}
-                                            onClick={() => { setIsWorking(false); setInlineError(''); }}
-                                            className={choiceClass(isWorking === false, 'amber')}
+                                            onClick={() => { setEmploymentType('part_time'); clearError('hours'); }}
+                                            className={choiceClass(employmentType === 'part_time', 'brand')}
                                         >
-                                            <XCircle size={16} /> Not yet
+                                            Part-time
                                         </button>
                                     </div>
+                                    <FieldError id="status-hours" message={errors.hours} />
                                 </fieldset>
-
-                                {isWorking === true && (
-                                    <div className="space-y-5 animate-fadeIn">
-                                        {/* 3. Started */}
-                                        <fieldset>
-                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                                <CalendarDays size={13} className="text-brand-400" /> When did you start?
-                                            </legend>
-                                            <MonthPicker
-                                                label="Start month"
-                                                value={startedMonthValue}
-                                                min={earliestMonth}
-                                                max={thisMonth}
-                                                onChange={(v) => { setStartedMonthValue(v); setInlineError(''); }}
-                                            />
-                                        </fieldset>
-
-                                        {/* 4. Where */}
-                                        <div>
-                                            <label htmlFor="status-field" className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                                <Building2 size={13} className="text-brand-400" /> Where do you work?
-                                            </label>
-                                            <input
-                                                id="status-field"
-                                                type="text"
-                                                autoComplete="organization"
-                                                maxLength={120}
-                                                value={fieldOfWork}
-                                                disabled={isSubmitting}
-                                                onChange={(e) => { setFieldOfWork(e.target.value); setInlineError(''); }}
-                                                placeholder="Company or sector, e.g. Retail, IT"
-                                                className={inputClass}
-                                            />
-                                        </div>
-
-                                        {/* 5. Full / part time */}
-                                        <fieldset>
-                                            <legend className="flex items-center gap-1.5 text-xs font-bold text-muted mb-2 uppercase tracking-wider">
-                                                <Clock size={13} className="text-brand-400" /> Full-time or part-time?
-                                            </legend>
-                                            <div className="grid grid-cols-2 gap-2.5">
-                                                <button
-                                                    type="button"
-                                                    aria-pressed={employmentType === 'full_time'}
-                                                    disabled={isSubmitting}
-                                                    onClick={() => { setEmploymentType('full_time'); setInlineError(''); }}
-                                                    className={choiceClass(employmentType === 'full_time', 'indigo')}
-                                                >
-                                                    Full-time
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    aria-pressed={employmentType === 'part_time'}
-                                                    disabled={isSubmitting}
-                                                    onClick={() => { setEmploymentType('part_time'); setInlineError(''); }}
-                                                    className={choiceClass(employmentType === 'part_time', 'indigo')}
-                                                >
-                                                    Part-time
-                                                </button>
-                                            </div>
-                                        </fieldset>
-                                    </div>
-                                )}
-
-                                {inlineError && (
-                                    <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5 animate-fadeIn">
-                                        <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-400" />
-                                        <p className="wrap-break-word leading-relaxed">{inlineError}</p>
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="w-full flex items-center justify-center gap-2 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 transition-all touch-manipulation disabled:cursor-not-allowed cursor-pointer"
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 size={20} className="animate-spin text-white/80" />
-                                            <span>Sending...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle size={19} className="text-white" />
-                                            <span>Send My Update</span>
-                                        </>
-                                    )}
-                                </button>
-
-                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs text-muted leading-relaxed">
-                                    <ShieldCheck size={15} className="text-brand-400 shrink-0 mt-0.5" />
-                                    <span>Your answers are confidential and only used, anonymously, to report on the results of our programmes.</span>
-                                </div>
-
-                                {contactFooter('Question about my status update', 'Questions or difficulties?')}
                             </div>
-                        </form>
-                    )}
+                        )}
 
-                    {/* ─── Shared email: pick your name ─── */}
-                    {state === 'pick' && (
-                        <div className="flex flex-col animate-fadeIn">
-                            <div className="p-5 sm:p-6 pb-4 border-b border-border-subtle/80 bg-linear-to-b from-brand-950/20 to-transparent">
-                                <div className="flex items-start gap-3.5">
-                                    <div className="p-2.5 bg-brand-500/15 rounded-xl border border-brand-500/20 text-brand-400 shrink-0 mt-0.5">
-                                        <User size={22} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <h2 className="text-lg font-bold text-white tracking-tight">Who is this update for?</h2>
-                                        <p className="text-xs sm:text-sm text-muted mt-1 leading-relaxed">
-                                            More than one person is registered with <strong className="text-primary break-all">{email}</strong>. Please choose your name.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="space-y-3">
+                            {inlineError && <PublicAlert>{inlineError}</PublicAlert>}
 
-                            <div className="p-5 sm:p-6 space-y-3">
-                                {matchingStudents.map((student) => (
-                                    <button
-                                        key={student.student_id}
-                                        type="button"
-                                        disabled={isSubmitting}
-                                        onClick={() => handlePickStudent(student)}
-                                        className="w-full text-left p-4 rounded-xl bg-background hover:bg-brand-500/10 border border-border-subtle hover:border-brand-500/40 transition-all flex items-center justify-between group touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
-                                    >
-                                        <span className="font-semibold text-sm text-white group-hover:text-brand-200">
-                                            {student.first_name} {student.last_name}
-                                        </span>
-                                        {isSubmitting ? (
-                                            <Loader2 size={16} className="animate-spin text-brand-400" />
-                                        ) : (
-                                            <span className="text-xs text-muted/80 group-hover:text-brand-300 font-medium">Select →</span>
-                                        )}
-                                    </button>
-                                ))}
-
-                                {inlineError && (
-                                    <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs sm:text-sm p-3 rounded-xl flex items-start gap-2.5">
-                                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                                        <p className="wrap-break-word leading-relaxed">{inlineError}</p>
-                                    </div>
-                                )}
-
-                                <button
-                                    type="button"
-                                    onClick={resetForm}
-                                    disabled={isSubmitting}
-                                    className="w-full text-center text-xs text-muted/80 hover:text-primary transition-colors py-2 touch-manipulation"
-                                >
-                                    ← Back to the form
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Success ─── */}
-                    {state === 'success' && (
-                        <div className="p-6 sm:p-8 flex flex-col items-center gap-4 text-center animate-fadeIn">
-                            <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                                <CheckCircle size={34} className="text-emerald-400" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-bold text-white">
-                                    Thank you{submittedName ? `, ${submittedName}` : ''}!
-                                </h2>
-                                <p className="text-muted text-sm leading-relaxed mt-1.5 max-w-xs mx-auto">
-                                    Your update has been received. It really helps us improve our {listId ? 'services' : 'courses'} for future participants.
-                                </p>
-                            </div>
-
-                            <div className="w-full p-4 rounded-xl bg-surface/80 border border-border-subtle text-left space-y-2.5 text-sm">
-                                <SummaryRow label="Status" value={isWorking ? 'Working' : 'Not working yet'} />
-                                {isWorking && (
+                            <button type="submit" disabled={isSubmitting} className={primaryButtonCls}>
+                                {isSubmitting ? (
                                     <>
-                                        <SummaryRow label="Started" value={formatStartedMonth(startedMonthValue)} />
-                                        <SummaryRow label="Where" value={fieldOfWork.trim()} />
-                                        <SummaryRow label="Hours" value={employmentType === 'full_time' ? 'Full-time' : 'Part-time'} />
+                                        <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                                        <span>Sending...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle size={19} aria-hidden="true" />
+                                        <span>Send My Update</span>
                                     </>
                                 )}
-                            </div>
-
-                            {!isWorking && (
-                                <p className="text-xs text-muted leading-relaxed">
-                                    Looking for work or another course? We're happy to help — just drop us an email.
-                                </p>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={resetForm}
-                                className="text-xs text-muted/80 hover:text-primary underline transition-colors touch-manipulation"
-                            >
-                                Made a mistake? Submit again
                             </button>
-
-                            {contactFooter('Status update follow-up', 'Anything else you would like to tell us?')}
                         </div>
+
+                        <p className="flex items-start gap-2.5 text-xs text-muted leading-relaxed">
+                            <ShieldCheck size={15} className="text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" aria-hidden="true" />
+                            <span>Your answers are confidential. We only use them to report on our programmes, without names.</span>
+                        </p>
+
+                        <ContactFooter prompt="Questions or difficulties?" subject="Question about my status update" />
+                    </div>
+                </form>
+            )}
+
+            {/* ─── Shared email: pick your name ─── */}
+            {state === 'pick' && (
+                <div className="flex flex-col animate-fadeIn">
+                    <PublicCardHeader icon={User} title="Who is this update for?">
+                        <p className="text-sm text-muted mt-1 leading-relaxed">
+                            More than one person is registered with <strong className="text-primary break-all">{email}</strong>. Please choose your name.
+                        </p>
+                    </PublicCardHeader>
+
+                    <div className="p-5 sm:p-6 space-y-3">
+                        {matchingStudents.map((student) => (
+                            <button
+                                key={student.student_id}
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => handlePickStudent(student)}
+                                className="w-full text-left p-4 rounded-xl bg-surface hover:bg-brand-500/8 border border-border-strong hover:border-brand-500/50 transition-colors flex items-center justify-between gap-3 touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                <span className="font-semibold text-base text-primary">
+                                    {student.first_name} {student.last_name}
+                                </span>
+                                {isSubmitting
+                                    ? <Loader2 size={16} className="animate-spin text-brand-600 dark:text-brand-400" aria-hidden="true" />
+                                    : <span className="text-sm text-brand-700 dark:text-brand-300 font-semibold" aria-hidden="true">Select</span>}
+                            </button>
+                        ))}
+
+                        {inlineError && <PublicAlert>{inlineError}</PublicAlert>}
+
+                        <button type="button" onClick={resetForm} disabled={isSubmitting} className={secondaryButtonCls}>
+                            <ArrowLeft size={15} aria-hidden="true" /> Back to the form
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Success ─── */}
+            {state === 'success' && (
+                <div className="p-6 sm:p-8 flex flex-col items-center gap-4 text-center animate-fadeIn">
+                    <div className="w-16 h-16 bg-success/15 rounded-2xl flex items-center justify-center border border-success/30" aria-hidden="true">
+                        <CheckCircle size={34} className="text-status-confirmed" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-primary">
+                            Thank you{submittedName ? `, ${submittedName}` : ''}!
+                        </h1>
+                        <p className="text-muted text-sm leading-relaxed mt-1.5 max-w-xs mx-auto">
+                            Your update has been received. It really helps us improve our {listId ? 'services' : 'courses'} for future participants.
+                        </p>
+                    </div>
+
+                    <dl className="w-full p-4 rounded-xl bg-surface-elevated/60 border border-border-subtle text-left space-y-2.5 text-sm">
+                        <SummaryRow label="Status" value={isWorking ? 'Working' : 'Not working yet'} />
+                        {isWorking && (
+                            <>
+                                <SummaryRow label="Started" value={formatStartedMonth(startedMonthValue)} />
+                                <SummaryRow label="Where" value={fieldOfWork.trim()} />
+                                <SummaryRow label="Hours" value={employmentType === 'full_time' ? 'Full-time' : 'Part-time'} />
+                            </>
+                        )}
+                    </dl>
+
+                    {!isWorking && (
+                        <p className="text-sm text-muted leading-relaxed">
+                            Looking for work or another course? We're happy to help. Just drop us an email.
+                        </p>
                     )}
-                </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-xs text-muted/80 mt-4 text-center">
-                    <HelpCircle size={13} className="text-muted/60" />
-                    <span>Cork City Partnership • Participant Update</span>
-                </div>
-            </div>
+                    <button
+                        type="button"
+                        onClick={resetForm}
+                        className="hit-area text-sm text-muted hover:text-primary underline underline-offset-2 transition-colors touch-manipulation py-1"
+                    >
+                        Made a mistake? Submit again
+                    </button>
 
-            {/* Bottom spacer on mobile */}
-            <div className="w-full h-2 relative z-0" aria-hidden="true" />
+                    <ContactFooter prompt="Anything else you would like to tell us?" subject="Status update follow-up" />
+                </div>
+            )}
+        </PublicLayout>
+    );
+}
+
+/** A native list (the phone's own picker) styled like the other fields */
+function SelectBox({ label, value, onChange, options, placeholder, disabled, selectRef, ...aria }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    placeholder: string;
+    disabled?: boolean;
+    selectRef?: (el: HTMLSelectElement | null) => void;
+    'aria-invalid'?: true;
+    'aria-describedby'?: string;
+}) {
+    return (
+        <div className="relative">
+            <select
+                ref={selectRef}
+                aria-label={label}
+                value={value}
+                disabled={disabled}
+                onChange={e => onChange(e.target.value)}
+                className={`${publicInputCls} appearance-none pr-10 cursor-pointer ${value ? '' : 'text-muted'}`}
+                {...aria}
+            >
+                <option value="" disabled>{placeholder}</option>
+                {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden="true" />
         </div>
     );
 }
@@ -543,8 +490,8 @@ export default function StatusUpdatePage() {
 function SummaryRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-start justify-between gap-3">
-            <span className="text-muted/80 text-xs uppercase tracking-wider font-semibold pt-0.5">{label}</span>
-            <span className="text-primary font-medium text-right wrap-break-word min-w-0">{value}</span>
+            <dt className="text-muted text-xs uppercase tracking-wider font-semibold pt-0.5">{label}</dt>
+            <dd className="text-primary font-medium text-right wrap-break-word min-w-0">{value}</dd>
         </div>
     );
 }
