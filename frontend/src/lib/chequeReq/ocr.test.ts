@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evenLighting, ocrItems, ocrPhrases, pageAngle, unlevelRect, type OcrBlock } from './ocr';
 import { extractInvoice } from './extract';
-import { simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 import type { Phrase } from '../pdfForms/types';
 
 const PAGE = { w: 595, h: 842 };
@@ -78,7 +78,7 @@ describe('reading a scan', () => {
     });
 
     it('reads an invoice from its picture as from its text', () => {
-        for (const invoice of [xeroLikeInvoice(), simpleVatInvoice()]) {
+        for (const invoice of [xeroLikeInvoice(), simpleVatInvoice(), formInvoiceScan()]) {
             const expected = keyFacts(invoice);
             expect(expected.invoiceNumber).toBeTruthy();
             expect(keyFacts(readBack(invoice))).toEqual(expected);

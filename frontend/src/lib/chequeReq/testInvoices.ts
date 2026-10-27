@@ -122,3 +122,48 @@ export function simpleVatInvoice(): Phrase[] {
         ph(0, 40, 480, 'Payable to Greenleaf Catering Ltd. Thank you!'),
     ];
 }
+
+/**
+ * A sole trader's invoice template as read off its scan: the supplier filled in as a form under
+ * "FROM:" ("Name:", "Address:"), the course days listed by month ("28,30 of July 2026"), and only
+ * a total, no line amounts. Laid out as the reader placed the words of a real one.
+ */
+export function formInvoiceScan(): Phrase[] {
+    return [
+        ph(0, 56, 765, 'Invoice No: 0007', 12),
+        ph(0, 276, 765, 'Date: 28/08/2026', 12),
+        ph(0, 56, 721, 'TO:', 12),
+        ph(0, 276, 721, 'Purchase Order No: 8264', 12),
+        ph(0, 56, 693, 'SICAP', 12),
+        ph(0, 56, 680, 'Cork City Partnership Clg', 12),
+        ph(0, 56, 665, 'Heron House', 12),
+        ph(0, 56, 651, 'Cork.', 12),
+        ph(0, 56, 623, 'FROM:', 12),
+        ph(0, 56, 595, 'Name:', 12),
+        ph(0, 126, 595, 'Oksana Bondar', 12),
+        ph(0, 57, 565, 'Address:', 17.9),
+        ph(0, 131, 568, 'Rose Cottage, Knockane, Coachford, Co. Cork P12XK47', 12),
+        ph(0, 56, 538, 'Tel No:', 12),
+        ph(0, 107, 538, '087-555-0142', 12),
+        ph(0, 198, 538, 'E-mail: oksana.bondar@example.com', 12),
+        ph(0, 56, 524, 'PPS Number: 1234567TA', 12),
+        ph(0, 56, 482, 'DESCRIPTION OF GOODS/SERVICE:', 12),
+        ph(0, 56, 454, 'Preparation of materials, needs assessment and delivery of Summer Speaking', 11),
+        ph(0, 56, 440, 'Club for SICAP New Arrivals Programme, Cork City Partnership on the', 11),
+        ph(0, 56, 426, 'following dates 28,30 of July 2026, 4,6,11,13,18,20,25,27 of August 2026, 1,3 of September 2026', 10),
+        ph(0, 56, 384, 'TOTAL Amount: EUR 2400', 11),
+        ph(0, 56, 357, 'I herewith confirm that I have been made aware that payment has been made to me', 12),
+        ph(0, 56, 342, 'without deduction of tax and that I take responsibility for returning the appropriate tax', 12),
+        ph(0, 56, 328, 'to the Collector General.', 12),
+        ph(0, 56, 314, 'I also confirm that my taxation affairs are in order as of the date of this invoice.', 12),
+        ph(0, 56, 287, 'BANK DETAILS', 12),
+        ph(0, 56, 273, 'AIB', 10),
+        ph(0, 56, 262, 'MS Oksana Bondar', 10),
+        ph(0, 56, 249, 'IBAN: IE29AIBK93115212345678', 10),
+        ph(0, 56, 237, 'BIC: AIBKIE2D', 10),
+        ph(0, 56, 196, 'Yours sincerely,', 12),
+        ph(0, 56, 167, 'Signed:', 12),
+        ph(0, 56, 140, 'PRINT NAME:', 12),
+        ph(0, 144, 140, 'OKSANA BONDAR', 12),
+    ];
+}

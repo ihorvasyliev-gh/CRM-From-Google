@@ -24,6 +24,9 @@ describe('amounts', () => {
         expect(findAmounts('Dates 21.10.2026')).toEqual([]);
         expect(findAmounts('call 0871448706')).toEqual([]);
         expect(findAmounts('starts 10.30 am')).toEqual([]);
+        expect(findAmounts('following dates 28,30 of July 2026, 4,6,11,13 of August 2026, 1,3 of September 2026')).toEqual([]);
+        expect(findAmounts('Sessions 11,13 Aug')).toEqual([]);
+        expect(findAmounts('€28,30 of July')).toHaveLength(1);
     });
 });
 
@@ -35,6 +38,22 @@ describe('dates', () => {
         expect(findDates('05/11/2026 and 2026-12-01').map(d => d.iso)).toEqual(['2026-11-05', '2026-12-01']);
         expect(findDates('21-Oct-26').map(d => d.iso)).toEqual(['2026-10-21']);
         expect(findDates('31/02/2026')).toEqual([]);
+    });
+
+    it('reads every day of a list sharing its month', () => {
+        expect(findDates('28,30 of July 2026, 4,6,11 of August 2026, 1,3 of September 2026').map(d => d.iso)).toEqual([
+            '2026-07-28',
+            '2026-07-30',
+            '2026-08-04',
+            '2026-08-06',
+            '2026-08-11',
+            '2026-09-01',
+            '2026-09-03',
+        ]);
+        expect(findDates('4, 6 and 11 August 2026').map(d => d.iso)).toEqual(['2026-08-04', '2026-08-06', '2026-08-11']);
+        expect(findDates('1st & 3rd Sept 2026').map(d => d.iso)).toEqual(['2026-09-01', '2026-09-03']);
+        // Not a list of days: the date alone
+        expect(findDates('Room 12, 3 Oct 2026').map(d => d.iso)).toEqual(['2026-10-03']);
     });
 
     it('finds the dates a course ran', () => {
