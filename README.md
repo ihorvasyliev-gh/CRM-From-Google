@@ -182,6 +182,7 @@ Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requ
 - **Learns each supplier:** the payee name and address, quote details and the wording of the description are taken from the last requisition for the same supplier (matched by VAT number, IBAN, email domain or a close name).
 - **Checks before you submit:** a missing PO number or "SICAP" on the invoice, lines that don't add up to the total, people named against the quantity charged, an invoice already done, and the €5,000 a year (excl. VAT) three-quotations rule.
 - **Kept to download again:** every requisition is kept (migration 88), with each supplier's total for the year.
+- **The invoice as it looks:** beside the form, a PDF shows its pages and a Word invoice is laid out as Word shows it (docx-preview, with logos, text boxes, page borders and line spacing put right), scaled to the panel.
 - **Scans and photos too:** a scanned PDF or a phone photo is read by OCR (Tesseract, in the browser): the lighting is evened out and a tilted photo is levelled first. Everything read off a picture is marked to check, since a letter or digit can be misread.
 - **A link without signing in:** `/cheque` (**Copy the public link** on the page) does the same for anyone with the link: read the invoice, check the form, download it. Nothing is saved, and nothing from the CRM is shown: no history, supplier memory or totals for the year.
 

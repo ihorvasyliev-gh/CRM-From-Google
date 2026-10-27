@@ -68,7 +68,7 @@ export function useOpenInvoice(onRead: (invoice: LoadedInvoice, facts: InvoiceFa
                 invoice = { kind, pdf, fileName: file.name, angles };
             } else if (kind === 'docx') {
                 phrases = await readDocxInvoice(await file.arrayBuffer());
-                invoice = { kind, phrases, fileName: file.name };
+                invoice = { kind, file, phrases, fileName: file.name };
             } else {
                 setReading('Reading the photo…');
                 const page = await photoPage(file);
