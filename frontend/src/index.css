@@ -578,13 +578,14 @@
     }
   }
 
+  /* Pulses a ring, not the text, so the countdown stays readable mid-pulse */
   @keyframes pulse-timer {
     0%,
     100% {
-      opacity: 1;
+      box-shadow: 0 0 0 0 color-mix(in oklch, currentColor 0%, transparent);
     }
     50% {
-      opacity: 0.45;
+      box-shadow: 0 0 0 3px color-mix(in oklch, currentColor 35%, transparent);
     }
   }
 
