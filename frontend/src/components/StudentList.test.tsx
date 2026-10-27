@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import StudentList from './StudentList';
 import { Student } from '../lib/types';
@@ -85,12 +85,12 @@ describe('StudentList Responsive Mobile Cards', () => {
         expect(screen.getByText(/Joined 10 May 2026/i)).toBeInTheDocument();
 
         // Check WhatsApp link
-        const waLinks = screen.getAllByTitle('Chat on WhatsApp');
+        const waLinks = screen.getAllByLabelText('Chat on WhatsApp');
         expect(waLinks.length).toBeGreaterThanOrEqual(1);
         expect(waLinks[0].getAttribute('href')).toContain('wa.me/353871112233');
 
         // Check Call links
-        const phoneCalls = screen.getAllByText('+353871112233');
+        const phoneCalls = screen.getAllByText('087 111 2233');
         expect(phoneCalls.length).toBeGreaterThanOrEqual(1);
 
         // Check Eircode badges
@@ -118,5 +118,23 @@ describe('StudentList Responsive Mobile Cards', () => {
 
         // StudentDetail drawer should open showing Contact Info / Copy Contact Summary
         expect(await screen.findByText('Copy Contact Summary')).toBeInTheDocument();
+    });
+
+    it('sorts by a column header and tells screen readers which one', async () => {
+        renderStudentList();
+        expect((await screen.findAllByText('Alice Wonderland')).length).toBeGreaterThan(0);
+
+        const header = (name: RegExp) => screen.getByRole('columnheader', { name });
+        // Newest first to start with
+        expect(header(/^Added/)).toHaveAttribute('aria-sort', 'descending');
+        expect(header(/^Student/)).not.toHaveAttribute('aria-sort');
+
+        fireEvent.click(within(header(/^Student/)).getByRole('button'));
+        expect(header(/^Student/)).toHaveAttribute('aria-sort', 'ascending');
+        expect(header(/^Added/)).not.toHaveAttribute('aria-sort');
+
+        fireEvent.click(within(header(/^Student/)).getByRole('button'));
+        expect(header(/^Student/)).toHaveAttribute('aria-sort', 'descending');
+        expect(await screen.findAllByText('Alice Wonderland')).not.toHaveLength(0);
     });
 });

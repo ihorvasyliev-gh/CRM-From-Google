@@ -5,13 +5,11 @@ import MobileFloatingActions from './MobileFloatingActions';
 describe('MobileFloatingActions Component', () => {
     it('opens speed dial and triggers quick actions', () => {
         const handleAddStudent = vi.fn();
-        const handleSearch = vi.fn();
         const handleEnrollment = vi.fn();
 
         render(
             <MobileFloatingActions
                 onOpenAddStudent={handleAddStudent}
-                onOpenCommandPalette={handleSearch}
                 onOpenEnrollment={handleEnrollment}
                 isViewer={false}
             />
@@ -24,23 +22,22 @@ describe('MobileFloatingActions Component', () => {
         fireEvent.click(fab);
         expect(screen.getByText('Add Student')).toBeInTheDocument();
         expect(screen.getByText('New Enrollment')).toBeInTheDocument();
-        expect(screen.getByText('Quick Search')).toBeInTheDocument();
+        // Search is in the top bar, not repeated here
+        expect(screen.queryByText('Quick Search')).not.toBeInTheDocument();
 
         // Click Add Student
         fireEvent.click(screen.getByText('Add Student'));
         expect(handleAddStudent).toHaveBeenCalledTimes(1);
     });
 
-    it('renders nothing in viewer mode (search lives in the bottom dock)', () => {
+    it('renders nothing in viewer mode', () => {
         const { container } = render(
             <MobileFloatingActions
                 onOpenAddStudent={vi.fn()}
-                onOpenCommandPalette={vi.fn()}
                 isViewer={true}
             />
         );
 
         expect(container).toBeEmptyDOMElement();
-        expect(screen.queryByLabelText('Quick Search')).not.toBeInTheDocument();
     });
 });

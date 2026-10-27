@@ -29,7 +29,7 @@ export default function ExpiredInvitesCard({
                 </span>
                 <div className="min-w-0">
                     <p className="text-sm font-semibold text-primary">All invites on track</p>
-                    <p className="text-[11px] text-muted">No students currently past their response deadline</p>
+                    <p className="text-xs text-muted">No students currently past their response deadline</p>
                 </div>
             </div>
         );
@@ -48,12 +48,12 @@ export default function ExpiredInvitesCard({
             action={
                 <div className="flex items-center gap-1.5">
                     {overdue > 0 && (
-                        <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-danger/10 text-danger border border-danger/20 tabular-nums">
+                        <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-danger/10 text-status-rejected border border-danger/20 tabular-nums">
                             {overdue} overdue
                         </span>
                     )}
                     {dueSoon > 0 && (
-                        <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 tabular-nums">
+                        <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-500/10 text-status-requested border border-amber-500/25 tabular-nums">
                             {dueSoon} due soon
                         </span>
                     )}
@@ -78,13 +78,13 @@ export default function ExpiredInvitesCard({
                             >
                                 {item.studentName}
                             </button>
-                            <span className="block text-[11px] text-muted truncate">{item.courseName}</span>
+                            <span className="block text-xs text-muted truncate">{item.courseName}</span>
                         </div>
                         <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border whitespace-nowrap ${
+                            className={`px-2 py-0.5 rounded-md text-xs font-bold border whitespace-nowrap ${
                                 item.isExpired
-                                    ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                    ? 'bg-red-500/10 text-status-rejected border-red-500/20'
+                                    : 'bg-amber-500/10 text-status-requested border-amber-500/20'
                             }`}
                         >
                             {item.timeLabel}
@@ -94,7 +94,7 @@ export default function ExpiredInvitesCard({
                             onClick={() => onNavigate?.('enrollments', { courseId: item.courseId })}
                             aria-label={`Open ${item.courseName} board`}
                             title={`Open ${item.courseName} board`}
-                            className="p-1.5 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors cursor-pointer shrink-0"
+                            className="hit-area p-1.5 rounded-lg text-muted hover:text-brand-500 hover:bg-brand-500/10 transition-colors cursor-pointer shrink-0"
                         >
                             <ArrowUpRight size={14} />
                         </button>

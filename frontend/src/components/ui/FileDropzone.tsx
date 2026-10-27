@@ -69,7 +69,7 @@ export default function FileDropzone({
             </span>
             <span className={`min-w-0 ${compact ? 'text-left' : ''}`}>
                 <span className="block text-xs font-semibold text-primary">{uploading ? uploadingTitle : title}</span>
-                {hint && <span className="block text-[11px] text-muted mt-0.5">{hint}</span>}
+                {hint && <span className="block text-xs text-muted mt-0.5">{hint}</span>}
             </span>
             <input ref={inputRef} type="file" accept={accept} multiple={multiple} className="hidden" onChange={onChange} disabled={inactive} />
         </label>

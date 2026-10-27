@@ -19,7 +19,7 @@ import { CHART, axisProps, axisTick, gridProps, tooltipCursor, clickedRow } from
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { courseRunDate, courseRunKey } from './courseRuns';
 
 const NO_ENROLLMENTS: EnrollmentWithRelations[] = [];
@@ -241,14 +241,14 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                 </span>
                                 <div className="min-w-0">
                                     <h4 className="text-[13px] font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{c.name}</h4>
-                                    <p className="text-[11px] text-muted">{c.variantsList.length} variant{c.variantsList.length === 1 ? '' : 's'}</p>
+                                    <p className="text-xs text-muted">{c.variantsList.length} variant{c.variantsList.length === 1 ? '' : 's'}</p>
                                 </div>
                             </div>
                             <Badge tone="brand" shape="pill" className="tabular-nums shrink-0">{c.total} apps</Badge>
                         </div>
 
                         <div className="mt-4">
-                            <div className="flex items-center justify-between text-[11px] mb-1.5">
+                            <div className="flex items-center justify-between text-xs mb-1.5">
                                 <span className="text-muted flex items-center gap-1"><Percent size={11} /> Completion rate</span>
                                 <span className="font-semibold text-primary tabular-nums">{c.completionRate}%</span>
                             </div>
@@ -259,15 +259,15 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
 
                         <dl className="mt-4 grid grid-cols-3 divide-x divide-border-subtle border-t border-border-subtle pt-3 text-center">
                             <div>
-                                <dt className="text-[10px] text-muted uppercase tracking-wider">Graduates</dt>
+                                <dt className="text-xs text-muted uppercase tracking-wider">Graduates</dt>
                                 <dd className="text-sm font-semibold text-status-confirmed tabular-nums mt-0.5">{c.completed}</dd>
                             </div>
                             <div>
-                                <dt className="text-[10px] text-muted uppercase tracking-wider">Confirmed</dt>
+                                <dt className="text-xs text-muted uppercase tracking-wider">Confirmed</dt>
                                 <dd className="text-sm font-semibold text-status-invited tabular-nums mt-0.5">{c.confirmed}</dd>
                             </div>
                             <div>
-                                <dt className="text-[10px] text-muted uppercase tracking-wider">Avg cycle</dt>
+                                <dt className="text-xs text-muted uppercase tracking-wider">Avg cycle</dt>
                                 <dd className="text-sm font-semibold text-primary tabular-nums mt-0.5">{c.avgCycleDays !== null ? `${c.avgCycleDays}d` : '—'}</dd>
                             </div>
                         </dl>
@@ -374,7 +374,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                             </thead>
                             <tbody className={tbodyCls}>
                                 {paginatedRuns.map(r => {
-                                    const title = `${r.courseName} - ${r.variant} (${formatDateDMY(r.date)}) Graduates`;
+                                    const title = `${r.courseName} - ${r.variant} (${formatDisplayDate(r.date)}) Graduates`;
                                     const saving = savingRun === r.key;
                                     return (
                                         <tr
@@ -391,7 +391,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                                 </span>
                                             </td>
                                             <td className={`${tdCls} ${r.ignored ? 'opacity-60' : ''}`}><Badge tone="brand">{r.variant}</Badge></td>
-                                            <td className={`${tdCls} text-muted tabular-nums`}>{formatDateDMY(r.date) || 'No date recorded'}</td>
+                                            <td className={`${tdCls} text-muted tabular-nums`}>{formatDisplayDate(r.date) || 'No date recorded'}</td>
                                             <td className={`${tdCls} text-right`}>
                                                 <Badge tone={r.ignored ? 'neutral' : 'success'} shape="pill" className="tabular-nums">{r.completedCount}</Badge>
                                             </td>

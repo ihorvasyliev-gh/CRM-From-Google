@@ -228,7 +228,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                 </ResponsiveContainer>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                     <span className="text-2xl font-bold text-primary tabular-nums">{graduateData.workingCount}</span>
-                                    <span className="text-[11px] text-muted">employed</span>
+                                    <span className="text-xs text-muted">employed</span>
                                 </div>
                             </div>
                             <ul className="flex-1 w-full space-y-2">
@@ -239,7 +239,7 @@ export default function OutcomesTab({ enrollments, employmentStatuses, onDrillDo
                                             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
                                             <span className="flex-1 text-[13px] text-primary">{d.name}</span>
                                             <span className="text-[13px] font-semibold text-primary tabular-nums">{d.value}</span>
-                                            <span className="w-10 text-right text-[11px] text-muted tabular-nums">{pct}%</span>
+                                            <span className="w-10 text-right text-xs text-muted tabular-nums">{pct}%</span>
                                         </li>
                                     );
                                 })}

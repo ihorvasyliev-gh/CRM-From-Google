@@ -70,7 +70,7 @@ describe('CommandPalette Component', () => {
             />
         );
 
-        expect(screen.getByPlaceholderText(/search students, courses, navigation/i)).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/search students, courses, pages/i)).toBeInTheDocument();
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
         expect(screen.getByText('Students')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe('CommandPalette Component', () => {
             />
         );
 
-        const input = screen.getByPlaceholderText(/search students, courses, navigation/i);
+        const input = screen.getByPlaceholderText(/search students, courses, pages/i);
         fireEvent.change(input, { target: { value: 'Analytics' } });
 
         expect(screen.getByText('Analytics')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('CommandPalette Component', () => {
             />
         );
 
-        const input = screen.getByPlaceholderText(/search students, courses, navigation/i);
+        const input = screen.getByPlaceholderText(/search students, courses, pages/i);
         fireEvent.keyDown(input, { key: 'Escape' });
 
         expect(mockClose).toHaveBeenCalledTimes(1);
@@ -247,7 +247,7 @@ describe('CommandPalette Component', () => {
                 />
             );
 
-            const input = screen.getByPlaceholderText(/search students, courses, navigation/i);
+            const input = screen.getByPlaceholderText(/search students, courses, pages/i);
             fireEvent.change(input, { target: { value: 'Ihor' } });
 
             await waitFor(() => {

@@ -76,7 +76,7 @@ export default function OutreachShell({ role, darkMode, toggleDarkMode, userEmai
                     <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-xs shadow-brand-500/25 ring-1 ring-inset ring-white/15 shrink-0">C</span>
                     <span className="leading-tight min-w-0">
                         <span className="block text-sm font-bold text-primary tracking-tight truncate">{tab === 'forms' ? 'PDF Forms' : 'External Lists'}</span>
-                        <span className="hidden sm:block text-[11px] text-muted truncate">
+                        <span className="hidden sm:block text-xs text-muted truncate">
                             {tab === 'forms' ? 'Fill PDF forms from a spreadsheet' : 'Track employment status of people on external lists (e.g. Action 11)'}
                         </span>
                     </span>

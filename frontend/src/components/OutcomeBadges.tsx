@@ -3,7 +3,7 @@ import { Briefcase, CheckCircle, Mail, Send } from 'lucide-react';
 
 type TrackingStatus = 'not_contacted' | 'pending' | 'responded';
 
-const pillCls = 'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full';
+const pillCls = 'inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full';
 
 export function TrackingBadge({ status }: { status: TrackingStatus }) {
     if (status === 'responded') return <span className={`${pillCls} bg-success/15 text-status-confirmed`}><CheckCircle size={10} /> Responded</span>;
@@ -23,7 +23,7 @@ export function EmploymentBadge({ status, row }: {
             <span className={`${pillCls} bg-success/15 text-status-confirmed`}>
                 <Briefcase size={10} /> Working {type && `· ${type}`}
             </span>
-            {row.field_of_work && <span className="text-[10px] text-muted">in {row.field_of_work}</span>}
+            {row.field_of_work && <span className="text-xs text-muted">in {row.field_of_work}</span>}
         </div>
     );
 }

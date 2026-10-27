@@ -72,7 +72,7 @@ export default function MobileBottomNav({
                                     <div className={`p-1 rounded-lg transition-transform ${active ? 'bg-brand-500/10 scale-110' : ''}`}>
                                         <Icon size={19} />
                                     </div>
-                                    <span className="text-[10px] tracking-tight mt-0.5">{item.label}</span>
+                                    <span className="text-xs tracking-tight mt-0.5">{item.label}</span>
                                 </button>
                             );
                         })}
@@ -84,7 +84,7 @@ export default function MobileBottomNav({
                             <div className="p-1">
                                 <Search size={19} />
                             </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">Search</span>
+                            <span className="text-xs tracking-tight mt-0.5">Search</span>
                         </button>
 
                         <button
@@ -94,7 +94,7 @@ export default function MobileBottomNav({
                             <div className="p-1">
                                 <MoreHorizontal size={19} />
                             </div>
-                            <span className="text-[10px] tracking-tight mt-0.5">More</span>
+                            <span className="text-xs tracking-tight mt-0.5">More</span>
                         </button>
                     </div>
                 </nav>
@@ -168,7 +168,7 @@ export default function MobileBottomNav({
         );
     }
 
-    // Every other section and tool is in the burger menu (the sidebar drawer)
+    // Every other section and tool is in the burger menu (the sidebar drawer); the names match the sidebar's
     return (
         <nav 
             aria-label="Mobile Navigation"
@@ -177,6 +177,7 @@ export default function MobileBottomNav({
             <div className="flex items-center justify-around max-w-lg mx-auto">
                 <button
                     onClick={() => onNavigate('dashboard')}
+                    aria-current={activeTab === 'dashboard' ? 'page' : undefined}
                     className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
                         activeTab === 'dashboard'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
@@ -186,11 +187,12 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'dashboard' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <LayoutDashboard size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Overview</span>
+                    <span className="text-xs tracking-tight mt-0.5">Dashboard</span>
                 </button>
 
                 <button
                     onClick={() => onNavigate('enrollments')}
+                    aria-current={activeTab === 'enrollments' ? 'page' : undefined}
                     className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] relative ${
                         activeTab === 'enrollments'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
@@ -200,11 +202,12 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'enrollments' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <GraduationCap size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Board</span>
+                    <span className="text-xs tracking-tight mt-0.5">Enrollments</span>
                 </button>
 
                 <button
                     onClick={() => onNavigate('students')}
+                    aria-current={activeTab === 'students' ? 'page' : undefined}
                     className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
                         activeTab === 'students'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
@@ -214,11 +217,12 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'students' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <Users size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Students</span>
+                    <span className="text-xs tracking-tight mt-0.5">Students</span>
                 </button>
 
                 <button
                     onClick={() => onNavigate('courses')}
+                    aria-current={activeTab === 'courses' ? 'page' : undefined}
                     className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
                         activeTab === 'courses'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
@@ -228,7 +232,7 @@ export default function MobileBottomNav({
                     <div className={`p-1 rounded-lg transition-transform ${activeTab === 'courses' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <BookOpen size={18} />
                     </div>
-                    <span className="text-[10px] tracking-tight mt-0.5">Courses</span>
+                    <span className="text-xs tracking-tight mt-0.5">Courses</span>
                 </button>
             </div>
         </nav>

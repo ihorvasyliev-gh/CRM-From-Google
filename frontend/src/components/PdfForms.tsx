@@ -9,7 +9,7 @@ import { Segmented } from './ui/Tabs';
 import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import ConfirmDialog from './ConfirmDialog';
 import { toast } from '../lib/toast';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import { downloadBlob } from '../lib/download';
 import { downloadTemplatePdf, useDeletePdfFormTemplate, usePdfFormTemplates } from '../hooks/usePdfForms';
 import { readWorkbook, SHEET_ACCEPT, type Workbook } from '../lib/pdfForms/excel';
@@ -269,10 +269,10 @@ export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
                                         <Badge icon={<Type size={11} />}>{text} text</Badge>
                                         <Badge icon={<CheckSquare size={11} />}>{boxes} checkbox</Badge>
                                         <Badge tone="brand">version {t.revision}</Badge>
-                                        <span className="text-[11px] text-muted ml-auto">updated {formatDateDMY(t.updated_at)}</span>
+                                        <span className="text-xs text-muted ml-auto">updated {formatDisplayDate(t.updated_at)}</span>
                                     </div>
                                     {cols.length > 0 && (
-                                        <p className="text-[11px] text-muted mb-4 line-clamp-2" title={cols.join('\n')}>
+                                        <p className="text-xs text-muted mb-4 line-clamp-2" title={cols.join('\n')}>
                                             Uses: {cols.slice(0, 5).map(c => (c.length > 28 ? `${c.slice(0, 26)}…` : c)).join(' · ')}
                                             {cols.length > 5 ? ` +${cols.length - 5}` : ''}
                                         </p>
@@ -317,7 +317,7 @@ export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
                                     <FileInput size={18} className="text-brand-500 shrink-0" />
                                     <span className="min-w-0 flex-1">
                                         <span className="block text-sm font-semibold text-primary truncate">{fit.template.name}</span>
-                                        <span className="block text-[11px] text-muted">
+                                        <span className="block text-xs text-muted">
                                             {fit.total ? `${fit.found} of ${fit.total} columns found in this file` : 'This form has no fields yet'}
                                             {choice.workbook.sheets.length > 1 && fit.total ? ` (sheet “${choice.workbook.sheets[fit.sheetIndex].name}”)` : ''}
                                         </span>

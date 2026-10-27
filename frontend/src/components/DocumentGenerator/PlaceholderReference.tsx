@@ -45,7 +45,7 @@ export default function PlaceholderReference({ customVars }: { customVars: Templ
                         ]}
                     />
                     {tab === 'sheets' && (
-                        <p className="text-[11px] text-muted flex items-start gap-1.5">
+                        <p className="text-xs text-muted flex items-start gap-1.5">
                             <Info size={13} className="shrink-0 mt-px" />
                             <span>
                                 Numbered slots go up to {ATTENDANCE_SLOTS} on the attendance sheet and {LABEL_SLOTS} on labels ({'{fullName1}'} … {`{fullName${ATTENDANCE_SLOTS}}`});

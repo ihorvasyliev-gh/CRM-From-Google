@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient, keepPreviousData, type InfiniteData } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, ChevronRight, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Users, Phone, MessageSquare, X } from 'lucide-react';
 import StudentModal from './StudentModal';
 import StudentDetail from './StudentDetail';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
@@ -15,9 +15,12 @@ import { Toolbar } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import { EmptyState, SkeletonRows } from './ui/States';
 import { tableCls, theadCls, thCls, tbodyCls, tdCls } from './ui/styles';
-import { formatPhoneForWhatsApp, formatPhoneForCall } from '../lib/contactUtils';
-import { formatDateLong, formatDateDMY } from '../lib/dateUtils';
-import { fetchStudentsPage, type StudentsPage } from '../lib/queries';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatPhoneDisplay } from '../lib/contactUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
+import { DEFAULT_STUDENT_SORT, fetchStudentsPage, type StudentSort, type StudentsPage } from '../lib/queries';
+import { useEnrollmentList, type EnrollmentRow } from '../hooks/useEnrollments';
+import { STATUS_CONFIG } from '../lib/statusConfig';
+import { CustomTooltip } from './ui/Tooltip';
 import { createStudent, deleteStudent, updateStudent } from '../lib/students';
 import { removeCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
 import type { NavigateFn } from '../lib/navigation';
@@ -35,10 +38,69 @@ function SkeletonRow() {
                 </div>
             </td>
             <td className={tdCls}><div className="h-3.5 w-28 rounded-sm bg-muted/15" /></td>
+            <td className={tdCls}><div className="h-3.5 w-32 rounded-sm bg-muted/10" /></td>
             <td className={`${tdCls} hidden lg:table-cell`}><div className="h-5 w-16 rounded-sm bg-muted/15" /></td>
             <td className={`${tdCls} hidden xl:table-cell`}><div className="h-3.5 w-20 rounded-sm bg-muted/10" /></td>
             <td className={tdCls}><div className="h-3.5 w-16 rounded-sm bg-muted/10 ml-auto" /></td>
         </tr>
+    );
+}
+
+// A student's courses, the ones still going first
+const STATUS_ORDER = ['confirmed', 'invited', 'requested', 'completed', 'withdrawn', 'rejected'];
+const SHOWN_COURSES = 2;
+
+/** The courses a student is in, each in its status colour with the status icon (so not by colour alone) */
+function StudentCourses({ enrollments, loading }: { enrollments: EnrollmentRow[] | undefined; loading: boolean }) {
+    if (!enrollments?.length) {
+        return loading
+            ? <div className="h-3.5 w-24 rounded-sm bg-muted/10 animate-pulse" />
+            : <span className="text-xs text-muted">No courses</span>;
+    }
+    const sorted = [...enrollments].sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
+    const more = sorted.length - SHOWN_COURSES;
+    return (
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
+            {sorted.slice(0, SHOWN_COURSES).map(e => {
+                const cfg = STATUS_CONFIG[e.status];
+                return (
+                    <CustomTooltip key={e.id} content={`${e.courses?.name ?? 'Course'}: ${cfg?.label ?? e.status}`}>
+                        <span className={`inline-flex items-center gap-1 max-w-48 text-xs font-medium ${cfg?.color ?? 'text-muted'} [&_svg]:size-3 [&_svg]:shrink-0`}>
+                            {cfg?.icon}
+                            <span className="truncate">{e.courses?.name ?? 'Course'}</span>
+                            <span className="sr-only">({cfg?.label ?? e.status})</span>
+                        </span>
+                    </CustomTooltip>
+                );
+            })}
+            {more > 0 && (
+                <CustomTooltip content={sorted.slice(SHOWN_COURSES).map(e => `${e.courses?.name ?? 'Course'}: ${STATUS_CONFIG[e.status]?.label ?? e.status}`).join('\n')}>
+                    <span className="text-xs font-semibold text-muted">+{more}</span>
+                </CustomTooltip>
+            )}
+        </div>
+    );
+}
+
+/** A column header that sorts the list; aria-sort tells screen readers which one is in use */
+function SortHeader({ label, column, sort, onSort, className = '' }: {
+    label: string; column: StudentSort['key']; sort: StudentSort; onSort: (s: StudentSort) => void; className?: string;
+}) {
+    const active = sort.key === column;
+    // Names and Eircodes start A→Z, dates newest first
+    const firstDir: StudentSort['dir'] = column === 'created_at' ? 'desc' : 'asc';
+    const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
+    return (
+        <th className={`${thCls} ${className}`} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+            <button
+                type="button"
+                onClick={() => onSort({ key: column, dir: active ? (sort.dir === 'asc' ? 'desc' : 'asc') : firstDir })}
+                className={`group/sort inline-flex items-center gap-1 -mx-1 px-1 rounded-md uppercase tracking-wider transition-colors hover:text-primary ${active ? 'text-primary' : ''}`}
+            >
+                {label}
+                <Icon size={13} className={active ? '' : 'opacity-40 group-hover/sort:opacity-100'} aria-hidden />
+            </button>
+        </th>
     );
 }
 
@@ -57,6 +119,22 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
+    const [sort, setSort] = useState<StudentSort>(DEFAULT_STUDENT_SORT);
+    // The usual order keeps the plain key, which the sidebar prefetches
+    const studentsKey = useMemo(() => sort.key === DEFAULT_STUDENT_SORT.key && sort.dir === DEFAULT_STUDENT_SORT.dir
+        ? ['students', debouncedSearch]
+        : ['students', debouncedSearch, sort.key, sort.dir], [debouncedSearch, sort]);
+    // Each student's courses, from the enrollment list the board and dashboard share
+    const { data: allEnrollments, isLoading: enrollmentsLoading } = useEnrollmentList();
+    const enrollmentsByStudent = useMemo(() => {
+        const map = new Map<string, EnrollmentRow[]>();
+        for (const e of allEnrollments ?? []) {
+            const list = map.get(e.student_id);
+            if (list) list.push(e);
+            else map.set(e.student_id, [e]);
+        }
+        return map;
+    }, [allEnrollments]);
 
     const {
         data,
@@ -68,7 +146,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         isError,
         refetch,
     } = useInfiniteQuery({
-        queryKey: ['students', debouncedSearch],
+        queryKey: studentsKey,
         queryFn: fetchStudentsPage,
         getNextPageParam: (lastPage) => lastPage.nextPage,
         initialPageParam: 0,
@@ -111,24 +189,24 @@ export default function StudentList({ onNavigate }: StudentListProps) {
 
     // Optimistic cache updates
     const updateStudentInCache = useCallback((updatedStudent: Student) => {
-        queryClient.setQueryData(['students', debouncedSearch], mapStudentPages(students =>
+        queryClient.setQueryData(studentsKey, mapStudentPages(students =>
             students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
         ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
         // Their enrollments on the board show the new name and details
         updateCachedRelations(queryClient, { students: [updatedStudent as unknown as RelationRow] });
-    }, [queryClient, debouncedSearch]);
+    }, [queryClient, studentsKey]);
 
     const addStudentToCache = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['students'] });
     }, [queryClient]);
 
     const removeStudentFromCache = useCallback((id: string) => {
-        queryClient.setQueryData(['students', debouncedSearch], mapStudentPages(students =>
+        queryClient.setQueryData(studentsKey, mapStudentPages(students =>
             students.filter(s => s.id !== id)
         ));
         queryClient.invalidateQueries({ queryKey: ['students'] });
-    }, [queryClient, debouncedSearch]);
+    }, [queryClient, studentsKey]);
 
     async function handleSaveStudent(formData: StudentPayload) {
         if (formData.id) {
@@ -193,10 +271,11 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const tableHead = (
         <thead className={theadCls}>
             <tr>
-                <th className={thCls}>Student</th>
+                <SortHeader label="Student" column="name" sort={sort} onSort={setSort} />
                 <th className={thCls}>Phone</th>
-                <th className={`${thCls} hidden lg:table-cell`}>Eircode</th>
-                <th className={`${thCls} hidden xl:table-cell`}>Added</th>
+                <th className={thCls}>Courses</th>
+                <SortHeader label="Eircode" column="eircode" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
+                <SortHeader label="Added" column="created_at" sort={sort} onSort={setSort} className="hidden xl:table-cell" />
                 <th className={`${thCls} w-36`}><span className="sr-only">Actions</span></th>
             </tr>
         </thead>
@@ -216,13 +295,13 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                     <SearchInput
                         wrapperClassName="flex-1 sm:w-80"
-                        placeholder="Search by name, email, phone or eircode..."
+                        placeholder="Name, email, phone, eircode…"
                         value={search}
                         onChange={setSearch}
                         loading={searchPending}
                         aria-label="Search students"
                     />
-                    <Button variant="primary" size="lg" onClick={openCreate}>
+                    <Button variant="primary" size="lg" onClick={openCreate} aria-label="Add Student">
                         <Plus size={16} /> <span className="hidden xs:inline sm:inline">Add Student</span>
                     </Button>
                 </div>
@@ -285,8 +364,8 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 </p>
                                                 <p className="text-xs text-muted truncate mt-0.5">{student.email}</p>
                                                 {student.created_at && (
-                                                    <span className="text-[11px] text-muted block mt-0.5">
-                                                        Joined {formatDateLong(student.created_at)}
+                                                    <span className="text-xs text-muted block mt-0.5">
+                                                        Joined {formatDisplayDate(student.created_at)}
                                                     </span>
                                                 )}
                                             </div>
@@ -310,6 +389,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                         </div>
                                     </div>
 
+                                    <div className="pl-[52px]">
+                                        <StudentCourses enrollments={enrollmentsByStudent.get(student.id)} loading={enrollmentsLoading} />
+                                    </div>
+
                                     {(student.phone || student.dob || student.eircode) && (
                                         <div className="flex flex-wrap items-center gap-1.5 pl-[52px] text-xs" onClick={e => e.stopPropagation()}>
                                             {student.phone && (
@@ -319,23 +402,25 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                         className="inline-flex items-center gap-1 h-6 px-2 text-primary font-medium bg-surface-elevated hover:bg-border-subtle rounded-md border border-border-subtle transition-colors"
                                                     >
                                                         <Phone size={11} className="text-muted" />
-                                                        <span className="tabular-nums">{student.phone}</span>
+                                                        <span className="tabular-nums">{formatPhoneDisplay(student.phone)}</span>
                                                     </a>
                                                     {formatPhoneForWhatsApp(student.phone) && (
-                                                        <a
-                                                            href={formatPhoneForWhatsApp(student.phone)!}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
-                                                            title="Chat on WhatsApp"
-                                                        >
-                                                            <MessageSquare size={12} />
-                                                        </a>
+                                                        <CustomTooltip content="Chat on WhatsApp">
+                                                            <a
+                                                                href={formatPhoneForWhatsApp(student.phone)!}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="hit-area inline-flex items-center justify-center w-6 h-6 text-status-confirmed bg-success/10 hover:bg-success/20 border border-success/25 rounded-md transition-colors"
+                                                                title="Chat on WhatsApp"
+                                                            >
+                                                                <MessageSquare size={12} />
+                                                            </a>
+                                                        </CustomTooltip>
                                                     )}
                                                 </>
                                             )}
                                             {student.eircode && <Badge className="font-mono">{student.eircode}</Badge>}
-                                            {student.dob && <Badge>DOB: {formatDateDMY(student.dob)}</Badge>}
+                                            {student.dob && <Badge>DOB: {formatDisplayDate(student.dob)}</Badge>}
                                         </div>
                                     )}
                                 </li>
@@ -374,29 +459,34 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                                 {student.phone ? (
                                                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                                                         <a href={formatPhoneForCall(student.phone) || undefined} className="text-[13px] text-primary tabular-nums hover:text-brand-600 dark:hover:text-brand-400">
-                                                            {student.phone}
+                                                            {formatPhoneDisplay(student.phone)}
                                                         </a>
                                                         {formatPhoneForWhatsApp(student.phone) && (
-                                                            <a
-                                                                href={formatPhoneForWhatsApp(student.phone)!}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="inline-flex items-center justify-center w-6 h-6 text-muted hover:text-status-confirmed hover:bg-success/10 rounded-md transition-colors"
-                                                                title="Chat on WhatsApp"
-                                                            >
-                                                                <MessageSquare size={12} />
-                                                            </a>
+                                                            <CustomTooltip content="Chat on WhatsApp">
+                                                                <a
+                                                                    href={formatPhoneForWhatsApp(student.phone)!}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="hit-area inline-flex items-center justify-center w-6 h-6 text-muted hover:text-status-confirmed hover:bg-success/10 rounded-md transition-colors"
+                                                                    title="Chat on WhatsApp"
+                                                                >
+                                                                    <MessageSquare size={12} />
+                                                                </a>
+                                                            </CustomTooltip>
                                                         )}
                                                     </div>
                                                 ) : (
                                                     <span className="text-muted">—</span>
                                                 )}
                                             </td>
+                                            <td className={`${tdCls} max-w-72`}>
+                                                <StudentCourses enrollments={enrollmentsByStudent.get(student.id)} loading={enrollmentsLoading} />
+                                            </td>
                                             <td className={`${tdCls} hidden lg:table-cell`}>
                                                 {student.eircode ? <Badge className="font-mono">{student.eircode}</Badge> : <span className="text-muted">—</span>}
                                             </td>
                                             <td className={`${tdCls} hidden xl:table-cell text-xs text-muted tabular-nums whitespace-nowrap`}>
-                                                {student.created_at ? formatDateDMY(student.created_at) : '—'}
+                                                {student.created_at ? formatDisplayDate(student.created_at) : '—'}
                                             </td>
                                             <td className={tdCls}>
                                                 <div className="flex items-center justify-end gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>

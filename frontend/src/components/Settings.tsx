@@ -5,6 +5,7 @@ import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type S
 import { supabase } from '../lib/supabase';
 import { Student } from '../lib/types';
 import MergeModal from './MergeModal';
+import ConfirmDialog from './ConfirmDialog';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import UserRolesSection from './UserRolesSection';
 import EmailOptOutSection from './EmailOptOutSection';
@@ -17,6 +18,7 @@ import { calloutCls, eyebrowCls, inputCls, labelCls, panelCls } from './ui/style
 import EmailEditor, { type EmailEditorHandle } from './EmailEditor/EmailEditor';
 import EmailStyleSection from './EmailEditor/EmailStyleSection';
 import { toast } from '../lib/toast';
+import { shortcutLabel } from '../lib/platform';
 import { areNamesSimilar, normalizePhone } from '../lib/similarity';
 
 /** Placeholders replaced by a whole card or button — inserted on a line of their own. */
@@ -91,8 +93,8 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         setTimeout(() => setSaved(false), 2000);
     }, [config, isValidTemplate, isValidStatusTemplate]);
 
+    const [confirmReset, setConfirmReset] = useState(false);
     const handleReset = useCallback(() => {
-        if (!window.confirm('Reset all email templates and settings to their defaults?')) return;
         const defaults = resetConfig();
         setLocalConfig(defaults);
         setSavedSnapshot(JSON.stringify(defaults));
@@ -418,7 +420,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     }, []);
 
     const chipCls = (present: boolean) =>
-        `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-mono border transition active:scale-95 ${
+        `inline-flex items-center gap-1 h-7 px-2 rounded-lg text-xs font-mono border transition active:scale-95 ${
             present
                 ? 'bg-success/10 text-status-confirmed border-success/25 hover:bg-success/15'
                 : 'bg-surface text-primary border-border-subtle hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400'
@@ -454,7 +456,8 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         <div className="w-full pb-8">
             <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-5 lg:gap-8 items-start">
                 {/* Section navigation */}
-                <aside className="lg:sticky lg:top-6 min-w-0">
+                {/* Not an <aside>: the app's sidebar is the page's one complementary landmark */}
+                <div className="lg:sticky lg:top-6 min-w-0">
                     <nav aria-label="Settings sections" className="flex lg:flex-col gap-1 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
                         {sections.map(sec => {
                             const Icon = sec.icon;
@@ -478,16 +481,16 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         })}
                     </nav>
                     <div className="hidden lg:block mt-6 pt-4 border-t border-border-subtle space-y-3">
-                        <p className="flex items-start gap-1.5 text-[11px] text-muted leading-relaxed">
+                        <p className="flex items-start gap-1.5 text-xs text-muted leading-relaxed">
                             <Info size={12} className="shrink-0 mt-0.5" />
                             Email and display settings are saved to your account and this browser.
                         </p>
-                        <Button variant="ghost" size="sm" onClick={handleReset} className="-ml-2.5 hover:!text-status-rejected">
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmReset(true)} className="-ml-2.5 hover:!text-status-rejected">
                             <RotateCcw size={13} />
                             Reset to defaults
                         </Button>
                     </div>
-                </aside>
+                </div>
 
                 <div className="space-y-6 min-w-0">
                     {/* ═══ Email text style ═══ */}
@@ -567,7 +570,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                         className={`${inputCls} h-10`}
                                         placeholder="e.g. You are Invited to join our {courseName} course"
                                     />
-                                    <p className="mt-1.5 text-[11px] text-muted leading-relaxed">
+                                    <p className="mt-1.5 text-xs text-muted leading-relaxed">
                                         Placeholders: <code className="px-1.5 py-0.5 bg-surface-elevated rounded-sm font-mono text-primary">{'{courseName}'}</code> course name,{' '}
                                         <code className="px-1.5 py-0.5 bg-surface-elevated rounded-sm font-mono text-primary">{'{date}'}</code> invite date
                                     </p>
@@ -578,7 +581,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                         <span className={labelCls + ' mb-0!'}>
                                             {isTomorrowTab ? 'Email body (Day before)' : isReminderTab ? 'Email body (Reminder)' : inviteTemplateTab === 'high_english' ? 'Email body (High English)' : 'Email body (Standard course)'}
                                         </span>
-                                        <span className="text-[11px] text-muted">Click a tag to insert it</span>
+                                        <span className="text-xs text-muted">Click a tag to insert it</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
                                         {(isReminderTab ? [
@@ -714,7 +717,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className={labelCls + ' mb-0!'}>Email body</span>
-                                        <span className="text-[11px] text-muted">Click a tag to insert it</span>
+                                        <span className="text-xs text-muted">Click a tag to insert it</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 mb-2">
                                         {[
@@ -833,7 +836,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                         <div key={s.id} className="text-xs text-primary font-medium flex items-center gap-2">
                                                             <span className="w-1.5 h-1.5 bg-brand-500 rounded-full shrink-0" />
                                                             <span>{s.first_name} {s.last_name}</span>
-                                                            {s.phone && <span className="text-muted text-[11px]">({s.phone})</span>}
+                                                            {s.phone && <span className="text-muted text-xs">({s.phone})</span>}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -889,9 +892,9 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                             <div key={label} className="text-xs text-primary flex flex-wrap items-center gap-1.5">
                                                                 <span className="text-muted w-16 shrink-0">Profile {label}:</span>
                                                                 <span className="font-semibold">{st.first_name} {st.last_name}</span>
-                                                                {st.phone && <span className="text-muted text-[11px]">({st.phone})</span>}
-                                                                {st.email && <span className="text-muted text-[11px]">• {st.email}</span>}
-                                                                {st.address && <span className="text-muted text-[11px]">• {st.address}</span>}
+                                                                {st.phone && <span className="text-muted text-xs">({st.phone})</span>}
+                                                                {st.email && <span className="text-muted text-xs">• {st.email}</span>}
+                                                                {st.address && <span className="text-muted text-xs">• {st.address}</span>}
                                                                 <Badge tone={age === 'Newer' ? 'brand' : 'neutral'}>({age})</Badge>
                                                             </div>
                                                         ))}
@@ -1003,7 +1006,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                                     <span className="block text-xs font-semibold text-primary">
                                                         {opt.label}{opt.value === 'comfortable' && <span className="text-muted font-normal"> (default)</span>}
                                                     </span>
-                                                    <span className="block text-[11px] text-muted mt-0.5">{opt.desc}</span>
+                                                    <span className="block text-xs text-muted mt-0.5">{opt.desc}</span>
                                                 </span>
                                             </button>
                                         );
@@ -1020,7 +1023,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
 
                     <div className="lg:hidden flex items-center justify-between gap-3 text-xs text-muted px-1">
                         <span className="flex items-center gap-1.5"><Info size={12} /> Settings persist across sessions.</span>
-                        <Button variant="ghost" size="sm" onClick={handleReset}>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmReset(true)}>
                             <RotateCcw size={13} />
                             Reset to defaults
                         </Button>
@@ -1041,7 +1044,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                                             <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
                                             <span className="font-semibold text-primary">Unsaved changes</span>
                                             <span className="hidden sm:inline text-muted truncate">
-                                                {canSave ? '· Ctrl+S to save' : '· fix the template warnings to save'}
+                                                {canSave ? `· ${shortcutLabel('Mod', 'S')} to save` : '· fix the template warnings to save'}
                                             </span>
                                         </>
                                     )}
@@ -1055,6 +1058,14 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                     )}
                 </div>
             </div>
+            <ConfirmDialog
+                open={confirmReset}
+                title="Reset to defaults?"
+                message="All email templates and settings go back to how they came. Your own wording is lost."
+                confirmLabel="Reset"
+                onConfirm={() => { setConfirmReset(false); handleReset(); }}
+                onCancel={() => setConfirmReset(false)}
+            />
         </div>
     );
 }

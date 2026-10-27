@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+    formatPhoneDisplay,
     formatPhoneForWhatsApp,
     formatPhoneForCall,
     formatGoogleMapsUrl,
@@ -70,6 +71,28 @@ describe('contactUtils', () => {
             expect(summary).toContain('Phone: +353871234567');
             expect(summary).toContain('Address: 12 Main St, Cork');
             expect(summary).toContain('Eircode: T12 X4Y2');
+        });
+    });
+
+    describe('formatPhoneDisplay', () => {
+        it('shows Irish numbers the way they are dialled at home', () => {
+            expect(formatPhoneDisplay('+353875513370')).toBe('087 551 3370');
+            expect(formatPhoneDisplay('0875513370')).toBe('087 551 3370');
+            expect(formatPhoneDisplay('+353214567890')).toBe('021 456 7890');
+            expect(formatPhoneDisplay('+35312345678')).toBe('01 234 5678');
+        });
+
+        it('groups Ukrainian and UK numbers after the country code', () => {
+            expect(formatPhoneDisplay('+380671234567')).toBe('+380 67 123 4567');
+            expect(formatPhoneDisplay('0671234567')).toBe('+380 67 123 4567');
+            expect(formatPhoneDisplay('+447123456789')).toBe('+44 7123 456789');
+        });
+
+        it('leaves anything else as it was', () => {
+            expect(formatPhoneDisplay('+12025550123')).toBe('+12025550123');
+            expect(formatPhoneDisplay('ask at reception')).toBe('ask at reception');
+            expect(formatPhoneDisplay('')).toBe('');
+            expect(formatPhoneDisplay(null)).toBe('');
         });
     });
 });

@@ -155,13 +155,13 @@ export default function ViewerCourseCatalog() {
                 <div className="space-y-5">
                     {pinnedCourses.length > 0 && (
                         <section className="space-y-2">
-                            <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted flex items-center gap-1.5"><Pin size={12} /> Pinned</h2>
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-1.5"><Pin size={12} /> Pinned</h2>
                             {renderCourses(pinnedCourses)}
                         </section>
                     )}
                     {otherCourses.length > 0 && (
                         <section className="space-y-2">
-                            {pinnedCourses.length > 0 && <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted">All courses</h2>}
+                            {pinnedCourses.length > 0 && <h2 className="text-xs font-bold uppercase tracking-wider text-muted">All courses</h2>}
                             {renderCourses(otherCourses)}
                         </section>
                     )}
@@ -236,7 +236,7 @@ function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemPro
                         <button
                             type="button"
                             onClick={e => { e.stopPropagation(); onOpen(course.id, { status: 'awaiting' }); }}
-                            className="px-2 py-0.5 rounded-full text-[10px] font-bold status-pill-requested inline-flex items-center gap-1"
+                            className="px-2 py-0.5 rounded-full text-xs font-bold status-pill-requested inline-flex items-center gap-1"
                             title="Completion requests waiting for admin approval"
                         >
                             <Clock size={10} /> {course.pending_approval_count} awaiting
@@ -261,7 +261,7 @@ function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemPro
                         title={`Show ${STATUS_META[key].label.toLowerCase()} students`}
                     >
                         <span className="block text-sm font-bold text-primary tabular-nums">{course[field]}</span>
-                        <span className="flex items-center justify-center gap-1 text-[10px] text-muted font-semibold">
+                        <span className="flex items-center justify-center gap-1 text-xs text-muted font-semibold">
                             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[key].dot}`} />
                             {STATUS_META[key].label}
                         </span>
@@ -287,7 +287,7 @@ function CourseListRow({ course, next, pinned, onTogglePin, onOpen }: CourseItem
                 <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-primary text-sm truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{course.name}</h3>
                     {course.pending_approval_count > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold status-pill-requested shrink-0">{course.pending_approval_count} awaiting</span>
+                        <span className="px-1.5 py-0.5 rounded-full text-xs font-bold status-pill-requested shrink-0">{course.pending_approval_count} awaiting</span>
                     )}
                 </div>
                 <div className="text-xs mt-0.5 truncate"><NextSession next={next} /></div>

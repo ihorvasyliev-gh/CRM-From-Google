@@ -7,7 +7,7 @@ import { fieldCls, labelCls } from '../ui/styles';
 import { SelectField } from '../Viewer/ViewerUI';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 
 export interface AnalyticsFilterState {
@@ -134,7 +134,7 @@ export default function GlobalFilterBar({
         { value: '365', label: '12 months' },
     ];
     const customLabel = filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate
-        ? `${formatDateDMY(filters.customStartDate)} – ${formatDateDMY(filters.customEndDate)}`
+        ? `${formatDisplayDate(filters.customStartDate)} – ${formatDisplayDate(filters.customEndDate)}`
         : 'Custom';
     const share = allEnrollments.length > 0 ? Math.round((filteredEnrollments.length / allEnrollments.length) * 100) : 0;
 
@@ -238,7 +238,7 @@ export default function GlobalFilterBar({
                 </div>
                 <div className="flex items-center gap-3 ml-auto">
                     {allEnrollments.length > 0 && (
-                        <div className="flex items-center gap-2 text-[11px] text-muted">
+                        <div className="flex items-center gap-2 text-xs text-muted">
                             <span className="hidden sm:block w-16 h-1.5 rounded-full bg-border-subtle overflow-hidden">
                                 <span className="block h-full bg-brand-500 rounded-full" style={{ width: `${share}%` }} />
                             </span>

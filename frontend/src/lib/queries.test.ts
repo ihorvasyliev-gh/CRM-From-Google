@@ -84,6 +84,20 @@ describe('fetchStudentsPage', () => {
         expect(next.select).toHaveBeenCalledWith('*', undefined);
         expect(page1).toMatchObject({ count: 0, nextPage: 2 });
     });
+
+    it('orders by the chosen column, newest first unless told otherwise', async () => {
+        const byDefault = studentsQuery(rows(3), 3) as unknown as { order: ReturnType<typeof vi.fn> };
+        await fetchStudentsPage({ pageParam: 0, queryKey: ['students', ''] });
+        expect(byDefault.order.mock.calls).toEqual([['created_at', { ascending: false }], ['id']]);
+
+        const byName = studentsQuery(rows(3), 3) as unknown as { order: ReturnType<typeof vi.fn> };
+        await fetchStudentsPage({ pageParam: 0, queryKey: ['students', '', 'name', 'asc'] });
+        expect(byName.order.mock.calls).toEqual([['first_name', { ascending: true }], ['last_name', { ascending: true }], ['id']]);
+
+        const byEircode = studentsQuery(rows(3), 3) as unknown as { order: ReturnType<typeof vi.fn> };
+        await fetchStudentsPage({ pageParam: 0, queryKey: ['students', '', 'eircode', 'desc'] });
+        expect(byEircode.order.mock.calls).toEqual([['eircode', { ascending: false, nullsFirst: false }], ['id']]);
+    });
 });
 
 describe('ENROLLMENT_SELECT', () => {

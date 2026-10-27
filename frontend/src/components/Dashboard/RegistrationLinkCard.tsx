@@ -33,7 +33,7 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-primary truncate">Registration Form</p>
-                    <p className="text-[11px] text-muted font-mono truncate">{DISPLAY_URL}</p>
+                    <p className="text-xs text-muted font-mono truncate">{DISPLAY_URL}</p>
                 </div>
                 <button
                     type="button"
@@ -70,7 +70,7 @@ export default function RegistrationLinkCard({ compact = false, variant, classNa
                 </span>
                 <div className="min-w-0">
                     <h4 className="text-sm font-semibold">Registration Form</h4>
-                    <p className="text-[11px] text-white/75">Share with new students to sign up</p>
+                    <p className="text-xs text-white/75">Share with new students to sign up</p>
                 </div>
             </div>
 

@@ -4,8 +4,8 @@ import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTria
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
-import { formatDateChoiceList, formatDateLong, formatLocalDate, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
-import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
+import { formatDateChoiceList, formatLocalDate, formatShortDate, formatShortDateList, formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatPhoneDisplay } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
@@ -73,13 +73,13 @@ function getRelativeTime(isoDate: string): string {
 const iconBtnBase = 'w-8 h-8 lg:w-6 lg:h-6 inline-flex items-center justify-center rounded-md transition-colors';
 const iconBtn = `${iconBtnBase} text-muted hover:text-brand-500 hover:bg-surface-elevated`;
 // 20 px wide in the narrow four-column layout (a mouse), where the phone number needs the room
-const contactBtn = 'w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
+const contactBtn = 'hit-area w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
-const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[10.5px] leading-none font-medium shrink-0 whitespace-nowrap';
+const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-xs leading-none font-medium shrink-0 whitespace-nowrap';
 // The flag as a count ("⚠ 2"): a red chip in a button as tall as the icon buttons
 const flagCountBtn = 'group/flag h-8 lg:h-6 min-w-8 lg:min-w-6 inline-flex items-center justify-center rounded-md';
-const flagCountChip = 'inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md bg-red-600 group-hover/flag:bg-red-700 text-white text-[11px] leading-none font-extrabold tabular-nums shadow-xs transition-colors';
+const flagCountChip = 'inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md bg-red-600 group-hover/flag:bg-red-700 text-white text-xs leading-none font-extrabold tabular-nums shadow-xs transition-colors';
 
 /** From this many flags (failed or missed courses) the card is marked red, not just the orange "!". */
 const MANY_FLAGS = 2;
@@ -277,12 +277,12 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 ? <><Send size={10} className={narrowHidden} />{formatShortDate(enrollment.invited_date)}</>
                 : <>{formatShortDate(enrollment.created_at)}<span className={narrowHidden}> · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</span></>;
     const dateTooltip = [
-        `Added ${formatDateLong(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
+        `Added ${formatDisplayDate(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
         offeredDates
             ? `Invited — student picks one: ${formatDateChoiceList(offeredDates)}`
-            : enrollment.invited_date && `Invited ${formatDateLong(enrollment.invited_date)}`,
-        enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
-        enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
+            : enrollment.invited_date && `Invited ${formatDisplayDate(enrollment.invited_date)}`,
+        enrollment.confirmed_date && `Confirmed ${formatDisplayDate(enrollment.confirmed_date)}`,
+        enrollment.completed_date && `Completed ${formatDisplayDate(enrollment.completed_date)}`,
     ].filter(Boolean).join('\n');
 
     // "4 days · 10:00" next to the course; the whole schedule in the tooltip
@@ -505,15 +505,16 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                 {/* Row 2: Course (coloured text) & completed-courses badge */}
                 <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
+                    {/* Up to two lines: a long course name still shows its language */}
                     <span
                         title={getCoursePill(enrollment)}
-                        className={`min-w-0 truncate text-[11.5px] font-semibold ${cfg.color}`}
+                        className={`min-w-0 line-clamp-2 break-words text-xs font-semibold ${cfg.color}`}
                     >
                         {getCoursePill(enrollment)}
                     </span>
                     {scheduleTooltip && (
                         <CustomTooltip content={scheduleTooltip}>
-                            <span className="inline-flex items-center gap-1 shrink-0 text-[10.5px] font-medium text-muted whitespace-nowrap tabular-nums" data-testid="card-schedule">
+                            <span className="inline-flex items-center gap-1 shrink-0 text-xs font-medium text-muted whitespace-nowrap tabular-nums" data-testid="card-schedule">
                                 {scheduleNote ? <><Clock size={10} />{scheduleNote}</> : <MapPin size={10} aria-label="Place set" />}
                             </span>
                         </CustomTooltip>
@@ -523,7 +524,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setShowCompleted(true); }}
                             title={`Completed ${completedCourses.length} course${completedCourses.length > 1 ? 's' : ''}. Click to view.`}
-                            className="card-pill inline-flex items-center justify-center gap-0.5 h-6 min-w-6 -my-[3px] px-1.5 text-[10.5px] leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shrink-0 transition-colors"
+                            className="card-pill inline-flex items-center justify-center gap-0.5 h-6 min-w-6 -my-[3px] px-1.5 text-xs leading-none font-bold rounded-md text-status-requested bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer shrink-0 transition-colors"
                         >
                             <Award size={10} strokeWidth={2.5} className="shrink-0" />
                             {completedCourses.length}
@@ -531,8 +532,8 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     )}
                 </div>
 
-                {/* Row 3: Contacts & date */}
-                <div className="card-contact mt-1.5 flex items-center gap-0.5 text-xs min-w-0">
+                {/* Row 3: Contacts & date; in a narrow card the date wraps under the phone rather than cutting it off */}
+                <div className="card-contact mt-1.5 flex flex-wrap items-center gap-x-0.5 gap-y-1.5 text-xs min-w-0">
                     {enrollment.students?.phone && (() => {
                         const waUrl = formatPhoneForWhatsApp(enrollment.students.phone);
                         const telUrl = formatPhoneForCall(enrollment.students.phone);
@@ -548,12 +549,12 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         title="Click to call"
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{enrollment.students.phone}</span>
+                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </a>
                                 ) : (
                                     <span className="flex items-center gap-1 min-w-0 tabular-nums text-primary mr-1 @max-2xs:mr-0" title={enrollment.students.phone}>
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{enrollment.students.phone}</span>
+                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </span>
                                 )}
                                 {waUrl && (
@@ -593,7 +594,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                     {/* Stage date — the most relevant date for the current status; all dates in the tooltip */}
                     <CustomTooltip content={dateTooltip}>
-                        <span className="card-info ml-auto pl-1 text-[11px] text-muted whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
+                        <span className="card-info ml-auto pl-1 text-xs text-muted whitespace-nowrap tabular-nums shrink-0 flex items-center gap-1">
                             {stageDate}
                         </span>
                     </CustomTooltip>
@@ -601,10 +602,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                 {/* Row 4: Note (only when present) — one line; hover shows the whole text */}
                 {enrollment.notes && !isEditingNote && (
-                    <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-[10px] text-primary/50">Click to edit</span></>}>
+                    <CustomTooltip content={<><span className="italic">{enrollment.notes}</span>{'\n'}<span className="text-xs text-primary/50">Click to edit</span></>}>
                         <button
                             onClick={handleStartEditNote}
-                            className="card-note mt-1.5 w-full flex items-center gap-1 text-[11px] text-status-requested bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded-sm italic transition-colors text-left cursor-pointer min-w-0"
+                            className="card-note mt-1.5 w-full flex items-center gap-1 text-xs text-status-requested bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded-sm italic transition-colors text-left cursor-pointer min-w-0"
                         >
                             <Pencil size={10} className="shrink-0 text-status-requested" />
                             <span className="truncate">{enrollment.notes}</span>
@@ -620,10 +621,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     onPointerDown={e => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-status-requested flex items-center gap-1">
+                        <span className="text-xs font-bold uppercase tracking-wider text-status-requested flex items-center gap-1">
                             <Pencil size={10} /> Quick Note
                         </span>
-                        <span className="text-[9px] text-muted font-mono">↵ Save · Esc Cancel</span>
+                        <span className="text-xs text-muted font-mono">↵ Save · Esc Cancel</span>
                     </div>
                     <textarea
                         ref={noteInputRef}
@@ -639,7 +640,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={handleCancelNote}
                             disabled={isSavingNote}
-                            className="px-2.5 py-1 text-[11px] font-medium text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-medium text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors cursor-pointer"
                         >
                             Cancel
                         </button>
@@ -647,7 +648,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             type="button"
                             onClick={() => handleSaveNote()}
                             disabled={isSavingNote}
-                            className="flex items-center gap-1 px-3 py-1 text-[11px] font-semibold text-white bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                            className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 rounded-lg shadow-2xs transition-colors cursor-pointer"
                         >
                             <Check size={12} />
                             Save
@@ -658,10 +659,10 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
             {/* Pending Completion Approval Highlight */}
             {enrollment.completion_request_status === 'pending' && (
-                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-[10px] md:text-[11px] font-semibold animate-pulse shadow-2xs">
+                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs">
                     <Clock size={11} className="shrink-0" />
                     <span className="truncate">
-                        Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
+                        Completion requested for <strong>{formatDisplayDate(enrollment.pending_completion_date)}</strong>
                         {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
                     </span>
                 </div>
@@ -803,7 +804,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         onPointerDown={e => e.stopPropagation()}
                         className={`w-44 bg-surface border border-border-subtle rounded-xl shadow-float p-1.5 space-y-1 z-10000 animate-popoverScaleIn ${popoverPos?.isAbove ? 'origin-bottom-right' : 'origin-top-right'}`}
                     >
-                        <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
+                        <div className="px-2 py-1 text-xs font-bold text-muted uppercase tracking-wider border-b border-border-subtle flex justify-between items-center">
                             <span>Move to Status</span>
                             <button
                                 onClick={() => setShowQuickMove(false)}

@@ -61,7 +61,7 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
             {title && (
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-primary">{title}</span>
-                    <span className="text-[11px] text-muted">{formatDateLongWithWeekday(session.date)} · {days.length} {days.length === 1 ? 'day' : 'days'}</span>
+                    <span className="text-xs text-muted">{formatDateLongWithWeekday(session.date)} · {days.length} {days.length === 1 ? 'day' : 'days'}</span>
                 </div>
             )}
 
@@ -119,7 +119,7 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
                         return (
                             <li key={d.date} className="space-y-1.5">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-10 shrink-0 text-[11px] font-semibold text-muted">Day {i + 1}</span>
+                                    <span className="w-10 shrink-0 text-xs font-semibold text-muted">Day {i + 1}</span>
                                     {i === 0 ? (
                                         <span className="flex-1 min-w-0 px-2.5 py-2 text-sm font-semibold text-status-invited">
                                             {formatDateLongWithWeekday(d.date)}

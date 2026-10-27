@@ -121,7 +121,7 @@ export default function OutreachImportModal({ open, listId, listName, existingEm
                 >
                     {reading ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
                     <span className="text-sm font-semibold">Choose Excel (.xlsx) or CSV file</span>
-                    <span className="text-[11px]">Export from IRIS. Needs an Email column; name, phone and IRIS ID columns are picked up automatically.</span>
+                    <span className="text-xs">Export from IRIS. Needs an Email column; name, phone and IRIS ID columns are picked up automatically.</span>
                 </button>
 
                 <div className="space-y-2">

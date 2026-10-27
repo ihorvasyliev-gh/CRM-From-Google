@@ -251,7 +251,7 @@ export default function DateCalendarPicker({
                         <X size={12} />
                     </button>
                 ) : (
-                    <span className="text-[10px] uppercase font-semibold text-muted px-1">{label}</span>
+                    <span className="text-xs uppercase font-semibold text-muted px-1">{label}</span>
                 )}
             </div>
 
@@ -282,7 +282,7 @@ export default function DateCalendarPicker({
                     {/* Weekday Grid */}
                     <div className="grid grid-cols-7 gap-0.5 mb-1 text-center">
                         {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((wd) => (
-                            <span key={wd} className="text-[10px] font-bold text-muted uppercase py-0.5">
+                            <span key={wd} className="text-xs font-bold text-muted uppercase py-0.5">
                                 {wd}
                             </span>
                         ))}

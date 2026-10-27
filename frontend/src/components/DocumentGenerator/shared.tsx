@@ -8,14 +8,14 @@ export function StepHeader({ n, title, done, hint }: { n: number; title: string;
     return (
         <div className="flex items-center gap-3 mb-3">
             <span
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                     done ? 'bg-success text-white' : 'bg-surface-elevated text-muted border border-border-subtle'
                 }`}
             >
                 {done ? <Check size={13} strokeWidth={3} /> : n}
             </span>
             <span className="text-[13px] font-semibold text-primary">{title}</span>
-            {hint && <span className="ml-auto text-[11px] text-muted text-right">{hint}</span>}
+            {hint && <span className="ml-auto text-xs text-muted text-right">{hint}</span>}
         </div>
     );
 }

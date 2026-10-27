@@ -93,7 +93,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, chil
         >
             {children}
             {count !== undefined && (
-                <span className={`text-[10px] px-1.5 rounded-full font-mono ${active ? 'bg-white/20 text-white' : 'bg-background text-muted'}`}>
+                <span className={`text-xs px-1.5 rounded-full font-mono ${active ? 'bg-white/20 text-white' : 'bg-background text-muted'}`}>
                     {count}
                 </span>
             )}
@@ -104,7 +104,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, chil
 /** Small uppercase caption in front of a chip group / sheet section. */
 function GroupLabel({ icon, children, className = '' }: { icon: ReactNode; children: ReactNode; className?: string }) {
     return (
-        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted shrink-0 ${className}`}>
+        <span className={`flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted shrink-0 ${className}`}>
             {icon}
             {children}
         </span>
@@ -289,7 +289,7 @@ export default function FilterBar({
             key={filter.id}
             className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-xs whitespace-nowrap shrink-0"
         >
-            <span className="text-muted text-[11px]">{filter.label}:</span>
+            <span className="text-muted text-xs">{filter.label}:</span>
             <span className="font-semibold text-primary max-w-[160px] truncate">{filter.value}</span>
             <button
                 type="button"
@@ -458,7 +458,7 @@ export default function FilterBar({
                     <button
                         type="button"
                         onClick={clearFilters}
-                        className="text-[11px] font-semibold text-danger px-2 py-1 whitespace-nowrap shrink-0"
+                        className="text-xs font-semibold text-danger px-2 py-1 whitespace-nowrap shrink-0"
                     >
                         Clear all
                     </button>

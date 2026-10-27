@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { cleanVariant, type ViewerCourseRosterItem } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneDisplay } from '../../lib/contactUtils';
 import { exportViewerRosterToExcel } from '../../lib/excelExport';
 import { toast } from '../../lib/toast';
 import { isAnyModalOpen } from '../../hooks/useModalBehavior';
@@ -359,7 +360,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
                                 active={dateFilter === d.date}
                                 onClick={() => setFilter({ date: dateFilter === d.date ? null : d.date })}
                                 label={d.diff === 0 ? 'Today' : d.diff === 1 ? 'Tomorrow' : weekdayDate(d.date)}
-                                title={`${formatDateDMY(d.date)} · ${relativeDay(d.date)}`}
+                                title={`${formatDisplayDate(d.date)} · ${relativeDay(d.date)}`}
                                 count={d.count}
                                 past={d.diff < 0}
                                 today={d.diff === 0}
@@ -378,7 +379,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
                         <span className="text-muted mr-1">
                             Showing <strong className="text-primary">{rows.length}</strong> of {roster.length}
                         </span>
-                        {dateFilter && <FilterChip label={`Date: ${formatDateDMY(dateFilter)}`} onRemove={() => setFilter({ date: null })} />}
+                        {dateFilter && <FilterChip label={`Date: ${formatDisplayDate(dateFilter)}`} onRemove={() => setFilter({ date: null })} />}
                         {stream && <FilterChip label={`Stream: ${stream}`} onRemove={() => setFilter({ stream: null })} />}
                         {search.value.trim() && <FilterChip label={`"${search.value.trim()}"`} onRemove={search.clear} />}
                         <button type="button" onClick={resetFilters} className="ml-1 font-semibold text-brand-600 dark:text-brand-400 hover:underline">Clear all</button>
@@ -401,7 +402,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
             ) : (
                 <div className="bg-surface rounded-2xl border border-border-subtle shadow-card overflow-hidden">
                     {/* Column header */}
-                    <div className="flex items-center gap-3 px-3 sm:px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-[11px] font-bold uppercase tracking-wider text-muted">
+                    <div className="flex items-center gap-3 px-3 sm:px-4 h-10 border-b border-border-subtle bg-surface-elevated/50 text-xs font-bold uppercase tracking-wider text-muted">
                         <button
                             type="button"
                             role="checkbox"
@@ -503,7 +504,7 @@ function DateChip({ active, onClick, label, count, title, past, today }: { activ
             }`}
         >
             {label}
-            <span className={`tabular-nums text-[10px] font-bold ${active ? 'text-white/80' : 'text-muted'}`}>{count}</span>
+            <span className={`tabular-nums text-xs font-bold ${active ? 'text-white/80' : 'text-muted'}`}>{count}</span>
         </button>
     );
 }
@@ -570,27 +571,27 @@ function RosterRow({
                 <div className="flex items-center gap-1.5 min-w-0">
                     <span className="font-semibold text-sm text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{name}</span>
                     {item.is_priority && <PriorityStar />}
-                    {variant && <span className="hidden sm:inline text-[10px] font-medium text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
+                    {variant && <span className="hidden sm:inline text-xs font-medium text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
                 </div>
                 <div className="text-xs text-muted flex items-center gap-2 min-w-0">
                     <CopyText value={item.email} label="Email" className="min-w-0" />
-                    {item.phone && <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0">· {item.phone}</CopyText>}
+                    {item.phone && <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0 tabular-nums">· {formatPhoneDisplay(item.phone)}</CopyText>}
                 </div>
                 {/* Mobile meta */}
                 <div className="md:hidden flex items-center flex-wrap gap-1.5 mt-1.5">
                     <StatusBadge status={item.status} queuePosition={item.queue_position} pendingApproval={pending} />
-                    {session && <span className="text-[11px] text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
-                    {variant && <span className="sm:hidden text-[10px] text-muted">{variant}</span>}
+                    {session && <span className="text-xs text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
+                    {variant && <span className="sm:hidden text-xs text-muted">{variant}</span>}
                 </div>
                 {declined && (
-                    <p className="mt-1 text-[11px] text-status-rejected line-clamp-2">
+                    <p className="mt-1 text-xs text-status-rejected line-clamp-2">
                         <strong>Completion declined:</strong> {item.completion_rejection_reason || 'no reason given'}
                     </p>
                 )}
             </div>
 
             <div className="hidden lg:block w-40 text-xs text-muted truncate">
-                {item.phone ? <CopyText value={item.phone} label="Phone" /> : <span className="text-muted/50">—</span>}
+                {item.phone ? <CopyText value={item.phone} label="Phone" className="tabular-nums">{formatPhoneDisplay(item.phone)}</CopyText> : <span className="text-muted/50">—</span>}
             </div>
 
             <div className="hidden md:block w-36">
@@ -600,15 +601,15 @@ function RosterRow({
             <div className="hidden md:block w-36 text-xs">
                 {item.status === 'completed' && item.completed_date ? (
                     <span className="text-muted" title="Completed on">
-                        <GraduationCap size={11} className="inline mr-1 -mt-0.5" />{formatDateDMY(item.completed_date)}
+                        <GraduationCap size={11} className="inline mr-1 -mt-0.5" />{formatDisplayDate(item.completed_date)}
                     </span>
                 ) : session ? (
                     <>
                         <div className="font-semibold text-primary">{weekdayDate(session)}</div>
-                        <div className={`text-[11px] ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
+                        <div className={`text-xs ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
                     </>
                 ) : (
-                    <span className="text-muted" title="Registered on">Reg. {formatDateDMY(item.created_at)}</span>
+                    <span className="text-muted" title="Registered on">Reg. {formatDisplayDate(item.created_at)}</span>
                 )}
             </div>
 

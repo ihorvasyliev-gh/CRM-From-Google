@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import CourseList from './CourseList';
 import { supabase } from '../lib/supabase';
+import { subscribeToasts, type ToastData } from '../lib/toast';
 
 const mockNavigate = vi.fn();
 
@@ -191,5 +192,39 @@ describe('CourseList Component', () => {
         });
 
         expect(mockRpc).toHaveBeenCalledWith('get_course_enrollment_counts');
+    });
+
+    it('switches the English level in one click and offers to switch it back', async () => {
+        const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+        (supabase.from as any).mockImplementation((table: string) => {
+            if (table === 'courses') {
+                return {
+                    select: vi.fn().mockReturnValue({
+                        order: vi.fn().mockResolvedValue({ data: mockCourses, error: null }),
+                    }),
+                    update,
+                };
+            }
+            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        });
+        const toasts: ToastData[] = [];
+        const unsubscribe = subscribeToasts(t => toasts.push(t));
+
+        renderWithClient(<CourseList />);
+        await waitFor(() => expect(screen.getAllByText('Standard')).toHaveLength(2));
+
+        fireEvent.click(screen.getAllByText('Standard')[0]);
+        await waitFor(() => expect(toasts).toHaveLength(1));
+        expect(update).toHaveBeenLastCalledWith({ requires_english: true });
+        expect(screen.getByText('High English')).toBeInTheDocument();
+        // The card's click (open the board) is not triggered
+        expect(mockNavigate).not.toHaveBeenCalled();
+
+        toasts[0].action!.onClick();
+        await waitFor(() => expect(update).toHaveBeenLastCalledWith({ requires_english: false }));
+        await waitFor(() => expect(screen.getAllByText('Standard')).toHaveLength(2));
+        // Undoing does not offer another undo
+        expect(toasts[1].action).toBeUndefined();
+        unsubscribe();
     });
 });

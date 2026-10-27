@@ -161,7 +161,7 @@ const StatusColumn = function StatusColumn({
                                 {cfg.icon}
                             </span>
                             <h3 className={`text-[13px] md:text-sm font-semibold ${cfg.color}`}>{cfg.label}</h3>
-                            <span className={`text-[10px] md:text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-xs`}>
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full ${cfg.pillBg} shadow-xs`}>
                                 {items.length}
                             </span>
                             {loadingOlder && (
@@ -188,7 +188,7 @@ const StatusColumn = function StatusColumn({
                                     <button
                                         onClick={() => handleCopyEmails(items, cfg.label)}
                                         aria-label={`Copy all ${cfg.label} emails`}
-                                        className="p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                                        className="hit-area p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-colors"
                                     >
                                         <Copy size={14} />
                                     </button>
@@ -199,7 +199,7 @@ const StatusColumn = function StatusColumn({
                                     <button
                                         onClick={() => selectAllInList(items)}
                                         aria-label={allSelected ? "Deselect all in column" : "Select all in column"}
-                                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
+                                        className={`hit-area w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${allSelected
                                             ? 'bg-brand-500 border-brand-500 text-white shadow-xs'
                                             : someSelected
                                                 ? 'bg-brand-500/20 border-brand-500/50 text-brand-500'

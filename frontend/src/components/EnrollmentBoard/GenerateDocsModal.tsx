@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { calloutCls } from '../ui/styles';
 import GenerationReport from '../DocumentGenerator/GenerationReport';
 import { usePersistentState } from '../../hooks/usePersistentState';
-import { formatDateLong } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import {
     courseDateOf, generateSelectionArchive, isAbortError, summarizeGeneration, type GenerationResult,
 } from '../../lib/documentUtils';
@@ -92,7 +92,7 @@ export default function GenerateDocsModal({ open, selected, onClose }: { open: b
                     <dt className="text-muted">Course{courses.length !== 1 ? 's' : ''}</dt>
                     <dd className="text-primary font-medium">{courses.join(', ') || '—'}</dd>
                     <dt className="text-muted">Date{dates.length !== 1 ? 's' : ''}</dt>
-                    <dd className="text-primary">{dates.map(d => formatDateLong(d)).join(', ') || 'No course date'}</dd>
+                    <dd className="text-primary">{dates.map(d => formatDisplayDate(d)).join(', ') || 'No course date'}</dd>
                     <dt className="text-muted">Templates</dt>
                     <dd className="text-primary">
                         {courses.length === 1 ? "The course's template preset" : 'All active templates (several courses selected)'}, plus the attendance sheet, labels and Participants.xlsx when set up

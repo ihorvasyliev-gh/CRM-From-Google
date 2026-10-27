@@ -1,5 +1,5 @@
 import { Send, Mail, X, Plus, CalendarRange, CalendarClock, AlertCircle } from 'lucide-react';
-import { formatDateLong, formatDayDateShort, todayISO } from '../../lib/dateUtils';
+import { formatDayDateShort, todayISO, formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
 import SessionScheduleEditor from './SessionScheduleEditor';
@@ -87,15 +87,15 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-xs' : 'rounded-full'} shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
                                             <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
-                                                {inviteFlow.multiDate ? formatDayDateShort(d) : formatDateLong(d)}
+                                                {inviteFlow.multiDate ? formatDayDateShort(d) : formatDisplayDate(d)}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
-                                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                                 {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                                             </span>
-                                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                                 {stats.pending} pending
                                             </span>
@@ -148,7 +148,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                                                 </span>
                                                 <button
                                                     type="button"
-                                                    aria-label={`Remove ${formatDateLong(d)}`}
+                                                    aria-label={`Remove ${formatDisplayDate(d)}`}
                                                     onClick={() => inviteFlow.toggleInviteDate(d)}
                                                     className="p-0.5 rounded-sm hover:bg-blue-500/20"
                                                 >
@@ -178,13 +178,13 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                     />
                     {inviteFlow.inviteDate && !inviteFlow.savedInviteDates.includes(inviteFlow.inviteDate) && (
                         <div className="flex items-center gap-2 mt-1.5 px-1">
-                            <span className="text-[11px] text-muted">On this date:</span>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-confirmed">
+                            <span className="text-xs text-muted">On this date:</span>
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                 {inviteFlow.getDateStats(inviteFlow.inviteDate).confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed
                             </span>
                             <span className="text-border-subtle">•</span>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-status-invited">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited">
                                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                 {inviteFlow.getDateStats(inviteFlow.inviteDate).pending} pending
                             </span>

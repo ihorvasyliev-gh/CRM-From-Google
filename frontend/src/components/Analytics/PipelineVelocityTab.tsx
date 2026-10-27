@@ -153,7 +153,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                                     Stage {idx + 1} · <span className="text-primary">{st.label}</span>
                                 </span>
                                 {st.conv !== null && (
-                                    <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-brand-600 dark:text-brand-400 tabular-nums">
+                                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-600 dark:text-brand-400 tabular-nums">
                                         <ArrowRight size={11} /> {st.conv}%
                                     </span>
                                 )}
@@ -162,7 +162,7 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                             <div className="mt-3 h-1.5 rounded-full bg-border-subtle overflow-hidden">
                                 <div className={`h-full rounded-full ${st.bar}`} style={{ width: `${Math.min(100, Math.round((st.value / inflow) * 100))}%` }} />
                             </div>
-                            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted">
+                            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
                                 <span className="truncate">{st.sub}</span>
                                 {st.days !== null && (
                                     <span className="shrink-0 tabular-nums">avg <span className="font-semibold text-primary">{st.days}d</span> {st.daysLabel}</span>
@@ -194,11 +194,11 @@ export default function PipelineVelocityTab({ enrollments, onDrillDown }: Pipeli
                                     <span className="text-[13px] font-semibold text-primary">{d.label}</span>
                                     <span className={`text-xs font-semibold tabular-nums ${d.tone}`}>{d.value.toLocaleString()} {d.value === 1 ? 'enrollment' : 'enrollments'}</span>
                                 </div>
-                                <p className="text-[11px] text-muted mt-0.5">{d.desc}</p>
+                                <p className="text-xs text-muted mt-0.5">{d.desc}</p>
                             </button>
                         ))}
                     </div>
-                    <div className="mt-auto pt-4 text-[11px] text-muted flex items-start gap-1.5">
+                    <div className="mt-auto pt-4 text-xs text-muted flex items-start gap-1.5">
                         <CheckCircle2 size={13} className="text-status-confirmed shrink-0 mt-px" />
                         <span>Short turnaround between request and invite noticeably improves completion rates.</span>
                     </div>

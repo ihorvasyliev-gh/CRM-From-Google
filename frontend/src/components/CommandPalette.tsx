@@ -14,6 +14,7 @@ import {
     X, CornerDownLeft, Sparkles, Loader2, Receipt
 } from 'lucide-react';
 import type { NavigateFn } from '../lib/navigation';
+import { kbdLabel } from '../lib/platform';
 
 /** A row of the viewer students directory, as the palette's Student. */
 const directoryStudent = (s: ViewerStudentDirectoryItem): Student => ({
@@ -382,7 +383,7 @@ export default function CommandPalette({
                     type="text"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    placeholder="Search students, courses, navigation, or actions..."
+                    placeholder="Search students, courses, pages…"
                     className="w-full bg-transparent text-primary placeholder:text-muted/60 text-sm font-medium focus:outline-hidden focus-visible:shadow-none"
                 />
                 {loadingData && (
@@ -416,7 +417,7 @@ export default function CommandPalette({
 
                         return (
                             <div key={cat} className="pt-2 first:pt-0">
-                                <div className="px-3 py-1.5 text-[11px] font-bold text-muted uppercase tracking-wider">
+                                <div className="px-3 py-1.5 text-xs font-bold text-muted uppercase tracking-wider">
                                     {cat}
                                 </div>
                                 <div className="space-y-0.5">
@@ -446,7 +447,7 @@ export default function CommandPalette({
                                                                 {item.title}
                                                             </span>
                                                             {item.badge && (
-                                                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-brand-500 text-white leading-tight">
+                                                                <span className="px-1.5 py-0.2 rounded-full text-xs font-bold bg-brand-500 text-white leading-tight">
                                                                     {item.badge}
                                                                 </span>
                                                             )}
@@ -480,7 +481,7 @@ export default function CommandPalette({
             </div>
 
             {/* Footer Tips */}
-            <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-[11px] text-muted">
+            <div className="px-4 py-2.5 bg-surface/60 border-t border-border-subtle flex items-center justify-between text-xs text-muted">
                 <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                         <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">↑</kbd>
@@ -492,7 +493,7 @@ export default function CommandPalette({
                 </div>
                 <div className="flex items-center gap-1">
                     <span>Quick search</span>
-                    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">Ctrl K</kbd>
+                    <kbd className="px-1.5 py-0.5 rounded-sm bg-surface border border-border-subtle text-[10px]">{kbdLabel('Mod', 'K')}</kbd>
                 </div>
             </div>
         </DialogLayer>

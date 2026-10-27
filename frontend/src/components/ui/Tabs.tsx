@@ -43,7 +43,7 @@ export function Segmented<T extends string>({
                         aria-selected={active}
                         title={opt.title}
                         onClick={() => onChange(opt.value)}
-                        className={`shrink-0 flex items-center gap-1.5 px-2.5 ${size === 'sm' ? 'h-6 text-[11px]' : 'h-7 text-xs'} rounded-lg font-semibold whitespace-nowrap transition-all ${
+                        className={`shrink-0 flex items-center gap-1.5 px-2.5 ${size === 'sm' ? 'h-6 text-xs' : 'h-7 text-xs'} rounded-lg font-semibold whitespace-nowrap transition-all ${
                             active ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
                         }`}
                     >
@@ -52,7 +52,7 @@ export function Segmented<T extends string>({
                         <span>{opt.label}</span>
                         {opt.count !== undefined && (
                             <span
-                                className={`tabular-nums text-[10px] font-bold px-1.5 rounded-full ${
+                                className={`tabular-nums text-xs font-bold px-1.5 rounded-full ${
                                     active ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400' : 'bg-surface/80 text-muted'
                                 }`}
                             >
@@ -118,7 +118,7 @@ export function UnderlineTabs<T extends string>({
                         {Icon && <Icon size={15} className={active ? 'text-brand-500' : ''} />}
                         {tab.label}
                         {tab.count !== undefined && (
-                            <span className={`tabular-nums text-[10px] font-bold px-1.5 rounded-full ${active ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400' : 'bg-surface-elevated text-muted'}`}>
+                            <span className={`tabular-nums text-xs font-bold px-1.5 rounded-full ${active ? 'bg-brand-500/15 text-brand-600 dark:text-brand-400' : 'bg-surface-elevated text-muted'}`}>
                                 {tab.count}
                             </span>
                         )}

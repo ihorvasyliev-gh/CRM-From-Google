@@ -32,12 +32,12 @@ function inputTone(flag?: FieldFlag): string {
 
 function FlagNote({ flag, onAccept }: { flag: FieldFlag; onAccept: () => void }) {
     if (flag.level === 'found') {
-        return <p className="mt-1 text-[11px] text-muted flex items-center gap-1"><Check size={11} className="text-status-confirmed shrink-0" /> {flag.note}</p>;
+        return <p className="mt-1 text-xs text-muted flex items-center gap-1"><Check size={11} className="text-status-confirmed shrink-0" /> {flag.note}</p>;
     }
     const Icon = flag.level === 'memory' ? History : flag.level === 'missing' ? CircleAlert : TriangleAlert;
     const tone = flag.level === 'memory' ? 'text-status-invited' : flag.level === 'missing' ? 'text-status-rejected' : 'text-status-requested';
     return (
-        <p className={`mt-1 text-[11px] flex items-start gap-1 ${tone}`}>
+        <p className={`mt-1 text-xs flex items-start gap-1 ${tone}`}>
             <Icon size={12} className="shrink-0 mt-px" />
             <span className="flex-1 min-w-0">{flag.note}</span>
             {flag.level !== 'memory' && (
@@ -108,9 +108,9 @@ export default function RequisitionForm({ form, flags, onChange, onAccept, onAct
             <div className="flex items-center justify-between">
                 <label htmlFor={`cr-${key}`} className={labelCls}>{label}</label>
                 {form[key] ? (
-                    <button type="button" onClick={() => onChange(key, '')} className="text-[11px] text-muted hover:text-primary mb-1.5">Clear</button>
+                    <button type="button" onClick={() => onChange(key, '')} className="text-xs text-muted hover:text-primary mb-1.5">Clear</button>
                 ) : (
-                    <button type="button" onClick={() => onChange(key, todayISO())} className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline mb-1.5">Today</button>
+                    <button type="button" onClick={() => onChange(key, todayISO())} className="text-xs text-brand-600 dark:text-brand-400 hover:underline mb-1.5">Today</button>
                 )}
             </div>
             <DateInput id={`cr-${key}`} value={form[key]} onChange={v => onChange(key, v)} placeholder="Blank (date by hand)" className={`${INPUT} ${inputTone()} h-9`} />

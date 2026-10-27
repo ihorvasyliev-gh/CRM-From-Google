@@ -73,7 +73,7 @@ function IndicatorView({ showLabel = false, className = '', state }: Props & { s
                 </span>
 
                 {showLabel ? (
-                    <span className="text-[11px] font-medium tracking-tight">
+                    <span className="text-xs font-medium tracking-tight">
                         {status === 'online' ? 'Online' : status === 'reconnecting' ? (isReconnecting ? 'Connecting...' : 'Reconnecting') : 'Offline'}
                     </span>
                 ) : (

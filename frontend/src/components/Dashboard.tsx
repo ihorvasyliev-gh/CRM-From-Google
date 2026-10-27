@@ -304,7 +304,7 @@ export default function Dashboard({
                     disabled={loading || refreshing}
                     aria-label="Refresh dashboard"
                     title="Refresh"
-                    className="p-1 rounded-md text-muted hover:text-brand-500 hover:bg-brand-500/10 disabled:opacity-50 transition-colors cursor-pointer"
+                    className="hit-area p-1 rounded-md text-muted hover:text-brand-500 hover:bg-brand-500/10 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                     <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 </button>
@@ -327,7 +327,7 @@ export default function Dashboard({
                     <p className="text-[13px] font-semibold text-primary">
                         {pendingApprovalsCount} course completion request{pendingApprovalsCount > 1 ? 's' : ''} awaiting approval
                     </p>
-                    <p className="text-[11px] text-muted hidden sm:block">Review them to update student outcomes</p>
+                    <p className="text-xs text-muted hidden sm:block">Review them to update student outcomes</p>
                 </div>
             </div>
             <button

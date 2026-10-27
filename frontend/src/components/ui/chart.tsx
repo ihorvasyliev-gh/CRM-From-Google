@@ -33,7 +33,7 @@ export function ChartTooltip({ active, payload, label }: { active?: boolean; pay
 /** Small legend dot + label, for hand-built legends. */
 export function LegendItem({ color, label }: { color: string; label: string }) {
     return (
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
             {label}
         </span>

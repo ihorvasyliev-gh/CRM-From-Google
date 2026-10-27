@@ -7,7 +7,7 @@ const BASE =
     'focus-visible:ring-brand-500/40 whitespace-nowrap select-none';
 
 const SIZES: Record<ButtonSize, string> = {
-    xs: 'h-7 px-2 text-[11px] rounded-lg',
+    xs: 'h-7 px-2 text-xs rounded-lg',
     sm: 'h-8 px-2.5 text-xs',
     md: 'h-9 px-3.5 text-xs',
     lg: 'h-10 px-4 text-sm',

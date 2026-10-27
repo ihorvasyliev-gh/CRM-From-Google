@@ -13,7 +13,8 @@ import { errorText, type ShowToast } from './helpers';
 import type { DocumentSetup } from './useDocumentSetup';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { refreshCachedEnrollments } from '../../lib/enrollmentCache';
-import { formatDateLong } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneDisplay } from '../../lib/contactUtils';
 import type { Course } from '../../lib/types';
 import {
     archiveFileName, coursePreset, defaultSessionKey, generateDocumentsArchive, groupSessions, isAbortError,
@@ -211,7 +212,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                                                 }`}
                                             >
                                                 <CalendarDays size={13} />
-                                                {s.date ? formatDateLong(s.date) : 'No date'}
+                                                {s.date ? formatDisplayDate(s.date) : 'No date'}
                                                 <span className="tabular-nums opacity-70">· {s.enrollments.length}</span>
                                             </button>
                                         );
@@ -220,7 +221,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                             ) : (
                                 <p className="flex items-center gap-1.5 text-xs text-muted">
                                     <CalendarDays size={13} />
-                                    {session?.date ? `Course date ${formatDateLong(session.date)}` : 'No course date set'}
+                                    {session?.date ? `Course date ${formatDisplayDate(session.date)}` : 'No course date set'}
                                 </p>
                             )}
 
@@ -257,14 +258,14 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                                                         </td>
                                                         <td className={`${tdCls} py-2.5!`}>
                                                             <p className="font-medium text-primary text-[13px]">{name}</p>
-                                                            <p className="text-[11px] text-muted truncate max-w-[240px]">{e.students?.email || '—'}</p>
+                                                            <p className="text-xs text-muted truncate max-w-[240px]">{e.students?.email || '—'}</p>
                                                         </td>
-                                                        <td className={`${tdCls} py-2.5! text-muted text-xs tabular-nums hidden md:table-cell`}>{e.students?.phone || '—'}</td>
+                                                        <td className={`${tdCls} py-2.5! text-muted text-xs tabular-nums hidden md:table-cell`}>{formatPhoneDisplay(e.students?.phone) || '—'}</td>
                                                         <td className={`${tdCls} py-2.5!`}>
                                                             {e.course_variant ? <Badge tone="completed">{e.course_variant}</Badge> : <span className="text-muted">—</span>}
                                                         </td>
                                                         <td className={`${tdCls} py-2.5! text-muted text-xs hidden sm:table-cell whitespace-nowrap`}>
-                                                            {date ? formatDateLong(date) : '—'}
+                                                            {date ? formatDisplayDate(date) : '—'}
                                                         </td>
                                                     </tr>
                                                 );

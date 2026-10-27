@@ -8,7 +8,8 @@ import Badge from './ui/Badge';
 import { Toolbar } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
 import { EmptyState } from './ui/States';
-import { Course, CourseEmailInfo, getAvatarGradient } from '../lib/types';
+import { Course, CourseEmailInfo } from '../lib/types';
+import { CustomTooltip } from './ui/Tooltip';
 import CourseModal from './CourseModal';
 import { useDialogMount } from '../hooks/usePresence';
 import ConfirmDialog from './ConfirmDialog';
@@ -34,19 +35,15 @@ interface EnrollmentCount {
 
 // ─── Status Bar (extracted to module-level) ────────────────
 function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
-    // Always define all segments so the legend is always rendered (consistent card height)
+    // In the board's order, in the colours used everywhere else
     const segments = [
-        // Same colour language as the enrollment board / status pills everywhere else
-        { key: 'completed', color: 'var(--color-completed)', count: counts?.completed ?? 0, label: 'Completed' },
-        { key: 'confirmed', color: 'var(--color-confirmed)', count: counts?.confirmed ?? 0, label: 'Confirmed' },
-        { key: 'invited', color: 'var(--color-invited)', count: counts?.invited ?? 0, label: 'Invited' },
         { key: 'requested', color: 'var(--color-requested)', count: counts?.requested ?? 0, label: 'Requested' },
+        { key: 'invited', color: 'var(--color-invited)', count: counts?.invited ?? 0, label: 'Invited' },
+        { key: 'confirmed', color: 'var(--color-confirmed)', count: counts?.confirmed ?? 0, label: 'Confirmed' },
+        { key: 'completed', color: 'var(--color-completed)', count: counts?.completed ?? 0, label: 'Completed' },
         { key: 'withdrawn', color: 'var(--chart-neutral)', count: counts?.withdrawn ?? 0, label: 'Withdrawn' },
         { key: 'rejected', color: 'var(--chart-rose)', count: counts?.rejected ?? 0, label: 'Rejected' },
     ];
-
-    // Legend always shows Requested + Completed; other statuses shown only when non-zero
-    const alwaysShow = new Set(['requested', 'completed']);
 
     const visible = segments.filter(s => s.count > 0);
     const barTotal = visible.reduce((sum, s) => sum + s.count, 0);
@@ -63,17 +60,16 @@ function StatusBar({ counts }: { counts: EnrollmentCount | undefined }) {
                     />
                 ))}
             </div>
-            {/* Legend — always shows Requested & Completed, plus any other non-zero statuses */}
+            {/* Legend: the statuses that have someone in them */}
             <div className="flex flex-wrap gap-x-3 gap-y-1 min-h-4">
-                {segments.map(s => {
-                    if (!alwaysShow.has(s.key) && s.count === 0) return null;
-                    return (
-                        <span key={s.key} className="flex items-center gap-1.5 text-[11px] text-muted font-medium tabular-nums">
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                            {s.count} {s.label}
-                        </span>
-                    );
-                })}
+                {visible.length === 0 ? (
+                    <span className="text-xs text-muted">No enrollments yet</span>
+                ) : visible.map(s => (
+                    <span key={s.key} className="flex items-center gap-1.5 text-xs text-muted font-medium tabular-nums">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        {s.count} {s.label}
+                    </span>
+                ))}
             </div>
         </div>
     );
@@ -192,26 +188,26 @@ export default function CourseList() {
         }
     }
 
-    async function handleToggleEnglish(course: Course, e: React.MouseEvent) {
-        e.stopPropagation();
-        const newRequiresEnglish = !course.requires_english;
+    /** The English chip switches the course in one click; the toast offers to switch it back */
+    async function setCourseEnglish(course: Course, requiresEnglish: boolean, offerUndo = true) {
         // Optimistic update
-        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: newRequiresEnglish } : c));
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: requiresEnglish } : c));
         try {
             const { error } = await supabase
                 .from('courses')
-                .update({ requires_english: newRequiresEnglish })
+                .update({ requires_english: requiresEnglish })
                 .eq('id', course.id);
             if (error) throw error;
-            updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: newRequiresEnglish }] });
+            updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: requiresEnglish }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             notify({
-                message: `${course.name}: ${newRequiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
-                type: 'success'
+                message: `${course.name}: ${requiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
+                type: 'success',
+                ...(offerUndo && { action: { label: 'Undo', onClick: () => void setCourseEnglish(course, !requiresEnglish, false) } }),
             });
         } catch {
             // Rollback on error
-            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !newRequiresEnglish } : c));
+            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, requires_english: !requiresEnglish } : c));
             notify({ message: 'Failed to update course template', type: 'error' });
         }
     }
@@ -259,7 +255,7 @@ export default function CourseList() {
                         onChange={setSearch}
                         aria-label="Search courses"
                     />
-                    <Button variant="primary" size="lg" onClick={openCreate}>
+                    <Button variant="primary" size="lg" onClick={openCreate} aria-label="Add Course">
                         <Plus size={16} /> <span className="hidden sm:inline">Add Course</span>
                     </Button>
                 </div>
@@ -298,7 +294,6 @@ export default function CourseList() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filtered.map(course => {
                         const counts = enrollmentCounts[course.id];
-                        const gradient = getAvatarGradient(course.id);
                         const openBoard = () => navigate('/enrollments', { state: { courseId: course.id } });
                         return (
                             <div
@@ -315,11 +310,12 @@ export default function CourseList() {
                                 <div className="course-card-body p-5 flex-1 flex flex-col gap-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`course-card-icon w-10 h-10 bg-linear-to-br ${gradient} rounded-xl flex items-center justify-center text-white font-semibold text-xs shrink-0`}>
+                                            {/* One quiet colour for every course: the colours on the card belong to the statuses */}
+                                            <div className="course-card-icon w-10 h-10 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl flex items-center justify-center font-semibold text-xs shrink-0">
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="text-[15px] font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
+                                                <h3 className="text-[15px] font-semibold text-primary line-clamp-2 break-words group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
                                                 <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                     <Users size={12} />
                                                     <span className="font-semibold text-primary tabular-nums">{counts?.total || 0}</span> students enrolled
@@ -340,28 +336,30 @@ export default function CourseList() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-t border-border-subtle">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => handleToggleEnglish(course, e)}
-                                        title={course.requires_english ? "Requires Good English (Click to switch to Standard)" : "Standard Course (Click to switch to High English)"}
-                                        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
-                                            course.requires_english
-                                                ? 'bg-info/10 border-info/30 text-status-invited hover:bg-info/15'
-                                                : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
-                                        }`}
-                                    >
-                                        {course.requires_english ? <Languages size={13} /> : <Globe size={13} />}
-                                        <span>{course.requires_english ? 'High English' : 'Standard'}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
-                                        title={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}
-                                        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition active:scale-95"
-                                    >
-                                        <Users size={12} />
-                                        <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
-                                    </button>
+                                    <CustomTooltip content={course.requires_english ? 'Invitations ask for good English. Click to switch to the Standard template' : 'Standard invitations. Click to switch to the High English template'}>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); void setCourseEnglish(course, !course.requires_english); }}
+                                            className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
+                                                course.requires_english
+                                                    ? 'bg-info/10 border-info/30 text-status-invited hover:bg-info/15'
+                                                    : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
+                                            }`}
+                                        >
+                                            {course.requires_english ? <Languages size={13} /> : <Globe size={13} />}
+                                            <span>{course.requires_english ? 'High English' : 'Standard'}</span>
+                                        </button>
+                                    </CustomTooltip>
+                                    <CustomTooltip content={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
+                                            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong transition active:scale-95"
+                                        >
+                                            <Users size={12} />
+                                            <span>{course.max_capacity ? `Max ${course.max_capacity} / date` : 'No limit'}</span>
+                                        </button>
+                                    </CustomTooltip>
                                     {(() => {
                                         const preset = coursePreset(allTemplates, course.template_ids);
                                         const off = preset.state === 'preset-off';
@@ -370,20 +368,22 @@ export default function CourseList() {
                                             : off ? 'Every template picked for this course is switched off, so no documents are made (click to edit)'
                                                 : 'Documents use all active templates (click to pick)';
                                         return (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
-                                                title={title}
-                                                className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
-                                                    off ? 'bg-warning/10 border-warning/30 text-status-requested' : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
-                                                }`}
-                                            >
-                                                <FileText size={12} />
-                                                <span>{preset.state === 'preset' ? `${preset.templates.length} template${preset.templates.length !== 1 ? 's' : ''}` : off ? 'Templates off' : 'All templates'}</span>
-                                            </button>
+                                            <CustomTooltip content={title}>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setEditingCourse(course); setModalOpen(true); }}
+                                                    className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold border transition active:scale-95 ${
+                                                        off ? 'bg-warning/10 border-warning/30 text-status-requested' : 'bg-surface border-border-subtle text-muted hover:text-primary hover:border-border-strong'
+                                                    }`}
+                                                >
+                                                    <FileText size={12} />
+                                                    <span>{preset.state === 'preset' ? `${preset.templates.length} template${preset.templates.length !== 1 ? 's' : ''}` : off ? 'Templates off' : 'All templates'}</span>
+                                                </button>
+                                            </CustomTooltip>
                                         );
                                     })()}
-                                    <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* Always there (a touch screen has no hover); brightens on hover */}
+                                    <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-muted group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
                                         Open board <ArrowRight size={13} />
                                     </span>
                                 </div>

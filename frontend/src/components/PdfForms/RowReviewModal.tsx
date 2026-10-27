@@ -70,7 +70,7 @@ export default function RowReviewModal({ plan: livePlan, original: liveOriginal,
                                 {edited && (
                                     <button
                                         type="button"
-                                        className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline"
+                                        className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
                                         onClick={() => setDraft(prev => {
                                             const next = { ...prev };
                                             delete next[f.id];
@@ -114,7 +114,7 @@ export default function RowReviewModal({ plan: livePlan, original: liveOriginal,
                                 </div>
                             ) : null}
                             {notes.map(n => (
-                                <p key={n.message} className="mt-2 text-[11px] text-status-requested flex items-start gap-1.5">
+                                <p key={n.message} className="mt-2 text-xs text-status-requested flex items-start gap-1.5">
                                     <AlertTriangle size={12} className="shrink-0 mt-0.5" /> {n.message}
                                 </p>
                             ))}

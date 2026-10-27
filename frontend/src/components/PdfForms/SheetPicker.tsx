@@ -132,7 +132,7 @@ export default function SheetPicker({ workbook, sheetIndex, names, sheet, onShee
 
             {preview && sheet.rows.length > 0 && (
                 <div className="overflow-x-auto rounded-xl border border-border-subtle">
-                    <table className="w-full text-[11px] text-left">
+                    <table className="w-full text-xs text-left">
                         <thead className="bg-surface-elevated/60">
                             <tr>
                                 {sheet.headers.slice(0, 8).map((h, i) => (

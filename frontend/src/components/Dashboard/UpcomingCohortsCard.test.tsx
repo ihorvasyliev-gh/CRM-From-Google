@@ -64,10 +64,10 @@ describe('UpcomingCohortsCard', () => {
 
         render(<UpcomingCohortsCard cohorts={cohorts} onNavigate={mockNavigate} />);
         expect(screen.getByText('Next 2 dates')).toBeInTheDocument();
-        expect(screen.getByLabelText('Course: Patient Moving and Handling on 2026-09-12, 9 confirmed')).toBeInTheDocument();
-        expect(screen.getByLabelText('Course: SafePass Training on 2026-09-15, 14 confirmed')).toBeInTheDocument();
+        expect(screen.getByLabelText('Course: Patient Moving and Handling on 12 Sept 2026, 9 confirmed')).toBeInTheDocument();
+        expect(screen.getByLabelText('Course: SafePass Training on 15 Sept 2026, 14 confirmed')).toBeInTheDocument();
 
-        const card2 = screen.getByLabelText('Course: SafePass Training on 2026-09-15, 14 confirmed');
+        const card2 = screen.getByLabelText('Course: SafePass Training on 15 Sept 2026, 14 confirmed');
         fireEvent.click(card2);
         expect(mockNavigate).toHaveBeenCalledWith('enrollments', {
             courseId: 'c-2',
@@ -88,8 +88,8 @@ describe('UpcomingCohortsCard', () => {
         // One date badge per day, not per course
         expect(container.querySelectorAll('.tabular-nums')).toHaveLength(2);
 
-        const safePass = screen.getByRole('button', { name: /SafePass on 2026-10-21/ });
-        const manual = screen.getByRole('button', { name: /Manual Handling on 2026-10-21/ });
+        const safePass = screen.getByRole('button', { name: /SafePass on 21 Oct 2026/ });
+        const manual = screen.getByRole('button', { name: /Manual Handling on 21 Oct 2026/ });
         expect(safePass.parentElement).toBe(manual.parentElement);
 
         fireEvent.click(manual);

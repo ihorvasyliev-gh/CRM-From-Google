@@ -10,7 +10,7 @@ export function PublicPageFallback() {
                 </div>
                 <div>
                     <h1 className="text-lg font-bold tracking-tight">Cork City Partnership</h1>
-                    <p className="text-[10px] text-muted/80 font-medium -mt-0.5 tracking-wide uppercase">Course Portal</p>
+                    <p className="text-xs text-muted/80 font-medium -mt-0.5 tracking-wide uppercase">Course Portal</p>
                 </div>
             </div>
             <div className="w-full max-w-md bg-surface rounded-2xl border border-border-subtle shadow-xl shadow-black/20 overflow-hidden min-h-[440px] flex items-center justify-center p-6">

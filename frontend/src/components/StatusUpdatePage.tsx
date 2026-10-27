@@ -208,7 +208,7 @@ export default function StatusUpdatePage() {
 
     const contactFooter = (subject: string, prompt: string) => (
         <div className="pt-4 border-t border-border-subtle/70 text-center w-full">
-            <p className="text-[11px] text-muted/80">{prompt}</p>
+            <p className="text-xs text-muted/80">{prompt}</p>
             <a
                 href={`mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(subject)}`}
                 className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 font-medium mt-1 underline transition-colors"
@@ -239,7 +239,7 @@ export default function StatusUpdatePage() {
                                         <Briefcase size={22} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <span className="inline-block text-[11px] font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
+                                        <span className="inline-block text-xs font-semibold text-brand-400 uppercase tracking-wider bg-brand-500/10 px-2 py-0.5 rounded-md mb-1 border border-brand-500/20">
                                             Participant Update
                                         </span>
                                         <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug">
@@ -296,7 +296,7 @@ export default function StatusUpdatePage() {
                                         </div>
                                     )}
 
-                                    <p className="text-[11px] text-muted/80 mt-2 leading-normal">
+                                    <p className="text-xs text-muted/80 mt-2 leading-normal">
                                         Please use the same email address that received our email.
                                     </p>
                                 </div>
@@ -416,7 +416,7 @@ export default function StatusUpdatePage() {
                                     )}
                                 </button>
 
-                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-[11px] sm:text-xs text-muted leading-relaxed">
+                                <div className="p-3 rounded-xl bg-surface/80 border border-border-subtle flex items-start gap-2.5 text-xs text-muted leading-relaxed">
                                     <ShieldCheck size={15} className="text-brand-400 shrink-0 mt-0.5" />
                                     <span>Your answers are confidential and only used, anonymously, to report on the results of our programmes.</span>
                                 </div>
@@ -528,7 +528,7 @@ export default function StatusUpdatePage() {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-center gap-1 text-[11px] text-muted/80 mt-4 text-center">
+                <div className="flex items-center justify-center gap-1 text-xs text-muted/80 mt-4 text-center">
                     <HelpCircle size={13} className="text-muted/60" />
                     <span>Cork City Partnership • Participant Update</span>
                 </div>

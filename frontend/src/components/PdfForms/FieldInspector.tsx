@@ -28,13 +28,13 @@ interface SourceEditorProps {
 /** Chips for a value: columns in blue, today / your name in violet, fixed text in grey */
 function SourceChips({ source }: { source: string }) {
     const parts = describeSource(source);
-    if (parts.length === 0) return <span className="text-[11px] text-muted italic">No value yet</span>;
+    if (parts.length === 0) return <span className="text-xs text-muted italic">No value yet</span>;
     return (
         <span className="flex flex-wrap gap-1">
             {parts.map((p, i) => (
                 <span
                     key={i}
-                    className={`inline-flex items-center gap-1 px-1.5 h-5 rounded-md text-[10px] font-semibold max-w-full ${
+                    className={`inline-flex items-center gap-1 px-1.5 h-5 rounded-md text-xs font-semibold max-w-full ${
                         p.kind === 'column'
                             ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300'
                             : p.kind === 'special'
@@ -109,7 +109,7 @@ function SourceEditor({ value, onChange, columns, id }: SourceEditorProps) {
                         {filters.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </select>
                     {columns.length === 0 && (
-                        <p className="col-span-2 text-[11px] text-muted">No spreadsheet loaded yet. Add one in the “Sample spreadsheet” box above and its columns appear in this list.</p>
+                        <p className="col-span-2 text-xs text-muted">No spreadsheet loaded yet. Add one in the “Sample spreadsheet” box above and its columns appear in this list.</p>
                     )}
                 </div>
             )}
@@ -165,7 +165,7 @@ function AdvancedSource({ value, onChange, columns, id }: SourceEditorProps) {
                     <Plus size={13} /> Insert
                 </Button>
             </div>
-            <p className="text-[11px] text-muted">
+            <p className="text-xs text-muted">
                 Combine columns and text, e.g. <code className="font-mono">{'{Address}, {Eircode|new}'}</code>. “If not already there” skips a value the text before it already has.
             </p>
         </div>
@@ -203,7 +203,7 @@ export default function FieldInspector(props: InspectorProps) {
                 <label className={labelCls} htmlFor={`src-${field.id}`}>{field.kind === 'text' ? 'Which column goes in this box?' : 'Which column ticks these boxes?'}</label>
                 <SourceEditor key={field.id} id={`src-${field.id}`} value={field.source} onChange={source => onChange({ ...field, source })} columns={columns} />
                 {sampleValue !== null && (
-                    <p className="mt-2 text-[11px] text-muted rounded-lg bg-surface-elevated/60 px-2 py-1.5">
+                    <p className="mt-2 text-xs text-muted rounded-lg bg-surface-elevated/60 px-2 py-1.5">
                         Example (row {sample?.rowNumbers?.[sampleRow] ?? sampleRow + 2}): <span className="text-primary font-medium break-words">{sampleValue || '(empty)'}</span>
                     </p>
                 )}
@@ -265,10 +265,10 @@ function TextOptions({ field, onChange, onSnapToCell }: { field: TextField; onCh
                         }}
                         className={fieldCls}
                     />
-                    <p className="mt-1 text-[11px] text-muted">Text is written between the rules instead of across them.</p>
+                    <p className="mt-1 text-xs text-muted">Text is written between the rules instead of across them.</p>
                 </div>
             )}
-            <p className="text-[11px] text-muted">Long values shrink to fit, down to 6 pt. Drag the box on the page to move it; drag its corner to resize.</p>
+            <p className="text-xs text-muted">Long values shrink to fit, down to 6 pt. Drag the box on the page to move it; drag its corner to resize.</p>
             {onSnapToCell && (
                 <Button size="sm" onClick={onSnapToCell}>
                     <Grid2x2 size={13} /> Fit to table cell
@@ -322,7 +322,7 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
                         </Button>
                     )}
                 </div>
-                <p className="text-[11px] text-muted mb-2">Click checkboxes on the page to add or remove them.</p>
+                <p className="text-xs text-muted mb-2">Click checkboxes on the page to add or remove them.</p>
                 {field.options.length === 0 ? (
                     <div className={`${calloutCls.info} text-xs p-3`}>No boxes yet: click the checkboxes of this question on the page.</div>
                 ) : (
@@ -338,7 +338,7 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
                                             type="button"
                                             title="Tick this box on every form, whatever the spreadsheet says"
                                             onClick={() => onChange({ ...field, source: o.label, single: true })}
-                                            className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline whitespace-nowrap mt-0.5"
+                                            className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline whitespace-nowrap mt-0.5"
                                         >
                                             Always tick
                                         </button>
@@ -359,7 +359,7 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
                                                 type="button"
                                                 title="Remove this answer"
                                                 onClick={() => setAliases(o.id, o.aliases.filter(x => x !== a))}
-                                                className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-surface-elevated border border-border-subtle text-[10px] text-muted hover:text-status-rejected max-w-full"
+                                                className="inline-flex items-center gap-1 px-1.5 h-5 rounded-md bg-surface-elevated border border-border-subtle text-xs text-muted hover:text-status-rejected max-w-full"
                                             >
                                                 <span className="truncate">“{a}”</span>
                                                 <X size={10} />
@@ -376,11 +376,11 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
             {answers.length > 0 && (
                 <div>
                     <span className={labelCls}>Answers in the sample</span>
-                    <p className="text-[11px] text-muted mb-2">Answers are matched to boxes by their wording. Pick a box to fix a wrong or missing match.</p>
+                    <p className="text-xs text-muted mb-2">Answers are matched to boxes by their wording. Pick a box to fix a wrong or missing match.</p>
                     <ul className="space-y-1.5">
                         {answers.map(({ answer, count, option }) => (
                             <li key={answer} className="flex items-center gap-2">
-                                <span className="text-[11px] text-primary flex-1 min-w-0 truncate" title={answer}>
+                                <span className="text-xs text-primary flex-1 min-w-0 truncate" title={answer}>
                                     {answer} <span className="text-muted">×{count}</span>
                                 </span>
                                 <div className="w-1/2 shrink-0">
@@ -388,7 +388,7 @@ function ChoiceOptions({ field, onChange, onAddSiblings, sample, columnMatches }
                                         value={option?.id ?? ''}
                                         onChange={e => e.target.value && assign(answer, e.target.value)}
                                         aria-label={`Box for “${answer}”`}
-                                        className={`${fieldCls} h-7 text-[11px] ${option ? '' : 'border-warning/60'}`}
+                                        className={`${fieldCls} h-7 text-xs ${option ? '' : 'border-warning/60'}`}
                                     >
                                         <option value="">No match</option>
                                         {field.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatDateDMY, todayISO } from '../../lib/dateUtils';
+import { todayISO, formatDisplayDate } from '../../lib/dateUtils';
 
 /**
  * The app's one calendar. `CalendarPanel` draws the grid (days → months → years, click the
@@ -111,13 +111,13 @@ export function CalendarPanel({ mode, value, onChange, min, max, label, classNam
         grid = (
             <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map(d => (
-                    <span key={d} className="text-center text-[10px] font-semibold uppercase text-muted pb-1">{d}</span>
+                    <span key={d} className="text-center text-xs font-semibold uppercase text-muted pb-1">{d}</span>
                 ))}
                 {Array.from({ length: lead }, (_, i) => <span key={`x${i}`} />)}
                 {Array.from({ length: days }, (_, i) => {
                     const key = `${year}-${pad(month + 1)}-${pad(i + 1)}`;
                     return (
-                        <button key={key} type="button" aria-label={formatDateDMY(key)} aria-pressed={selected === key}
+                        <button key={key} type="button" aria-label={formatDisplayDate(key)} aria-pressed={selected === key}
                             disabled={outOfRange(key, min, max)} onClick={() => onChange(key)}
                             className={`h-8 tabular-nums ${cellCls(selected === key, today === key)}`}>
                             {i + 1}
@@ -131,7 +131,7 @@ export function CalendarPanel({ mode, value, onChange, min, max, label, classNam
     const selectedText = !selected
         ? 'Not set'
         : mode === 'date'
-            ? formatDateDMY(selected)
+            ? formatDisplayDate(selected)
             : `${MONTHS_LONG[Number(selected.slice(5, 7)) - 1]} ${selected.slice(0, 4)}`;
 
     return (
@@ -253,7 +253,7 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
                 onClick={() => setOpen(o => !o)}
                 className={`flex items-center justify-between gap-2 text-left ${className}`}
             >
-                <span className={value ? 'text-primary' : 'text-muted'}>{value ? formatDateDMY(value) : placeholder}</span>
+                <span className={value ? 'text-primary' : 'text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
                 <Calendar size={15} className="text-muted shrink-0" />
             </button>
             {open && createPortal(

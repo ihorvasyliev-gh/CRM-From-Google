@@ -6,6 +6,8 @@ import { getAvatarGradient, cleanVariant } from '../lib/types';
 import { buildStudentSearchFilters } from '../lib/searchUtils';
 import { useDebounce } from '../hooks/useDebounce';
 import DialogLayer from './ui/DialogLayer';
+import FieldError from './ui/FieldError';
+import ConfirmDialog from './ConfirmDialog';
 import type { EnrollmentRow } from '../hooks/useEnrollments';
 import { refreshCachedEnrollments } from '../lib/enrollmentCache';
 
@@ -49,6 +51,9 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     const [notes, setNotes] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    // A required field left empty: its message shows under it
+    const [missing, setMissing] = useState<'student' | 'course' | null>(null);
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
     const [showStudentDropdown, setShowStudentDropdown] = useState(false);
     const [highlightIndex, setHighlightIndex] = useState(0);
     const listRef = useRef<HTMLDivElement>(null);
@@ -91,6 +96,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         setStatus('requested');
         setNotes('');
         setError('');
+        setMissing(null);
         setStudentSearch('');
         setShowStudentDropdown(false);
 
@@ -156,7 +162,10 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
 
     const requestClose = useCallback(() => {
         if (saving) return;
-        if (isDirty && !window.confirm('Discard this enrollment?')) return;
+        if (isDirty) {
+            setConfirmDiscard(true);
+            return;
+        }
         onClose();
     }, [saving, isDirty, onClose]);
 
@@ -165,6 +174,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         setShowStudentDropdown(false);
         setStudentSearch('');
         setError('');
+        setMissing(null);
     };
 
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -198,12 +208,11 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         if (saving) return;
         setError('');
 
-        if (!selectedStudent) {
-            setError('Please select a student');
-            return;
-        }
-        if (!selectedCourseId) {
-            setError('Please select a course');
+        // Said under the field that is missing, which gets focus
+        if (!selectedStudent || !selectedCourseId) {
+            const field = !selectedStudent ? 'student' : 'course';
+            setMissing(field);
+            document.getElementById(field === 'student' ? 'enroll-student-search' : 'enroll-course')?.focus();
             return;
         }
 
@@ -304,7 +313,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                     type="button"
                                     onClick={() => { setSelectedStudent(null); setShowStudentDropdown(true); }}
                                     aria-label="Change student"
-                                    className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors shrink-0"
+                                    className="hit-area p-1 rounded-md text-muted hover:text-primary hover:bg-surface-elevated transition-colors shrink-0"
                                 >
                                     <X size={14} />
                                 </button>
@@ -327,6 +336,8 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                 aria-controls="enroll-student-listbox"
                                 placeholder="Search by name, email or phone..."
                                 className={`${FIELD_CLASS} pl-9 pr-9`}
+                                aria-invalid={missing === 'student' || undefined}
+                                aria-describedby={missing === 'student' ? 'enroll-student-search-error' : undefined}
                                 value={studentSearch}
                                 onChange={e => {
                                     setStudentSearch(e.target.value);
@@ -353,7 +364,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                                     ) : (
                                         <>
                                             {!debouncedSearch && (
-                                                <div className="px-3.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted">Recently added</div>
+                                                <div className="px-3.5 pt-2 pb-1 text-xs font-bold uppercase tracking-wider text-muted">Recently added</div>
                                             )}
                                             {studentResults.map((s, idx) => (
                                                 <button
@@ -382,6 +393,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             )}
                         </div>
                     )}
+                    <FieldError id="enroll-student-search" message={missing === 'student' ? 'Choose a student' : undefined} />
                 </div>
 
                 {/* Course Selector */}
@@ -390,15 +402,18 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                     <select
                         id="enroll-course"
                         value={selectedCourseId}
-                        onChange={e => setSelectedCourseId(e.target.value)}
+                        onChange={e => { setSelectedCourseId(e.target.value); setMissing(null); }}
                         autoFocus={!!preselectedStudentId}
                         className={FIELD_CLASS}
+                        aria-invalid={missing === 'course' || undefined}
+                        aria-describedby={missing === 'course' ? 'enroll-course-error' : undefined}
                     >
                         <option value="">Select a course...</option>
                         {courses.map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                     </select>
+                    <FieldError id="enroll-course" message={missing === 'course' ? 'Choose a course' : undefined} />
                     {existingEnrollment ? (
                         <p className="mt-1.5 text-xs text-status-requested flex items-center gap-1.5">
                             <AlertTriangle size={12} className="shrink-0" />
@@ -484,6 +499,15 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                     </button>
                 </div>
             </form>
+            <ConfirmDialog
+                open={confirmDiscard}
+                title="Discard this enrollment?"
+                message="The student, course and notes you chose will be lost."
+                confirmLabel="Discard"
+                variant="warning"
+                onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+                onCancel={() => setConfirmDiscard(false)}
+            />
         </DialogLayer>
     );
 }

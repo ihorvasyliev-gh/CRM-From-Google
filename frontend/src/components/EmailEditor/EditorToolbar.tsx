@@ -47,7 +47,7 @@ function TextBtn({ label, onClick, disabled, danger, children }: { label: string
             disabled={disabled}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
-            className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-medium shrink-0 transition-colors disabled:opacity-35 disabled:pointer-events-none ${
+            className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-xs font-medium shrink-0 transition-colors disabled:opacity-35 disabled:pointer-events-none ${
                 danger ? 'text-status-rejected hover:bg-danger/10' : 'text-muted hover:text-primary hover:bg-surface-elevated'
             }`}
         >
@@ -124,7 +124,7 @@ function ColorButton({ label, icon, value, onPick, onClear, clearLabel }: {
                     ))}
                 </div>
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-border-subtle">
-                    <label className="flex items-center gap-1.5 text-[11px] text-muted cursor-pointer">
+                    <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
                         <input
                             type="color"
                             value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'}
@@ -137,7 +137,7 @@ function ColorButton({ label, icon, value, onPick, onClear, clearLabel }: {
                         type="button"
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => { onClear(); setOpen(false); }}
-                        className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-primary"
+                        className="inline-flex items-center gap-1 text-xs text-muted hover:text-primary"
                     >
                         <X size={12} /> {clearLabel}
                     </button>
@@ -332,7 +332,7 @@ export default function EditorToolbar({ editor, textStyle }: { editor: Editor; t
 
             {s.inTable && (
                 <div className="flex flex-wrap items-center gap-0.5 px-1.5 pb-1.5 -mt-0.5" role="toolbar" aria-label="Table">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted px-1.5">Table</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted px-1.5">Table</span>
                     <TextBtn label="Insert row above" onClick={() => chain().addRowBefore().run()}><BetweenHorizontalStart size={13} /> Row above</TextBtn>
                     <TextBtn label="Insert row below" onClick={() => chain().addRowAfter().run()}><BetweenHorizontalEnd size={13} /> Row below</TextBtn>
                     <TextBtn label="Insert column left" onClick={() => chain().addColumnBefore().run()}><BetweenVerticalStart size={13} /> Col left</TextBtn>

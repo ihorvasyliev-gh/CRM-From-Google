@@ -31,7 +31,7 @@ export default function Badge({
     return (
         <span
             title={title}
-            className={`inline-flex items-center gap-1 px-2 h-5 text-[11px] font-semibold border whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 px-2 h-5 text-xs font-semibold border whitespace-nowrap ${
                 shape === 'pill' ? 'rounded-full' : 'rounded-md'
             } ${TONES[tone]} ${className}`}
         >

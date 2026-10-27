@@ -3,7 +3,7 @@ import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } fr
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
 import { notify } from '../lib/toast';
 import DialogLayer from './ui/DialogLayer';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
     Calendar, CheckSquare, Square, Loader2, AlertCircle
@@ -18,14 +18,14 @@ interface PendingApprovalsModalProps {
 function formatDate(dateStr: string | null | undefined) {
     if (!dateStr) return null;
     // Date-only values must not shift a day in negative UTC offsets
-    return formatDateDMY(dateStr) || dateStr;
+    return formatDisplayDate(dateStr) || dateStr;
 }
 
 function formatDateTime(dateTimeStr: string | null | undefined) {
     if (!dateTimeStr) return null;
     try {
         const d = new Date(dateTimeStr);
-        return `${d.toLocaleDateString('en-IE')} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        return `${formatDisplayDate(dateTimeStr)} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
         return dateTimeStr;
     }
@@ -241,7 +241,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                                     {item.course_name}
                                                 </span>
                                                 {item.course_variant && (
-                                                    <span className="text-[10px] bg-surface-elevated text-muted px-1.5 py-0.5 rounded-sm border border-border-subtle">
+                                                    <span className="text-xs bg-surface-elevated text-muted px-1.5 py-0.5 rounded-sm border border-border-subtle">
                                                         {cleanVariant(item.course_name, item.course_variant)}
                                                     </span>
                                                 )}
@@ -253,7 +253,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                             </div>
 
                                             {/* Request Info Bar */}
-                                            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
+                                            <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                                                 <span className="text-status-confirmed font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
                                                     <Calendar size={12} />
                                                     Requested Completion Date: <strong>{formatDate(item.pending_completion_date)}</strong>

@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import type React from 'react';
 import { Loader2 } from 'lucide-react';
+import { CustomTooltip } from './Tooltip';
 import { buttonCls, type ButtonSize, type ButtonVariant } from './buttonStyles';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -23,7 +24,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 });
 
 export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    /** Accessible name (also used as the tooltip when no `title` is given). */
+    /** Accessible name (also the tooltip when no `title` is given). The tooltip is the app's own, not the browser's. */
     label: string;
     size?: 'sm' | 'md';
     tone?: 'default' | 'danger' | 'brand';
@@ -42,17 +43,18 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         danger: 'hover:text-status-rejected hover:bg-danger/10',
     }[tone];
     return (
-        <button
-            ref={ref}
-            type={type}
-            aria-label={label}
-            title={title ?? label}
-            className={`inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40 ${dims} ${
-                active ? 'text-brand-600 dark:text-brand-400 bg-brand-500/10' : `text-muted ${tones}`
-            } ${className}`}
-            {...rest}
-        >
-            {children}
-        </button>
+        <CustomTooltip content={title ?? label}>
+            <button
+                ref={ref}
+                type={type}
+                aria-label={label}
+                className={`hit-area inline-flex items-center justify-center shrink-0 transition-colors disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40 ${dims} ${
+                    active ? 'text-brand-600 dark:text-brand-400 bg-brand-500/10' : `text-muted ${tones}`
+                } ${className}`}
+                {...rest}
+            >
+                {children}
+            </button>
+        </CustomTooltip>
     );
 });

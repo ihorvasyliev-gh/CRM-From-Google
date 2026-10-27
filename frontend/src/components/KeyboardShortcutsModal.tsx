@@ -1,5 +1,6 @@
 import { Keyboard, X, Sparkles } from 'lucide-react';
 import DialogLayer from './ui/DialogLayer';
+import { shortcutKeys } from '../lib/platform';
 
 interface Props {
     open: boolean;
@@ -20,12 +21,12 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
         {
             title: 'Global & Navigation',
             shortcuts: [
-                { keys: ['Ctrl', 'K'], description: 'Search students & courses' },
+                { keys: shortcutKeys('Mod', 'K'), description: 'Search students & courses' },
                 { keys: ['1', '–', '5'], description: 'Go to Home, Students, Courses, External Lists, PDF Forms' },
                 { keys: ['/'], description: 'Focus the search bar on this page' },
                 { keys: ['?'], description: 'Open this cheat sheet' },
                 { keys: ['Esc'], description: 'Close a panel, clear a search or selection' },
-                { keys: ['Ctrl', 'Shift', 'D'], description: 'Toggle theme (dark / light)' },
+                { keys: shortcutKeys('Mod', 'Shift', 'D'), description: 'Toggle theme (dark / light)' },
             ],
         },
         {
@@ -49,7 +50,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
         {
             title: 'Global & Navigation',
             shortcuts: [
-                { keys: ['Ctrl', 'K'], description: 'Open Command Palette & Omnisearch' },
+                { keys: shortcutKeys('Mod', 'K'), description: 'Open Command Palette & Omnisearch' },
                 { keys: ['1', '–', '9'], description: 'Jump to CRM sections (Dashboard, Students… 9 = PDF Forms)' },
                 { keys: ['/'], description: 'Focus search bar in current view' },
                 { keys: ['?'], description: 'Open Keyboard Shortcuts cheat sheet' },
@@ -60,8 +61,8 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             title: 'Quick Actions & Preferences',
             shortcuts: [
                 { keys: ['N'], description: 'Add new student' },
-                { keys: ['Ctrl', 'Shift', 'D'], description: 'Toggle Theme (Dark / Light)' },
-                { keys: ['Ctrl', 'Shift', 'C'], description: 'Toggle Density (Compact / Comfortable)' },
+                { keys: shortcutKeys('Mod', 'Shift', 'D'), description: 'Toggle Theme (Dark / Light)' },
+                { keys: shortcutKeys('Mod', 'Shift', 'C'), description: 'Toggle Density (Compact / Comfortable)' },
             ],
         },
         {
@@ -123,7 +124,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
                                         {sc.keys.map((k, kIdx) => (
                                             <kbd
                                                 key={kIdx}
-                                                className="px-2 py-0.5 text-[11px] font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-2xs"
+                                                className="px-2 py-0.5 text-xs font-mono font-bold text-primary bg-surface border border-border-subtle rounded-md shadow-2xs"
                                             >
                                                 {k}
                                             </kbd>

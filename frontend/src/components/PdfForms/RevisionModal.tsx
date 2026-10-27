@@ -52,7 +52,7 @@ export default function RevisionModal({ revision, fileName, onCancel, onApply }:
                                 <div key={s} className="rounded-xl border border-border-subtle p-3">
                                     <Icon size={16} className={cls} />
                                     <p className="text-lg font-bold text-primary tabular-nums mt-1">{counts[s]}</p>
-                                    <p className="text-[11px] text-muted">{label}</p>
+                                    <p className="text-xs text-muted">{label}</p>
                                 </div>
                             );
                         })}

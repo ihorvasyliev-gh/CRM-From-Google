@@ -5,6 +5,7 @@ import NetworkStatusIndicator from '../ui/NetworkStatusIndicator';
 import { useViewerUpcoming } from './useViewerData';
 import { daysFromToday } from './viewerUtils';
 import { Kbd } from './ViewerUI';
+import { kbdLabel, shortcutLabel } from '../../lib/platform';
 
 interface ViewerHeaderProps {
     activeTab: ViewerTab;
@@ -45,7 +46,7 @@ export default function ViewerHeader({
                 <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
                 <span className="hidden sm:block text-left leading-tight">
                     <span className="block text-sm font-bold text-primary tracking-tight">CCP CRM</span>
-                    <span className="block text-[9px] text-muted font-semibold tracking-wide uppercase">Viewer</span>
+                    <span className="block text-xs text-muted font-semibold tracking-wide uppercase">Viewer</span>
                 </span>
                 <span className="sm:hidden text-sm font-bold text-primary">{activeLabel}</span>
             </button>
@@ -67,7 +68,7 @@ export default function ViewerHeader({
                             <Icon size={15} className={active ? 'text-brand-500' : ''} />
                             {tab.label}
                             {tab.key === 'home' && todayCount > 0 && (
-                                <span className="ml-0.5 px-1.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold tabular-nums" title={`${todayCount} session(s) today`}>{todayCount}</span>
+                                <span className="ml-0.5 px-1.5 rounded-full bg-emerald-500 text-white text-xs font-bold tabular-nums" title={`${todayCount} session(s) today`}>{todayCount}</span>
                             )}
                             {active && <span className="absolute left-2 right-2 -bottom-px h-0.5 rounded-full bg-brand-500" />}
                         </button>
@@ -81,11 +82,11 @@ export default function ViewerHeader({
                 type="button"
                 onClick={onOpenSearch}
                 className="hidden sm:flex items-center gap-2 h-9 pl-3 pr-2 w-56 xl:w-72 bg-surface-elevated hover:bg-surface border border-border-subtle hover:border-brand-500/40 text-muted rounded-xl text-xs font-medium transition-all group"
-                title="Search students & courses (Ctrl+K)"
+                title={`Search students & courses (${shortcutLabel('Mod', 'K')})`}
             >
                 <Search size={14} className="group-hover:text-brand-500" />
                 <span className="flex-1 text-left">Search…</span>
-                <Kbd>Ctrl K</Kbd>
+                <Kbd>{kbdLabel('Mod', 'K')}</Kbd>
             </button>
             <button type="button" onClick={onOpenSearch} className="sm:hidden p-2 text-muted hover:text-primary rounded-lg" aria-label="Search">
                 <Search size={18} />
@@ -111,17 +112,17 @@ export default function ViewerHeader({
                     <div role="menu" className="absolute right-0 mt-2 w-64 p-1.5 bg-surface border border-border-subtle rounded-2xl shadow-float animate-popoverScaleIn origin-top-right">
                         <div className="px-3 py-2 mb-1 border-b border-border-subtle">
                             <p className="text-xs font-semibold text-primary truncate">{userEmail}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Viewer access</p>
+                            <p className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400">Viewer access</p>
                         </div>
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDarkMode}>
                             {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-brand-500" />}
                             <span className="flex-1 text-left">{darkMode ? 'Light theme' : 'Dark theme'}</span>
-                            <Kbd>Ctrl ⇧ D</Kbd>
+                            <Kbd>{kbdLabel('Mod', 'Shift', 'D')}</Kbd>
                         </button>
                         <button role="menuitem" type="button" className={menuItem} onClick={toggleDensity}>
                             <Rows3 size={15} className="text-brand-500" />
                             <span className="flex-1 text-left">{density === 'compact' ? 'Comfortable view' : 'Compact view'}</span>
-                            <Kbd>Ctrl ⇧ C</Kbd>
+                            <Kbd>{kbdLabel('Mod', 'Shift', 'C')}</Kbd>
                         </button>
                         <button role="menuitem" type="button" className={menuItem} onClick={() => { setMenuOpen(false); onOpenShortcuts(); }}>
                             <HelpCircle size={15} className="text-muted" />

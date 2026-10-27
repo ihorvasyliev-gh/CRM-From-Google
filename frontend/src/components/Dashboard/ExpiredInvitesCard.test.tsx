@@ -162,6 +162,6 @@ describe('ExpiredInvitesCard', () => {
         render(<ExpiredInvitesCard items={items} />);
         const badge = screen.getByText('12h left');
         expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain('text-amber-600');
+        expect(badge.className).toContain('text-status-requested');
     });
 });

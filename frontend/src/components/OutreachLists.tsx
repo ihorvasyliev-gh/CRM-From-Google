@@ -7,7 +7,7 @@ import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailT
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
-import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
+import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -379,7 +379,7 @@ export default function OutreachLists() {
                         wrapperClassName="flex-1 min-w-[200px]"
                                                 value={searchQuery}
                         onChange={setSearchQuery}
-                        placeholder="Search by name, email, IRIS ID or field..."
+                        placeholder="Name, email, IRIS ID, field…"
                         aria-label="Search contacts"
                     />
                     <span className="text-xs text-muted font-medium">
@@ -387,7 +387,7 @@ export default function OutreachLists() {
                     </span>
                 </div>
                 {contacts.length > 0 && selectedIds.size === 0 && (
-                    <p className="text-[11px] text-muted flex items-center gap-1.5">
+                    <p className="text-xs text-muted flex items-center gap-1.5">
                         <Mail size={12} className="shrink-0" />
                         Tick people in the list to email them the survey. Click “Status” on a row to change it by hand.
                     </p>
@@ -397,7 +397,7 @@ export default function OutreachLists() {
                         <button
                             key={value}
                             onClick={() => setFilterStatus(value)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all ${
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
                                 filterStatus === value
                                     ? 'bg-brand-500 text-white shadow-xs'
                                     : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
@@ -455,12 +455,12 @@ export default function OutreachLists() {
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider">Contact</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
-                                    <th className="py-3 px-4 text-left text-[11px] font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
-                                    <th className="py-3 px-4 text-right text-[11px] font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">Contact</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
+                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -492,10 +492,10 @@ export default function OutreachLists() {
                                                         <p className="font-semibold text-primary text-[13px] truncate flex items-center gap-1.5">
                                                             {fullName(contact) || '—'}
                                                             {contact.in_crm && (
-                                                                <span title="The same email is also a student in the CRM" className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed">In CRM</span>
+                                                                <span title="The same email is also a student in the CRM" className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed">In CRM</span>
                                                             )}
                                                         </p>
-                                                        <p className="text-[11px] text-muted truncate">{contact.email}</p>
+                                                        <p className="text-xs text-muted truncate">{contact.email}</p>
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={contact.status} />
@@ -510,20 +510,20 @@ export default function OutreachLists() {
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={contact.status} />
                                                 {contact.status === 'pending' && contact.last_invited_at && (
-                                                    <p className="text-[10px] text-muted mt-0.5">Sent {formatDateDMY(contact.last_invited_at)}</p>
+                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDisplayDate(contact.last_invited_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={contact.status} row={contact} />
                                                 {contact.status === 'responded' && contact.is_working && contact.started_month && (
-                                                    <p className="text-[10px] text-muted mt-0.5">
+                                                    <p className="text-xs text-muted mt-0.5">
                                                         Since {formatLocalDate(new Date(contact.started_month + '-01'), { month: 'short', year: 'numeric' }, 'en-GB')}
                                                     </p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 hidden lg:table-cell">
                                                 <span className="text-xs text-muted">
-                                                    {contact.last_responded_at ? formatDateDMY(contact.last_responded_at) : '—'}
+                                                    {contact.last_responded_at ? formatDisplayDate(contact.last_responded_at) : '—'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-right">

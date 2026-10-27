@@ -76,7 +76,7 @@ describe('ViewerStudentsDirectory', () => {
         expect(within(jane).getByText('Morning')).toBeInTheDocument();
         expect(within(jane).getByText('+2 more')).toBeInTheDocument();
         expect(within(jane).getByTitle('2 notes')).toBeInTheDocument();
-        expect(within(jane).getByText('10/01/2026')).toBeInTheDocument();
+        expect(within(jane).getByText('10 Jan 2026')).toBeInTheDocument();
 
         const john = rows[1];
         expect(within(john).getByLabelText('Priority')).toBeInTheDocument();

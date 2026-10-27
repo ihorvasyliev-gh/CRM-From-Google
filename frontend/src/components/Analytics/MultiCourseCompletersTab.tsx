@@ -16,7 +16,7 @@ import {
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
 import { getAvatarGradient } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { copyEmailsToClipboard } from './analyticsUtils';
 import Card, { SectionHeader } from '../ui/Card';
 import Badge from '../ui/Badge';
@@ -263,7 +263,7 @@ export default function MultiCourseCompletersTab({
                                     {isSelected && <Check size={11} strokeWidth={3} />}
                                 </span>
                                 <span className="font-semibold">{course.name}</span>
-                                <span className="text-[10px] tabular-nums text-muted">{course.completedStudentsCount}</span>
+                                <span className="text-xs tabular-nums text-muted">{course.completedStudentsCount}</span>
                             </button>
                         );
                     })}
@@ -313,7 +313,7 @@ export default function MultiCourseCompletersTab({
                             setSearchQuery(v);
                             setCurrentPage(1);
                         }}
-                        placeholder="Search name, email, phone, eircode…"
+                        placeholder="Name, email, phone, eircode…"
                         aria-label="Search graduates"
                         wrapperClassName="flex-1 min-w-[220px]"
                     />
@@ -361,34 +361,34 @@ export default function MultiCourseCompletersTab({
                                     <tr key={profile.studentId} className={`${trCls} group`}>
                                         <td className={tdCls}>
                                             <div className="flex items-center gap-2.5">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[11px] bg-linear-to-br ${getAvatarGradient(profile.fullName)} shrink-0`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs bg-linear-to-br ${getAvatarGradient(profile.fullName)} shrink-0`}>
                                                     {profile.firstName ? profile.firstName[0] : 'S'}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-[13px] font-semibold text-primary truncate">{profile.fullName}</p>
-                                                    {profile.eircode && <span className="text-[11px] text-muted">{profile.eircode}</span>}
+                                                    {profile.eircode && <span className="text-xs text-muted">{profile.eircode}</span>}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className={tdCls}>
                                             <p className="text-xs text-primary truncate max-w-[200px]" title={profile.email}>{profile.email || '—'}</p>
-                                            <p className="text-[11px] text-muted tabular-nums">{profile.phone || '—'}</p>
+                                            <p className="text-xs text-muted tabular-nums">{profile.phone || '—'}</p>
                                         </td>
                                         <td className={tdCls}>
                                             <Badge>{profile.district}</Badge>
                                             {profile.address && (
-                                                <p className="text-[11px] text-muted truncate max-w-[180px] mt-1" title={profile.address}>{profile.address}</p>
+                                                <p className="text-xs text-muted truncate max-w-[180px] mt-1" title={profile.address}>{profile.address}</p>
                                             )}
                                         </td>
                                         <td className={tdCls}>
                                             <div className="flex flex-wrap gap-1.5 max-w-md">
                                                 {Array.from(profile.completedCourses.values()).map(course => {
                                                     const isSelectedMatch = selectedCourseIds.includes(course.courseId);
-                                                    const dateStr = course.completedDate ? formatDateDMY(course.completedDate) : 'Completed';
+                                                    const dateStr = course.completedDate ? formatDisplayDate(course.completedDate) : 'Completed';
                                                     return (
                                                         <span
                                                             key={course.courseId}
-                                                            className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md text-[11px] border ${
+                                                            className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md text-xs border ${
                                                                 isSelectedMatch ? 'bg-success/10 border-success/30' : 'bg-surface-elevated border-border-subtle'
                                                             }`}
                                                         >

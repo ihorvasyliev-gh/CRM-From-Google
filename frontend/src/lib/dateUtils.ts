@@ -51,6 +51,17 @@ export function formatDateLong(dateStr: string | null | undefined): string {
     return formatLocalDate(d, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/**
+ * The app's one way to show a date on screen: "4 Oct 2026" (formatShortDate: "4 Oct"). Exports
+ * keep formatDateDMY, documents and emails formatDateLong.
+ */
+export function formatDisplayDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const d = parseDate(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return formatLocalDate(d, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export function formatShortDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const d = parseDate(dateStr);

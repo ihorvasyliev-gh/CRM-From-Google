@@ -29,6 +29,7 @@ import { useTabPrefetch } from './hooks/useTabPrefetch';
 import { useGlobalHotkeys } from './hooks/useGlobalHotkeys';
 import { useNotificationBanner } from './hooks/useNotificationBanner';
 import type { NavigateFn, NavState } from './lib/navigation';
+import { kbdLabel, shortcutLabel } from './lib/platform';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -62,19 +63,21 @@ import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 // `title` (page header) defaults to `label` (sidebar)
 const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof Users; subtitle: string; group: string }[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subtitle: 'Welcome back — here\'s your overview', group: 'Workspace' },
+    // No subtitle: the page greets you itself ("Good morning")
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subtitle: '', group: 'Workspace' },
     { key: 'students', label: 'Students', icon: Users, subtitle: 'Manage your student database', group: 'Workspace' },
     { key: 'courses', label: 'Courses', icon: BookOpen, subtitle: 'View and manage the course catalog', group: 'Workspace' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, subtitle: 'Track and manage enrollments', group: 'Workspace' },
     { key: 'outcomes', label: 'Outcomes', icon: Briefcase, subtitle: 'Track graduate employment status', group: 'Insights' },
-    { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Insights' },
+    { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Tools' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
-    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Insights (number keys stop at 9)
-    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Insights' },
-    { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Insights' },
+    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Tools (number keys stop at 9)
+    { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Tools' },
+    { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Tools' },
 ];
-const NAV_GROUPS = ['Workspace', 'Insights', 'System'] as const;
+// The sidebar shows the pages by group (the number keys follow NAV_ITEMS, so they stay put)
+const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
 
 /**
  * Admin pages kept alive once visited (React <Activity>): coming back shows them at once, with
@@ -167,6 +170,8 @@ function App() {
     const viewerDrawerMount = useDialogMount(!!viewerDrawer.currentId);
     const shownStudentDetail = useLastPresent(globalStudentDetail);
     const { mounted: overlayMounted, closing: overlayClosing, ref: overlayRef } = usePresence(sidebarOpen && !isViewer);
+
+    const showFab = !isViewer && activeTab === 'dashboard';
 
     // Kept pages: mounted on the first visit, then hidden and shown
     const keptPage = !isViewer && KEPT_PAGES.has(activeTab);
@@ -297,6 +302,14 @@ function App() {
         <NetworkStatusProvider>
         <TooltipProvider delayDuration={100}>
             <div className="h-screen w-full bg-background text-primary flex relative overflow-hidden">
+                {/* First stop for Tab: past the sidebar and the top bar, straight to the page */}
+                <a
+                    href="#main-content"
+                    onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-100 focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-surface focus:text-primary focus:text-sm focus:font-semibold focus:shadow-float"
+                >
+                    Skip to content
+                </a>
                 {/* Subtle radial glow in Dark Mode */}
                 {darkMode && (
                     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -304,19 +317,19 @@ function App() {
                     </div>
                 )}
 
-                {/* Mobile overlay */}
+                {/* Mobile overlay: above the bottom tab bar (z-40) and action bars (z-50), so the open menu covers them */}
                 {overlayMounted && (
                     <div
                         ref={overlayRef}
-                        className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-35 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
+                        className={`fixed inset-0 bg-black/40 dark:bg-black/60 z-55 lg:hidden ${overlayClosing ? 'animate-fadeOut pointer-events-none' : 'animate-fadeIn'}`}
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
 
                 {/* Sidebar */}
                 {!isViewer && (
-                    <aside className={`
-                    fixed lg:sticky top-0 left-0 h-screen w-[224px] z-40
+                    <aside aria-label="Sidebar" className={`
+                    fixed lg:sticky top-0 left-0 h-screen w-[224px] z-60 lg:z-40
                     flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                     bg-surface border-r border-border-subtle
                     ${sidebarOpen ? 'translate-x-0 shadow-float' : '-translate-x-full lg:translate-x-0'}
@@ -329,7 +342,7 @@ function App() {
                             </div>
                             <div className="min-w-0 leading-tight">
                                 <h1 className="text-sm font-bold text-primary tracking-tight truncate">CCP CRM</h1>
-                                <p className="text-[10px] text-muted font-medium truncate">Management system</p>
+                                <p className="text-xs text-muted font-medium truncate">Management system</p>
                             </div>
                         </div>
                         <button
@@ -343,23 +356,9 @@ function App() {
 
                     {/* Nav */}
                     <nav className="flex-1 px-3 py-3 overflow-y-auto" aria-label="Main">
-                        <button
-                            onClick={() => setCommandPaletteOpen(true)}
-                            className="w-full mb-4 flex items-center justify-between h-9 px-2.5 bg-surface-elevated/60 hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl text-xs font-medium text-muted hover:text-primary transition-colors group"
-                            title="Quick search (Ctrl+K)"
-                        >
-                            <span className="flex items-center gap-2">
-                                <Search size={14} className="group-hover:text-brand-500 transition-colors" />
-                                Quick search
-                            </span>
-                            <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface border border-border-subtle rounded-md">
-                                ⌘K
-                            </kbd>
-                        </button>
-
                         {NAV_GROUPS.map(group => (
                             <div key={group} className="mb-4 last:mb-0">
-                                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-muted uppercase tracking-wider">{group}</p>
+                                <p className="px-2.5 mb-1.5 text-xs font-semibold text-muted uppercase tracking-wider">{group}</p>
                                 <div className="space-y-0.5">
                                     {NAV_ITEMS.filter(item => item.group === group).map(item => {
                                         const Icon = item.icon;
@@ -383,7 +382,7 @@ function App() {
                                                 )}
                                                 <Icon size={17} className="shrink-0" />
                                                 <span className="flex-1 text-left truncate">{item.label}</span>
-                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-[10px] font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
+                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-xs font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
                                             </button>
                                         );
                                     })}
@@ -392,9 +391,9 @@ function App() {
                         ))}
                     </nav>
 
-                    {/* Preferences / user */}
+                    {/* Account, and on phones the preferences (the desktop top bar has them) */}
                     <div className="p-3 border-t border-border-subtle shrink-0 space-y-2">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 lg:hidden">
                             <IconButton size="sm" label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleDarkMode}>
                                 {darkMode ? <Sun size={15} /> : <Moon size={15} />}
                             </IconButton>
@@ -406,15 +405,8 @@ function App() {
                             >
                                 <Rows3 size={15} />
                             </IconButton>
-                            <IconButton size="sm" label="Keyboard shortcuts (?)" onClick={() => setShortcutsModalOpen(true)}>
-                                <HelpCircle size={15} />
-                            </IconButton>
-                            <span className="flex-1" />
-                            <IconButton size="sm" tone="danger" label="Sign out" onClick={signOut}>
-                                <LogOut size={15} />
-                            </IconButton>
                         </div>
-                        <div className="flex items-center gap-2.5 px-2 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
+                        <div className="flex items-center gap-2.5 pl-2 pr-1 py-2 bg-surface-elevated/60 rounded-xl border border-border-subtle">
                             <div className="w-8 h-8 bg-linear-to-br from-brand-500 to-violet-500 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
                                 {(user.email?.[0] || 'A').toUpperCase()}
                             </div>
@@ -422,9 +414,12 @@ function App() {
                                 <p className="text-xs font-medium text-primary truncate" title={user.email ?? undefined}>{user.email}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                                    <span className="text-[10px] text-muted font-medium">Administrator</span>
+                                    <span className="text-xs text-muted font-medium">Administrator</span>
                                 </div>
                             </div>
+                            <IconButton size="sm" tone="danger" label="Sign out" onClick={signOut}>
+                                <LogOut size={15} />
+                            </IconButton>
                         </div>
                     </div>
                 </aside>
@@ -487,10 +482,11 @@ function App() {
                                 <div className="w-7 h-7 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-xs shadow-brand-500/20 shrink-0">
                                     C
                                 </div>
-                                <span className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</span>
+                                {/* The page's heading on a phone, like the desktop top bar's */}
+                                <h2 className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</h2>
                             </div>
                             <div className="flex items-center gap-0.5">
-                                <IconButton label="Search (Ctrl+K)" onClick={() => setCommandPaletteOpen(true)}>
+                                <IconButton label="Search" onClick={() => setCommandPaletteOpen(true)}>
                                     <Search size={18} />
                                 </IconButton>
                                 <NetworkStatusIndicator />
@@ -513,7 +509,7 @@ function App() {
                         <header className="hidden lg:flex sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-8 items-center justify-between gap-4">
                             <div className="flex items-baseline gap-3 min-w-0">
                                 <h2 className="text-lg font-semibold text-primary tracking-tight">{pageTitle}</h2>
-                                {activeNav && (
+                                {activeNav?.subtitle && (
                                     <p className="text-[13px] text-muted truncate">{activeNav.subtitle}</p>
                                 )}
                             </div>
@@ -536,12 +532,12 @@ function App() {
                                 <button
                                     onClick={() => setCommandPaletteOpen(true)}
                                     className="flex items-center gap-2 h-8 pl-2.5 pr-1.5 w-56 bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong text-muted hover:text-primary rounded-xl text-xs font-medium transition-colors group"
-                                    title="Quick search (Ctrl+K)"
+                                    title={`Search students, courses and pages (${shortcutLabel('Mod', 'K')})`}
                                 >
                                     <Search size={14} className="group-hover:text-brand-500 transition-colors" />
                                     <span className="flex-1 text-left">Search…</span>
                                     <kbd className="px-1.5 h-5 inline-flex items-center text-[10px] font-mono font-semibold text-muted bg-surface-elevated border border-border-subtle rounded-md">
-                                        Ctrl K
+                                        {kbdLabel('Mod', 'K')}
                                     </kbd>
                                 </button>
 
@@ -565,10 +561,13 @@ function App() {
                     )}
 
                     {/* Page Content */}
-                    <main className={`flex-1 w-full flex flex-col min-h-0 ${
+                    <main id="main-content" tabIndex={-1} className={`flex-1 w-full flex flex-col min-h-0 outline-hidden ${
                         activeTab === 'enrollments'
                             ? 'px-2 py-2 sm:px-6 lg:px-8 sm:py-4 pb-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:pb-4 overflow-hidden'
-                            : 'px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)] lg:pb-8'
+                            : `px-3 pt-3 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6 lg:pb-8 ${showFab
+                                // Room for the bottom bar, and for the add button above it, so the last rows scroll clear of it
+                                ? 'pb-[calc(env(safe-area-inset-bottom)+8.5rem)]'
+                                : 'pb-[max(calc(env(safe-area-inset-bottom)+5rem),5rem)]'}`
                     }`}>
                         {!isViewer && visitedPages.map(tab => (
                             <Activity key={tab} mode={tab === activeTab ? 'visible' : 'hidden'}>
@@ -609,13 +608,15 @@ function App() {
                 userEmail={user.email}
             />
 
-            {/* Mobile Floating Actions (FAB) */}
-            <MobileFloatingActions
-                onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
-                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-                onOpenEnrollment={isViewer ? undefined : () => setGlobalEnrollModalOpen(true)}
-                isViewer={isViewer}
-            />
+            {/* Mobile Floating Actions (FAB): the dashboard only; the board, Students and Courses
+                have their own add button, and the other pages are not about adding */}
+            {showFab && (
+                <MobileFloatingActions
+                    onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
+                    onOpenEnrollment={() => setGlobalEnrollModalOpen(true)}
+                    isViewer={isViewer}
+                />
+            )}
 
             {/* Admin Approvals Modal (lazy chunk — only mounted when opened so it never suspends the whole app) */}
             {approvalsMount.mounted && (

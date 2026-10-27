@@ -9,6 +9,9 @@ import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { calloutCls, fieldCls, labelCls } from './ui/styles';
 import { DateInput } from './ui/DatePicker';
+import FieldError from './ui/FieldError';
+import ConfirmDialog from './ConfirmDialog';
+import { useFieldErrors } from '../hooks/useFieldErrors';
 
 interface Props {
     open: boolean;
@@ -38,6 +41,8 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [duplicateWarning, setDuplicateWarning] = useState('');
+    const { errors, check, formProps, fieldProps } = useFieldErrors();
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
     const initialForm = useMemo(() => student || EMPTY_FORM, [student]);
 
@@ -56,7 +61,10 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
 
     const requestClose = useCallback(() => {
         if (saving) return;
-        if (isDirty && !window.confirm('Discard unsaved changes?')) return;
+        if (isDirty) {
+            setConfirmDiscard(true);
+            return;
+        }
         onClose();
     }, [saving, isDirty, onClose]);
 
@@ -113,11 +121,11 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
         };
     }, [form.email, form.phone, student?.id, open]);
 
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const thenEnroll = enrollAfterSaveRef.current;
         enrollAfterSaveRef.current = false;
-        if (saving) return;
+        if (saving || !check(e.currentTarget)) return;
         if (!form.first_name.trim() || !form.last_name.trim()) {
             setError('First and last name are required');
             return;
@@ -162,10 +170,8 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                             variant="secondary"
                             disabled={saving}
                             onClick={() => {
-                                const formEl = formRef.current;
-                                if (!formEl?.reportValidity()) return;
                                 enrollAfterSaveRef.current = true;
-                                formEl.requestSubmit();
+                                formRef.current?.requestSubmit();
                             }}
                         >
                             Save and enroll
@@ -177,7 +183,7 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                 </>
             }
         >
-                <form id="student-form" ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+                <form id="student-form" ref={formRef} onSubmit={handleSubmit} {...formProps} className="space-y-4">
                     {error && <FormError>{error}</FormError>}
 
                     {duplicateWarning && (
@@ -199,7 +205,9 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                                 value={form.first_name}
                                 onChange={update('first_name')}
                                 required
+                                {...fieldProps('student-first-name')}
                             />
+                            <FieldError id="student-first-name" message={errors['student-first-name']} />
                         </div>
                         <div>
                             <label htmlFor="student-last-name" className={LABEL_CLASS}>Last Name *</label>
@@ -211,7 +219,9 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                                 value={form.last_name}
                                 onChange={update('last_name')}
                                 required
+                                {...fieldProps('student-last-name')}
                             />
+                            <FieldError id="student-last-name" message={errors['student-last-name']} />
                         </div>
                     </div>
 
@@ -225,7 +235,9 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                             className={INPUT_CLASS}
                             value={form.email}
                             onChange={update('email')}
+                            {...fieldProps('student-email')}
                         />
+                        <FieldError id="student-email" message={errors['student-email']} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -278,6 +290,15 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                     </div>
 
                 </form>
+            <ConfirmDialog
+                open={confirmDiscard}
+                title="Discard changes?"
+                message="What you typed for this student will be lost."
+                confirmLabel="Discard"
+                variant="warning"
+                onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+                onCancel={() => setConfirmDiscard(false)}
+            />
         </Modal>
     );
 }

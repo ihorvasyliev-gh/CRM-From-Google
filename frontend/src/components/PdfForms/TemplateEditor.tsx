@@ -623,7 +623,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                             {pdf && layout ? (
                                 <>
                                     <PdfPage doc={pdf.doc} page={0} size={layout.pages[0]} width={200} />
-                                    <p className="text-[11px] text-muted text-center">
+                                    <p className="text-xs text-muted text-center">
                                         {layout.pages.length} page(s) · {layout.checkboxes.length} checkboxes found
                                     </p>
                                 </>
@@ -699,7 +699,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                             <li>Click <b>Preview</b> to see a filled form, then <b>Save</b>.</li>
                         </ol>
                         {report.unused.length > 0 && (
-                            <p className="mt-2 text-[11px] text-muted">
+                            <p className="mt-2 text-xs text-muted">
                                 Not placed on the form (fine if the form has no room for them): {report.unused.slice(0, 8).join(' · ')}
                                 {report.unused.length > 8 ? ` +${report.unused.length - 8} more` : ''}
                             </p>
@@ -745,7 +745,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                 </label>
                             )}
                         </div>
-                        <div className="px-3 py-2 text-[11px] text-muted border-b border-border-subtle bg-surface-elevated/40 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <div className="px-3 py-2 text-xs text-muted border-b border-border-subtle bg-surface-elevated/40 flex flex-wrap items-center gap-x-4 gap-y-1">
                             <span className="text-primary font-medium">
                                 {mode === 'draw'
                                     ? 'Click a table cell to put a text field in it, or drag to draw the box.'
@@ -774,7 +774,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                             )}
                         </div>
                         {layout && (
-                            <p className="px-3 py-2 text-[11px] text-muted border-t border-border-subtle">
+                            <p className="px-3 py-2 text-xs text-muted border-t border-border-subtle">
                                 Found {layout.checkboxes.length} checkboxes and {layout.phrases.length} labels in {pageCount} page(s).
                                 {layout.checkboxes.length === 0 && ' No checkboxes found: this PDF may be a scan; text fields still work.'}
                             </p>
@@ -855,13 +855,13 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                                                 {f.kind === 'text' ? <Type size={13} className="text-sky-600 shrink-0" /> : <Square size={13} className="text-emerald-600 shrink-0" />}
                                                                 <span className="min-w-0 flex-1">
                                                                     <span className="block text-xs font-medium text-primary truncate">{f.name}</span>
-                                                                    <span className="block text-[10px] text-muted truncate">← {summarizeSource(f.source)}</span>
+                                                                    <span className="block text-xs text-muted truncate">← {summarizeSource(f.source)}</span>
                                                                 </span>
                                                                 {flagged.has(f.id) && <AlertTriangle size={13} className="text-status-requested shrink-0" aria-label="Check position" />}
                                                                 {!f.source.trim() && <Badge tone="warning">no column</Badge>}
                                                         {missing && <Badge tone="warning">column?</Badge>}
                                                                 {f.kind === 'choice' && <Badge>{f.options.length}</Badge>}
-                                                                {page !== undefined && <span className="text-[10px] text-muted tabular-nums">p{page + 1}</span>}
+                                                                {page !== undefined && <span className="text-xs text-muted tabular-nums">p{page + 1}</span>}
                                                             </button>
                                                         </li>
                                                     );
@@ -904,7 +904,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                                                         {missingColumns.map(w => (
                                                             <div key={w}>
                                                                 <p className="truncate" title={w}>{w}</p>
-                                                                <select defaultValue="" onChange={e => e.target.value && rememberColumn(w, e.target.value)} className={`${fieldCls} h-7 text-[11px] mt-1`} aria-label={`Column for ${w}`}>
+                                                                <select defaultValue="" onChange={e => e.target.value && rememberColumn(w, e.target.value)} className={`${fieldCls} h-7 text-xs mt-1`} aria-label={`Column for ${w}`}>
                                                                     <option value="">Use column…</option>
                                                                     {sample.headers.map(h => <option key={h} value={h}>{h}</option>)}
                                                                 </select>
@@ -1003,7 +1003,7 @@ function SetupSteps({ step }: { step: 'pdf' | 'sample' | 'edit' }) {
             {STEPS.map((s, i) => (
                 <li key={s.key} className="flex items-center gap-2" aria-current={i === at ? 'step' : undefined}>
                     <span
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                             i < at ? 'bg-emerald-500 text-white' : i === at ? 'bg-brand-500 text-white' : 'bg-surface-elevated text-muted border border-border-subtle'
                         }`}
                     >

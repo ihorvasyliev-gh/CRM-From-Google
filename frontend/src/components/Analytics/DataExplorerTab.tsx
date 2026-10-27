@@ -11,7 +11,7 @@ import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from 
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { normalizeCorkAddress, copyEmailsToClipboard, exportCustomCSV } from './analyticsUtils';
 import { cleanVariant, Student } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface DataExplorerTabProps {
@@ -49,7 +49,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                 variant,
                 status: e.status,
                 isPriority: !!e.is_priority,
-                createdDate: formatDateDMY(e.created_at),
+                createdDate: formatDisplayDate(e.created_at),
                 createdIso: e.created_at || ''
             };
         });
@@ -133,7 +133,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                             setSearchQuery(v);
                             setCurrentPage(1);
                         }}
-                        placeholder="Search name, email, phone, course…"
+                        placeholder="Name, email, phone, course…"
                         aria-label="Search participants"
                         wrapperClassName="flex-1 min-w-[220px]"
                     />
@@ -204,7 +204,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                                                             </span>
                                                             {r.isPriority && <PriorityStar />}
                                                         </div>
-                                                        <span className="block text-[11px] text-muted truncate max-w-[220px]">{r.email || '—'}</span>
+                                                        <span className="block text-xs text-muted truncate max-w-[220px]">{r.email || '—'}</span>
                                                     </div>
                                                 </div>
                                             </td>
@@ -214,10 +214,10 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                                             </td>
                                             <td className={tdCls}>
                                                 <span className="block text-[13px] font-medium text-primary">{r.courseName}</span>
-                                                <span className="block text-[11px] text-muted">{r.variant}</span>
+                                                <span className="block text-xs text-muted">{r.variant}</span>
                                             </td>
                                             <td className={tdCls}>
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${cfg.pillBg}`}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.pillBg}`}>
                                                     {cfg.label}
                                                 </span>
                                             </td>

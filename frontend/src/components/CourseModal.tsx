@@ -9,6 +9,9 @@ import Modal, { FormError } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Segmented } from './ui/Tabs';
 import { fieldCls, labelCls } from './ui/styles';
+import FieldError from './ui/FieldError';
+import ConfirmDialog from './ConfirmDialog';
+import { useFieldErrors } from '../hooks/useFieldErrors';
 
 interface Props {
     open: boolean;
@@ -33,6 +36,8 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
     const [courseInfo, setCourseInfo] = useState<CourseEmailInfo>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const { errors, check, formProps, fieldProps } = useFieldErrors();
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -52,13 +57,16 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
             || maxCapacity.trim() !== (course?.max_capacity ? String(course.max_capacity) : '')
             || templateIds.join() !== (course?.template_ids || []).join()
             || JSON.stringify(compactInfo(courseInfo)) !== JSON.stringify(compactInfo(course?.email_templates || {}));
-        if (dirty && !window.confirm('Discard unsaved changes?')) return;
+        if (dirty) {
+            setConfirmDiscard(true);
+            return;
+        }
         onClose();
     };
 
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        if (saving) return;
+        if (saving || !check(e.currentTarget)) return;
         if (!name.trim()) {
             setError('Course name is required');
             return;
@@ -126,9 +134,9 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                         {title}
-                        {active && <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400">Selected</span>}
+                        {active && <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Selected</span>}
                     </span>
-                    <span className="block text-[11px] text-muted mt-0.5">{desc}</span>
+                    <span className="block text-xs text-muted mt-0.5">{desc}</span>
                 </span>
             </button>
         );
@@ -153,7 +161,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 </>
             }
         >
-            <form id="course-form" onSubmit={handleSubmit} className="space-y-4">
+            <form id="course-form" onSubmit={handleSubmit} {...formProps} className="space-y-4">
                 {error && <FormError>{error}</FormError>}
 
                 <div>
@@ -167,7 +175,9 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                         onChange={e => setName(e.target.value)}
                         autoFocus
                         required
+                        {...fieldProps('course-name')}
                     />
+                    <FieldError id="course-name" message={errors['course-name']} />
                 </div>
 
                 <div>
@@ -184,9 +194,11 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                             className={`${fieldCls} pl-9`}
                             value={maxCapacity}
                             onChange={e => setMaxCapacity(e.target.value)}
+                            {...fieldProps('course-max-capacity')}
                         />
                     </div>
-                    <p className="text-[11px] text-muted mt-1.5">
+                    <FieldError id="course-max-capacity" message={errors['course-max-capacity']} />
+                    <p className="text-xs text-muted mt-1.5">
                         Once this many people confirm for a date, the confirmation page closes and shows the course as fully booked. Leave empty for no limit.
                     </p>
                 </div>
@@ -202,7 +214,7 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                 <div>
                     <span className={labelCls}>Document templates</span>
                     {templates.length === 0 ? (
-                        <p className="text-[11px] text-muted">No active templates — upload and switch them on in Documents.</p>
+                        <p className="text-xs text-muted">No active templates — upload and switch them on in Documents.</p>
                     ) : (
                         <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle max-h-56 overflow-y-auto">
                             {templates.map(t => (
@@ -218,19 +230,19 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                             ))}
                         </div>
                     )}
-                    <p className="text-[11px] text-muted mt-1.5">
+                    <p className="text-xs text-muted mt-1.5">
                         Used when generating documents for this course. Pick none to use all active templates; if everything picked is switched off later, the course gets no Word documents until you switch one back on.
                     </p>
                 </div>
 
                 <div className="space-y-3">
-                    <p className="text-[11px] text-muted">
+                    <p className="text-xs text-muted">
                         Shown in the course card of the invitation and reminder emails. The course name and date are filled in automatically.
                     </p>
                     {infoEditor('description', 'Under the course title', 'e.g. Overview: what the course covers')}
                     {infoEditor('details', 'Under the date', 'e.g. Duration, time, address, what to bring')}
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-muted">Preview:</span>
+                        <span className="text-xs text-muted">Preview:</span>
                         <Segmented<InviteEmailKind | 'none'>
                             ariaLabel="Email preview"
                             size="sm"
@@ -253,6 +265,15 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                     )}
                 </div>
             </form>
+            <ConfirmDialog
+                open={confirmDiscard}
+                title="Discard changes?"
+                message="Your changes to this course will be lost."
+                confirmLabel="Discard"
+                variant="warning"
+                onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+                onCancel={() => setConfirmDiscard(false)}
+            />
         </Modal>
     );
 }
