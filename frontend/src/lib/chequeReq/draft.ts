@@ -282,9 +282,10 @@ export function invoiceChecks(facts: InvoiceFacts, today: string): Check[] {
     }
     const priced = facts.items.filter(i => i.amount !== undefined);
     const base = facts.subtotal?.value ?? (facts.total ? facts.total.value - (facts.vat?.value ?? 0) : null);
-    if (priced.length > 0 && base !== null) {
-        const sum = priced.reduce((s, i) => s + (i.amount ?? 0), 0);
-        if (Math.abs(sum - base) > 0.01) checks.push({ level: 'warning', text: `The invoice lines add up to ${euro(sum)}, but its ${facts.subtotal ? 'subtotal' : 'total'} is ${euro(base)}.` });
+    const sum = priced.reduce((s, i) => s + (i.amount ?? 0), 0);
+    const linesAddUp = priced.length > 0 && base !== null && Math.abs(sum - base) <= 0.01;
+    if (priced.length > 0 && base !== null && !linesAddUp) {
+        checks.push({ level: 'warning', text: `The invoice lines add up to ${euro(sum)}, but its ${facts.subtotal ? 'subtotal' : 'total'} is ${euro(base)}.` });
     }
 
     const quantity = facts.items.reduce((s, i) => s + (i.quantity ?? 0), 0);
@@ -292,7 +293,7 @@ export function invoiceChecks(facts: InvoiceFacts, today: string): Check[] {
         if (facts.people.length !== quantity) checks.push({ level: 'warning', text: `${facts.people.length} people are named on the invoice, but it charges for ${quantity}.` });
         else checks.push({ level: 'ok', text: `${facts.people.length} people named, matching the quantity charged.` });
     }
-    if (facts.total?.sure) checks.push({ level: 'ok', text: `Total ${euro(facts.total.value)}${facts.subtotal || facts.items.length ? ', matching the invoice lines' : ''}.` });
+    if (facts.total?.sure && (linesAddUp || priced.length === 0)) checks.push({ level: 'ok', text: `Total ${euro(facts.total.value)}${linesAddUp ? ', matching the invoice lines' : ''}.` });
 
     if (facts.dueDate) {
         if (facts.dueDate.value < today) checks.push({ level: 'warning', text: `The due date (${slashDate(facts.dueDate.value)}) has passed.` });

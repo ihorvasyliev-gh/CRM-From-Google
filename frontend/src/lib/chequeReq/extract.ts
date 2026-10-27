@@ -274,13 +274,19 @@ function looseItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<T
     const itemLines = new Set<TextLine>();
     const end = lines.findIndex(l => l.phrases.some(p => TOTAL_STRONG.test(p.text) || TOTAL_WEAK.test(p.text) || SUBTOTAL.test(p.text)));
     let start = -1;
+    let described = false;
     for (let i = 0; i < (end < 0 ? 0 : end); i++) {
         const l = lines[i];
         const heading = l.phrases.some(p => LONE_HEADING.test(p.text.trim()) || CUSTOMER_LABEL.test(p.text.trim()) || HEADING.test(p.text));
-        if (heading || CUSTOMER_LINE.test(l.text) || l.phrases.some(p => INVOICE_NO.test(p.text) || INVOICE_DATE.test(p.text) || DUE_DATE.test(p.text))) start = i;
+        // Under a "Description" heading the partnership is named in a sentence, not as the customer
+        const customer = !described && CUSTOMER_LINE.test(l.text);
+        if (heading || customer || l.phrases.some(p => INVOICE_NO.test(p.text) || INVOICE_DATE.test(p.text) || DUE_DATE.test(p.text))) start = i;
+        if (l.phrases.some(p => LONE_HEADING.test(p.text.trim()) || /^descr?iption\b/i.test(p.text.trim()))) described = true;
     }
     if (start < 0) return { items, itemLines };
+    const right = Math.max(...lines.slice(start + 1, end).map(l => l.phrases[l.phrases.length - 1]).map(p => p.x + p.w));
     let current: InvoiceItem | null = null;
+    let previous: TextLine | null = null;
     for (let i = start + 1; i < end; i++) {
         const line = lines[i];
         const text = withoutPo(line.text);
@@ -295,8 +301,9 @@ function looseItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<T
             current = { description: rest, details: [], source: line.phrases.map(rectOf) };
             items.push(current);
         } else if (rest) {
-            if (current.description) current.details.push(rest);
-            else current.description = rest;
+            if (!current.description) current.description = rest;
+            else if (!current.details.length && !priced && previous && wrapsOnto(previous, line, right)) current.description += ` ${rest}`;
+            else current.details.push(rest);
         }
         if (qp && current.quantity === undefined) {
             const unitPrice = Number(qp[2].replace(/,/g, ''));
@@ -307,8 +314,32 @@ function looseItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<T
             current.amount = amounts[amounts.length - 1].value;
         }
         itemLines.add(line);
+        previous = line;
     }
+    // A sentence going on into the details: "… Programme on the" + "following dates 28,30 of July…"
+    for (const item of items) if (/^\p{Ll}/u.test(item.details[0] ?? '')) item.description = item.description.replace(DANGLING, '');
     return { items, itemLines };
+}
+
+/** Words that can't end a description: what was cut off after them is in the next line */
+const DANGLING = /(?:\s+(?:on|for|of|in|at|to|and|the|a|an))+$/i;
+
+/**
+ * Whether `line` goes on with the sentence of `previous`, wrapped at the right edge: the
+ * previous line is a long one reaching across to the right, ends mid-sentence, and the next
+ * starts under it with words, not with a number, a date or a list mark.
+ */
+function wrapsOnto(previous: TextLine, line: TextLine, right: number): boolean {
+    const last = previous.phrases[previous.phrases.length - 1];
+    const left = previous.phrases[0].x;
+    return (
+        previous.text.split(/\s+/).length >= 8 &&
+        !/[.:;!?)]\s*$/.test(previous.text) &&
+        last.x + last.w - left >= (right - left) * 0.75 &&
+        Math.abs(line.phrases[0].x - left) <= Math.max(4, line.h * 0.6) &&
+        /^\p{L}/u.test(line.text) &&
+        findDates(line.text).length === 0
+    );
 }
 
 /** "1. Anna" + "Smith" (wrapped) → "Anna Smith": the numbered names under an item */
@@ -435,6 +466,118 @@ function payableTo(lines: TextLine[]): Found | undefined {
     return undefined;
 }
 
+// ─── Supplier filled in as a form ──────────────────────────────
+
+/** "Name:" / "Address:" — whose depends on the section ("From:" or "To:") they are in */
+const NAME_FIELD = /^\s*(?:full\s+)?name\s*(?::|$)/i;
+const ADDRESS_FIELD = /^\s*(?:postal\s+)?address\s*(?::|$)/i;
+/** "Supplier Name:", "Business Address:" — the supplier's wherever they are */
+const SUPPLIER_NAME_FIELD = /^\s*(?:supplier|vendor|payee|business|company|trading)\s*name\s*(?::|$)/i;
+const SUPPLIER_ADDRESS_FIELD = /^\s*(?:supplier|vendor|payee|business|company)\s*address\s*(?::|$)/i;
+/** Any "Label: value" at the start of a line: "Tel No: …", "PPS Number: …" */
+const FIELD_LABEL = /^[\p{L}][\p{L} .'/&-]{1,30}:/u;
+
+type Party = 'supplier' | 'customer';
+
+/** The party a section label names: "From:" the supplier, "To:" / "Bill to:" the customer */
+function partyLabel(text: string): Party | null {
+    const t = INLINE_LABEL.exec(text)?.[1] ?? text.trim();
+    if (SUPPLIER_LABEL.test(t)) return 'supplier';
+    if (CUSTOMER_LABEL.test(t)) return 'customer';
+    return null;
+}
+
+/** Which party each line is about: from a "From:" or "To:" label to the next heading or label */
+function partyOfLines(lines: TextLine[]): Map<TextLine, Party> {
+    const party = new Map<TextLine, Party>();
+    let current: Party | null = null;
+    let page = -1;
+    for (const line of lines) {
+        if (line.page !== page) current = null;
+        page = line.page;
+        const labels = new Set(line.phrases.map(p => partyLabel(p.text)).filter(Boolean));
+        // "To:" and "From:" side by side say nothing about the lines under them
+        if (labels.size) current = labels.size === 1 ? [...labels][0] : null;
+        else if (line.phrases.some(p => HEADING.test(p.text) || LONE_HEADING.test(p.text.trim()) || ANY_TOTAL.test(p.text))) current = null;
+        if (current) party.set(line, current);
+    }
+    return party;
+}
+
+/**
+ * The value of a "Label: value" field and the lines under it lined up with it:
+ * "Address:  Unit 4, Main Street" + "           Cork".
+ */
+function fieldValue(lines: TextLine[], li: number, pi: number, label: RegExpExecArray, maxLines: number): Phrase[] {
+    const line = lines[li];
+    const p = line.phrases[pi];
+    const own = p.text.slice(label.index + label[0].length).replace(/^[\s:.–-]+/, '');
+    const values: Phrase[] = [];
+    let x = p.x;
+    if (own) {
+        values.push({ ...p, text: own });
+        x = p.x + (p.text.length - own.length) * (p.w / Math.max(1, p.text.length));
+    } else {
+        const next = line.phrases[pi + 1];
+        if (next && next.x - (p.x + p.w) <= 200) {
+            values.push(next);
+            x = next.x;
+        }
+    }
+    let last = line;
+    for (let i = li + 1; i < lines.length && values.length < maxLines; i++) {
+        const l = lines[i];
+        const first = l.phrases[0];
+        if (l.page !== last.page || last.y - l.y > Math.max(last.h, l.h) * 2.2 || Math.abs(first.x - x) > Math.max(4, first.h * 0.6)) break;
+        const t = first.text;
+        if (FIELD_LABEL.test(t) || IDENTIFIER_LINE.test(t) || ADDRESS_STOP.test(t) || OUR_ORGANISATION.test(t) || findAmounts(t).length > 0 || parseDate(t) || /^\+?[\d\s()-]{7,}$/.test(t)) break;
+        values.push(first);
+        last = l;
+    }
+    return values;
+}
+
+/**
+ * The supplier written as a form ("FROM:" / "Name: Anna Byrne" / "Address: Rose Cottage…"),
+ * as sole traders fill in an invoice template: "Name:" and "Address:" under "From:", or
+ * labelled as the supplier's anywhere but under "To:".
+ */
+function supplierForm(lines: TextLine[]): { name?: Found; address?: Found } {
+    const party = partyOfLines(lines);
+    const form: { name?: Found; address?: Found } = {};
+    lines.forEach((line, li) => {
+        const side = party.get(line);
+        if (side === 'customer') return;
+        line.phrases.forEach((p, pi) => {
+            const isName = (side === 'supplier' && NAME_FIELD.exec(p.text)) || SUPPLIER_NAME_FIELD.exec(p.text);
+            const isAddress = (side === 'supplier' && ADDRESS_FIELD.exec(p.text)) || SUPPLIER_ADDRESS_FIELD.exec(p.text);
+            const label = isName || isAddress;
+            if (!label || (isName ? form.name : form.address)) return;
+            const values = fieldValue(lines, li, pi, label, isName ? 1 : 5);
+            const texts = values.map(v => collapseSpaces(v.text));
+            const text = texts.join(' ');
+            if (!values.length || OUR_ORGANISATION.test(text) || IDENTIFIER_LINE.test(text) || text.replace(/[^\p{L}]/gu, '').length < 3) return;
+            const source = [rectOf(p), ...values.filter(v => v.x !== p.x || v.y !== p.y).map(rectOf)];
+            const from = [values[0].x === p.x ? p.text : `${p.text} ${values[0].text}`, ...texts.slice(1)].join(' / ');
+            if (isName) {
+                if (text.split(/\s+/).length <= 8) form.name = { value: text.replace(/[,:]$/, ''), sure: true, source, from };
+            } else {
+                form.address = { value: joinAddress(texts), sure: true, source, from };
+            }
+        });
+    });
+    return form;
+}
+
+/** "Posh Burger" in a bigger font right above "Bloom Food & Co, 611 Harbour Point…": the name over its address */
+function titleAbove(lines: TextLine[], top: Phrase): Phrase | undefined {
+    const above = lines[lines.findIndex(l => l.phrases.includes(top)) - 1];
+    const title = above?.phrases.length === 1 ? above.phrases[0] : undefined;
+    if (!title || title.page !== top.page || HEADING.test(title.text) || OUR_ORGANISATION.test(title.text) || /\d|:\s*$/.test(title.text)) return undefined;
+    const gap = title.y - top.y;
+    return Math.abs(title.x - top.x) <= Math.max(3, top.h * 0.4) && title.h >= top.h * 1.25 && gap > 0 && gap <= title.h * 1.9 ? title : undefined;
+}
+
 function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     const supplier: SupplierFacts = {};
     const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
@@ -482,11 +625,16 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
             blockLines = blockLines.slice(1);
             labelSure = true;
         }
-        const texts = blockLines.map(p => p.text);
-        const first = texts[0];
-        if (HEADING.test(first) || /^(?:registered\s+office|dates?\b)/i.test(first) || /^\d+[.)]\s/.test(first)) continue;
+        const first = blockLines[0].text;
+        // Not a name: a heading or label ("Terms and Conditions:"), the company's registration
+        // in the footer ("Registered in Ireland No. 772805, VAT …"), a numbered line
+        if (HEADING.test(first) || /:\s*$/.test(first) || /^(?:registered\b|dates?\b)/i.test(first) || IDENTIFIER_LINE.test(first) || /^\d+[.)]\s/.test(first)) continue;
         if (findAmounts(first).length > 0 || parseDate(first)) continue;
         if (first.replace(/[^\p{L}]/gu, '').length < 3) continue;
+        // A letterhead: the name printed bigger right above its address
+        const title = titleAbove(lines, blockLines[0]);
+        if (title) blockLines = [title, ...blockLines];
+        const texts = blockLines.map(p => p.text);
 
         // A label left of the first line: "To:" in a payment advice is the supplier, elsewhere the customer
         const firstLine = lines.find(l => l.phrases.includes(blockLines[0]));
@@ -521,16 +669,27 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
         // A phone number on a line of its own under the name
         supplier.phone ??= texts.join('\n').match(PHONE_RE)?.[0];
     }
+    // "From:" / "Name: …" / "Address: …" says it in so many words
+    const form = supplierForm(lines);
+    if (form.name && !bestBlock?.labelSure) {
+        supplier.name = form.name;
+        supplier.address = form.address ?? supplier.address;
+    } else if (form.address && !supplier.address) {
+        supplier.address = form.address;
+    }
     if (payable) supplier.name = payable;
 
-    // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345."
+    // A registered office in the footer: "Registered Office: ACME LTD, Unit 3, Cork, T12 X345.",
+    // or only its address: "Registered Address 611 Harbour Point Business Park, Cork, T45YK68"
     if (!supplier.address) {
-        const office = lines.find(l => /registered\s+office\s*:/i.test(l.text) && !OUR_ORGANISATION.test(l.text));
-        if (office) {
-            const parts = office.text.replace(/^.*registered\s+office\s*:\s*/i, '').split(/\s*,\s*/).filter(Boolean);
+        const office = lines.find(l => /registered\s+(?:office\s*:|address\b)/i.test(l.text) && !OUR_ORGANISATION.test(l.text));
+        const m = office && /registered\s+(office|address)\s*:?\s*(.*)$/i.exec(office.text);
+        if (office && m) {
+            const parts = m[2].split(/\s*,\s*/).filter(Boolean);
+            const named = /office/i.test(m[1]);
             if (parts.length >= 2) {
-                if (!supplier.name) supplier.name = { value: collapseSpaces(parts[0]), sure: false, source: office.phrases.map(rectOf), from: office.text };
-                supplier.address = { value: joinAddress(parts.slice(1)), sure: false, source: office.phrases.map(rectOf), from: office.text };
+                if (named && !supplier.name) supplier.name = { value: collapseSpaces(parts[0]), sure: false, source: office.phrases.map(rectOf), from: office.text };
+                supplier.address = { value: joinAddress(named ? parts.slice(1) : parts), sure: false, source: office.phrases.map(rectOf), from: office.text };
             }
         }
     }
@@ -550,6 +709,8 @@ function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Ca
             const own = findAmounts(p.text.slice(m.index + m[0].length));
             if (own.length) hit = { value: own[own.length - 1].value, score: 3, rects: [rectOf(p)], from: p.text };
             for (const r of line.phrases.slice(pi + 1)) {
+                // What follows the next label is that one's: "VAT | Total Net 733.95"
+                if (ANY_TOTAL.test(r.text) || VAT.test(r.text)) break;
                 const a = findAmounts(r.text);
                 if (a.length) hit = { value: a[a.length - 1].value, score: 3, rects: [rectOf(p), rectOf(r)], from: `${p.text} ${r.text}` };
             }
@@ -621,9 +782,11 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     const total = strong && strong.value > 0 ? strong : weak ?? strong;
     if (total) {
         // Sure when two things agree: two total labels, subtotal + VAT, or the lines
+        // ("TOTAL Amount: EUR 2400" is one label, though both kinds read it)
         const itemSum = facts.items.reduce((s, i) => s + (i.amount ?? 0), 0);
+        const samePlace = (a: Found<number>, b: Found<number>) => JSON.stringify(a.source?.[0]) === JSON.stringify(b.source?.[0]);
         const agree =
-            (strong && weak && Math.abs(strong.value - weak.value) < 0.005) ||
+            (strong && weak && !samePlace(strong, weak) && Math.abs(strong.value - weak.value) < 0.005) ||
             (subtotal && Math.abs(subtotal.value + (vat?.value ?? 0) - total.value) < 0.005) ||
             (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined) && Math.abs(itemSum + (vat?.value ?? 0) - total.value) < 0.005);
         facts.total = { ...total, sure: !!agree };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractInvoice, joinAddress, numberedPeople } from './extract';
 import { docxPhrases } from './read';
-import { simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { formInvoiceScan, letterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 
 describe('extractInvoice: a Xero-style invoice over two pages', () => {
     const facts = extractInvoice(xeroLikeInvoice());
@@ -72,6 +72,68 @@ describe('extractInvoice: a simple VAT invoice', () => {
         expect(facts.supplier.name).toMatchObject({ value: 'Greenleaf Catering Ltd', sure: true });
         expect(facts.supplier.address?.value).toBe('12 Patrick Street, Cork T12 XY99');
         expect(facts.supplier.phone).toBe('087 123 4567');
+    });
+});
+
+describe('extractInvoice: a sole trader\'s form, read off a scan', () => {
+    const facts = extractInvoice(formInvoiceScan());
+
+    it('takes the supplier from "Name:" and "Address:" under "FROM:", never the customer under "TO:"', () => {
+        expect(facts.supplier.name).toMatchObject({ value: 'Oksana Bondar', sure: true, from: 'Name: Oksana Bondar' });
+        expect(facts.supplier.address).toMatchObject({ value: 'Rose Cottage, Knockane, Coachford, Co. Cork P12XK47', sure: true });
+        expect(facts.supplier.phone).toBe('087-555-0142');
+        expect(facts.supplier.iban).toBe('IE29AIBK93115212345678');
+    });
+
+    it('reads the days of the course as dates, not as money', () => {
+        expect(facts.items.map(i => [i.description, i.amount])).toEqual([
+            ['Preparation of materials, needs assessment and delivery of Summer Speaking Club for SICAP New Arrivals Programme, Cork City Partnership', undefined],
+        ]);
+        expect(facts.serviceDates?.days).toEqual([
+            '2026-07-28',
+            '2026-07-30',
+            '2026-08-04',
+            '2026-08-06',
+            '2026-08-11',
+            '2026-08-13',
+            '2026-08-18',
+            '2026-08-20',
+            '2026-08-25',
+            '2026-08-27',
+            '2026-09-01',
+            '2026-09-03',
+        ]);
+    });
+
+    it('takes the total, but not as confirmed: one label is not two things agreeing', () => {
+        expect(facts.total).toMatchObject({ value: 2400, sure: false });
+        expect(facts.invoiceNumber?.value).toBe('0007');
+        expect(facts.invoiceDate?.value).toBe('2026-08-28');
+        expect(facts.poNumber?.value).toBe('8264');
+    });
+});
+
+describe('extractInvoice: a letterhead, with the registration in the footer', () => {
+    const facts = extractInvoice(letterheadInvoice());
+
+    it('takes the name printed big over the address, not the registration line', () => {
+        expect(facts.supplier.name?.value).toBe('Grill Shack');
+        expect(facts.supplier.address?.value).toBe('Hearth Foods & Co, 12 Quayside Business Park, Ballybrack, Little Island Cork T45 XX12, Ireland');
+        expect(facts.supplier.phone).toBe('0214000000');
+    });
+
+    it('reads each total beside its own label, so they add up', () => {
+        expect(facts.subtotal?.value).toBe(733.95);
+        expect(facts.vat?.value).toBe(66.05);
+        expect(facts.total).toMatchObject({ value: 800, sure: true });
+        expect(facts.poNumber?.value).toBe('8724');
+        expect(facts.invoiceNumber?.value).toBe('SI-100');
+    });
+
+    it('falls back on the registered address, without its label', () => {
+        const noLetterhead = extractInvoice(letterheadInvoice().filter(p => p.y < 730));
+        expect(noLetterhead.supplier.name).toBeUndefined();
+        expect(noLetterhead.supplier.address?.value).toBe('12 Quayside Business Park, Ballybrack Little Island, Cork, Cork, T45XX12');
     });
 });
 

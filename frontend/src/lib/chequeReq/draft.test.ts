@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildDescription, descriptionPattern, draftFromInvoice, EMPTY_DEFAULTS, historyChecks, invoiceChecks, readDefaults, rememberDefaults, sameSupplier } from './draft';
 import { extractInvoice } from './extract';
-import { simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { formInvoiceScan, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 import { EMPTY_FORM, EMPTY_META, type InvoiceFacts, type SavedChequeReq } from './types';
 
 function saved(over: Partial<Omit<SavedChequeReq, 'form' | 'meta'>> & { form?: Partial<SavedChequeReq['form']>; meta?: Partial<SavedChequeReq['meta']> }): SavedChequeReq {
@@ -137,6 +137,27 @@ describe('checks', () => {
 
         const simple = invoiceChecks(extractInvoice(simpleVatInvoice()), today);
         expect(simple.filter(c => c.level === 'warning').map(c => c.text).join(' ')).toMatch(/SICAP/);
+    });
+
+    it('says nothing adds up or doesn\'t when the lines have no amounts', () => {
+        const facts = { ...extractInvoice(formInvoiceScan()), scanned: true };
+        expect(invoiceChecks(facts, today)).toEqual([expect.objectContaining({ level: 'info', text: expect.stringMatching(/scan or photo/) })]);
+        const { form } = draftFromInvoice({ facts, history: [], defaults: EMPTY_DEFAULTS, fileName: 'scan.pdf' });
+        expect(form).toMatchObject({ payeeName: 'Oksana Bondar', payeeAddress: 'Rose Cottage, Knockane, Coachford, Co. Cork P12XK47', amount: '2,400.00', poNumber: '8264' });
+        expect(form.description).toMatch(/Programme, Cork City Partnership 28\.07\.2026, 30\.07\.2026, 04\.08\.2026, .* 03\.09\.2026$/);
+    });
+
+    it('never says the total matches the lines when they don\'t add up', () => {
+        const facts: InvoiceFacts = {
+            ...extractInvoice(simpleVatInvoice()),
+            items: [{ description: 'Lunch', details: [], amount: 100 }],
+            subtotal: undefined,
+            vat: undefined,
+            total: { value: 397.25, sure: true },
+        };
+        const checks = invoiceChecks(facts, today);
+        expect(checks).toContainEqual({ level: 'warning', text: 'The invoice lines add up to €100.00, but its total is €397.25.' });
+        expect(checks.map(c => c.level)).not.toContain('ok');
     });
 
     it('says when nothing could be read', () => {

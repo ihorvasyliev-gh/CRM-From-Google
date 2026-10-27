@@ -57,6 +57,9 @@ export function parseAmount(text: string): number | null {
     return Math.round((negative ? -value : value) * 100) / 100;
 }
 
+/** What follows the days of a month: "28,30 of July", "11,13 August" */
+const MONTH_AFTER = new RegExp(`^\\s*(?:st|nd|rd|th)?\\s*(?:of\\s+)?${MONTH}(?![a-z])`, 'i');
+
 export function findAmounts(text: string): AmountHit[] {
     const hits: AmountHit[] = [];
     for (const m of text.matchAll(AMOUNT_RE)) {
@@ -64,8 +67,11 @@ export function findAmounts(text: string): AmountHit[] {
         const raw = m[2];
         const decimals = /[.,]\d{2}\)?$/.test(raw);
         if (!currency && !decimals) continue;
+        const after = text.slice((m.index ?? 0) + m[0].length);
         // "12.30pm" is not money
-        if (/^\d{1,2}[.,]\d{2}$/.test(raw) && /^\s*(am|pm)\b/i.test(text.slice((m.index ?? 0) + m[0].length))) continue;
+        if (/^\d{1,2}[.,]\d{2}$/.test(raw) && /^\s*(am|pm)\b/i.test(after)) continue;
+        // Nor are days: "28,30 of July 2026"
+        if (!currency && /^\d{1,2}[.,]\d{2}$/.test(raw) && MONTH_AFTER.test(after)) continue;
         const value = parseAmount(raw);
         if (value === null) continue;
         hits.push({ value, index: (m.index ?? 0) + m[0].indexOf(raw), raw: m[0].trim() });
@@ -104,9 +110,21 @@ const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => string | null 
     { re: /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})\b/g, read: m => iso(Number(m[3]), Number(m[2]), Number(m[1])) },
 ];
 
-/** Every date in the text, in reading order */
+/** Several days of one month: "28,30 of July 2026", "4, 6 and 11 August 2026", "1st & 3rd Sept 2026" */
+const DAY_LIST = new RegExp(`\\b(\\d{1,2}(?:st|nd|rd|th)?(?:\\s*(?:,|&|and)\\s*\\d{1,2}(?:st|nd|rd|th)?)+)\\s*(?:of\\s+)?${MONTH}[\\s,]*${YEAR}\\b`, 'gi');
+
+/** Every date in the text, in reading order; each day of a list is a date of its own */
 export function findDates(text: string): DateHit[] {
     const hits: DateHit[] = [];
+    for (const m of text.matchAll(DAY_LIST)) {
+        const days = (m[1].match(/\d{1,2}/g) ?? []).map(Number);
+        const month = MONTHS[m[2].toLowerCase().replace('.', '')];
+        const values = days.map(d => iso(year(m[3]), month, d));
+        // A list of days runs forward ("Room 12, 3 Oct 2026" is not one)
+        if (values.some(v => !v) || days.some((d, i) => i > 0 && d <= days[i - 1])) continue;
+        const index = m.index ?? 0;
+        for (const value of values) hits.push({ iso: value!, index, end: index + m[0].length });
+    }
     for (const { re, read } of DATE_PATTERNS) {
         for (const m of text.matchAll(re)) {
             const value = read(m);
