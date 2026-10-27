@@ -3,10 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import ChequeReqEditor, { type EditorSession } from './Editor';
 import { EMPTY_FORM, EMPTY_META, type SavedChequeReq } from '../../lib/chequeReq/types';
 
-const mutateAsync = vi.fn();
-vi.mock('../../hooks/useChequeRequisitions', () => ({
-    useSaveChequeReq: () => ({ mutateAsync }),
-}));
+const keep = vi.fn();
 const renderChequeReq = vi.fn();
 vi.mock('../../lib/chequeReq/docx', async importOriginal => ({
     ...(await importOriginal<typeof import('../../lib/chequeReq/docx')>()),
@@ -49,13 +46,13 @@ const earlier: SavedChequeReq = {
 describe('ChequeReqEditor', () => {
     beforeEach(() => {
         localStorage.clear();
-        mutateAsync.mockReset().mockResolvedValue('new-id');
+        keep.mockReset().mockResolvedValue('new-id');
         renderChequeReq.mockReset().mockResolvedValue(new Blob(['docx']));
         downloadBlob.mockReset();
     });
 
     it('marks guesses and missing values until they are edited or accepted', () => {
-        render(<ChequeReqEditor session={session()} history={[]} historyAvailable onBack={vi.fn()} />);
+        render(<ChequeReqEditor session={session()} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
         expect(screen.getByText('2 to check')).toBeInTheDocument();
         expect(screen.getByText('No PO number on the invoice')).toBeInTheDocument();
         expect(screen.getByText('As on your requisition for INV-0090')).toBeInTheDocument();
@@ -68,13 +65,13 @@ describe('ChequeReqEditor', () => {
     });
 
     it('keeps the amount quoted with the payment amount', () => {
-        render(<ChequeReqEditor session={session()} history={[]} historyAvailable onBack={vi.fn()} />);
+        render(<ChequeReqEditor session={session()} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
         fireEvent.change(screen.getByLabelText('Payment amount'), { target: { value: '500.00' } });
         expect(screen.getByLabelText('Amount quoted')).toHaveValue('500.00');
     });
 
     it('asks before downloading with fields still marked, then downloads and keeps it', async () => {
-        render(<ChequeReqEditor session={session()} history={[]} historyAvailable onBack={vi.fn()} />);
+        render(<ChequeReqEditor session={session()} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: /Download the requisition/ }));
         const dialog = await screen.findByRole('alertdialog');
         expect(within(dialog).getByText(/PO number, Payee name/)).toBeInTheDocument();
@@ -82,27 +79,38 @@ describe('ChequeReqEditor', () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Download anyway' }));
         await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'SICAP Invoice INV-0101.docx'));
         expect(renderChequeReq).toHaveBeenCalledWith(expect.objectContaining({ payeeName: 'Brightway Safety', actionNumber: '9.' }));
-        await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: undefined, meta: expect.objectContaining({ invoiceNumber: 'INV-0101' }) })));
+        await waitFor(() => expect(keep).toHaveBeenCalledWith(expect.objectContaining({ id: undefined, meta: expect.objectContaining({ invoiceNumber: 'INV-0101' }) })));
         // The action number is remembered for the next requisition
         expect(JSON.parse(localStorage.getItem('cheque_req_defaults')!)).toMatchObject({ actionNumber: '9.' });
     });
 
     it('downloads at once when nothing is left to check, and updates the kept one next time', async () => {
-        render(<ChequeReqEditor session={session({ flags: {} })} history={[]} historyAvailable onBack={vi.fn()} />);
+        render(<ChequeReqEditor session={session({ flags: {} })} history={[]} historyAvailable keep={keep} onBack={vi.fn()} />);
         fireEvent.click(screen.getByRole('button', { name: /Download the requisition/ }));
-        await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(keep).toHaveBeenCalledTimes(1));
         fireEvent.click(screen.getByRole('button', { name: /Download the requisition/ }));
-        await waitFor(() => expect(mutateAsync).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'new-id' })));
+        await waitFor(() => expect(keep).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'new-id' })));
+    });
+
+    it('without a history (the public page) only downloads, remembering under its own key', async () => {
+        render(<ChequeReqEditor session={session({ flags: {} })} history={[]} historyAvailable={false} defaultsKey="public_defaults" backLabel="New requisition" onBack={vi.fn()} />);
+        expect(screen.getByText('Nothing is saved: you only get the file you download.')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'New requisition' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Download the requisition/ }));
+        await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'SICAP Invoice INV-0101.docx'));
+        expect(keep).not.toHaveBeenCalled();
+        await waitFor(() => expect(JSON.parse(localStorage.getItem('public_defaults')!)).toMatchObject({ actionNumber: '9.' }));
+        expect(localStorage.getItem('cheque_req_defaults')).toBeNull();
     });
 
     it('warns when the invoice already has a requisition', () => {
-        render(<ChequeReqEditor session={session()} history={[earlier]} historyAvailable onBack={vi.fn()} />);
+        render(<ChequeReqEditor session={session()} history={[earlier]} historyAvailable keep={keep} onBack={vi.fn()} />);
         expect(screen.getByText(/already made a requisition for INV-0101/)).toBeInTheDocument();
     });
 
     it('asks before leaving work that was not downloaded', async () => {
         const onBack = vi.fn();
-        render(<ChequeReqEditor session={session()} history={[]} historyAvailable onBack={onBack} />);
+        render(<ChequeReqEditor session={session()} history={[]} historyAvailable keep={keep} onBack={onBack} />);
         fireEvent.change(screen.getByLabelText('Description of goods / services'), { target: { value: 'First Aid' } });
         fireEvent.click(screen.getByRole('button', { name: /All requisitions/ }));
         const dialog = await screen.findByRole('alertdialog');

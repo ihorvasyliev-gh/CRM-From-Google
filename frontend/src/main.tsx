@@ -20,6 +20,8 @@ import './index.css'
 const App = lazyWithRetry(() => import('./App.tsx'))
 const ConfirmationPage = lazyWithRetry(() => import('./components/ConfirmationPage'))
 const StatusUpdatePage = lazyWithRetry(() => import('./components/StatusUpdatePage'))
+// Cheque requisitions without signing in: made and downloaded in the browser, nothing kept
+const PublicChequeRequisitions = lazyWithRetry(() => import('./components/PublicChequeRequisitions'))
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -48,6 +50,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/confirm" element={<Suspense fallback={<PublicPageFallback />}><ConfirmationPage /></Suspense>} />
                         <Route path="/c/:token" element={<Suspense fallback={<PublicPageFallback />}><ConfirmationPage /></Suspense>} />
                         <Route path="/status" element={<Suspense fallback={<PublicPageFallback />}><StatusUpdatePage /></Suspense>} />
+                        <Route path="/cheque" element={<Suspense fallback={<PublicPageFallback />}><PublicChequeRequisitions /></Suspense>} />
                         <Route path="/*" element={
                             <Suspense fallback={<AppFallback />}>
                                 <AuthProvider>
