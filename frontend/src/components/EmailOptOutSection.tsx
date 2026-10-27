@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailX, Search, Loader2, Plus, RotateCcw, Info, MailCheck } from 'lucide-react';
 import { listEmailOptOuts, normalizeEmail, optInEmail, optOutEmail, type EmailOptOut } from '../lib/emailOptOut';
 import { toast } from '../lib/toast';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import ConfirmDialog from './ConfirmDialog';
 import Card from './ui/Card';
 import { Button, IconButton } from './ui/Button';
@@ -153,7 +153,7 @@ export default function EmailOptOutSection() {
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[13px] font-semibold text-primary truncate">{o.email}</p>
                                     <p className="text-xs text-muted truncate">
-                                        Unsubscribed {formatDateDMY(o.opted_out_at)}
+                                        Unsubscribed {formatDisplayDate(o.opted_out_at)}
                                         {o.note ? ` · ${o.note}` : ''}
                                     </p>
                                 </div>

@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { cleanVariant, type ViewerCourseRosterItem } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneDisplay } from '../../lib/contactUtils';
 import { exportViewerRosterToExcel } from '../../lib/excelExport';
 import { toast } from '../../lib/toast';
 import { isAnyModalOpen } from '../../hooks/useModalBehavior';
@@ -359,7 +360,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
                                 active={dateFilter === d.date}
                                 onClick={() => setFilter({ date: dateFilter === d.date ? null : d.date })}
                                 label={d.diff === 0 ? 'Today' : d.diff === 1 ? 'Tomorrow' : weekdayDate(d.date)}
-                                title={`${formatDateDMY(d.date)} · ${relativeDay(d.date)}`}
+                                title={`${formatDisplayDate(d.date)} · ${relativeDay(d.date)}`}
                                 count={d.count}
                                 past={d.diff < 0}
                                 today={d.diff === 0}
@@ -378,7 +379,7 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
                         <span className="text-muted mr-1">
                             Showing <strong className="text-primary">{rows.length}</strong> of {roster.length}
                         </span>
-                        {dateFilter && <FilterChip label={`Date: ${formatDateDMY(dateFilter)}`} onRemove={() => setFilter({ date: null })} />}
+                        {dateFilter && <FilterChip label={`Date: ${formatDisplayDate(dateFilter)}`} onRemove={() => setFilter({ date: null })} />}
                         {stream && <FilterChip label={`Stream: ${stream}`} onRemove={() => setFilter({ stream: null })} />}
                         {search.value.trim() && <FilterChip label={`"${search.value.trim()}"`} onRemove={search.clear} />}
                         <button type="button" onClick={resetFilters} className="ml-1 font-semibold text-brand-600 dark:text-brand-400 hover:underline">Clear all</button>
@@ -574,7 +575,7 @@ function RosterRow({
                 </div>
                 <div className="text-xs text-muted flex items-center gap-2 min-w-0">
                     <CopyText value={item.email} label="Email" className="min-w-0" />
-                    {item.phone && <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0">· {item.phone}</CopyText>}
+                    {item.phone && <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0 tabular-nums">· {formatPhoneDisplay(item.phone)}</CopyText>}
                 </div>
                 {/* Mobile meta */}
                 <div className="md:hidden flex items-center flex-wrap gap-1.5 mt-1.5">
@@ -590,7 +591,7 @@ function RosterRow({
             </div>
 
             <div className="hidden lg:block w-40 text-xs text-muted truncate">
-                {item.phone ? <CopyText value={item.phone} label="Phone" /> : <span className="text-muted/50">—</span>}
+                {item.phone ? <CopyText value={item.phone} label="Phone" className="tabular-nums">{formatPhoneDisplay(item.phone)}</CopyText> : <span className="text-muted/50">—</span>}
             </div>
 
             <div className="hidden md:block w-36">
@@ -600,7 +601,7 @@ function RosterRow({
             <div className="hidden md:block w-36 text-xs">
                 {item.status === 'completed' && item.completed_date ? (
                     <span className="text-muted" title="Completed on">
-                        <GraduationCap size={11} className="inline mr-1 -mt-0.5" />{formatDateDMY(item.completed_date)}
+                        <GraduationCap size={11} className="inline mr-1 -mt-0.5" />{formatDisplayDate(item.completed_date)}
                     </span>
                 ) : session ? (
                     <>
@@ -608,7 +609,7 @@ function RosterRow({
                         <div className={`text-xs ${sessionDiff !== null && sessionDiff >= 0 && sessionDiff <= 2 ? 'text-status-confirmed font-semibold' : 'text-muted'}`}>{relativeDay(session)}</div>
                     </>
                 ) : (
-                    <span className="text-muted" title="Registered on">Reg. {formatDateDMY(item.created_at)}</span>
+                    <span className="text-muted" title="Registered on">Reg. {formatDisplayDate(item.created_at)}</span>
                 )}
             </div>
 

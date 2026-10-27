@@ -28,8 +28,8 @@ describe('LoginPage Security Hardening & Lockout', () => {
         vi.useRealTimers();
     });
 
-    const performLogin = async (email = 'admin@example.com', password = 'password') => {
-        const emailInput = screen.getByPlaceholderText('admin@example.com');
+    const performLogin = async (email = 'name@partnershipcork.ie', password = 'password') => {
+        const emailInput = screen.getByPlaceholderText('name@partnershipcork.ie');
         const passwordInput = screen.getByPlaceholderText('••••••••');
         const submitBtn = screen.getByRole('button', { name: /sign in/i });
 
@@ -41,14 +41,14 @@ describe('LoginPage Security Hardening & Lockout', () => {
 
     it('renders the login form with email, password inputs and submit button', () => {
         render(<LoginPage />);
-        expect(screen.getByPlaceholderText('admin@example.com')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('name@partnershipcork.ie')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
     });
 
     it('allows typing into email and password inputs', () => {
         render(<LoginPage />);
-        const emailInput = screen.getByPlaceholderText('admin@example.com') as HTMLInputElement;
+        const emailInput = screen.getByPlaceholderText('name@partnershipcork.ie') as HTMLInputElement;
         const passwordInput = screen.getByPlaceholderText('••••••••') as HTMLInputElement;
 
         fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
@@ -62,7 +62,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
         mockSignIn.mockResolvedValue({ error: new Error('Invalid credentials') });
         render(<LoginPage />);
 
-        const emailInput = screen.getByPlaceholderText('admin@example.com');
+        const emailInput = screen.getByPlaceholderText('name@partnershipcork.ie');
         const passwordInput = screen.getByPlaceholderText('••••••••');
         const submitBtn = screen.getByRole('button', { name: /sign in/i });
 
@@ -80,7 +80,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
         mockSignIn.mockResolvedValue({ error: new Error('Invalid credentials') });
         render(<LoginPage />);
 
-        const emailInput = screen.getByPlaceholderText('admin@example.com');
+        const emailInput = screen.getByPlaceholderText('name@partnershipcork.ie');
         const passwordInput = screen.getByPlaceholderText('••••••••');
         const submitBtn = screen.getByRole('button', { name: /sign in/i });
 
@@ -117,7 +117,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
 
         expect(screen.getByText(/too many failed login attempts/i)).toBeInTheDocument();
         expect(screen.getByText(/please try again in 30 seconds/i)).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('admin@example.com')).toBeDisabled();
+        expect(screen.getByPlaceholderText('name@partnershipcork.ie')).toBeDisabled();
         expect(screen.getByPlaceholderText('••••••••')).toBeDisabled();
         expect(screen.getByRole('button', { name: /sign in/i })).toBeDisabled();
     });
@@ -129,7 +129,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
 
         render(<LoginPage />);
 
-        const emailInput = screen.getByPlaceholderText('admin@example.com');
+        const emailInput = screen.getByPlaceholderText('name@partnershipcork.ie');
         const submitBtn = screen.getByRole('button', { name: /sign in/i });
 
         expect(emailInput).toBeDisabled();

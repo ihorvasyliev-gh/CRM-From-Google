@@ -1,6 +1,15 @@
-import { formatDateDMY, formatDateLong, formatShortDate, formatDayDateShort, formatDateSpaces, formatDateChoiceList, formatShortDateList, normalizeDateList } from './dateUtils';
+import { formatDateDMY, formatDateLong, formatDisplayDate, formatShortDate, formatDayDateShort, formatDateSpaces, formatDateChoiceList, formatShortDateList, normalizeDateList } from './dateUtils';
 
 describe('dateUtils', () => {
+    describe('formatDisplayDate', () => {
+        it('shows a date the one way the app does on screen', () => {
+            expect(formatDisplayDate('2026-10-04')).toBe('4 Oct 2026');
+            expect(formatDisplayDate('2026-10-14T09:30:00')).toBe('14 Oct 2026');
+            expect(formatDisplayDate(null)).toBe('');
+            expect(formatDisplayDate('not a date')).toBe('');
+        });
+    });
+
     describe('formatDateDMY', () => {
         it('formats a valid ISO string correctly in en-IE format', () => {
             // Note: Because of timezones, use a UTC string or standard parsing

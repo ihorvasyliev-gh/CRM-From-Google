@@ -456,7 +456,8 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         <div className="w-full pb-8">
             <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-5 lg:gap-8 items-start">
                 {/* Section navigation */}
-                <aside className="lg:sticky lg:top-6 min-w-0">
+                {/* Not an <aside>: the app's sidebar is the page's one complementary landmark */}
+                <div className="lg:sticky lg:top-6 min-w-0">
                     <nav aria-label="Settings sections" className="flex lg:flex-col gap-1 overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0">
                         {sections.map(sec => {
                             const Icon = sec.icon;
@@ -489,7 +490,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             Reset to defaults
                         </Button>
                     </div>
-                </aside>
+                </div>
 
                 <div className="space-y-6 min-w-0">
                     {/* ═══ Email text style ═══ */}

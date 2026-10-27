@@ -98,7 +98,7 @@ describe('EnrollmentCard Component', () => {
         const phoneLink = screen.getByTitle('Click to call');
         expect(phoneLink).toBeInTheDocument();
         expect(phoneLink).toHaveAttribute('href', 'tel:+353871234567');
-        expect(phoneLink).toHaveTextContent('+353871234567');
+        expect(phoneLink).toHaveTextContent('087 123 4567');
 
         // Verify there is NO duplicate "Call Phone Number" button
         expect(screen.queryByTitle('Call Phone Number')).toBeNull();

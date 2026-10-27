@@ -12,7 +12,7 @@ import ChequeReqEditor, { type EditorSession, type LoadedInvoice } from './Chequ
 import { loadPdf } from './PdfForms/pdfHooks';
 import { toast } from '../lib/toast';
 import { downloadBlob } from '../lib/download';
-import { formatDateDMY, todayISO } from '../lib/dateUtils';
+import { todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { useChequeReqHistory, useDeleteChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
 import { useFormUserName } from '../hooks/usePdfForms';
 import { extractInvoice } from '../lib/chequeReq/extract';
@@ -243,14 +243,14 @@ export default function ChequeRequisitions() {
                             <tbody className={tbodyCls}>
                                 {rows.map(r => (
                                     <tr key={r.id} className={`${trCls} cursor-pointer`} onClick={() => openSaved(r)}>
-                                        <td className={`${tdCls} whitespace-nowrap text-muted`}>{formatDateDMY(r.created_at)}</td>
+                                        <td className={`${tdCls} whitespace-nowrap text-muted`}>{formatDisplayDate(r.created_at)}</td>
                                         <td className={`${tdCls} max-w-[16rem]`}>
                                             <span className="block truncate font-medium text-primary">{r.supplier_name || '—'}</span>
                                             <span className="block truncate text-xs text-muted">{r.form.description}</span>
                                         </td>
                                         <td className={`${tdCls} whitespace-nowrap`}>
                                             {r.invoice_number || '—'}
-                                            {r.invoice_date && <span className="block text-xs text-muted">{formatDateDMY(r.invoice_date)}</span>}
+                                            {r.invoice_date && <span className="block text-xs text-muted">{formatDisplayDate(r.invoice_date)}</span>}
                                         </td>
                                         <td className={`${tdCls} text-right whitespace-nowrap tabular-nums`}>{r.amount !== null ? `€${formatAmount(r.amount)}` : '—'}</td>
                                         <td className={`${tdCls} text-right whitespace-nowrap`} onClick={e => e.stopPropagation()}>

@@ -3,7 +3,7 @@ import { CalendarDays, Users, Clock, ChevronRight, ChevronDown } from 'lucide-re
 import { UpcomingCohortItem, daysBetween, localDateKey, untilLabel } from './dashboardUtils';
 import DashboardCard from '../ui/Card';
 import type { NavigateFn } from '../../lib/navigation';
-import { formatLocalDate } from '../../lib/dateUtils';
+import { formatDisplayDate, formatLocalDate } from '../../lib/dateUtils';
 
 /** Course days shown before the "Show more" toggle (desktop grid only; mobile scrolls horizontally). */
 const COLLAPSED_COUNT = 6;
@@ -72,7 +72,7 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                         return (
                             <div
                                 key={date}
-                                className={`relative snap-start shrink-0 w-72 sm:w-auto ${!showAll && idx >= COLLAPSED_COUNT ? 'sm:hidden' : 'sm:flex'} flex items-center gap-3 p-2.5 rounded-xl bg-surface-elevated border border-border-subtle hover:border-brand-500/40 hover:shadow-card-hover transition-all duration-200 ${single ? 'active:scale-[0.98]' : ''}`}
+                                className={`relative snap-start shrink-0 w-72 sm:w-auto ${!showAll && idx >= COLLAPSED_COUNT ? 'sm:hidden' : 'sm:flex'} flex items-start gap-3 p-2.5 rounded-xl bg-surface-elevated border border-border-subtle hover:border-brand-500/40 hover:shadow-card-hover transition-all duration-200 ${single ? 'active:scale-[0.98]' : ''}`}
                             >
                                 <span
                                     className={`flex flex-col items-center justify-center w-12 h-14 rounded-lg shrink-0 leading-none ${
@@ -83,14 +83,15 @@ export default function UpcomingCohortsCard({ cohorts = [], onNavigate, classNam
                                     <span className="text-lg font-bold tabular-nums my-0.5">{day}</span>
                                     <span className="text-xs font-semibold uppercase">{month}</span>
                                 </span>
-                                <span className="flex-1 min-w-0 self-stretch flex flex-col justify-center divide-y divide-border-subtle">
+                                {/* The date stays at the top; the courses under it keep their own height */}
+                                <span className={`flex-1 min-w-0 self-stretch flex flex-col ${single ? 'justify-center' : 'justify-start'} divide-y divide-border-subtle`}>
                                     {items.map(c => (
                                         <button
                                             type="button"
                                             key={c.courseId}
                                             onClick={() => onNavigate?.('enrollments', { courseId: c.courseId, courseDate: c.date })}
-                                            aria-label={`Course: ${c.courseName} on ${c.date}, ${c.confirmedCount} confirmed${c.pendingCount ? `, ${c.pendingCount} pending` : ''}`}
-                                            className={`group flex-1 flex items-center gap-3 text-left cursor-pointer ${
+                                            aria-label={`Course: ${c.courseName} on ${formatDisplayDate(c.date)}, ${c.confirmedCount} confirmed${c.pendingCount ? `, ${c.pendingCount} pending` : ''}`}
+                                            className={`group flex items-center gap-3 text-left cursor-pointer ${
                                                 single
                                                     ? "after:absolute after:inset-0 after:rounded-xl after:content-['']"
                                                     : 'py-1.5 first:pt-0 last:pb-0'

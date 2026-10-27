@@ -4,7 +4,7 @@ import { ShieldCheck, Eye, ListChecks, FileInput, Search, Loader2, ArrowUpCircle
 import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { useAuth } from '../contexts/AuthContext';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import ConfirmDialog from './ConfirmDialog';
 import Card from './ui/Card';
 import { IconButton } from './ui/Button';
@@ -164,8 +164,8 @@ export default function UserRolesSection() {
                                             {isMe && <span className="ml-1.5 text-xs font-bold text-muted">(you)</span>}
                                         </p>
                                         <p className="text-xs text-muted">
-                                            Joined {formatDateDMY(u.created_at)}
-                                            {u.last_sign_in_at ? ` · last sign-in ${formatDateDMY(u.last_sign_in_at)}` : ' · never signed in'}
+                                            Joined {formatDisplayDate(u.created_at)}
+                                            {u.last_sign_in_at ? ` · last sign-in ${formatDisplayDate(u.last_sign_in_at)}` : ' · never signed in'}
                                         </p>
                                     </div>
                                     {role === 'admin' ? (

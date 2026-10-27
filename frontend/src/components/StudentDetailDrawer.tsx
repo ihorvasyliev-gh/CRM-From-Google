@@ -9,8 +9,8 @@ import DialogLayer from './ui/DialogLayer';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { toast } from '../lib/toast';
 import { cleanVariant } from '../lib/types';
-import { formatDateDMY } from '../lib/dateUtils';
-import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary } from '../lib/contactUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, formatPhoneDisplay } from '../lib/contactUtils';
 import { Avatar, PriorityStar, StatusBadge } from './Viewer/ViewerUI';
 import CompletionRequestModal, { type CompletionTarget } from './Viewer/CompletionRequestModal';
 import { copyText, isCompletable, relativeDay, sessionDate, weekdayDate } from './Viewer/viewerUtils';
@@ -150,7 +150,7 @@ function Timeline({ en }: { en: EnrollmentDetail }) {
                         {i < steps.length - 1 && <span className={`h-0.5 flex-1 rounded-full ${steps[i + 1].done ? 'bg-brand-500' : 'bg-border-subtle'}`} />}
                     </div>
                     <p className={`text-xs font-semibold mt-1 ${s.done ? 'text-primary' : 'text-muted'}`}>{s.label}</p>
-                    <p className="text-xs text-muted tabular-nums">{s.done && s.date ? formatDateDMY(s.date) : '—'}</p>
+                    <p className="text-xs text-muted tabular-nums">{s.done && s.date ? formatDisplayDate(s.date) : '—'}</p>
                 </li>
             ))}
         </ol>
@@ -254,7 +254,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                         {name}
                                     </h2>
                                     <p className="text-xs text-muted mt-0.5">
-                                        Registered {formatDateDMY(student.created_at)} · {relativeDay(student.created_at.slice(0, 10))}
+                                        Registered {formatDisplayDate(student.created_at)} · {relativeDay(student.created_at.slice(0, 10))}
                                     </p>
                                 </>
                             ) : (
@@ -303,7 +303,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                         <div key={flag.id} className="p-3 rounded-xl bg-red-500/5 border border-red-500/15">
                                             <div className="flex items-center justify-between gap-2">
                                                 <p className="text-xs font-bold text-red-700 dark:text-red-400 truncate">{flag.course_name}</p>
-                                                {flag.created_at && <span className="text-xs text-muted shrink-0">{formatDateDMY(flag.created_at)}</span>}
+                                                {flag.created_at && <span className="text-xs text-muted shrink-0">{formatDisplayDate(flag.created_at)}</span>}
                                             </div>
                                             {flag.comment && <p className="text-xs text-red-700/90 dark:text-red-300/80 mt-1 leading-relaxed">{flag.comment}</p>}
                                         </div>
@@ -315,7 +315,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                 <h3 className="text-xs font-bold text-muted uppercase tracking-wider">Contact details</h3>
                                 <div className="rounded-xl border border-border-subtle bg-surface-elevated/30 divide-y divide-border-subtle">
                                     <InfoField icon={<Mail size={15} />} label="Email" value={student.email} />
-                                    <InfoField icon={<Phone size={15} />} label="Phone" value={student.phone} />
+                                    <InfoField icon={<Phone size={15} />} label="Phone" value={student.phone && formatPhoneDisplay(student.phone)} copyValue={student.phone} />
                                     <InfoField
                                         icon={<MapPin size={15} />}
                                         label="Address"
@@ -337,7 +337,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                         ) : undefined}
                                     />
                                     {student.dob && (
-                                        <InfoField icon={<Calendar size={15} />} label="Date of Birth" value={`${formatDateDMY(student.dob)}${age !== null ? ` · ${age} y.o.` : ''}`} copyValue={formatDateDMY(student.dob)} />
+                                        <InfoField icon={<Calendar size={15} />} label="Date of Birth" value={`${formatDisplayDate(student.dob)}${age !== null ? ` · ${age} y.o.` : ''}`} copyValue={formatDisplayDate(student.dob)} />
                                     )}
                                 </div>
                             </section>

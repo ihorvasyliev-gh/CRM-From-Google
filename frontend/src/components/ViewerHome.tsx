@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BookOpen, Calendar, CalendarDays, CheckCircle2, Clock, Pin, Search, Users } from 'lucide-react';
 import type { ViewerUpcomingCourse } from '../lib/types';
-import { formatDateLong, formatLocalDate, todayISO } from '../lib/dateUtils';
+import { formatLocalDate, todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
 import { ErrorState, StatusDistributionBar } from './Viewer/ViewerUI';
@@ -70,7 +70,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
         <div className="max-w-7xl mx-auto w-full space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                 <div>
-                    <p className="text-xs font-semibold text-muted">{formatDateLong(todayISO())}</p>
+                    <p className="text-xs font-semibold text-muted">{formatDisplayDate(todayISO())}</p>
                     <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-primary leading-tight">{greeting()}</h1>
                 </div>
                 <button

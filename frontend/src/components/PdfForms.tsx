@@ -9,7 +9,7 @@ import { Segmented } from './ui/Tabs';
 import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
 import ConfirmDialog from './ConfirmDialog';
 import { toast } from '../lib/toast';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import { downloadBlob } from '../lib/download';
 import { downloadTemplatePdf, useDeletePdfFormTemplate, usePdfFormTemplates } from '../hooks/usePdfForms';
 import { readWorkbook, SHEET_ACCEPT, type Workbook } from '../lib/pdfForms/excel';
@@ -269,7 +269,7 @@ export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
                                         <Badge icon={<Type size={11} />}>{text} text</Badge>
                                         <Badge icon={<CheckSquare size={11} />}>{boxes} checkbox</Badge>
                                         <Badge tone="brand">version {t.revision}</Badge>
-                                        <span className="text-xs text-muted ml-auto">updated {formatDateDMY(t.updated_at)}</span>
+                                        <span className="text-xs text-muted ml-auto">updated {formatDisplayDate(t.updated_at)}</span>
                                     </div>
                                     {cols.length > 0 && (
                                         <p className="text-xs text-muted mb-4 line-clamp-2" title={cols.join('\n')}>

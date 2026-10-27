@@ -19,7 +19,7 @@ import { CHART, axisProps, axisTick, gridProps, tooltipCursor, clickedRow } from
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { courseRunDate, courseRunKey } from './courseRuns';
 
 const NO_ENROLLMENTS: EnrollmentWithRelations[] = [];
@@ -374,7 +374,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                             </thead>
                             <tbody className={tbodyCls}>
                                 {paginatedRuns.map(r => {
-                                    const title = `${r.courseName} - ${r.variant} (${formatDateDMY(r.date)}) Graduates`;
+                                    const title = `${r.courseName} - ${r.variant} (${formatDisplayDate(r.date)}) Graduates`;
                                     const saving = savingRun === r.key;
                                     return (
                                         <tr
@@ -391,7 +391,7 @@ export default function CourseMatrixTab({ enrollments, ignoredEnrollments = NO_E
                                                 </span>
                                             </td>
                                             <td className={`${tdCls} ${r.ignored ? 'opacity-60' : ''}`}><Badge tone="brand">{r.variant}</Badge></td>
-                                            <td className={`${tdCls} text-muted tabular-nums`}>{formatDateDMY(r.date) || 'No date recorded'}</td>
+                                            <td className={`${tdCls} text-muted tabular-nums`}>{formatDisplayDate(r.date) || 'No date recorded'}</td>
                                             <td className={`${tdCls} text-right`}>
                                                 <Badge tone={r.ignored ? 'neutral' : 'success'} shape="pill" className="tabular-nums">{r.completedCount}</Badge>
                                             </td>

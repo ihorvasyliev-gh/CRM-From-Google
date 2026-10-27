@@ -116,14 +116,14 @@ describe('DocumentGenerator', () => {
         await chooseCourse();
 
         const dates = screen.getByRole('radiogroup', { name: 'Course date' });
-        expect(within(dates).getByRole('radio', { name: /01 Oct 2099/ })).toHaveAttribute('aria-checked', 'true');
+        expect(within(dates).getByRole('radio', { name: /\b1 Oct 2099/ })).toHaveAttribute('aria-checked', 'true');
         expect(await screen.findByText('Olena Kovalenko')).toBeInTheDocument();
         expect(screen.getByText('Mary Ahern')).toBeInTheDocument();
         expect(screen.queryByText('Tom Walsh')).not.toBeInTheDocument();
         expect(screen.queryByText(/Seán/)).not.toBeInTheDocument();
         expect(generateButton()).toHaveTextContent('2 students × 1 template');
 
-        fireEvent.click(within(dates).getByRole('radio', { name: /05 Nov 2099/ }));
+        fireEvent.click(within(dates).getByRole('radio', { name: /\b5 Nov 2099/ }));
         expect(screen.getByText('Tom Walsh')).toBeInTheDocument();
         expect(screen.queryByText('Olena Kovalenko')).not.toBeInTheDocument();
     });

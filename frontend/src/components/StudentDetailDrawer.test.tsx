@@ -114,10 +114,11 @@ describe('StudentDetailDrawer Component', () => {
 
         expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
         expect(screen.getByText('jane.doe@example.com')).toBeInTheDocument();
-        expect(screen.getByText('+353871234567')).toBeInTheDocument();
+        // Shown the way it is dialled at home
+        expect(screen.getByText('087 123 4567')).toBeInTheDocument();
         expect(screen.getByText('10 Main Street, Cork')).toBeInTheDocument();
         expect(screen.getByText('T12AB34')).toBeInTheDocument();
-        expect(screen.getByText(/Registered 10\/01\/2026/)).toBeInTheDocument();
+        expect(screen.getByText(/Registered 10 Jan 2026/)).toBeInTheDocument();
     });
 
     it('offers one-tap contact actions (email, call, WhatsApp)', async () => {
@@ -163,7 +164,7 @@ describe('StudentDetailDrawer Component', () => {
 
         expect(await screen.findByText('Basic English')).toBeInTheDocument();
         expect(screen.getByText('Needs level A2 re-assessment')).toBeInTheDocument();
-        expect(screen.getByText('02/01/2026')).toBeInTheDocument();
+        expect(screen.getByText('2 Jan 2026')).toBeInTheDocument();
     });
 
     it('opens the completion modal (defaulting to the course day) and submits the request', async () => {
@@ -176,7 +177,7 @@ describe('StudentDetailDrawer Component', () => {
 
         const dialog = await screen.findByRole('dialog', { name: 'Request completion' });
         expect(dialog).toHaveTextContent('Barista Training');
-        expect(screen.getByLabelText('Completion date')).toHaveTextContent('15/01/2026');
+        expect(screen.getByLabelText('Completion date')).toHaveTextContent('15 Jan 2026');
 
         fireEvent.click(screen.getByRole('button', { name: /Submit request/i }));
 

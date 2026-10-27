@@ -1,4 +1,4 @@
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Route } from 'react-router-dom';
@@ -291,7 +291,7 @@ describe('ViewerCourses', () => {
             await screen.findByText('Dana White');
 
             fireEvent.click(screen.getByRole('button', { name: 'Mark Dana White completed' }));
-            expect(await screen.findByLabelText('Completion date')).toHaveTextContent(formatDateDMY(TODAY));
+            expect(await screen.findByLabelText('Completion date')).toHaveTextContent(formatDisplayDate(TODAY));
         });
 
         it('shows a not-found state for an unknown course', async () => {

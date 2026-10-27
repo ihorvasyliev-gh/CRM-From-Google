@@ -16,7 +16,7 @@ import {
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
 import { getAvatarGradient } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { copyEmailsToClipboard } from './analyticsUtils';
 import Card, { SectionHeader } from '../ui/Card';
 import Badge from '../ui/Badge';
@@ -384,7 +384,7 @@ export default function MultiCourseCompletersTab({
                                             <div className="flex flex-wrap gap-1.5 max-w-md">
                                                 {Array.from(profile.completedCourses.values()).map(course => {
                                                     const isSelectedMatch = selectedCourseIds.includes(course.courseId);
-                                                    const dateStr = course.completedDate ? formatDateDMY(course.completedDate) : 'Completed';
+                                                    const dateStr = course.completedDate ? formatDisplayDate(course.completedDate) : 'Completed';
                                                     return (
                                                         <span
                                                             key={course.courseId}

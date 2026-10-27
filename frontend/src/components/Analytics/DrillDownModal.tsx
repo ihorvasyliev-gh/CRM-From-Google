@@ -9,7 +9,8 @@ import { PriorityStar } from '../Viewer/ViewerUI';
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneDisplay } from '../../lib/contactUtils';
 import { cleanVariant } from '../../lib/types';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { copyEmailsToClipboard, exportCustomCSV, normalizeCorkAddress } from './analyticsUtils';
@@ -161,7 +162,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                             </button>
                                             <div className="text-xs text-muted flex items-center gap-2 mt-0.5">
                                                 <span className="truncate max-w-[220px]">{s?.email || 'No email'}</span>
-                                                {s?.phone && <span className="tabular-nums">{s.phone}</span>}
+                                                {s?.phone && <span className="tabular-nums">{formatPhoneDisplay(s.phone)}</span>}
                                             </div>
                                         </td>
                                         <td className={tdCls}>
@@ -182,7 +183,7 @@ export default function DrillDownModal({ isOpen, onClose, title, data, onSelectS
                                             </span>
                                         </td>
                                         <td className={`${tdCls} text-muted text-xs tabular-nums whitespace-nowrap`}>
-                                            {formatDateDMY(e.completed_date || e.confirmed_date || e.created_at)}
+                                            {formatDisplayDate(e.completed_date || e.confirmed_date || e.created_at)}
                                         </td>
                                         <td className={`${tdCls} text-right`}>
                                             {s && onSelectStudent ? (

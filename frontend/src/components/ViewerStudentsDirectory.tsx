@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cleanVariant, type ViewerStudentDirectoryItem } from '../lib/types';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
+import { formatPhoneDisplay } from '../lib/contactUtils';
 import { useViewerCourses } from './Viewer/useViewerData';
 import { useUrlParams, useUrlSearchInput } from './Viewer/useUrlParams';
 import { usePublishStudentList, useStudentDrawer } from './Viewer/studentDrawer';
@@ -261,7 +262,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
                 </div>
                 <div className="text-xs text-muted flex items-center gap-2 min-w-0">
                     <CopyText value={student.email} label="Email" className="min-w-0" />
-                    {student.phone && <CopyText value={student.phone} label="Phone" className="lg:hidden shrink-0 hidden sm:block">· {student.phone}</CopyText>}
+                    {student.phone && <CopyText value={student.phone} label="Phone" className="lg:hidden shrink-0 hidden sm:block tabular-nums">· {formatPhoneDisplay(student.phone)}</CopyText>}
                 </div>
                 {/* Mobile: course & status */}
                 <div className="md:hidden flex items-center gap-1.5 mt-1.5 min-w-0">
@@ -272,7 +273,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
             </div>
 
             <div className="hidden lg:block w-36 text-xs text-muted truncate">
-                {student.phone ? <CopyText value={student.phone} label="Phone" /> : <span className="text-muted/50">—</span>}
+                {student.phone ? <CopyText value={student.phone} label="Phone" className="tabular-nums">{formatPhoneDisplay(student.phone)}</CopyText> : <span className="text-muted/50">—</span>}
             </div>
 
             <div className="hidden md:block w-[30%] min-w-0">
@@ -291,7 +292,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
             </div>
 
             <div className="hidden md:block w-28 text-xs">
-                <div className="text-primary inline-flex items-center gap-1"><Calendar size={11} className="text-muted" />{formatDateDMY(student.created_at)}</div>
+                <div className="text-primary inline-flex items-center gap-1"><Calendar size={11} className="text-muted" />{formatDisplayDate(student.created_at)}</div>
                 <div className="text-xs text-muted">{relativeDay(student.created_at.slice(0, 10))}</div>
             </div>
 

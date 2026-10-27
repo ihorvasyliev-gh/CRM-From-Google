@@ -13,6 +13,7 @@ import {
     type SingleKind, type TemplateKind,
 } from '../../lib/documentUtils';
 import type { DocumentTemplate } from '../../lib/types';
+import { formatDisplayDate } from '../../lib/dateUtils';
 
 interface CardProps {
     setup: DocumentSetup;
@@ -94,7 +95,7 @@ export function WordTemplatesCard({ setup, showToast, confirmDelete }: CardProps
                                 <div className="min-w-0 flex-1">
                                     <p className={`text-[13px] font-medium truncate ${tpl.is_active ? 'text-primary' : 'text-muted'}`} title={tpl.name}>{tpl.name}</p>
                                     <p className="text-xs text-muted">
-                                        {busy === tpl.id ? 'Uploading…' : `Updated ${new Date(tpl.updated_at || tpl.created_at).toLocaleDateString()}`}
+                                        {busy === tpl.id ? 'Uploading…' : `Updated ${formatDisplayDate(tpl.updated_at || tpl.created_at)}`}
                                     </p>
                                 </div>
                                 <DownloadButton label={`Download ${tpl.name}`} onClick={() => saveCopy(tpl, showToast)} />

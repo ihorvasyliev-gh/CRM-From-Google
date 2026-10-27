@@ -121,3 +121,29 @@ export function normalizePhone(phone: string | null | undefined): string {
     }
     return formatted;
 }
+
+/**
+ * A phone number as people read it: Irish numbers the way they are dialled at home
+ * ("087 123 4567", "021 456 7890", "01 234 5678"), Ukrainian and UK ones in groups after
+ * the country code ("+380 67 123 4567", "+44 7123 456789"). Only for showing: links and
+ * copies keep the stored number. Anything it does not recognise comes back as it was.
+ */
+export function formatPhoneDisplay(phone: string | null | undefined): string {
+    const raw = (phone || '').trim();
+    const intl = normalizePhone(raw);
+    if (!/^\+\d+$/.test(intl)) return raw;
+
+    const local = (cc: string) => intl.slice(cc.length + 1);
+    if (intl.startsWith('+353')) {
+        const r = local('353');
+        if (r.length === 9) return `0${r.slice(0, 2)} ${r.slice(2, 5)} ${r.slice(5)}`;
+        if (r.length === 8 && r.startsWith('1')) return `01 ${r.slice(1, 4)} ${r.slice(4)}`;
+    } else if (intl.startsWith('+380')) {
+        const r = local('380');
+        if (r.length === 9) return `+380 ${r.slice(0, 2)} ${r.slice(2, 5)} ${r.slice(5)}`;
+    } else if (intl.startsWith('+44')) {
+        const r = local('44');
+        if (r.length === 10) return `+44 ${r.slice(0, 4)} ${r.slice(4)}`;
+    }
+    return raw;
+}

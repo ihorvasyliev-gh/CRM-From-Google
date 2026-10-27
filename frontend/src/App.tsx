@@ -63,7 +63,8 @@ import { usePendingApprovalsCount } from './hooks/useApprovals';
 
 // `title` (page header) defaults to `label` (sidebar)
 const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof Users; subtitle: string; group: string }[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subtitle: 'Welcome back — here\'s your overview', group: 'Workspace' },
+    // No subtitle: the page greets you itself ("Good morning")
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, subtitle: '', group: 'Workspace' },
     { key: 'students', label: 'Students', icon: Users, subtitle: 'Manage your student database', group: 'Workspace' },
     { key: 'courses', label: 'Courses', icon: BookOpen, subtitle: 'View and manage the course catalog', group: 'Workspace' },
     { key: 'enrollments', label: 'Enrollments', icon: GraduationCap, subtitle: 'Track and manage enrollments', group: 'Workspace' },
@@ -327,7 +328,7 @@ function App() {
 
                 {/* Sidebar */}
                 {!isViewer && (
-                    <aside className={`
+                    <aside aria-label="Sidebar" className={`
                     fixed lg:sticky top-0 left-0 h-screen w-[224px] z-40
                     flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                     bg-surface border-r border-border-subtle
@@ -481,7 +482,8 @@ function App() {
                                 <div className="w-7 h-7 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-lg flex items-center justify-center text-white font-bold text-[11px] shadow-xs shadow-brand-500/20 shrink-0">
                                     C
                                 </div>
-                                <span className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</span>
+                                {/* The page's heading on a phone, like the desktop top bar's */}
+                                <h2 className="font-semibold text-sm text-primary tracking-tight truncate">{pageTitle}</h2>
                             </div>
                             <div className="flex items-center gap-0.5">
                                 <IconButton label="Search" onClick={() => setCommandPaletteOpen(true)}>
@@ -507,7 +509,7 @@ function App() {
                         <header className="hidden lg:flex sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle px-8 items-center justify-between gap-4">
                             <div className="flex items-baseline gap-3 min-w-0">
                                 <h2 className="text-lg font-semibold text-primary tracking-tight">{pageTitle}</h2>
-                                {activeNav && (
+                                {activeNav?.subtitle && (
                                     <p className="text-[13px] text-muted truncate">{activeNav.subtitle}</p>
                                 )}
                             </div>

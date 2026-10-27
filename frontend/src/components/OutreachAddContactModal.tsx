@@ -7,6 +7,8 @@ import { Button } from './ui/Button';
 import { fieldCls, labelCls } from './ui/styles';
 import { errorMessage } from '../lib/errors';
 import { fullName } from '../lib/types';
+import FieldError from './ui/FieldError';
+import { useFieldErrors } from '../hooks/useFieldErrors';
 
 interface OutreachAddContactModalProps {
     open: boolean;
@@ -25,11 +27,13 @@ export default function OutreachAddContactModal({ open, listId, listName, existi
     const [form, setForm] = useState(EMPTY);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const { errors, check, formProps, fieldProps } = useFieldErrors();
 
     const set = (key: keyof typeof EMPTY) => (e: ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [key]: e.target.value }));
 
-    async function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (!check(e.currentTarget)) return;
         const email = extractEmail(form.email.trim());
         if (!email || email !== form.email.trim().toLowerCase()) {
             setError('Please enter a valid email address.');
@@ -74,7 +78,7 @@ export default function OutreachAddContactModal({ open, listId, listName, existi
                 </>
             }
         >
-            <form id="outreach-add-contact" onSubmit={handleSubmit} className="space-y-3">
+            <form id="outreach-add-contact" onSubmit={handleSubmit} {...formProps} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label htmlFor="oc-first" className={labelCls}>First name</label>
@@ -87,7 +91,8 @@ export default function OutreachAddContactModal({ open, listId, listName, existi
                 </div>
                 <div>
                     <label htmlFor="oc-email" className={labelCls}>Email *</label>
-                    <input id="oc-email" type="email" required value={form.email} onChange={set('email')} className={fieldCls} />
+                    <input id="oc-email" type="email" required value={form.email} onChange={set('email')} className={fieldCls} {...fieldProps('oc-email')} />
+                    <FieldError id="oc-email" message={errors['oc-email']} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>

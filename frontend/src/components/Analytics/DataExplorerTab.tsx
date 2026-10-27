@@ -11,7 +11,7 @@ import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from 
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { normalizeCorkAddress, copyEmailsToClipboard, exportCustomCSV } from './analyticsUtils';
 import { cleanVariant, Student } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 
 interface DataExplorerTabProps {
@@ -49,7 +49,7 @@ export default function DataExplorerTab({ enrollments, onOpenStudent }: DataExpl
                 variant,
                 status: e.status,
                 isPriority: !!e.is_priority,
-                createdDate: formatDateDMY(e.created_at),
+                createdDate: formatDisplayDate(e.created_at),
                 createdIso: e.created_at || ''
             };
         });

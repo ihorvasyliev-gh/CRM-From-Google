@@ -9,7 +9,7 @@ import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailT
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
-import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
+import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -400,7 +400,7 @@ function GraduateOutcomes() {
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={grad.tracking_status} />
                                                 {grad.tracking_status === 'pending' && grad.last_sent_at && (
-                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDateDMY(grad.last_sent_at)}</p>
+                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDisplayDate(grad.last_sent_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
@@ -413,7 +413,7 @@ function GraduateOutcomes() {
                                             </td>
                                             <td className="py-3 px-4 hidden lg:table-cell">
                                                 {grad.status_updated_at ? (
-                                                    <span className="text-xs text-muted">{formatDateDMY(grad.status_updated_at)}</span>
+                                                    <span className="text-xs text-muted">{formatDisplayDate(grad.status_updated_at)}</span>
                                                 ) : (
                                                     <span className="text-xs text-muted italic">—</span>
                                                 )}

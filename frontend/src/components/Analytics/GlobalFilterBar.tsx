@@ -7,7 +7,7 @@ import { fieldCls, labelCls } from '../ui/styles';
 import { SelectField } from '../Viewer/ViewerUI';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { cleanVariant } from '../../lib/types';
-import { formatDateDMY } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 
 export interface AnalyticsFilterState {
@@ -134,7 +134,7 @@ export default function GlobalFilterBar({
         { value: '365', label: '12 months' },
     ];
     const customLabel = filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate
-        ? `${formatDateDMY(filters.customStartDate)} – ${formatDateDMY(filters.customEndDate)}`
+        ? `${formatDisplayDate(filters.customStartDate)} – ${formatDisplayDate(filters.customEndDate)}`
         : 'Custom';
     const share = allEnrollments.length > 0 ? Math.round((filteredEnrollments.length / allEnrollments.length) * 100) : 0;
 

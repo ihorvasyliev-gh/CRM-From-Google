@@ -3,7 +3,7 @@ import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } fr
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
 import { notify } from '../lib/toast';
 import DialogLayer from './ui/DialogLayer';
-import { formatDateDMY } from '../lib/dateUtils';
+import { formatDisplayDate } from '../lib/dateUtils';
 import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
     Calendar, CheckSquare, Square, Loader2, AlertCircle
@@ -18,14 +18,14 @@ interface PendingApprovalsModalProps {
 function formatDate(dateStr: string | null | undefined) {
     if (!dateStr) return null;
     // Date-only values must not shift a day in negative UTC offsets
-    return formatDateDMY(dateStr) || dateStr;
+    return formatDisplayDate(dateStr) || dateStr;
 }
 
 function formatDateTime(dateTimeStr: string | null | undefined) {
     if (!dateTimeStr) return null;
     try {
         const d = new Date(dateTimeStr);
-        return `${d.toLocaleDateString('en-IE')} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        return `${formatDisplayDate(dateTimeStr)} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
         return dateTimeStr;
     }

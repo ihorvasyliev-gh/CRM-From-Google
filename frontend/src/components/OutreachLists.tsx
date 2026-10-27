@@ -7,7 +7,7 @@ import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailT
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
-import { formatDateDMY, formatLocalDate } from '../lib/dateUtils';
+import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -510,7 +510,7 @@ export default function OutreachLists() {
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={contact.status} />
                                                 {contact.status === 'pending' && contact.last_invited_at && (
-                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDateDMY(contact.last_invited_at)}</p>
+                                                    <p className="text-xs text-muted mt-0.5">Sent {formatDisplayDate(contact.last_invited_at)}</p>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
@@ -523,7 +523,7 @@ export default function OutreachLists() {
                                             </td>
                                             <td className="py-3 px-4 hidden lg:table-cell">
                                                 <span className="text-xs text-muted">
-                                                    {contact.last_responded_at ? formatDateDMY(contact.last_responded_at) : '—'}
+                                                    {contact.last_responded_at ? formatDisplayDate(contact.last_responded_at) : '—'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-right">

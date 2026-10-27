@@ -1,5 +1,5 @@
 import { Send, Mail, X, Plus, CalendarRange, CalendarClock, AlertCircle } from 'lucide-react';
-import { formatDateLong, formatDayDateShort, todayISO } from '../../lib/dateUtils';
+import { formatDayDateShort, todayISO, formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
 import SessionScheduleEditor from './SessionScheduleEditor';
@@ -87,7 +87,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-xs' : 'rounded-full'} shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
                                             <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
-                                                {inviteFlow.multiDate ? formatDayDateShort(d) : formatDateLong(d)}
+                                                {inviteFlow.multiDate ? formatDayDateShort(d) : formatDisplayDate(d)}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
@@ -148,7 +148,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                                                 </span>
                                                 <button
                                                     type="button"
-                                                    aria-label={`Remove ${formatDateLong(d)}`}
+                                                    aria-label={`Remove ${formatDisplayDate(d)}`}
                                                     onClick={() => inviteFlow.toggleInviteDate(d)}
                                                     className="p-0.5 rounded-sm hover:bg-blue-500/20"
                                                 >

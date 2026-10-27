@@ -1,6 +1,8 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2, Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import FieldError from './ui/FieldError';
+import { useFieldErrors } from '../hooks/useFieldErrors';
 
 const LOCKOUT_KEY_PREFIX = 'crm_login';
 
@@ -55,6 +57,7 @@ export default function LoginPage() {
     const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState<number>(0);
     const [showPassword, setShowPassword] = useState(false);
     const [capsLockOn, setCapsLockOn] = useState(false);
+    const { errors, check, formProps, fieldProps } = useFieldErrors();
 
     useEffect(() => {
         const { lockedUntil } = getLockoutData();
@@ -85,8 +88,9 @@ export default function LoginPage() {
         return () => clearInterval(timer);
     }, [lockoutSecondsLeft]);
 
-    async function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (!check(e.currentTarget)) return;
 
         const { lockedUntil } = getLockoutData();
         const now = Date.now();
@@ -135,18 +139,24 @@ export default function LoginPage() {
             <div aria-hidden className="orb absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] sm:w-[760px] sm:h-[760px] text-brand-500/8 pointer-events-none" />
 
             <div className="relative w-full max-w-sm animate-scaleIn">
-                {/* Logo */}
+                {/* Cork City Partnership and SICAP, as on the emails and the report (on white in both themes) */}
                 <div className="text-center mb-7">
-                    <div className="w-12 h-12 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">
-                        C
+                    <div className="mb-6 rounded-2xl bg-white px-5 py-4 shadow-card ring-1 ring-black/5">
+                        <img
+                            src="/logos-banner-sm.webp"
+                            alt="Cork City Partnership · SICAP"
+                            width={800}
+                            height={154}
+                            className="w-full h-auto"
+                        />
                     </div>
                     <h1 className="text-2xl font-bold text-primary tracking-tight">CCP CRM</h1>
-                    <p className="text-sm text-muted mt-1">Sign in to manage your courses</p>
+                    <p className="text-sm text-muted mt-1">Sign in with your Cork City Partnership account</p>
                 </div>
 
                 {/* Card */}
                 <div className="bg-surface border border-border-subtle rounded-2xl shadow-float p-6 sm:p-7">
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} {...formProps} className="space-y-4">
                         {error && (
                             <div role="alert" className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl animate-slideDown text-center">
                                 {error}
@@ -162,15 +172,17 @@ export default function LoginPage() {
                                     id="login-email"
                                     autoComplete="username"
                                     inputMode="email"
-                                    placeholder="admin@example.com"
+                                    placeholder="name@partnershipcork.ie"
                                     className="w-full h-11 pl-10 pr-4 bg-surface border border-border-subtle rounded-xl text-sm text-primary placeholder:text-muted/60 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
                                     autoFocus
                                     disabled={loading || lockoutSecondsLeft > 0}
+                                    {...fieldProps('login-email')}
                                 />
                             </div>
+                            <FieldError id="login-email" message={errors['login-email']} />
                         </div>
 
                         <div>
@@ -189,6 +201,7 @@ export default function LoginPage() {
                                     onChange={e => setPassword(e.target.value)}
                                     required
                                     disabled={loading || lockoutSecondsLeft > 0}
+                                    {...fieldProps('login-password')}
                                 />
                                 <button
                                     type="button"
@@ -201,6 +214,7 @@ export default function LoginPage() {
                                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
                             </div>
+                            <FieldError id="login-password" message={errors['login-password']} />
                             {capsLockOn && (
                                 <p className="mt-1.5 text-xs font-medium text-status-requested">Caps Lock is on</p>
                             )}

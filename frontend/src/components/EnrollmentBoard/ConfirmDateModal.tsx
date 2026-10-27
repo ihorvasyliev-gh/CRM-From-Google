@@ -1,5 +1,5 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
-import { formatDateLong } from '../../lib/dateUtils';
+import { formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
 import DialogLayer from '../ui/DialogLayer';
@@ -65,7 +65,7 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                                     <div className="flex items-center gap-2 min-w-0">
                                         <div className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-emerald-500' : 'bg-transparent border border-border-subtle'}`} />
                                         <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-confirmed font-bold' : 'text-primary'}`}>
-                                            {formatDateLong(d)}
+                                            {formatDisplayDate(d)}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5 shrink-0">

@@ -6,7 +6,7 @@ import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, Check
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
-import { formatDateDMY, formatDateLongWithWeekday, todayISO } from '../lib/dateUtils';
+import { formatDateLongWithWeekday, todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -564,7 +564,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                                 icon={<Calendar size={14} />}
                                 label="Date of Birth"
                                 value={student.dob || ''}
-                                displayValue={student.dob ? formatDateDMY(student.dob) : ''}
+                                displayValue={student.dob ? formatDisplayDate(student.dob) : ''}
                                 field="dob"
                                 type="date"
                                 studentId={student.id}
@@ -628,7 +628,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                                             <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-2 text-xs animate-pulse">
                                                 <span className="text-status-requested font-semibold flex items-center gap-1">
                                                     <Clock size={12} />
-                                                    Completion requested for <strong>{en.pending_completion_date ? formatDateDMY(en.pending_completion_date) : 'Today'}</strong>
+                                                    Completion requested for <strong>{en.pending_completion_date ? formatDisplayDate(en.pending_completion_date) : 'Today'}</strong>
                                                     {en.completion_requested_by ? ` (${en.completion_requested_by})` : ''}
                                                 </span>
                                                 <div className="flex items-center gap-1 shrink-0">

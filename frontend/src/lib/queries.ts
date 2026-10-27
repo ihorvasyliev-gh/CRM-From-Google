@@ -110,15 +110,30 @@ export interface StudentsPage {
     nextPage: number | undefined;
 }
 
-// queryKey: ['students', search]
+/** The Students list's order: a column, up or down */
+export interface StudentSort {
+    key: 'name' | 'eircode' | 'created_at';
+    dir: 'asc' | 'desc';
+}
+/** Newest first; the list's key leaves it out, so ['students', search] stays the usual key */
+export const DEFAULT_STUDENT_SORT: StudentSort = { key: 'created_at', dir: 'desc' };
+
+// queryKey: ['students', search] or ['students', search, sortKey, sortDir]
 export async function fetchStudentsPage({ pageParam = 0, queryKey }: { pageParam?: number; queryKey: readonly unknown[] }): Promise<StudentsPage> {
     const search = queryKey[1] as string;
+    const sortKey = (queryKey[2] as StudentSort['key'] | undefined) ?? DEFAULT_STUDENT_SORT.key;
+    const ascending = (queryKey[3] ?? DEFAULT_STUDENT_SORT.dir) === 'asc';
     const from = pageParam * STUDENTS_PAGE_SIZE;
 
-    // id breaks created_at ties, so infinite scroll never repeats or skips a student between pages.
+    // id breaks ties, so infinite scroll never repeats or skips a student between pages.
     // Only the first page is counted (the total shown comes from it): an exact count runs the whole
     // search again, and did so for every page scrolled in.
-    let query = supabase.from('students').select('*', pageParam === 0 ? { count: 'exact' } : undefined).order('created_at', { ascending: false }).order('id');
+    let query = supabase.from('students').select('*', pageParam === 0 ? { count: 'exact' } : undefined);
+    if (sortKey === 'name') query = query.order('first_name', { ascending }).order('last_name', { ascending });
+    // Students without an Eircode go last either way
+    else if (sortKey === 'eircode') query = query.order('eircode', { ascending, nullsFirst: false });
+    else query = query.order('created_at', { ascending });
+    query = query.order('id');
     if (search) {
         buildStudentSearchFilters(search).forEach(filter => {
             query = query.or(filter);

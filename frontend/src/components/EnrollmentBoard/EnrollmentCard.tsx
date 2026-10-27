@@ -4,8 +4,8 @@ import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTria
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
-import { formatDateChoiceList, formatDateLong, formatLocalDate, formatShortDate, formatShortDateList } from '../../lib/dateUtils';
-import { formatPhoneForWhatsApp, formatPhoneForCall } from '../../lib/contactUtils';
+import { formatDateChoiceList, formatLocalDate, formatShortDate, formatShortDateList, formatDisplayDate } from '../../lib/dateUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatPhoneDisplay } from '../../lib/contactUtils';
 import { STATUS_CONFIG } from '../../lib/statusConfig';
 import { useIsMobile, useIsSmallScreen } from '../../hooks/useScreenSize';
 import { useNowMinute } from '../../hooks/useNow';
@@ -277,12 +277,12 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 ? <><Send size={10} className={narrowHidden} />{formatShortDate(enrollment.invited_date)}</>
                 : <>{formatShortDate(enrollment.created_at)}<span className={narrowHidden}> · {getRelativeTime(enrollment.created_at).replace(/ ago$/, '')}</span></>;
     const dateTooltip = [
-        `Added ${formatDateLong(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
+        `Added ${formatDisplayDate(enrollment.created_at)} (${getRelativeTime(enrollment.created_at)})`,
         offeredDates
             ? `Invited — student picks one: ${formatDateChoiceList(offeredDates)}`
-            : enrollment.invited_date && `Invited ${formatDateLong(enrollment.invited_date)}`,
-        enrollment.confirmed_date && `Confirmed ${formatDateLong(enrollment.confirmed_date)}`,
-        enrollment.completed_date && `Completed ${formatDateLong(enrollment.completed_date)}`,
+            : enrollment.invited_date && `Invited ${formatDisplayDate(enrollment.invited_date)}`,
+        enrollment.confirmed_date && `Confirmed ${formatDisplayDate(enrollment.confirmed_date)}`,
+        enrollment.completed_date && `Completed ${formatDisplayDate(enrollment.completed_date)}`,
     ].filter(Boolean).join('\n');
 
     // "4 days · 10:00" next to the course; the whole schedule in the tooltip
@@ -549,12 +549,12 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         title="Click to call"
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{enrollment.students.phone}</span>
+                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </a>
                                 ) : (
                                     <span className="flex items-center gap-1 min-w-0 tabular-nums text-primary mr-1 @max-2xs:mr-0" title={enrollment.students.phone}>
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{enrollment.students.phone}</span>
+                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </span>
                                 )}
                                 {waUrl && (
@@ -662,7 +662,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs">
                     <Clock size={11} className="shrink-0" />
                     <span className="truncate">
-                        Completion requested for <strong>{formatDateLong(enrollment.pending_completion_date)}</strong>
+                        Completion requested for <strong>{formatDisplayDate(enrollment.pending_completion_date)}</strong>
                         {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
                     </span>
                 </div>
