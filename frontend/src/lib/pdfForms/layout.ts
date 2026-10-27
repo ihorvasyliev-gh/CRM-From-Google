@@ -48,6 +48,39 @@ function right(p: { x: number; w: number }) {
     return p.x + p.w;
 }
 
+/** One text item's run of characters inside a phrase */
+interface Part {
+    start: number;
+    x: number;
+    w: number;
+    text: string;
+}
+
+/**
+ * Some invoice software draws the commas of an address line on their own, over the space after
+ * each word ("Ballincollig Cork P31 HH76" + "," + ","). Put each back on the space nearest where
+ * it is drawn, guessed from its place along the item under it; one with no space left goes last.
+ */
+function placeCommas(phrase: Phrase, parts: Part[], commas: number[]): Phrase {
+    const at: number[] = [];
+    let tail = '';
+    for (const x of [...commas].sort((a, b) => a - b)) {
+        const part = parts.find(p => p.text.trim() && x > p.x && x < p.x + p.w);
+        let best = -1;
+        if (part) {
+            const guess = part.start + ((x - part.x) / part.w) * part.text.length;
+            for (let i = Math.max(part.start, (at[at.length - 1] ?? -1) + 1); i < part.start + part.text.length; i++) {
+                if (phrase.text[i] === ' ' && !/[,\s]/.test(phrase.text[i - 1] ?? ' ') && (best < 0 || Math.abs(i - guess) < Math.abs(best - guess))) best = i;
+            }
+        }
+        if (best < 0) tail += ',';
+        else at.push(best);
+    }
+    let text = phrase.text;
+    for (const i of [...at].reverse()) text = `${text.slice(0, i)},${text.slice(i)}`;
+    return { ...phrase, text: text + tail };
+}
+
 /** Merge text items on the same line into phrases; a gap wider than ~a word space splits them. */
 function buildPhrases(items: RawTextItem[]): Phrase[] {
     const sorted = [...items].sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x);
@@ -63,21 +96,31 @@ function buildPhrases(items: RawTextItem[]): Phrase[] {
     for (const line of lines) {
         line.sort((a, b) => a.x - b.x);
         let cur: Phrase | null = null;
+        let parts: Part[] = [];
+        let commas: number[] = [];
         for (const it of line) {
             const gap = cur ? it.x - right(cur) : Infinity;
             // A fill-in blank ("____/____") and the note after it are separate phrases
             const blankToText = cur && /[_—–]\s*$/.test(cur.text) && /^\s*[(\p{L}]/u.test(it.str);
             if (cur && !blankToText && gap <= Math.max(4, Math.min(cur.h, it.h) * 0.8)) {
+                if (it.str === ',' && parts.some(p => p.text.trim() && it.x > p.x && right(it) < right(p))) {
+                    commas.push(it.x);
+                    continue;
+                }
                 const joiner = gap > Math.min(cur.h, it.h) * 0.12 && !cur.text.endsWith(' ') && !it.str.startsWith(' ') ? ' ' : '';
-                cur.text += joiner + it.str;
+                cur.text += joiner;
+                parts.push({ start: cur.text.length, x: it.x, w: it.w, text: it.str });
+                cur.text += it.str;
                 cur.w = Math.max(right(cur), right(it)) - cur.x;
                 cur.h = Math.max(cur.h, it.h);
             } else {
-                if (cur) phrases.push(cur);
+                if (cur) phrases.push(placeCommas(cur, parts, commas));
                 cur = { page: it.page, x: it.x, y: it.y, w: it.w, h: it.h, text: it.str };
+                parts = [{ start: 0, x: it.x, w: it.w, text: it.str }];
+                commas = [];
             }
         }
-        if (cur) phrases.push(cur);
+        if (cur) phrases.push(placeCommas(cur, parts, commas));
     }
     return phrases
         .map(p => ({ ...p, text: p.text.replace(/\s+/g, ' ').replace(/\s+-\s+/g, '-').trim() }))

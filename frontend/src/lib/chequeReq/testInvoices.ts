@@ -177,8 +177,7 @@ export function letterheadInvoice(): Phrase[] {
     const letterhead = (page: number) => [
         ph(page, 28, 798.6, 'Grill Shack', 14.4),
         ph(page, 28, 785.9, 'Hearth Foods & Co, 12 Quayside Business Park, Ballybrack'),
-        // The commas are drawn over spaces, so they come out at the end
-        ph(page, 28, 776.9, 'Little Island Cork T45 XX12,,'),
+        ph(page, 28, 776.9, 'Little Island, Cork, T45 XX12'),
         ph(page, 28, 767.9, 'Ireland'),
         ph(page, 28, 755.1, 'Telephone: 0214000000'),
         ph(page, 28, 746.1, 'Mobile 0870000000'),
@@ -239,5 +238,59 @@ export function letterheadInvoice(): Phrase[] {
         ph(1, 28, 685.5, 'Deliver To:'),
         ...customer(1, 52, 9.8, [663, 653.3, 643.5, 633.8, 624, 614.3, 604.5]),
         ...footer(1),
+    ];
+}
+
+/**
+ * The same invoice software with the letterhead set flush right: the company and the name it
+ * trades under in big type, then the address in small type, each line ending at the margin
+ */
+export function rightLetterheadInvoice(): Phrase[] {
+    const right = (y: number, text: string, h = 9) => ph(0, 567 - text.length * h * 0.48, y, text, h);
+    const customer = (x: number) =>
+        ['Mary Murphy', 'Cork City Partnership', 'SICAP, Cork City Partnership', 'Heron House', 'Blackpool Retail Park, Blackpool', 'Cork'].map((text, i) => ph(0, x, [663, 653.3, 643.5, 633.8, 624, 614.3][i], text, 9.8));
+    return [
+        right(798.6, 'Larkfield Kitchens Ltd.', 14.4),
+        right(784.2, 'T/A Bramble Bites', 14.4),
+        right(771.5, 'Unit 4, Glenmore Business Park'),
+        right(762.5, 'Carrigaline, Cork, P43 XX99'),
+        right(753.5, 'Ireland'),
+        right(740.7, 'Website https://www.bramblebites.example'),
+        right(731.7, 'Telephone: 0210000000'),
+        right(722.7, 'Mobile 0870000001'),
+        right(713.7, 'Email hello@bramblebites.example'),
+        ph(0, 28, 686.6, 'Invoice To:', 11.7),
+        ph(0, 310, 686.6, 'Deliver To:', 11.7),
+        right(686.6, 'SALES INVOICE', 11.7),
+        ...customer(52),
+        ...customer(334),
+        ph(0, 28, 536.4, 'Invoice Date'),
+        ph(0, 165, 536.4, 'Due Date'),
+        ph(0, 281, 536.4, 'Reference'),
+        ph(0, 499, 536.4, 'Invoice Number'),
+        ph(0, 28, 527.7, '06/11/2026'),
+        ph(0, 165, 527.7, '06/12/2026'),
+        ph(0, 281, 527.7, 'PO – 9100'),
+        ph(0, 530, 527.7, 'SI-200'),
+        ph(0, 31, 504.2, 'Code'),
+        ph(0, 132, 504.2, 'Description'),
+        ph(0, 382, 504.2, 'Qty/Hrs'),
+        ph(0, 434, 504.2, 'Price/Rate'),
+        ph(0, 489, 504.2, 'VAT %'),
+        ph(0, 549, 504.2, 'Net'),
+        ph(0, 31, 489.5, 'PLATTER'),
+        ph(0, 132, 489.5, 'Sandwich Platter'),
+        ph(0, 394, 489.5, '7.00'),
+        ph(0, 451, 489.5, '40.00'),
+        ph(0, 496, 489.5, '0.00'),
+        ph(0, 536, 489.5, '280.00'),
+        ph(0, 413, 447.2, 'Total Net'),
+        ph(0, 532, 447.2, '280.00'),
+        ph(0, 409, 431.7, 'Total VAT'),
+        ph(0, 542, 431.7, '0.00'),
+        ph(0, 419, 418.7, 'TOTAL'),
+        ph(0, 524, 418.7, '€ 280.00'),
+        ph(0, 28, 53.6, 'Registered in Republic of Ireland No. 123457 , VAT Registration Number IE 7654321AB', 7.5),
+        ph(0, 28, 44.6, 'Registered Address Unit 4, Glenmore Business Park, Carrigaline, Cork, P43 XX99, Ireland', 7.5),
     ];
 }

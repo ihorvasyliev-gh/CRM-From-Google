@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractInvoice, joinAddress, numberedPeople } from './extract';
 import { docxPhrases } from './read';
-import { formInvoiceScan, letterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { formInvoiceScan, letterheadInvoice, rightLetterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 
 describe('extractInvoice: a Xero-style invoice over two pages', () => {
     const facts = extractInvoice(xeroLikeInvoice());
@@ -118,7 +118,7 @@ describe('extractInvoice: a letterhead, with the registration in the footer', ()
 
     it('takes the name printed big over the address, not the registration line', () => {
         expect(facts.supplier.name?.value).toBe('Grill Shack');
-        expect(facts.supplier.address?.value).toBe('Hearth Foods & Co, 12 Quayside Business Park, Ballybrack, Little Island Cork T45 XX12, Ireland');
+        expect(facts.supplier.address?.value).toBe('Hearth Foods & Co, 12 Quayside Business Park, Ballybrack, Little Island, Cork, T45 XX12, Ireland');
         expect(facts.supplier.phone).toBe('0214000000');
     });
 
@@ -134,6 +134,28 @@ describe('extractInvoice: a letterhead, with the registration in the footer', ()
         const noLetterhead = extractInvoice(letterheadInvoice().filter(p => p.y < 730));
         expect(noLetterhead.supplier.name).toBeUndefined();
         expect(noLetterhead.supplier.address?.value).toBe('12 Quayside Business Park, Ballybrack Little Island, Cork, Cork, T45XX12');
+    });
+});
+
+describe('extractInvoice: a letterhead set flush right', () => {
+    const facts = extractInvoice(rightLetterheadInvoice());
+
+    it('takes both big lines as the name and the small lines under them as the address', () => {
+        expect(facts.supplier.name).toMatchObject({ value: 'Larkfield Kitchens Ltd. T/A Bramble Bites', sure: true });
+        expect(facts.supplier.address?.value).toBe('Unit 4, Glenmore Business Park, Carrigaline, Cork, P43 XX99, Ireland');
+        expect(facts.supplier.phone).toBe('0210000000');
+        expect(facts.total?.value).toBe(280);
+        expect(facts.invoiceNumber?.value).toBe('SI-200');
+    });
+
+    it('joins a "T/A" line under the name to it', () => {
+        // Flush left, all in one size, the address on two lines
+        const left = rightLetterheadInvoice()
+            .filter(p => p.y > 760 || p.y < 700)
+            .map(p => (p.y > 760 ? { ...p, x: 28, h: 9 } : p));
+        const supplier = extractInvoice(left).supplier;
+        expect(supplier.name?.value).toBe('Larkfield Kitchens Ltd. T/A Bramble Bites');
+        expect(supplier.address?.value).toBe('Unit 4, Glenmore Business Park, Carrigaline, Cork, P43 XX99');
     });
 });
 
