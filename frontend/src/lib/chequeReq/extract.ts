@@ -156,7 +156,8 @@ const QTY_PRICE = /\b(\d{1,4})\s*(?:[a-z]+\s+){0,2}(?:(?:x|×)\s*(?:€|eur\s?)|
 
 interface ItemTable {
     header: TextLine;
-    descX: number;
+    /** Where the description column starts: back to the column before it, its header can be centred */
+    descLeft: number;
     descRight: number;
     columns: { x: number; right: number; kind: 'qty' | 'price' | 'other' }[];
 }
@@ -168,7 +169,9 @@ function findItemTable(lines: TextLine[], from: number): { table: ItemTable; ind
         const nums = line.phrases.filter(p => p !== desc && HEADER_NUM.test(p.text));
         if (!desc || nums.length === 0 || nums.some(n => n.x < desc.x)) continue;
         const columns = nums.map(n => ({ x: n.x, right: n.x + n.w, kind: PRICE_HEADER.test(n.text) ? 'price' as const : QTY_HEADER.test(n.text) ? 'qty' as const : 'other' as const }));
-        return { table: { header: line, descX: desc.x, descRight: Math.min(...nums.map(n => n.x)) - 2, columns }, index: i };
+        const before = line.phrases.filter(p => p.x + p.w <= desc.x);
+        const descLeft = before.length ? Math.min(desc.x - 12, Math.max(...before.map(p => p.x + p.w)) + 2) : -Infinity;
+        return { table: { header: line, descLeft, descRight: Math.min(...nums.map(n => n.x)) - 2, columns }, index: i };
     }
     return null;
 }
@@ -204,6 +207,28 @@ function repeatedLines(lines: TextLine[]): Set<string> {
     return new Set([...pagesByText].filter(([, pages]) => pages.size > 1).map(([k]) => k));
 }
 
+/** Where the text of a line in the description column starts and ends */
+interface Span {
+    left: number;
+    right: number;
+}
+
+function spanOf(phrases: Phrase[]): Span {
+    return { left: Math.min(...phrases.map(p => p.x)), right: Math.max(...phrases.map(p => p.x + p.w)) };
+}
+
+/**
+ * Whether a line of a description cell goes on with the sentence above it, wrapped: the line
+ * above reaches across the column and stops mid-sentence, and this one starts under it (or is
+ * centred under it, in a centred cell) with a word.
+ */
+function wrapsInCell(above: { text: string; span: Span; starts: number[] }, text: string, span: Span, column: Span, h: number): boolean {
+    const tolerance = Math.max(4, h * 0.6);
+    const reach = above.span.right - column.left >= (column.right - column.left) * 0.75;
+    const under = above.starts.some(x => Math.abs(span.left - x) <= tolerance) || Math.abs(span.left + span.right - above.span.left - above.span.right) / 2 <= tolerance;
+    return above.text.split(/\s+/).length >= 6 && !/[.:;!?)]\s*$/.test(above.text) && reach && under && /^\p{L}/u.test(text) && findDates(text).length === 0;
+}
+
 function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<TextLine> } {
     const items: InvoiceItem[] = [];
     const itemLines = new Set<TextLine>();
@@ -212,6 +237,11 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
     const repeated = repeatedLines(lines);
     let table = first.table;
     let current: InvoiceItem | null = null;
+    // The last line of description text, and how far the column's text reaches
+    let above: { line: TextLine; text: string; span: Span; starts: number[] } | null = null;
+    let column: Span | null = null;
+    const inColumn = (p: Phrase) => p.x < table.descRight && p.x >= table.descLeft;
+    const priced = (l: TextLine | undefined) => !!l && l.phrases.some(p => p.x >= table.descRight && findAmounts(p.text).length > 0);
     for (let i = first.index + 1; i < lines.length; i++) {
         const line = lines[i];
         if (repeated.has(squash(line.text))) continue;
@@ -224,7 +254,7 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
                 continue;
             }
         }
-        const desc = line.phrases.filter(p => p.x < table.descRight && p.x >= table.descX - 12);
+        const desc = line.phrases.filter(inColumn);
         const rest = line.phrases.filter(p => p.x >= table.descRight);
         // Totals start: a total label in the description column, or one alone on its line
         // (a tax column's "VAT 23%" on an item row is not one)
@@ -232,8 +262,15 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
         if (desc.some(isTotal) || (desc.length === 0 && rest.some(isTotal))) break;
         const amounts = rest.flatMap(p => findAmounts(p.text).map(a => ({ ...a, p })));
         const text = collapseSpaces(desc.map(p => p.text).join(' '));
+        const span = desc.length ? spanOf(desc) : null;
+        if (span) column = column ? { left: Math.min(column.left, span.left), right: Math.max(column.right, span.right) } : span;
         if (amounts.length > 0) {
-            const item: InvoiceItem = { description: text, details: [], amount: amounts[amounts.length - 1].value, source: line.phrases.map(rectOf) };
+            // A cell centred on its numbers: its text starts on the lines above them
+            const started = current && current.amount === undefined && current.details.length === 0 ? current : null;
+            const item: InvoiceItem = started ?? { description: '', details: [], source: [] };
+            item.description = collapseSpaces(`${item.description} ${text}`);
+            item.amount = amounts[amounts.length - 1].value;
+            item.source = [...(item.source ?? []), ...line.phrases.map(rectOf)];
             for (const p of rest) {
                 const n = plainNumber(p.text);
                 if (n === null) continue;
@@ -241,20 +278,27 @@ function readItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<Te
                 if (col?.kind === 'qty' && item.quantity === undefined) item.quantity = n;
                 else if (col?.kind === 'price' && item.unitPrice === undefined) item.unitPrice = n;
             }
-            items.push(item);
+            if (!started) items.push(item);
             current = item;
             itemLines.add(line);
-        } else if (text) {
-            if (!current) {
+        } else if (text && span) {
+            // The first line of the next centred cell: nearer the numbers under it than the line above
+            const next = lines[i + 1];
+            const startsNext = current?.amount !== undefined && above && priced(next) && next.page === line.page && above.line.y - line.y > (line.y - next.y) * 1.3;
+            if (!current || startsNext) {
                 current = { description: text, details: [], source: desc.map(rectOf) };
                 items.push(current);
             } else if (!current.description) {
                 current.description = text;
+            } else if (!current.details.length && above && column && wrapsInCell(above, text, span, column, line.h)) {
+                current.description += ` ${text}`;
+                current.source = [...(current.source ?? []), ...desc.map(rectOf)];
             } else {
                 current.details.push(text);
             }
             itemLines.add(line);
         }
+        if (text && span) above = { line, text, span, starts: desc.map(p => p.x) };
     }
     return { items, itemLines };
 }
@@ -419,9 +463,20 @@ function buildBlocks(lines: TextLine[]): Block[] {
             };
             const left = blocks.find(b => fits(b, 'left'));
             const block = left ?? blocks.find(b => fits(b, 'right'));
-            if (block) {
-                block.align = left ? 'left' : 'right';
+            if (block && left) {
+                block.align = 'left';
                 block.lines.push(p);
+            } else if (block) {
+                // Flush right, the line can start with more than this phrase: "F45 EV78,   085 18 19 400"
+                const from = Math.min(...block.lines.map(q => q.x)) - Math.max(3, p.h * 0.4);
+                const before: Phrase[] = [];
+                for (let k = line.phrases.indexOf(p) - 1; k >= 0; k--) {
+                    const q = line.phrases[k];
+                    if (q.x < from || (before[0] ?? p).x - (q.x + q.w) > p.h * 2) break;
+                    before.unshift(q);
+                }
+                block.align = 'right';
+                block.lines.push(before.length ? { ...before[0], w: p.x + p.w - before[0].x, h: p.h, text: [...before, p].map(q => q.text).join(' ') } : p);
             } else {
                 blocks.push({ x: p.x, lines: [p] });
             }
@@ -450,6 +505,7 @@ function splitNameAndAddress(texts: string[], titleLines: number): { name: strin
         !/\d/.test(next) &&
         !ADDRESS_HINT.test(next) &&
         !IDENTIFIER_LINE.test(next) &&
+        !/,\s*$/.test(next) &&
         !(isAllCaps(next) && !isAllCaps(texts[0])) &&
         next.split(/\s+/).length <= 5 &&
         (/(?:&|\band|,|-|\bof)\s*$/i.test(texts[0]) || /^[a-z&]/.test(next) || (texts.length >= 5 && /^[A-Z]/.test(next)))
@@ -461,6 +517,12 @@ function splitNameAndAddress(texts: string[], titleLines: number): { name: strin
     for (; i < texts.length && address.length < 7; i++) {
         const t = texts[i];
         if (IDENTIFIER_LINE.test(t) || ADDRESS_STOP.test(t) || findAmounts(t).length > 0 || parseDate(t) || /^\+?[\d\s()-]{7,}$/.test(t)) break;
+        // "F45 EV78,   085 18 19 400": the address ends with the phone number after it
+        const phone = /\s\+?\(?\d[\d\s()-]{6,}$/.exec(t);
+        if (phone && /\p{L}/u.test(t.slice(0, phone.index))) {
+            address.push(t.slice(0, phone.index));
+            break;
+        }
         address.push(t);
     }
     return { name: collapseSpaces(name.join(' ')).replace(/[,:]$/, ''), nameLines: name.length, address };
@@ -614,7 +676,7 @@ function titleAbove(lines: TextLine[], top: Phrase): Phrase[] {
     return titles;
 }
 
-function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
+function readSupplier(textLines: TextLine[], allText: string, itemLines: Set<TextLine>): SupplierFacts {
     const supplier: SupplierFacts = {};
     const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
     const payable = payableTo(lines);
@@ -624,6 +686,10 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     const sites = [...allText.matchAll(WEBSITE_RE)].map(m => m[0]).filter(s => !OUR_ORGANISATION.test(s) && !/partnership/i.test(s));
     supplier.website = sites[0];
     const domains = [...emails, ...sites].map(domainWord).filter((d): d is string => !!d);
+    // A free mail address named after the business: "eventexpert.ie@gmail.com"
+    const mailboxes = emails.filter(e => !domainWord(e)).map(e => squash(e.split('@')[0]));
+    const names = (t: string) => domains.some(d => squash(t).includes(d)) || (squash(t).length >= 5 && mailboxes.some(m => m.includes(squash(t))));
+    const itemPhrases = new Set([...itemLines].flatMap(l => l.phrases));
 
     const phones = lines.filter(l => PHONE_LABEL.test(l.text) && !OUR_ORGANISATION.test(l.text)).flatMap(l => l.text.match(PHONE_RE) ?? []);
     supplier.phone = phones[0];
@@ -644,8 +710,10 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     const pageTop = new Map<number, number>();
     for (const l of lines) pageTop.set(l.page, Math.max(pageTop.get(l.page) ?? -Infinity, l.y));
     for (const block of buildBlocks(lines)) {
-        let blockLines = block.lines;
-        if (blockLines.some(p => OUR_ORGANISATION.test(p.text))) continue;
+        // The lines of the items table describe what was bought, not who sold it
+        const firstItem = block.lines.findIndex(p => itemPhrases.has(p));
+        let blockLines = firstItem < 0 ? block.lines : block.lines.slice(0, firstItem);
+        if (!blockLines.length || blockLines.some(p => OUR_ORGANISATION.test(p.text))) continue;
         while (blockLines.length > 1 && HEADING.test(blockLines[0].text)) blockLines = blockLines.slice(1);
         if (CUSTOMER_LABEL.test(blockLines[0].text)) continue;
         let labelSure = false;
@@ -683,7 +751,7 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
         if (texts.length >= 2) score += 1;
         if (texts.slice(1).some(t => ADDRESS_HINT.test(t))) score += 2;
         if (texts.some(t => VAT_NUMBER.test(t))) score += 2;
-        if (domains.some(d => texts.slice(0, 2).some(t => squash(t).includes(d)))) score += 3;
+        if (texts.slice(0, 2).some(names)) score += 3;
         if (SUPPLIER_LABEL.test(label) || adviceTo || (payable && squash(first) === squash(payable.value))) labelSure = true;
         if (labelSure) score += 3;
         if (top.page === 0 && (pageTop.get(0) ?? 0) - top.y < 140) score += 1;
@@ -694,7 +762,7 @@ function readSupplier(textLines: TextLine[], allText: string): SupplierFacts {
     if (bestBlock && bestBlock.score >= 3) {
         const texts = bestBlock.lines.map(p => p.text);
         const { name, nameLines, address } = splitNameAndAddress(texts, bestBlock.titleLines);
-        const domainMatch = domains.some(d => squash(name).includes(d));
+        const domainMatch = names(name);
         const sure = bestBlock.labelSure || (domainMatch && bestBlock.score >= 6);
         supplier.name = { value: name, sure, source: bestBlock.lines.slice(0, nameLines).map(rectOf), from: texts.slice(0, nameLines).join(' / ') };
         if (address.length > 0) {
@@ -781,7 +849,15 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     const facts: InvoiceFacts = { hasText: allText.replace(/\s/g, '').length > 20, supplier: {}, items: [], people: [], mentionsSicap: /\bsicap\b/i.test(allText) };
     if (!facts.hasText) return facts;
 
-    const invoiceNumber = best(labelled(lines, INVOICE_NO, referenceToken));
+    // "INVOICE   8657" in a box of labels and values (QuickBooks): the word alone, the number beside it
+    const besideWord = lines.flatMap(l =>
+        l.phrases.flatMap((p, i) => {
+            const next = l.phrases[i + 1];
+            const value = /^\s*invoice\s*$/i.test(p.text) && next && next.x - (p.x + p.w) <= 160 ? referenceToken(next.text) : null;
+            return value ? [{ value, score: 1.5, rects: [rectOf(p), rectOf(next)], from: `${p.text} ${next.text}` }] : [];
+        }),
+    );
+    const invoiceNumber = best(labelled(lines, INVOICE_NO, referenceToken)) ?? best(besideWord);
     if (invoiceNumber) facts.invoiceNumber = invoiceNumber;
     else {
         const m = /\b(INV[-\s]?\d+[A-Z0-9-]*)\b/i.exec(allText);
@@ -802,6 +878,18 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     if (orders.length > 1) {
         facts.poNumbers = orders.map(c => c.value);
         facts.poNumber = { value: facts.poNumbers.join(', '), sure: true, source: orders.flatMap(c => c.rects), from: orders.map(c => c.from).join(' · ') };
+    }
+
+    // "Booked by Ihor 6794.": the order number the partnership gave, after who booked it
+    if (!facts.poNumber) {
+        for (const l of lines) {
+            const m = /\b(?:[Bb]ooked|[Oo]rdered|[Rr]equested)\s+(?:by\s+)?(?:\p{Lu}[\p{L}'’-]*\s+){1,3}(\d{4,6})\b(?![.,/:]\d)/u.exec(l.text);
+            // "Booked by March 2026" is a month
+            if (m && m[1] !== facts.invoiceNumber?.value && !/\b(?:jan(?:uary)?|feb(?:ruary)?|march|april|may|june|july|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d+$/i.test(m[0])) {
+                facts.poNumber = { value: m[1], sure: false, source: l.phrases.map(rectOf), from: m[0] };
+                break;
+            }
+        }
     }
 
     const table = readItems(lines);
@@ -830,7 +918,7 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
         facts.total = { value: sum, sure: false, from: 'the sum of the lines' };
     }
 
-    facts.supplier = readSupplier(lines, allText);
+    facts.supplier = readSupplier(lines, allText, table.items.length ? table.itemLines : new Set());
 
     facts.people = numberedPeople(facts.items.flatMap(i => i.details));
     for (const item of facts.items) {

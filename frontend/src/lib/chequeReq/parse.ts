@@ -182,8 +182,8 @@ export function slashDate(isoDate: string): string {
 export function referenceToken(text: string): string | null {
     const token = text.trim().replace(/^[:#.\s-]+/, '').split(/\s+/)[0]?.replace(/[.,;:]+$/, '') ?? '';
     if (!token || token.length > 30 || !/\d/.test(token) || !/^[A-Z0-9][A-Z0-9\-/._]*$/i.test(token)) return null;
-    // A date or an amount is not a reference
-    if (findDates(token).length > 0 || /^\d{1,3}(,\d{3})*\.\d{2}$/.test(token)) return null;
+    // A date or an amount is not a reference ("2025-08-1-1" only starts like a date)
+    if (findDates(token).some(d => d.index === 0 && !/[A-Z0-9]/i.test(token.slice(d.end))) || /^\d{1,3}(,\d{3})*\.\d{2}$/.test(token)) return null;
     return token;
 }
 

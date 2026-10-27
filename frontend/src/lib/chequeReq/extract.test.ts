@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { extractInvoice, joinAddress, numberedPeople } from './extract';
 import { docxPhrases } from './read';
-import { formInvoiceScan, letterheadInvoice, rightLetterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
+import { centredCellInvoice, formInvoiceScan, letterheadInvoice, quickbooksLikeInvoice, rightLetterheadInvoice, simpleVatInvoice, xeroLikeInvoice } from './testInvoices';
 
 describe('extractInvoice: a Xero-style invoice over two pages', () => {
     const facts = extractInvoice(xeroLikeInvoice());
@@ -156,6 +156,49 @@ describe('extractInvoice: a letterhead set flush right', () => {
         const supplier = extractInvoice(left).supplier;
         expect(supplier.name?.value).toBe('Larkfield Kitchens Ltd. T/A Bramble Bites');
         expect(supplier.address?.value).toBe('Unit 4, Glenmore Business Park, Carrigaline, Cork, P43 XX99');
+    });
+});
+
+describe('extractInvoice: an items table with centred cells', () => {
+    const facts = extractInvoice(centredCellInvoice());
+
+    it('reads each cell whole, from the lines above its numbers to the lines under them', () => {
+        expect(facts.items.map(i => [i.description, i.quantity, i.amount])).toEqual([
+            ['Hire of a PA system and stage lighting with delivery and set up for the summer festival at the City Hall. Booked by Mary 6123.', 1, 400],
+            ['Hire of two radio microphones for the community awards night, with a technician on site.', 1, 150],
+        ]);
+        expect(facts.total).toMatchObject({ value: 550, sure: true });
+    });
+
+    it('takes the order number after who booked it, and an invoice number that starts like a date', () => {
+        expect(facts.poNumber).toMatchObject({ value: '6123', sure: false });
+        expect(facts.invoiceNumber?.value).toBe('2026-03-1-1');
+        const inMarch = centredCellInvoice().map(p => ({ ...p, text: p.text.replace('Booked by Mary 6123.', 'Booked by March 2026.') }));
+        expect(extractInvoice(inMarch).poNumber).toBeUndefined();
+    });
+
+    it('takes the supplier from the sign-off set flush right, never from the items', () => {
+        expect(facts.supplier.name).toMatchObject({ value: 'BRIGHT SOUND', sure: true });
+        expect(facts.supplier.address?.value).toBe('Coolnagarrane, Ballyvourney, Macroom, Co. Cork, P12 XX00');
+    });
+});
+
+describe('extractInvoice: laid out like QuickBooks', () => {
+    const facts = extractInvoice(quickbooksLikeInvoice());
+
+    it('joins the wrapped lines of the description', () => {
+        expect(facts.items).toHaveLength(1);
+        expect(facts.items[0]).toMatchObject({
+            description: 'Services Ref 12 Hire of a 30 seater bus from Main Street to the Community Garden in Ballincollig and return. Booked Mary Murphy PO 9123',
+            details: [],
+            amount: 300,
+        });
+        expect(facts.poNumber).toMatchObject({ value: '9123', sure: true });
+    });
+
+    it('takes the invoice number beside the word "INVOICE", as a guess', () => {
+        expect(facts.invoiceNumber).toMatchObject({ value: '1234', sure: false });
+        expect(facts.supplier.name?.value).toBe('Murphy Coaches Ltd');
     });
 });
 
