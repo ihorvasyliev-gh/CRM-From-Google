@@ -28,7 +28,7 @@ describe('PublicChequeRequisitions', () => {
         render(<PublicChequeRequisitions />);
         expect(screen.getByText('SICAP cheque requisition')).toBeInTheDocument();
         expect(screen.getByText(/click here to choose the invoice/)).toBeInTheDocument();
-        expect(screen.getByText(/Nothing is saved/)).toBeInTheDocument();
+        expect(screen.getByText('Nothing you add here is saved anywhere.')).toBeInTheDocument();
         expect(screen.queryByText('Made before')).not.toBeInTheDocument();
         expect(document.title).toBe('Cheque requisition · Cork City Partnership');
     });

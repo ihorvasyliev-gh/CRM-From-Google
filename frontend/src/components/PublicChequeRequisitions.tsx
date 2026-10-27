@@ -88,10 +88,7 @@ export default function PublicChequeRequisitions() {
 
                             <div className={`${calloutCls.info} text-sm p-3 flex items-start gap-2.5`}>
                                 <ShieldCheck size={16} className="shrink-0 mt-0.5 text-status-invited" aria-hidden="true" />
-                                <p className="leading-relaxed">
-                                    Nothing is saved: when you leave or reload this page the requisition is gone, so keep the file you download.
-                                    Payments to a supplier over the year are not added up here: from €5,000 a year (excl. VAT) to one supplier, three quotations are needed.
-                                </p>
+                                <p className="leading-relaxed">Nothing you add here is saved anywhere.</p>
                             </div>
                         </div>
                     )}

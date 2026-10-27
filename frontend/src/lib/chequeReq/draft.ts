@@ -105,7 +105,10 @@ export function descriptionPattern(description: string, item: string, serviceDat
 
 /** `days`: a course run on separate days, all of them listed */
 export function buildDescription(item: string, serviceDate: string, pattern: string | null, days: string[] = []): string {
-    const date = days.length > 1 ? days.map(dottedDate).join(', ') : serviceDate ? dottedDate(serviceDate) : '';
+    // A date the invoice line already gives ("Manual Handling course 14.10.2026") is not added again
+    const named = new Set(findDates(item).map(d => d.iso));
+    const dates = (days.length > 1 ? days : serviceDate ? [serviceDate] : []).filter(d => !named.has(d));
+    const date = dates.map(dottedDate).join(', ');
     if (pattern && item) {
         return collapseSpaces(pattern.replace('{item}', item).replace('{date}', date)).replace(/\s+([,.;])/g, '$1');
     }
