@@ -163,6 +163,27 @@ describe('FilterBar Component - Date Filter', () => {
         expect(within(screen.getByRole('dialog')).getByText('Course date')).toBeInTheDocument();
     });
 
+    it('draws a range calendar over the filter sheet, so the sheet\'s scrolling body can\'t clip it', () => {
+        render(<FilterBar {...defaultProps} />);
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
+        const sheet = screen.getByRole('dialog', { name: 'Filters' });
+        const courseFrom = () => within(sheet).getAllByRole('button', { name: /^From:/ })[1];
+
+        fireEvent.click(courseFrom());
+        expect(courseFrom()).toHaveAttribute('aria-expanded', 'true');
+        expect(sheet).not.toContainElement(screen.getByRole('dialog', { name: 'From date' }));
+
+        // Escape closes the calendar and leaves the sheet open
+        fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+        expect(screen.queryByRole('dialog', { name: 'From date' })).not.toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+
+        fireEvent.click(courseFrom());
+        fireEvent.click(within(screen.getByRole('dialog', { name: 'From date' })).getByRole('button', { name: '15' }));
+        expect(mockSetCourseDateFrom).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-15T00:00$/));
+        expect(screen.queryByRole('dialog', { name: 'From date' })).not.toBeInTheDocument();
+    });
+
     it('shows every course as a chip on a larger screen, picked in one click, and the chosen course\'s dates once one is chosen', () => {
         const courses = [{ id: 'course-2', name: 'Barista Skills' }, { id: 'course-1', name: 'Patient moving and handling' }];
         const { rerender } = render(<FilterBar {...defaultProps} uniqueCourses={courses} selectedCourse="all" />);
