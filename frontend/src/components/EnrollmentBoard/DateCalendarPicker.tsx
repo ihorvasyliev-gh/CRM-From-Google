@@ -1,6 +1,12 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+
+const POPOVER_WIDTH = 288;
+/** Gap between the field and the calendar, and the least room kept to the window's edges */
+const GAP = 6;
+const EDGE = 8;
 
 interface DateCalendarPickerProps {
     label: string;
@@ -26,7 +32,10 @@ export default function DateCalendarPicker({
     dateField = 'created_at',
 }: DateCalendarPickerProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const popRef = useRef<HTMLDivElement>(null);
 
     // Parse current value
     const selectedDate = useMemo(() => {
@@ -50,16 +59,60 @@ export default function DateCalendarPicker({
         }
     }, [isOpen, selectedDate]);
 
-    // Handle outside clicks to close the dropdown
+    /**
+     * The calendar is portaled and fixed to the window, so a dialog's scrolling body (the Filters
+     * sheet) can't clip it. It goes under the field, or above it when there is more room there,
+     * and is kept inside the window.
+     */
+    function place() {
+        if (!containerRef.current) return;
+        const r = containerRef.current.getBoundingClientRect();
+        const width = Math.min(POPOVER_WIDTH, window.innerWidth - 2 * EDGE);
+        const maxHeight = window.innerHeight - 2 * EDGE;
+        const h = Math.min(popRef.current?.offsetHeight ?? 330, maxHeight);
+        const roomBelow = window.innerHeight - r.bottom - GAP - EDGE;
+        const roomAbove = r.top - GAP - EDGE;
+        const top = h <= roomBelow || roomBelow >= roomAbove ? r.bottom + GAP : r.top - GAP - h;
+        setPos({
+            top: Math.max(EDGE, Math.min(top, window.innerHeight - EDGE - h)),
+            left: Math.max(EDGE, Math.min(r.left, window.innerWidth - EDGE - width)),
+            width,
+            maxHeight,
+        });
+    }
+
+    useLayoutEffect(() => {
+        if (isOpen) place();
+    }, [isOpen]);
+
+    // Close on a click elsewhere, a scroll behind it or Escape (which leaves the dialog under it
+    // open); follow the field when the window resizes
     useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        if (!isOpen) return;
+        const onDown = (e: MouseEvent) => {
+            const t = e.target as Node;
+            if (!popRef.current?.contains(t) && !containerRef.current?.contains(t)) setIsOpen(false);
+        };
+        const onScroll = (e: Event) => {
+            if (!popRef.current?.contains(e.target as Node)) setIsOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault(); // tells useModalBehavior to leave the dialog open
+            setIsOpen(false);
+            triggerRef.current?.focus();
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', place);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('keydown', onKey, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', place);
+        };
+    }, [isOpen]);
 
     // Format value for input display e.g., DD/MM/YYYY
     const displayValue = useMemo(() => {
@@ -210,8 +263,7 @@ export default function DateCalendarPicker({
         setIsOpen(false);
     };
 
-    const handleClear = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleClear = () => {
         onChange('');
         setIsOpen(false);
     };
@@ -232,32 +284,49 @@ export default function DateCalendarPicker({
     return (
         <div ref={containerRef} className="relative inline-block w-full sm:w-auto">
             {/* Input Trigger Button */}
-            <div
+            <button
+                ref={triggerRef}
+                type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center justify-between gap-2 px-3 py-1.5 md:py-2 bg-surface-elevated border hover:border-brand-500 dark:hover:border-brand-400 rounded-xl text-xs cursor-pointer transition-all ${
+                aria-haspopup="dialog"
+                aria-expanded={isOpen}
+                aria-label={`${label}: ${displayValue || placeholder}`}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 md:py-2 bg-surface-elevated border hover:border-brand-500 dark:hover:border-brand-400 rounded-xl text-xs text-left cursor-pointer transition-all ${
                     isOpen ? 'border-brand-500 shadow-xs' : 'border-border-subtle'
                 } ${value ? 'text-primary border-border-strong font-medium' : 'text-muted'}`}
             >
-                <div className="flex items-center gap-1.5 min-w-0">
+                <span className="flex items-center gap-1.5 min-w-0">
                     <Calendar size={13} className="text-muted shrink-0" />
                     <span className="truncate">{displayValue || placeholder}</span>
-                </div>
+                </span>
+                {/* With a date set, room for the clear button laid over the field */}
                 {value ? (
-                    <button
-                        onClick={handleClear}
-                        className="p-0.5 hover:bg-border-strong rounded-full transition-colors text-muted hover:text-primary"
-                        title={`Clear ${label.toLowerCase()}`}
-                    >
-                        <X size={12} />
-                    </button>
+                    <span aria-hidden className="w-4 shrink-0" />
                 ) : (
                     <span className="text-xs uppercase font-semibold text-muted px-1">{label}</span>
                 )}
-            </div>
+            </button>
+            {value && (
+                <button
+                    type="button"
+                    onClick={handleClear}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-border-strong rounded-full transition-colors text-muted hover:text-primary"
+                    title={`Clear ${label.toLowerCase()}`}
+                    aria-label={`Clear ${label.toLowerCase()} date`}
+                >
+                    <X size={12} />
+                </button>
+            )}
 
             {/* Dropdown Popover */}
-            {isOpen && (
-                <div className="absolute left-0 mt-1.5 z-50 w-72 bg-surface border border-border-subtle rounded-2xl shadow-float p-3 select-none animate-slideDown">
+            {isOpen && createPortal(
+                <div
+                    ref={popRef}
+                    role="dialog"
+                    aria-label={`${label} date`}
+                    style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? 0, width: pos?.width ?? POPOVER_WIDTH, maxHeight: pos?.maxHeight }}
+                    className="z-300 overflow-y-auto overscroll-contain bg-surface border border-border-subtle rounded-2xl shadow-float p-3 select-none animate-scaleIn"
+                >
                     {/* Calendar Header */}
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-primary pl-1">
@@ -265,13 +334,17 @@ export default function DateCalendarPicker({
                         </span>
                         <div className="flex items-center gap-0.5">
                             <button
+                                type="button"
                                 onClick={handlePrevMonth}
+                                aria-label="Previous month"
                                 className="p-1 hover:bg-border-strong text-muted hover:text-primary rounded-lg transition-colors"
                             >
                                 <ChevronLeft size={14} />
                             </button>
                             <button
+                                type="button"
                                 onClick={handleNextMonth}
+                                aria-label="Next month"
                                 className="p-1 hover:bg-border-strong text-muted hover:text-primary rounded-lg transition-colors"
                             >
                                 <ChevronRight size={14} />
@@ -310,9 +383,12 @@ export default function DateCalendarPicker({
                             }
 
                             return (
-                                <div
+                                <button
                                     key={index}
-                                    onClick={() => isClickable && handleSelectDay(dayObj)}
+                                    type="button"
+                                    disabled={!isClickable}
+                                    aria-pressed={dayObj.isSelected}
+                                    onClick={() => handleSelectDay(dayObj)}
                                     className={btnClass}
                                     title={
                                         dayObj.hasEnrollments
@@ -339,11 +415,12 @@ export default function DateCalendarPicker({
                                             {dayObj.enrollmentCount}
                                         </span>
                                     )}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
         </div>
     );
