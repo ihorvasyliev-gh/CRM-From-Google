@@ -1,9 +1,10 @@
-import { useMemo, useState, useEffect, useDeferredValue, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, useRef, useDeferredValue, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, UserPlus, BookOpen, KanbanSquare, Clock, RefreshCw, ArrowRight, type LucideIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchDashboardStats, type DashboardStats } from '../lib/queries';
 import { useEnrollmentList, type EnrollmentRow } from '../hooks/useEnrollments';
+import { ENROLLMENTS_KEY, syncCachedEnrollments } from '../lib/enrollmentCache';
 import DashboardKPIs, { type KpiHint, type KpiKey } from './Dashboard/DashboardKPIs';
 import PublicLinksCard from './Dashboard/PublicLinksCard';
 import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
@@ -217,6 +218,21 @@ export default function Dashboard({
         }
         return counts;
     }, [allEnrollments, complete, stats.byStatus]);
+
+    // The loaded list holding fewer enrollments than the database counts (rows it missed, in a
+    // tab left open): checked against the database once per gap, and reloaded if really short,
+    // so the numbers above don't quietly drop by hundreds
+    const checkedGapRef = useRef('');
+    useEffect(() => {
+        if (!complete || enrollmentsFetching || statsFetching || !stats.enrollments) return;
+        if (allEnrollments.length >= stats.enrollments) return;
+        const gap = `${allEnrollments.length}/${stats.enrollments}`;
+        if (checkedGapRef.current === gap) return;
+        checkedGapRef.current = gap;
+        void syncCachedEnrollments(queryClient).then(synced => {
+            if (!synced) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY, exact: true });
+        });
+    }, [complete, enrollmentsFetching, statsFetching, stats.enrollments, allEnrollments.length, queryClient]);
 
     const expiredInvites = useMemo(() => calculateExpiredInvites(allEnrollments), [allEnrollments]);
     const upcomingCohorts = useMemo(() => groupUpcomingCohorts(allEnrollments), [allEnrollments]);
