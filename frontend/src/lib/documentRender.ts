@@ -419,6 +419,33 @@ function toCombinedTemplate(libs: DocxLibs, template: ArrayBuffer): PizZipInstan
     return zip;
 }
 
+// ─── Any template, filled with what was typed (the public certificates page) ───
+
+/**
+ * The tags a template uses ({firstName}, {tutor}), in the order they first appear. The inside of
+ * a loop or condition is left out. Throws on a template that cannot be filled (an unclosed tag).
+ */
+export async function templateTags(template: ArrayBuffer): Promise<string[]> {
+    const libs = await loadDocxLibs();
+    const tags = new Set<string>();
+    createDoc(libs, template, tags).render({});
+    return [...tags];
+}
+
+/** One filled copy of a template. A tag with no value prints blank. */
+export async function fillTemplate(template: ArrayBuffer, data: Record<string, string>): Promise<ArrayBuffer> {
+    const libs = await loadDocxLibs();
+    return renderDoc(createDoc(libs, template), data);
+}
+
+/** Every person's copy in one file, a page break between them. */
+export async function fillTemplateForAll(template: ArrayBuffer, people: Record<string, string>[]): Promise<ArrayBuffer> {
+    const libs = await loadDocxLibs();
+    // Loops copy pictures, so give every copy its own drawing id (Word rejects duplicates)
+    const doc = createDoc(libs, toCombinedTemplate(libs, template), undefined, [libs.fixDocPrCorruption]);
+    return renderDoc(doc, { __people: people.map((p, i) => ({ ...p, __last: i === people.length - 1 })) });
+}
+
 export type TemplateKind = 'document' | 'attendance' | 'labels';
 
 export interface TemplateCheck {

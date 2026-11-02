@@ -189,6 +189,9 @@ Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requ
 
 The invoice is read in the browser and never uploaded; the OCR engine and its English model ship with the app (the CSP allows WebAssembly with `'wasm-unsafe-eval'`).
 
+### 🎓 Certificates without signing in
+`/certificates` is open to anyone with the link. Choose a Word template with `{placeholders}` (`{firstName} {lastName}`, `{courseDate}`, `{tutor}` …): each one becomes a box. Names are typed for each person (or pasted as a list, straight from Excel), the rest is typed once for everyone, and any field can be switched to "each person". A preview shows the certificate as the PDF will look; downloads are Word (the template filled in) or PDF, everyone in one file or a file each in a ZIP. The PDF is drawn in the browser (docx-preview, with pictures anchored to the page put in their places) with the fonts on the device. Nothing is uploaded or saved, and the page makes no database calls.
+
 </td>
 </tr>
 </table>
@@ -265,7 +268,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | 🧾 **PDF Forms** | PDF Forms | Set up PDF form templates (forms, new revisions, column links) and fill them |
 
 > [!NOTE]
-> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else. The public cheque requisition page (`/cheque`) makes no database calls at all.
+> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else. The public cheque requisition and certificates pages (`/cheque`, `/certificates`) make no database calls at all.
 
 ---
 

@@ -12,6 +12,10 @@
 /cheque
   X-Robots-Tag: noindex, nofollow
 
+# The public certificates page: open to anyone with the link, kept out of search engines
+/certificates
+  X-Robots-Tag: noindex, nofollow
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 

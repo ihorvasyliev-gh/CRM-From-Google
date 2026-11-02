@@ -22,6 +22,8 @@ const ConfirmationPage = lazyWithRetry(() => import('./components/ConfirmationPa
 const StatusUpdatePage = lazyWithRetry(() => import('./components/StatusUpdatePage'))
 // Cheque requisitions without signing in: made and downloaded in the browser, nothing kept
 const PublicChequeRequisitions = lazyWithRetry(() => import('./components/PublicChequeRequisitions'))
+// Certificates from any Word template without signing in: filled in the browser, nothing kept
+const PublicCertificates = lazyWithRetry(() => import('./components/PublicCertificates'))
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -51,6 +53,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         <Route path="/c/:token" element={<Suspense fallback={<PublicPageFallback />}><ConfirmationPage /></Suspense>} />
                         <Route path="/status" element={<Suspense fallback={<PublicPageFallback />}><StatusUpdatePage /></Suspense>} />
                         <Route path="/cheque" element={<Suspense fallback={<PublicPageFallback />}><PublicChequeRequisitions /></Suspense>} />
+                        <Route path="/certificates" element={<Suspense fallback={<PublicPageFallback />}><PublicCertificates /></Suspense>} />
                         <Route path="/*" element={
                             <Suspense fallback={<AppFallback />}>
                                 <AuthProvider>
