@@ -57,6 +57,8 @@ vi.mock('../lib/supabase', () => ({
     },
 }));
 
+const listReads = vi.hoisted(() => ({ count: 0 }));
+
 const futureCohortDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
 vi.mock('../hooks/useEnrollments', async () => {
@@ -95,7 +97,7 @@ vi.mock('../hooks/useEnrollments', async () => {
     ];
     return {
         useEnrollmentList: () => {
-            const query = useQuery({ queryKey: ['enrollments'], queryFn: async () => rows });
+            const query = useQuery({ queryKey: ['enrollments'], queryFn: async () => { listReads.count++; return rows; } });
             return { ...query, complete: query.data !== undefined };
         },
     };
@@ -117,6 +119,16 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
             </QueryClientProvider>
         );
     };
+
+    it('reloads the list once when it holds fewer enrollments than the database counts', async () => {
+        // The count mock says 5, the list has 3
+        listReads.count = 0;
+        renderDashboard();
+        await waitFor(() => expect(listReads.count).toBe(2));
+        // Still 3 after the reload: not read again and again
+        await new Promise(resolve => setTimeout(resolve, 50));
+        expect(listReads.count).toBe(2);
+    });
 
     it('allows clicking student name in activity feed to view student details', async () => {
         const mockOpenDetail = vi.fn();

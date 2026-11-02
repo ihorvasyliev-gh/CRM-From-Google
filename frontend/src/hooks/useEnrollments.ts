@@ -56,6 +56,24 @@ export function readAllEnrollments(): Promise<EnrollmentRow[]> {
     return readEnrollments();
 }
 
+/** How many enrollments the database holds; null when it can't say. */
+async function countEnrollments(): Promise<number | null> {
+    try {
+        const { count, error } = await supabase.from('enrollments').select('id', { count: 'exact', head: true });
+        return error || typeof count !== 'number' ? null : count;
+    } catch {
+        return null;
+    }
+}
+
+/** The list read has fewer enrollments than the database counts. */
+export class IncompleteEnrollmentListError extends Error {
+    constructor(readonly loaded: number, readonly total: number) {
+        super(`Loaded ${loaded} of ${total} enrollments`);
+        this.name = 'IncompleteEnrollmentListError';
+    }
+}
+
 /**
  * The query function of the cached ['enrollments'] list. The first load comes in two parts: the
  * current enrollments (about a sixth of them) are shown as soon as they arrive, so the board and
@@ -63,6 +81,10 @@ export function readAllEnrollments(): Promise<EnrollmentRow[]> {
  */
 export async function fetchAllEnrollments(context?: { client?: QueryClient }): Promise<EnrollmentRow[]> {
     const client = context?.client;
+    // Counted alongside the read: a page can come back short or empty without an error (one sent
+    // while the sign-in was being renewed reads no rows), which once left the dashboard showing
+    // 838 requests out of 1400+ and a course date with half its confirmed people
+    const counted = countEnrollments();
     let rows: EnrollmentRow[];
     if (client && !client.getQueryData(ENROLLMENTS_KEY)) {
         const since = new Date(Date.now() - RECENT_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
@@ -78,6 +100,15 @@ export async function fetchAllEnrollments(context?: { client?: QueryClient }): P
         rows = withHistory(client.getQueryData<EnrollmentRow[]>(ENROLLMENTS_KEY) ?? current, history);
     } else {
         rows = await readEnrollments();
+    }
+    const total = await counted;
+    if (total !== null && rows.length < total) {
+        // Read once more, whole; still short, it fails (and is retried) rather than show too few:
+        // the list already cached stays, and on a first load the dashboard keeps the database's counts
+        console.warn(`[enrollments] Loaded ${rows.length} of ${total} enrollments, reading them again`);
+        const [again, recount] = await Promise.all([readEnrollments(), countEnrollments()]);
+        if (recount !== null && again.length < recount) throw new IncompleteEnrollmentListError(again.length, recount);
+        rows = again;
     }
     // Later catch-ups (after a dropped realtime channel) read only what changed after this load
     noteFullLoad(rows);

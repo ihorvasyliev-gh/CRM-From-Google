@@ -94,13 +94,14 @@ describe('fetchAllEnrollments', () => {
         let callCount = 0;
         (supabase.from as ReturnType<typeof vi.fn>).mockImplementation(() => {
             callCount++;
-            return callCount === 1 ? chain1 : chain2;
+            // The first call is the count (a chain that answers no count: not checked)
+            return callCount <= 2 ? chain1 : chain2;
         });
 
         const result = await fetchAllEnrollments();
         expect(result).toHaveLength(1005);
-        // The first page alone, then the next pages three at a time (the ones after the short page are ignored)
-        expect(supabase.from).toHaveBeenCalledTimes(4);
+        // The count, the first page alone, then the next pages three at a time (the ones after the short page are ignored)
+        expect(supabase.from).toHaveBeenCalledTimes(5);
     });
 
     it('throws when Supabase returns an error', async () => {
@@ -147,9 +148,9 @@ describe('fetchAllEnrollments, first load', () => {
         expect(seen[0]).toEqual(['enr-current']);
         expect(rows.map(e => e.id)).toEqual(['enr-current', 'enr-old']);
         expect(isPartialList()).toBe(false);
-        // Both parts at once. Current: the open statuses, or anything changed lately; the rest: neither
-        expect(calls).toHaveLength(2);
-        const current = calls.find(call => !call.not)!;
+        // Both parts at once (and the count). Current: the open statuses, or anything changed lately; the rest: neither
+        expect(calls).toHaveLength(3);
+        const current = calls.find(call => call.or && !call.not)!;
         expect(current.or).toMatch(/^status\.in\.\(requested,invited,confirmed\),updated_at\.gte\.\d{4}-\d{2}-\d{2}$/);
         const rest = calls.find(call => call.not)!;
         expect(rest.not).toEqual(['status', 'in', '(requested,invited,confirmed)']);
@@ -164,5 +165,47 @@ describe('fetchAllEnrollments, first load', () => {
         await client.fetchQuery({ queryKey: ['enrollments'], queryFn: fetchAllEnrollments, staleTime: 0 });
 
         expect(calls.every(call => !call.or && !call.not)).toBe(true);
+    });
+});
+
+describe('fetchAllEnrollments, checked against the count', () => {
+    /**
+     * A table of `total` rows whose pages are read by offset; `emptyReads` reads of a page after
+     * the first come back empty without an error (as a request sent while the sign-in is renewed).
+     */
+    function mockTable(total: number, emptyReads: number) {
+        const all = Array.from({ length: total }, (_, i) => makeEnrollmentRecord(`enr-${i}`));
+        let empty = emptyReads;
+        (supabase.from as ReturnType<typeof vi.fn>).mockImplementation(() => {
+            let head = false;
+            const chain = {
+                select: vi.fn((_cols: string, opts?: { head?: boolean }) => { head = !!opts?.head; return chain; }),
+                or: vi.fn(() => chain),
+                not: vi.fn(() => chain),
+                order: vi.fn(() => chain),
+                range: vi.fn((from: number, to: number) => {
+                    if (from > 0 && empty > 0) { empty--; return Promise.resolve({ data: [], error: null }); }
+                    return Promise.resolve({ data: all.slice(from, to + 1), error: null });
+                }),
+                then: (resolve: (v: unknown) => unknown) => resolve(head ? { count: total, error: null } : { data: all, error: null }),
+            };
+            return chain;
+        });
+    }
+
+    it('reads again when a page came back empty, instead of keeping too few', async () => {
+        mockTable(1593, 1);
+        const rows = await fetchAllEnrollments();
+        expect(rows).toHaveLength(1593);
+    });
+
+    it('fails rather than return too few when the second read is short too', async () => {
+        mockTable(1593, 99);
+        await expect(fetchAllEnrollments()).rejects.toMatchObject({ name: 'IncompleteEnrollmentListError', loaded: 1000, total: 1593 });
+    });
+
+    it('keeps a whole read as it is', async () => {
+        mockTable(1200, 0);
+        expect(await fetchAllEnrollments()).toHaveLength(1200);
     });
 });
