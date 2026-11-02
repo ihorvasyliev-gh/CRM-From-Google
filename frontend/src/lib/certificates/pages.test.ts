@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readAnchors } from './pages';
+import PizZip from 'pizzip';
+import { defaultStyleRuns, embeddedFonts, readAnchors } from './pages';
 
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"';
 
@@ -27,5 +28,28 @@ describe('readAnchors', () => {
         expect(anchors).toHaveLength(2);
         expect(anchors[0]).toBeNull();
         expect(anchors[1]).toMatchObject({ h: { from: 'page', offset: 0 } });
+    });
+});
+
+describe('defaultStyleRuns', () => {
+    it("puts the default paragraph style's text formatting on the text, as Word does", () => {
+        const css = '.cert-page span { font-family: Cambria; }\n.cert-page p, p.cert-page_normal span {\n  font-family: \'Monotype Corsiva\';\n}\np.cert-page_title span { font-size: 20pt; }';
+        expect(defaultStyleRuns(css, 'cert-page')).toBe(
+            '.cert-page span { font-family: Cambria; }\n.cert-page :where(p) span, p.cert-page_normal span {\n  font-family: \'Monotype Corsiva\';\n}\np.cert-page_title span { font-size: 20pt; }',
+        );
+    });
+
+    it('leaves the paragraph formatting of the default style alone', () => {
+        const css = '.cert-page p, p.cert-page_normal { line-height: 1; }';
+        expect(defaultStyleRuns(css, 'cert-page')).toBe(css);
+    });
+});
+
+describe('embeddedFonts', () => {
+    it('names the fonts the Word file carries', async () => {
+        const zip = new PizZip();
+        zip.file('word/fontTable.xml', `<?xml version="1.0"?><w:fonts ${NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:font w:name="Arial"/><w:font w:name="Monotype Corsiva"><w:embedRegular r:id="rId1" w:fontKey="{00000000-0000-0000-0000-000000000000}"/></w:font><w:font w:name="Calisto MT"><w:embedBold r:id="rId2"/></w:font></w:fonts>`);
+        expect(await embeddedFonts(zip.generate({ type: 'arraybuffer' }))).toEqual(['Monotype Corsiva', 'Calisto MT']);
+        expect(await embeddedFonts(new PizZip().generate({ type: 'arraybuffer' }))).toEqual([]);
     });
 });
