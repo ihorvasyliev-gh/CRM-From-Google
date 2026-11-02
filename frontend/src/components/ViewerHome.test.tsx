@@ -104,10 +104,12 @@ describe('ViewerHome', () => {
         expect(screen.getByText('4', { selector: '[title="Confirmed"]' })).toBeInTheDocument();
     });
 
-    it('shows the registration form link', async () => {
+    it('shows the registration form and public page links', async () => {
         render();
-        expect((await screen.findAllByText('Registration Form')).length).toBeGreaterThan(0);
-        expect(screen.getAllByRole('link', { name: /Open/ })[0]).toHaveAttribute('href', 'https://forms.gle/9U4DsSe5UYnsakJZ8');
+        expect((await screen.findAllByText('Registration form')).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('link', { name: 'Open Registration form' })[0]).toHaveAttribute('href', 'https://forms.gle/9U4DsSe5UYnsakJZ8');
+        expect(screen.getAllByRole('link', { name: 'Open Cheque requisition' })[0]).toHaveAttribute('href', `${window.location.origin}/cheque`);
+        expect(screen.getAllByRole('link', { name: 'Open Certificates' })[0]).toHaveAttribute('href', `${window.location.origin}/certificates`);
     });
 
     it('shows pinned courses first when there are any', async () => {

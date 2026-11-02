@@ -7,7 +7,7 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
 import { ErrorState, StatusDistributionBar } from './Viewer/ViewerUI';
 import { daysFromToday, pluralize, relativeDay, weekdayDate } from './Viewer/viewerUtils';
-import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
+import PublicLinksCard from './Dashboard/PublicLinksCard';
 
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === 'string');
 
@@ -91,7 +91,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                 <StatTile label="Awaiting admin approval" value={stats.awaiting} icon={<Clock size={16} />} tone="violet" loading={loading} />
             </div>
 
-            <RegistrationLinkCard variant="compact" className="lg:hidden" />
+            <PublicLinksCard className="lg:hidden" />
 
             {(coursesError || upcomingError) && (
                 <ErrorState title="Some data failed to load" error={coursesError || upcomingError} onRetry={() => { refetchCourses(); refetchUpcoming(); }} />
@@ -132,7 +132,7 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
 
                 {/* Side column */}
                 <aside className="space-y-6">
-                    <RegistrationLinkCard variant="card" className="hidden lg:block" />
+                    <PublicLinksCard className="hidden lg:block" />
 
                     {attention.length > 0 && (
                         <section className="space-y-2">

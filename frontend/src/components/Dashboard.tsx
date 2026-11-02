@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { fetchDashboardStats, type DashboardStats } from '../lib/queries';
 import { useEnrollmentList, type EnrollmentRow } from '../hooks/useEnrollments';
 import DashboardKPIs, { type KpiHint, type KpiKey } from './Dashboard/DashboardKPIs';
-import RegistrationLinkCard from './Dashboard/RegistrationLinkCard';
+import PublicLinksCard from './Dashboard/PublicLinksCard';
 import ExpiredInvitesCard from './Dashboard/ExpiredInvitesCard';
 import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
 import DashboardActivityFeed, { type ActivityFilter } from './Dashboard/DashboardActivityFeed';
@@ -374,10 +374,10 @@ export default function Dashboard({
             <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
 
             {/* Only one layout is mounted to avoid rendering everything twice. The registration
-                form link goes near the top, as on the viewer home: below the activity feed nobody saw it. */}
+                form and public page links go near the top, as on the viewer home: below the activity feed nobody saw it. */}
             {isMobile ? (
                 <div className="space-y-4">
-                    <RegistrationLinkCard variant="compact" />
+                    <PublicLinksCard />
                     {expired}
                     {cohorts}
                     {activity}
@@ -390,7 +390,7 @@ export default function Dashboard({
                         {activity}
                     </div>
                     <div className="col-span-4 space-y-6 min-w-0">
-                        <RegistrationLinkCard variant="card" />
+                        <PublicLinksCard />
                         {expired}
                         {statusBreakdown}
                     </div>

@@ -160,8 +160,9 @@ describe('Dashboard Component - Interactive Feed & Needs Attention', () => {
         // Status Breakdown
         expect(screen.getAllByText(/Enrollment Status/i).length).toBeGreaterThan(0);
 
-        // Registration form link
-        expect(screen.getAllByText(/Registration Form/i).length).toBeGreaterThan(0);
+        // Registration form and public page links
+        expect(screen.getAllByText(/Links to share/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Registration form/i).length).toBeGreaterThan(0);
     });
 
     it('handles clicking upcoming cohort to navigate to enrollments with courseId and courseDate', async () => {
