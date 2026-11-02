@@ -16,11 +16,14 @@ import {
     fieldLabel, initialPerPerson, isBlankRow, newRow, personData, personFileBase, templateFields, uniqueNames, type PersonRow,
 } from '../lib/certificates/fields';
 import { makePdf, makeWord, type Certificate } from '../lib/certificates/output';
+import { embeddedFonts } from '../lib/certificates/pages';
 
 interface Template {
     name: string;
     bytes: ArrayBuffer;
     tags: string[];
+    /** Fonts carried in the file: the PDF uses them on any device */
+    fonts: string[];
 }
 
 const DOCX_ACCEPT = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -36,6 +39,10 @@ function TemplateHelp() {
                 <code className="font-mono text-primary">{'{courseDate}'}</code>,{' '}
                 <code className="font-mono text-primary">{'{tutor}'}</code>. Each one becomes a box on this page.
                 Names are filled in for each person; the rest is the same on every certificate unless you switch it.
+            </p>
+            <p className="text-secondary leading-relaxed">
+                For the PDF to have the template's fonts on any device, save it from Word with the fonts in it: File → Options → Save →
+                “Embed fonts in the file”, with “Embed only the characters used” unticked.
             </p>
         </div>
     );
@@ -97,8 +104,8 @@ export default function PublicCertificates() {
         setReading(true);
         try {
             const bytes = await file.arrayBuffer();
-            const tags = await templateTags(bytes);
-            setTemplate({ name: file.name, bytes, tags });
+            const [tags, fonts] = await Promise.all([templateTags(bytes), embeddedFonts(bytes).catch(() => [])]);
+            setTemplate({ name: file.name, bytes, tags, fonts });
             // A field kept from the last template keeps its place; a new one starts as the template's
             setPerPerson(prev => new Set([...initialPerPerson(tags), ...tags.filter(t => prev.has(t))]));
         } catch (err) {
@@ -275,7 +282,10 @@ export default function PublicCertificates() {
                                             <p className="text-xs text-status-requested">Not filled in, so left blank: {emptyShared.map(fieldLabel).join(', ')}.</p>
                                         )}
                                         <p className="text-xs text-muted leading-relaxed">
-                                            The Word file is your template filled in. The PDF is drawn on this device with the fonts it has, as in the preview; for an exact copy of a special font, open the Word file and save it as PDF.
+                                            The Word file is your template filled in. The PDF is drawn on this device, as in the preview,{' '}
+                                            {template.fonts.length
+                                                ? <>with the fonts kept in the template ({template.fonts.join(', ')}) and, for any other font, the ones this device has.</>
+                                                : <>with the fonts this device has. To have the template's own fonts on any device (a phone too), in Word choose File → Options → Save, tick “Embed fonts in the file”, untick “Embed only the characters used”, and save the template again.</>}
                                         </p>
                                     </div>
                                 </Card>

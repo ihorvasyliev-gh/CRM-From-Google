@@ -180,6 +180,18 @@ export function exactLines(pages: HTMLElement[]): void {
     }
 }
 
+/**
+ * The text formatting of the default paragraph style (Normal: its font, its size) on the text
+ * itself. docx-preview writes it for the paragraph only (".page p, p.normal span"), where the
+ * document's defaults written for every run (".page span") win over it; in Word, Normal's
+ * formatting wins over the defaults. :where keeps it as weak as the defaults, after them.
+ */
+export function defaultStyleRuns(css: string, className: string): string {
+    const cls = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return css.replace(new RegExp(`\\.${cls} (\\w+), (\\w+)\\.(${cls}_[\\w-]+) (\\w+)(\\s*\\{)`, 'g'), (_m, target, t2, name, sub, brace) =>
+        `.${className} :where(${target}) ${sub}, ${t2}.${name} ${sub}${brace}`);
+}
+
 const RENDER_OPTIONS = {
     className: CLASS,
     inWrapper: false,
@@ -264,6 +276,9 @@ export async function drawDocxPages(bytes: ArrayBuffer, dpi = 200): Promise<Page
         const extra = doc.createElement('style');
         extra.textContent = PAGE_CSS;
         host.prepend(extra);
+        for (const style of Array.from(host.querySelectorAll('style'))) style.textContent = defaultStyleRuns(style.textContent ?? '', CLASS);
+        // The fonts kept in the Word file, loaded before anything is measured
+        await Promise.all(Array.from(doc.fonts ?? []).map(f => f.load().catch(() => null)));
         const pages = finishPages(host, CLASS, prepared);
         exactLines(pages);
         placeAnchors(pages, anchors);
@@ -292,4 +307,16 @@ export async function drawDocxPages(bytes: ArrayBuffer, dpi = 200): Promise<Page
     } finally {
         host.remove();
     }
+}
+
+/** The fonts the Word file carries inside it (Word: Options → Save → Embed fonts in the file) */
+export async function embeddedFonts(bytes: ArrayBuffer): Promise<string[]> {
+    const { PizZip } = await loadDocxLibs();
+    const xml = new PizZip(bytes).file('word/fontTable.xml')?.asText();
+    if (!xml) return [];
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return Array.from(doc.getElementsByTagNameNS(W, 'font'))
+        .filter(f => Array.from(f.children).some(c => c.namespaceURI === W && /^embed(Regular|Bold|Italic|BoldItalic)$/.test(c.localName)))
+        .map(f => f.getAttributeNS(W, 'name') ?? '')
+        .filter(Boolean);
 }
