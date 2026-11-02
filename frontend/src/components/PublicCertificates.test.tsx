@@ -34,7 +34,7 @@ function templateFile(...lines: string[]): File {
 async function openTemplate(file: File) {
     const input = document.querySelector('input[type=file]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
-    await screen.findByText('MH Cert.docx');
+    await screen.findByText('1. Certificate: MH Cert.docx');
 }
 
 describe('PublicCertificates', () => {
@@ -46,19 +46,21 @@ describe('PublicCertificates', () => {
 
     it('asks for a Word template first', () => {
         render(<PublicCertificates />);
-        expect(screen.getByText(/choose your Word template/)).toBeInTheDocument();
+        expect(screen.getByText(/choose your Word certificate/)).toBeInTheDocument();
         expect(screen.getByText('Nothing you add here is saved anywhere.')).toBeInTheDocument();
         expect(document.title).toBe('Certificates · Cork City Partnership');
     });
 
-    it('turns the placeholders into fields, takes a pasted list and downloads everyone in one Word file', async () => {
+    it('turns the placeholders into fields, takes the names one per line and downloads everyone in one Word file', async () => {
         render(<PublicCertificates />);
         await openTemplate(templateFile('{firstName} {lastName}', 'Course Date: {courseDate}', 'Signed: {tutor}'));
 
         fireEvent.change(screen.getByLabelText('Course date'), { target: { value: '21/09/2026' } });
         fireEvent.change(screen.getByLabelText('Tutor'), { target: { value: 'Yvonne Quilligan' } });
-        fireEvent.paste(screen.getByLabelText('First name, person 1'), { clipboardData: { getData: () => "Hadgu Gebremikel\nMary O'Brien" } });
-        expect(screen.getByLabelText('Last name, person 2')).toHaveValue("O'Brien");
+        fireEvent.change(screen.getByLabelText(/One name per line/), { target: { value: "Hadgu Gebremikel\nMary O'Brien\n" } });
+        expect(screen.getByText('3. Who gets a certificate')).toBeInTheDocument();
+        expect(screen.getByText('2 people')).toBeInTheDocument();
+        expect(screen.getByRole('cell', { name: "O'Brien" })).toBeInTheDocument();
         expect(screen.getByTestId('preview')).toHaveTextContent("Hadgu Gebremikel, Mary O'Brien");
 
         fireEvent.click(screen.getByRole('button', { name: /Download Word/ }));
@@ -72,11 +74,31 @@ describe('PublicCertificates', () => {
         ]);
     });
 
+    it('pastes what was copied with the Paste button, and fixes a name in the table', async () => {
+        const readText = vi.fn().mockResolvedValue("Mary Kate O'Brien\r\nJohn Murphy\r\n");
+        Object.defineProperty(navigator, 'clipboard', { value: { readText }, configurable: true });
+        render(<PublicCertificates />);
+        await openTemplate(templateFile('{firstName} {lastName}'));
+        fireEvent.click(screen.getByRole('button', { name: 'Paste' }));
+        await waitFor(() => expect((screen.getByLabelText(/One name per line/) as HTMLTextAreaElement).value.replace(/\r/g, '')).toBe("Mary Kate O'Brien\nJohn Murphy\n"));
+        expect(screen.getByRole('cell', { name: "Kate O'Brien" })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Fix it in a table/ }));
+        fireEvent.change(screen.getByLabelText('First name, person 1'), { target: { value: 'Mary Kate' } });
+        fireEvent.change(screen.getByLabelText('Last name, person 1'), { target: { value: "O'Brien" } });
+        // A list pasted into a cell fills the rows from there down
+        fireEvent.paste(screen.getByLabelText('First name, person 2'), { clipboardData: { getData: () => 'Ann Lee\nBob Ray' } });
+        expect(screen.getByLabelText('Last name, person 3')).toHaveValue('Ray');
+
+        fireEvent.click(screen.getByRole('button', { name: /Back to the simple list/ }));
+        expect(screen.getByLabelText(/One name per line/)).toHaveValue("Mary Kate\tO'Brien\nAnn Lee\nBob Ray");
+    });
+
     it('makes a field different for each person, and PDFs a file each', async () => {
         render(<PublicCertificates />);
         await openTemplate(templateFile('{firstName} {lastName}', 'Signed: {tutor}'));
         fireEvent.change(screen.getByLabelText('Tutor'), { target: { value: 'Anne' } });
-        fireEvent.click(screen.getByRole('button', { name: /Each person/ }));
+        fireEvent.click(screen.getByRole('button', { name: /Different for each person/ }));
         expect(screen.getByLabelText('Tutor, person 1')).toHaveValue('Anne');
         fireEvent.change(screen.getByLabelText('First name, person 1'), { target: { value: 'Mary' } });
         fireEvent.click(screen.getByRole('button', { name: /Add a person/ }));
@@ -95,6 +117,6 @@ describe('PublicCertificates', () => {
         render(<PublicCertificates />);
         await openTemplate(templateFile('{firstName} {lastName}'));
         expect(screen.getByRole('button', { name: /Download Word/ })).toBeDisabled();
-        expect(screen.getByText('Add at least one person.')).toBeInTheDocument();
+        expect(screen.getByText('Add the names in step 2 first.')).toBeInTheDocument();
     });
 });
