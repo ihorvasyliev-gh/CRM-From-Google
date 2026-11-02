@@ -1,17 +1,21 @@
-import { useState, type ClipboardEvent } from 'react';
-import { ClipboardPaste, Plus, Trash2, UserRound, Users } from 'lucide-react';
+import { type ClipboardEvent } from 'react';
+import { ClipboardPaste, List, Plus, Trash2, UserRound, Users } from 'lucide-react';
 import Card from '../ui/Card';
 import { Button, IconButton } from '../ui/Button';
-import { fieldCls, inputCls } from '../ui/styles';
+import { fieldCls } from '../ui/styles';
 import { fieldLabel, isBlankRow, newRow, parsePeople, pasteInto, type PersonRow } from '../../lib/certificates/fields';
+import { readClipboard } from '../../lib/certificates/clipboard';
 
 interface Props {
+    step: number;
     columns: string[];
     rows: PersonRow[];
     onRowsChange: (rows: PersonRow[]) => void;
     /** Columns that were switched to "each person" and can go back to one value for everyone */
     movable: ReadonlySet<string>;
     onShare: (tag: string) => void;
+    /** Back to the plain list of names, when only names are asked */
+    onList?: () => void;
 }
 
 /**
@@ -19,9 +23,7 @@ interface Props {
  * to person. A list pasted into a cell (copied from Excel, or names one per line) fills the rows
  * from there down.
  */
-export default function PeopleTable({ columns, rows, onRowsChange, movable, onShare }: Props) {
-    const [pasting, setPasting] = useState(false);
-    const [pasted, setPasted] = useState('');
+export default function PeopleTable({ step, columns, rows, onRowsChange, movable, onShare, onList }: Props) {
     const count = rows.filter(r => !isBlankRow(r, columns)).length;
 
     const setValue = (id: string, tag: string, value: string) =>
@@ -34,13 +36,14 @@ export default function PeopleTable({ columns, rows, onRowsChange, movable, onSh
         onRowsChange(pasteInto(rows, columns, text, row, col));
     };
 
-    const addPasted = () => {
+    /** What was copied, added under the people already in */
+    const paste = async () => {
+        const pasted = await readClipboard();
+        if (pasted === null) return;
         const people = parsePeople(pasted, columns);
         if (!people.length) return;
         const kept = rows.filter(r => !isBlankRow(r, columns));
         onRowsChange([...kept, ...people.map(v => newRow(v))]);
-        setPasted('');
-        setPasting(false);
     };
 
     const remove = (id: string) => {
@@ -50,38 +53,19 @@ export default function PeopleTable({ columns, rows, onRowsChange, movable, onSh
 
     return (
         <Card
-            title="People"
+            title={`${step}. Who gets a certificate`}
             icon={Users}
-            subtitle={count === 1 ? '1 certificate' : `${count} certificates`}
+            subtitle={count === 1 ? '1 person' : `${count} people`}
             divided
             action={
-                <Button size="sm" variant={pasting ? 'primary' : 'secondary'} onClick={() => setPasting(!pasting)} aria-expanded={pasting}>
-                    <ClipboardPaste size={14} /> Paste a list
+                <Button size="sm" onClick={paste}>
+                    <ClipboardPaste size={14} /> Paste
                 </Button>
             }
         >
-            {pasting && (
-                <div className="mb-4 space-y-2">
-                    <label htmlFor="cert-paste" className="block text-xs font-semibold text-muted">
-                        One person per line. Copied from Excel, the columns go in this order: {columns.map(fieldLabel).join(', ')}.
-                    </label>
-                    <textarea
-                        id="cert-paste"
-                        value={pasted}
-                        onChange={e => setPasted(e.target.value)}
-                        rows={5}
-                        placeholder={columns[0] === 'firstName' && columns[1] === 'lastName' ? 'Mary O\'Brien\nJohn Murphy' : ''}
-                        className={`${inputCls} py-2 font-mono text-xs`}
-                    />
-                    <div className="flex gap-2">
-                        <Button size="sm" variant="primary" onClick={addPasted} disabled={!pasted.trim()}>
-                            <Plus size={14} /> Add {parsePeople(pasted, columns).length || ''} to the list
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setPasting(false)}>Cancel</Button>
-                    </div>
-                </div>
-            )}
-
+            <p className="text-sm text-primary mb-2">
+                A row for each person. Copied from Excel, the columns go in this order: {columns.map(fieldLabel).join(', ')}.
+            </p>
             <div className="-mx-1 overflow-x-auto">
                 <table className="w-full text-sm border-separate border-spacing-x-1 border-spacing-y-1.5">
                     <thead>
@@ -133,7 +117,11 @@ export default function PeopleTable({ columns, rows, onRowsChange, movable, onSh
                 <Button size="sm" variant="ghost" onClick={() => onRowsChange([...rows, newRow()])}>
                     <Plus size={14} /> Add a person
                 </Button>
-                <p className="text-xs text-muted">Tip: paste a column of names from Excel straight into the first box.</p>
+                {onList && (
+                    <Button size="sm" variant="ghost" onClick={onList}>
+                        <List size={14} /> Back to the simple list
+                    </Button>
+                )}
             </div>
         </Card>
     );

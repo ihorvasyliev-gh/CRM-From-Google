@@ -7,6 +7,7 @@ import { calloutCls, fieldCls, labelCls, panelCls } from './ui/styles';
 import { TooltipProvider } from './ui/Tooltip';
 import { GlobalToaster } from './Toast';
 import PeopleTable from './Certificates/PeopleTable';
+import PeopleList from './Certificates/PeopleList';
 import CertificatePreview from './Certificates/CertificatePreview';
 import { useTheme } from '../hooks/useTheme';
 import { showToast } from '../lib/toast';
@@ -28,23 +29,48 @@ interface Template {
 
 const DOCX_ACCEPT = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-/** How to write a template, shown before one is chosen */
+/** The steps of the page, shown before a template is chosen */
+const STEPS = [
+    { icon: FileText, title: 'Choose your certificate', text: 'A Word file (.docx) with {placeholders} where the names and dates go.' },
+    { icon: Users, title: 'Paste the names', text: 'One per line, copied from Excel, an email or anywhere. Type the date and tutor once.' },
+    { icon: FileDown, title: 'Download', text: 'Word or PDF: all in one file to print, or a file for each person.' },
+];
+
+/** The fonts in the PDF, in short, and how to make them the template's own */
+function FontsHelp({ fonts }: { fonts: string[] }) {
+    return (
+        <details className="text-xs text-muted group">
+            <summary className="cursor-pointer select-none hover:text-primary">
+                {fonts.length ? `The PDF uses the fonts kept in the template (${fonts.join(', ')}).` : 'Do the fonts look different in the PDF?'}
+            </summary>
+            <p className="mt-1.5 leading-relaxed">
+                The Word file is always exactly your template. The PDF is drawn on this device, so it uses the fonts kept in the template
+                and, for any other font, the ones this device has. To keep the fonts in the template: in Word choose File → Options → Save,
+                tick “Embed fonts in the file”, untick “Embed only the characters used”, and save it again.
+            </p>
+        </details>
+    );
+}
+
+/** How to write a template, for when the person needs one */
 function TemplateHelp() {
     return (
-        <div className={`${panelCls} p-4 text-sm space-y-2`}>
-            <p className="font-semibold text-primary">Making a template</p>
-            <p className="text-secondary leading-relaxed">
-                In Word, write each thing that changes in curly brackets where it goes, for example{' '}
-                <code className="font-mono text-primary">{'{firstName} {lastName}'}</code>,{' '}
-                <code className="font-mono text-primary">{'{courseDate}'}</code>,{' '}
-                <code className="font-mono text-primary">{'{tutor}'}</code>. Each one becomes a box on this page.
-                Names are filled in for each person; the rest is the same on every certificate unless you switch it.
-            </p>
-            <p className="text-secondary leading-relaxed">
-                For the PDF to have the template's fonts on any device, save it from Word with the fonts in it: File → Options → Save →
-                “Embed fonts in the file”, with “Embed only the characters used” unticked.
-            </p>
-        </div>
+        <details className={`${panelCls} p-4 text-sm group`}>
+            <summary className="font-semibold text-primary cursor-pointer select-none">How do I make a template?</summary>
+            <div className="mt-2 space-y-2 text-secondary leading-relaxed">
+                <p>
+                    Open your certificate in Word. Where a name or a date goes, type a short word in curly brackets instead, for example{' '}
+                    <code className="font-mono text-primary">{'{firstName} {lastName}'}</code>,{' '}
+                    <code className="font-mono text-primary">{'{courseDate}'}</code> or{' '}
+                    <code className="font-mono text-primary">{'{tutor}'}</code>, and save it. Each one becomes a box on this page.
+                </p>
+                <p>
+                    A Publisher file has to be made in Word first (or saved from Publisher as a Word file and checked).
+                    For the PDF to keep the template's fonts on a phone too: File → Options → Save → “Embed fonts in the file”,
+                    with “Embed only the characters used” unticked.
+                </p>
+            </div>
+        </details>
     );
 }
 
@@ -61,6 +87,8 @@ export default function PublicCertificates() {
     const [shared, setShared] = useState<Record<string, string>>({});
     const [rows, setRows] = useState<PersonRow[]>([newRow()]);
     const [allInOne, setAllInOne] = useState(true);
+    /** The people in a table rather than the plain list of names */
+    const [useTable, setUseTable] = useState(false);
     const [making, setMaking] = useState<{ kind: 'word' | 'pdf'; done: number; total: number } | null>(null);
     const changeRef = useRef<HTMLInputElement>(null);
 
@@ -150,6 +178,11 @@ export default function PublicCertificates() {
     const several = certificates.length > 1;
     // A column switched to each person can go back; the name columns always stay
     const movable = new Set(fields.columns.filter(c => !initialPerPerson([c]).size));
+    // Only names to type: a plain box of names, one per line; anything more needs the table
+    const asList = !useTable && movable.size === 0;
+    const sharedStep = fields.shared.length > 0 ? 2 : 0;
+    const peopleStep = (sharedStep || 1) + 1;
+    const downloadStep = peopleStep + (fields.columns.length ? 1 : 0);
 
     return (
         <TooltipProvider delayDuration={100}>
@@ -171,17 +204,28 @@ export default function PublicCertificates() {
                         <div className="max-w-3xl mx-auto space-y-5">
                             <SectionHeader
                                 icon={Award}
-                                title="Certificates"
-                                description="Bring a Word template with {placeholders}, type in the people, and download every certificate as Word or PDF."
+                                title="Make certificates"
+                                description="Fill in a certificate for everyone on a course at once, and download them as Word or PDF."
                             />
+                            <ol className="grid gap-3 sm:grid-cols-3">
+                                {STEPS.map(({ icon: Icon, title, text }, i) => (
+                                    <li key={title} className={`${panelCls} p-4 flex gap-3`}>
+                                        <span className="flex items-center justify-center w-8 h-8 rounded-xl shrink-0 bg-brand-500/10 text-brand-600 dark:text-brand-400 text-sm font-bold">{i + 1}</span>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-primary flex items-center gap-1.5"><Icon size={14} aria-hidden="true" /> {title}</p>
+                                            <p className="text-xs text-muted mt-1 leading-relaxed">{text}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ol>
                             <FileDropzone
                                 accept={DOCX_ACCEPT}
                                 onChange={openTemplate}
                                 uploading={reading}
                                 uploadingTitle="Reading the template…"
                                 icon={<FileText size={18} />}
-                                title="Click here to choose your Word template, or drag it onto this box"
-                                hint="A .docx file. It is read on this device and never uploaded."
+                                title="Click here to choose your Word certificate, or drag it onto this box"
+                                hint="A .docx file. It stays on this device: nothing is uploaded."
                                 className="py-10"
                             />
                             <TemplateHelp />
@@ -194,14 +238,14 @@ export default function PublicCertificates() {
                         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
                             <div className="space-y-5 min-w-0">
                                 <Card
-                                    title={template.name}
+                                    title={`1. Certificate: ${template.name}`}
                                     icon={FileText}
-                                    subtitle={template.tags.length ? `${template.tags.length} placeholder${template.tags.length === 1 ? '' : 's'}: ${template.tags.map(t => `{${t}}`).join(' ')}` : 'No placeholders found'}
+                                    subtitle={template.tags.length ? `Fills in: ${template.tags.map(fieldLabel).filter((l, i, all) => all.indexOf(l) === i).join(', ')}` : 'Nothing to fill in'}
                                     action={
                                         <>
                                             <input ref={changeRef} type="file" accept={DOCX_ACCEPT} onChange={openTemplate} className="hidden" aria-label="Choose another template" />
                                             <Button size="sm" onClick={() => changeRef.current?.click()} loading={reading}>
-                                                {!reading && <RefreshCw size={14} />} Change
+                                                {!reading && <RefreshCw size={14} />} Another file
                                             </Button>
                                         </>
                                     }
@@ -218,7 +262,7 @@ export default function PublicCertificates() {
                                 </Card>
 
                                 {fields.shared.length > 0 && (
-                                    <Card title="The same on every certificate" icon={Award} divided>
+                                    <Card title={`${sharedStep}. The same on every certificate`} subtitle="Type these once" icon={Award} divided>
                                         <div className="grid gap-3 sm:grid-cols-2">
                                             {fields.shared.map(tag => (
                                                 <div key={tag} className="min-w-0">
@@ -229,14 +273,14 @@ export default function PublicCertificates() {
                                                             onClick={() => toEachPerson(tag)}
                                                             className="mb-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
                                                         >
-                                                            <Users size={12} aria-hidden="true" /> Each person
+                                                            <Users size={12} aria-hidden="true" /> Different for each person
                                                         </button>
                                                     </div>
                                                     <input
                                                         id={`cert-shared-${tag}`}
                                                         value={shared[tag] ?? ''}
                                                         onChange={e => setShared(prev => ({ ...prev, [tag]: e.target.value }))}
-                                                        placeholder={`{${tag}}`}
+                                                        placeholder={/date|expir/i.test(tag) ? 'e.g. 21/09/2026' : ''}
                                                         className={fieldCls}
                                                         autoComplete="off"
                                                     />
@@ -246,21 +290,31 @@ export default function PublicCertificates() {
                                     </Card>
                                 )}
 
-                                {fields.columns.length > 0 && (
-                                    <PeopleTable columns={fields.columns} rows={rows} onRowsChange={setRows} movable={movable} onShare={toEveryone} />
-                                )}
+                                {fields.columns.length > 0 && (asList ? (
+                                    <PeopleList step={peopleStep} columns={fields.columns} rows={rows} onRowsChange={setRows} onTable={() => setUseTable(true)} />
+                                ) : (
+                                    <PeopleTable
+                                        step={peopleStep}
+                                        columns={fields.columns}
+                                        rows={rows}
+                                        onRowsChange={setRows}
+                                        movable={movable}
+                                        onShare={toEveryone}
+                                        onList={movable.size === 0 ? () => setUseTable(false) : undefined}
+                                    />
+                                ))}
                             </div>
 
                             <div className="space-y-5 min-w-0 lg:sticky lg:top-20">
                                 <CertificatePreview template={template.bytes} people={previewPeople} />
 
-                                <Card title="Download" icon={FileDown} divided>
+                                <Card title={`${downloadStep}. Download`} icon={FileDown} divided>
                                     <div className="space-y-3">
                                         {several && (
                                             <label className="flex items-center gap-2.5 text-sm text-primary cursor-pointer select-none">
                                                 <input type="checkbox" checked={allInOne} onChange={e => setAllInOne(e.target.checked)} className="w-4 h-4 rounded accent-brand-500 shrink-0" />
                                                 All in one file
-                                                <span className="text-xs text-muted">{allInOne ? '(a page each, ready to print)' : '(a file each, in a ZIP)'}</span>
+                                                <span className="text-xs text-muted">{allInOne ? '(a page for each person, easy to print)' : '(a file for each person, in a ZIP)'}</span>
                                             </label>
                                         )}
                                         <div className="flex flex-wrap gap-2">
@@ -275,18 +329,13 @@ export default function PublicCertificates() {
                                             {making
                                                 ? `Making ${making.kind === 'word' ? 'Word' : 'PDF'} certificate ${Math.min(making.done + 1, making.total)} of ${making.total}…`
                                                 : noPeople
-                                                    ? 'Add at least one person.'
+                                                    ? `Add the names in step ${peopleStep} first.`
                                                     : `${certificates.length} certificate${several ? 's' : ''}.`}
                                         </p>
                                         {!making && !noPeople && emptyShared.length > 0 && (
                                             <p className="text-xs text-status-requested">Not filled in, so left blank: {emptyShared.map(fieldLabel).join(', ')}.</p>
                                         )}
-                                        <p className="text-xs text-muted leading-relaxed">
-                                            The Word file is your template filled in. The PDF is drawn on this device, as in the preview,{' '}
-                                            {template.fonts.length
-                                                ? <>with the fonts kept in the template ({template.fonts.join(', ')}) and, for any other font, the ones this device has.</>
-                                                : <>with the fonts this device has. To have the template's own fonts on any device (a phone too), in Word choose File → Options → Save, tick “Embed fonts in the file”, untick “Embed only the characters used”, and save the template again.</>}
-                                        </p>
+                                        <FontsHelp fonts={template.fonts} />
                                     </div>
                                 </Card>
 
