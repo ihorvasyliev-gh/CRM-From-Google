@@ -693,9 +693,17 @@ function readSupplier(textLines: TextLine[], allText: string, itemLines: Set<Tex
     const lines = textLines.map(l => ({ ...l, phrases: l.phrases.flatMap(p => splitLabel(p, textLines)) }));
     const payable = payableTo(lines);
 
-    const emails = [...allText.matchAll(EMAIL_RE)].map(m => m[0]).filter(e => !OUR_ORGANISATION.test(e) && !/partnership/i.test(e));
+    // The customer's block ("Bill to: Cork City Partnership … Tel: …", "Deliver to: … contact 087…")
+    // holds our own contacts: an email or phone there is not the supplier's, and would make
+    // two suppliers who wrote down the same coordinator look like one
+    const blocks = buildBlocks(lines);
+    const customerLabel = (t: string) => { const l = partyLabel(t); return l === 'customer' && !/^\s*to\b/i.test(t); };
+    const ours = new Set(blocks.filter(b => b.lines.some(p => OUR_ORGANISATION.test(p.text) || CUSTOMER_LINE.test(p.text)) || customerLabel(b.lines[0].text)).flatMap(b => b.lines));
+    const supplierText = lines.map(l => l.phrases.filter(p => !ours.has(p)).map(p => p.text).join(' ')).join('\n');
+
+    const emails = [...supplierText.matchAll(EMAIL_RE)].map(m => m[0]).filter(e => !OUR_ORGANISATION.test(e) && !/partnership/i.test(e));
     supplier.email = emails[0];
-    const sites = [...allText.matchAll(WEBSITE_RE)].map(m => m[0]).filter(s => !OUR_ORGANISATION.test(s) && !/partnership/i.test(s));
+    const sites = [...supplierText.matchAll(WEBSITE_RE)].map(m => m[0]).filter(s => !OUR_ORGANISATION.test(s) && !/partnership/i.test(s));
     supplier.website = sites[0];
     const domains = [...emails, ...sites].map(domainWord).filter((d): d is string => !!d);
     // A free mail address named after the business: "eventexpert.ie@gmail.com"
@@ -703,9 +711,6 @@ function readSupplier(textLines: TextLine[], allText: string, itemLines: Set<Tex
     const names = (t: string) => domains.some(d => squash(t).includes(d)) || (squash(t).length >= 5 && mailboxes.some(m => m.includes(squash(t))));
     const itemPhrases = new Set([...itemLines].flatMap(l => l.phrases));
 
-    // A number in our own address block ("Bill to: Cork City Partnership … Tel: …") is ours
-    const blocks = buildBlocks(lines);
-    const ours = new Set(blocks.filter(b => b.lines.some(p => OUR_ORGANISATION.test(p.text))).flatMap(b => b.lines));
     const phones = lines.flatMap(l => {
         const text = l.phrases.filter(p => !ours.has(p)).map(p => p.text).join(' ');
         return PHONE_LABEL.test(text) && !OUR_ORGANISATION.test(text) ? text.match(PHONE_RE) ?? [] : [];

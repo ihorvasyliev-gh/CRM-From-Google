@@ -72,21 +72,37 @@ export interface SupplierIds {
     phone?: string;
 }
 
-export function sameSupplier(a: SupplierIds, b: SupplierIds): boolean {
-    if (a.vat && b.vat && squash(a.vat).replace(/^ie/, '') === squash(b.vat).replace(/^ie/, '')) return true;
-    if (a.iban && b.iban && squash(a.iban) === squash(b.iban)) return true;
-    if (a.domain && b.domain && a.domain === b.domain) return true;
-    // The same email address or phone number (a gmail address, a name read differently),
-    // unless a VAT number or IBAN says they are two suppliers
-    if (!(a.vat && b.vat) && !(a.iban && b.iban)) {
-        if (a.email && b.email && a.email.trim().toLowerCase() === b.email.trim().toLowerCase()) return true;
-        const phone = phoneKey(a.phone ?? '');
-        if (phone && phone === phoneKey(b.phone ?? '')) return true;
-    }
+/** Why two invoices are taken for one supplier's, said on the values brought over from last time */
+export type SupplierMatch = 'vat' | 'iban' | 'domain' | 'email' | 'phone' | 'name';
+
+const MATCH_LABEL: Record<SupplierMatch, string> = {
+    vat: 'the same VAT number',
+    iban: 'the same IBAN',
+    domain: 'the same email or website',
+    email: 'the same email address',
+    phone: 'the same phone number',
+    name: 'the same name',
+};
+
+export function supplierMatch(a: SupplierIds, b: SupplierIds): SupplierMatch | null {
+    const vat = (v: string) => squash(v).replace(/^ie/, '');
+    if (a.vat && b.vat && vat(a.vat) === vat(b.vat)) return 'vat';
+    if (a.iban && b.iban && squash(a.iban) === squash(b.iban)) return 'iban';
+    // Two VAT numbers or two IBANs that differ are two suppliers, whatever else they share
+    if ((a.vat && b.vat) || (a.iban && b.iban)) return null;
+    if (a.domain && b.domain && a.domain === b.domain) return 'domain';
+    // The same email address or phone number (a gmail address, a name read differently)
+    if (a.email && b.email && a.email.trim().toLowerCase() === b.email.trim().toLowerCase()) return 'email';
+    const phone = phoneKey(a.phone ?? '');
+    if (phone && phone === phoneKey(b.phone ?? '')) return 'phone';
     const ka = supplierKey(a.name);
     const kb = supplierKey(b.name);
-    if (!ka || !kb) return false;
-    return ka === kb || bigramSimilarity(ka, kb) >= 0.8;
+    if (!ka || !kb) return null;
+    return ka === kb || bigramSimilarity(ka, kb) >= 0.8 ? 'name' : null;
+}
+
+export function sameSupplier(a: SupplierIds, b: SupplierIds): boolean {
+    return supplierMatch(a, b) !== null;
 }
 
 export function idsOfSaved(r: SavedChequeReq): SupplierIds {
@@ -108,6 +124,14 @@ export function idsOf(form: ChequeReqForm, meta: ChequeReqMeta): SupplierIds {
 /** The most recent requisition for this supplier (history is newest first) */
 export function previousForSupplier(ids: SupplierIds, history: SavedChequeReq[], excludeId?: string): SavedChequeReq | undefined {
     return history.find(r => r.id !== excludeId && sameSupplier(ids, idsOfSaved(r)));
+}
+
+/** "your requisition for INV-3209 (Greenleaf Catering, the same phone number)": whose it was and why it was taken */
+function matchedLabel(r: SavedChequeReq, ids: SupplierIds): string {
+    const match = supplierMatch(ids, idsOfSaved(r));
+    const name = r.supplier_name || r.form.payeeName;
+    const why = [match !== 'name' && name ? name : '', match ? MATCH_LABEL[match] : ''].filter(Boolean).join(', ');
+    return why ? `${sinceLabel(r)} (${why})` : sinceLabel(r);
 }
 
 // ─── Description ───────────────────────────────────────────────
@@ -197,8 +221,11 @@ export function draftFromInvoice({ facts, history, defaults, fileName, phrases, 
         fileName,
     };
 
-    const previous = previousForSupplier({ name: s.name?.value ?? '', vat: meta.supplierVat, iban: meta.supplierIban, domain: meta.supplierDomain, email: meta.supplierEmail, phone: meta.supplierPhone }, history);
+    const ids: SupplierIds = { name: s.name?.value ?? '', vat: meta.supplierVat, iban: meta.supplierIban, domain: meta.supplierDomain, email: meta.supplierEmail, phone: meta.supplierPhone };
+    const previous = previousForSupplier(ids, history);
+    // The payee says whose requisition it was and why: a wrong match is seen at once
     const fromLast = previous ? `As on ${sinceLabel(previous)}` : '';
+    const fromMatched = previous ? `As on ${matchedLabel(previous, ids)}` : '';
     // What was picked by hand on the supplier's last invoice is read in the same places on this one
     meta.places = previous?.meta?.places ?? {};
     const picked = previous && phrases ? readPlaces(meta.places, phrases, pageSizes) : {};
@@ -209,7 +236,13 @@ export function draftFromInvoice({ facts, history, defaults, fileName, phrases, 
     if (previous?.form.payeeName) {
         form.payeeName = previous.form.payeeName;
         form.payeeAddress = previous.form.payeeAddress;
-        flags.payeeName = { level: 'memory', note: fromLast, source: s.name?.source };
+        // Taken for the same supplier by a contact alone, under a name the invoice doesn't give: worth a look
+        const match = supplierMatch(ids, idsOfSaved(previous));
+        const otherName = !!s.name && (match === 'domain' || match === 'email' || match === 'phone')
+            && bigramSimilarity(supplierKey(s.name.value), supplierKey(previous.supplier_name || previous.form.payeeName)) < 0.5;
+        flags.payeeName = otherName
+            ? { level: 'check', note: `${fromMatched}. The invoice says “${s.name!.value}”: check it is the same supplier`, source: s.name?.source }
+            : { level: 'memory', note: fromMatched, source: s.name?.source };
         flags.payeeAddress = { level: 'memory', note: fromLast, source: s.address?.source };
     } else {
         if (s.name) {

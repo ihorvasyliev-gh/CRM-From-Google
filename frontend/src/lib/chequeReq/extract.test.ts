@@ -362,3 +362,28 @@ describe('Word invoices', () => {
         expect(facts.total?.value).toBe(120);
     });
 });
+
+describe('extractInvoice: our own contacts are not the supplier\'s', () => {
+    const at = (x: number, y: number, text: string) => ({ page: 0, x, y, w: text.length * 9 * 0.48, h: 9, text });
+
+    it('skips a phone or email written in the customer\'s block', () => {
+        const base = simpleVatInvoice().filter(p => p.text !== 'Tel: 087 123 4567');
+        const phrases = [...base, at(340, 734, 'Contact: 087 999 0000'), at(340, 722, 'coordinator.cork@gmail.com')];
+        const facts = extractInvoice(phrases);
+        expect(facts.supplier.phone).toBeUndefined();
+        expect(facts.supplier.email).toBeUndefined();
+    });
+
+    it('skips them under "Deliver to:" without our name too', () => {
+        const phrases = [
+            ...simpleVatInvoice().filter(p => !/^(?:Bill To:|Cork City Partnership|Heron House)/.test(p.text)),
+            at(340, 770, 'Deliver to:'),
+            at(340, 758, 'Mary Walsh'),
+            at(340, 746, 'Mob: 087 999 0000'),
+            at(340, 734, 'coordinator.cork@gmail.com'),
+        ];
+        const facts = extractInvoice(phrases);
+        expect(facts.supplier.phone).toBe('087 123 4567');
+        expect(facts.supplier.email).toBeUndefined();
+    });
+});
