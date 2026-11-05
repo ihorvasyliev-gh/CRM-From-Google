@@ -3,6 +3,7 @@
 // else (date, tutor) is the same on every certificate unless it is switched to "each person".
 
 import { safeFileName } from '../documentRender';
+import { addMonths, countUp, courseDateTag, formatCertDate, formatCertMonth, isExpiryTag, isMonthTag, isNumberTag, parseCertDate } from './dates';
 
 /** Tags that name the person: different on each certificate from the start */
 const NAME_TAGS = ['firstName', 'lastName', 'fullName', 'name'];
@@ -17,7 +18,11 @@ const LABELS: Record<string, string> = {
     courseMonth: 'Course month',
     courseTitle: 'Course',
     expire: 'Expiry date',
+    expiry: 'Expiry date',
     expiryDate: 'Expiry date',
+    certNo: 'Certificate number',
+    certNumber: 'Certificate number',
+    certificateNumber: 'Certificate number',
     tutor: 'Tutor',
     today: 'Date',
 };
@@ -40,22 +45,45 @@ export interface TemplateFields {
     columns: string[];
     /** The same on every certificate unless switched to each person */
     shared: string[];
-    /** Worked out, not typed: {fullName} from the first and last name */
+    /**
+     * Worked out, not typed: {fullName} from the first and last name; the course month from the
+     * course date; the expiry date from the course date and how long the certificate is valid
+     */
     derived: string[];
+    /** Typed once as the first person's, then counted up: the certificate number */
+    numbered: string[];
+    /** The tag of the course date the month and expiry count from */
+    courseDate?: string;
+    /** How long the certificate is valid for, when the expiry date is worked out */
+    validityMonths: number | null;
 }
 
 /**
  * The fields for a template's tags. `perPerson`: the tags switched to "each person" (the name
- * tags are, from the start). {fullName} next to {firstName} / {lastName} is made from them.
+ * tags are, from the start). {fullName} next to {firstName} / {lastName} is made from them,
+ * {courseMonth} from the course date, and the expiry date too once `validityMonths` is set.
  */
-export function templateFields(tags: string[], perPerson: ReadonlySet<string>): TemplateFields {
+export function templateFields(tags: string[], perPerson: ReadonlySet<string>, validityMonths: number | null = null): TemplateFields {
     const hasParts = tags.includes('firstName') || tags.includes('lastName');
-    const derived = hasParts && tags.includes('fullName') ? ['fullName'] : [];
+    const courseDate = courseDateTag(tags);
+    const derived = [
+        ...(hasParts && tags.includes('fullName') ? ['fullName'] : []),
+        ...(courseDate ? tags.filter(t => isMonthTag(t) && !perPerson.has(t)) : []),
+        ...(courseDate && validityMonths ? tags.filter(t => isExpiryTag(t) && !perPerson.has(t)) : []),
+    ];
     const asked = tags.filter(t => !derived.includes(t));
     // First and last name side by side, first, when the template has either
     const parts = ['firstName', 'lastName'].filter(t => tags.includes(t));
     const columns = [...parts, ...asked.filter(t => !parts.includes(t) && perPerson.has(t))];
-    return { columns, shared: asked.filter(t => !columns.includes(t)), derived };
+    const shared = asked.filter(t => !columns.includes(t));
+    return {
+        columns,
+        shared,
+        derived,
+        numbered: shared.filter(isNumberTag),
+        courseDate,
+        validityMonths: courseDate && derived.some(isExpiryTag) ? validityMonths : null,
+    };
 }
 
 /** The tags that start out as "each person": the ones naming the person */
@@ -117,12 +145,18 @@ export function pasteInto(rows: PersonRow[], columns: string[], text: string, ro
     return next;
 }
 
-/** The values one certificate is filled with */
-export function personData(row: PersonRow | null, fields: TemplateFields, shared: Record<string, string>): Record<string, string> {
+/** The values one certificate is filled with; `index`: the person's place, for the numbers */
+export function personData(row: PersonRow | null, fields: TemplateFields, shared: Record<string, string>, index = 0): Record<string, string> {
     const data: Record<string, string> = {};
     for (const tag of fields.shared) data[tag] = (shared[tag] ?? '').trim();
+    for (const tag of fields.numbered) data[tag] = data[tag] && countUp(data[tag], index);
     for (const tag of fields.columns) data[tag] = (row?.values[tag] ?? '').trim();
-    if (fields.derived.includes('fullName')) data.fullName = [data.firstName, data.lastName].filter(Boolean).join(' ');
+    const course = fields.courseDate ? parseCertDate(data[fields.courseDate]) : null;
+    for (const tag of fields.derived) {
+        if (tag === 'fullName') data.fullName = [data.firstName, data.lastName].filter(Boolean).join(' ');
+        else if (isMonthTag(tag)) data[tag] = course ? formatCertMonth(course) : '';
+        else if (isExpiryTag(tag)) data[tag] = course && fields.validityMonths ? formatCertDate(addMonths(course, fields.validityMonths)) : '';
+    }
     return data;
 }
 

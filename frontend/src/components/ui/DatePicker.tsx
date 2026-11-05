@@ -193,17 +193,32 @@ interface DateInputProps {
     disabled?: boolean;
 }
 
-/** Date field that opens the calendar in a popover; value "YYYY-MM-DD" or ''. */
-export function DateInput({ value, onChange, min, max, id, placeholder = 'Select date', className = '', disabled }: DateInputProps) {
-    const [open, setOpen] = useState(false);
+interface PopoverProps {
+    /** The field or button the calendar opens from */
+    anchorRef: React.RefObject<HTMLElement | null>;
+    open: boolean;
+    onClose: () => void;
+    mode?: Mode;
+    /** "YYYY-MM-DD" (or "YYYY-MM" in month mode) or '' */
+    value: string;
+    /** Called with the picked day (or month); the popover closes */
+    onChange: (value: string) => void;
+    min?: string;
+    max?: string;
+    label?: string;
+}
+
+/** The calendar in a popover under (or above) `anchorRef`, closed by Escape, a click outside or scrolling */
+export function CalendarPopover({ anchorRef, open, onClose, mode = 'date', value, onChange, min, max, label }: PopoverProps) {
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-    const triggerRef = useRef<HTMLButtonElement>(null);
     const popRef = useRef<HTMLDivElement>(null);
+    const closeRef = useRef(onClose);
+    useLayoutEffect(() => { closeRef.current = onClose; });
 
     // Fixed-position portal so modals with overflow:hidden don't clip it; flips up near the bottom
     useLayoutEffect(() => {
-        if (!open || !triggerRef.current) return;
-        const r = triggerRef.current.getBoundingClientRect();
+        if (!open || !anchorRef.current) return;
+        const r = anchorRef.current.getBoundingClientRect();
         const h = popRef.current?.offsetHeight ?? 340;
         const w = 288;
         const below = r.bottom + 6 + h <= window.innerHeight;
@@ -211,14 +226,14 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
             top: below ? r.bottom + 6 : Math.max(8, r.top - 6 - h),
             left: Math.min(Math.max(8, r.left), window.innerWidth - w - 8),
         });
-    }, [open]);
+    }, [open, anchorRef]);
 
     useEffect(() => {
         if (!open) return;
-        const close = () => setOpen(false);
+        const close = () => closeRef.current();
         const onDown = (e: MouseEvent) => {
             const t = e.target as Node;
-            if (!popRef.current?.contains(t) && !triggerRef.current?.contains(t)) close();
+            if (!popRef.current?.contains(t) && !anchorRef.current?.contains(t)) close();
         };
         const onScroll = (e: Event) => {
             if (!popRef.current?.contains(e.target as Node)) close();
@@ -227,7 +242,7 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
             if (e.key !== 'Escape') return;
             e.preventDefault(); // tells useModalBehavior to leave the modal open
             close();
-            triggerRef.current?.focus();
+            anchorRef.current?.focus();
         };
         document.addEventListener('mousedown', onDown);
         document.addEventListener('keydown', onKey, true);
@@ -239,7 +254,35 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
             window.removeEventListener('scroll', onScroll, true);
             window.removeEventListener('resize', close);
         };
-    }, [open]);
+    }, [open, anchorRef]);
+
+    if (!open) return null;
+    return createPortal(
+        <div
+            ref={popRef}
+            role="dialog"
+            aria-label={label}
+            style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? 0, width: 288 }}
+            className="z-300 animate-scaleIn"
+        >
+            <CalendarPanel
+                mode={mode}
+                value={value}
+                min={min}
+                max={max}
+                label={label}
+                onChange={v => { onChange(v); closeRef.current(); }}
+                className="bg-surface shadow-float"
+            />
+        </div>,
+        document.body,
+    );
+}
+
+/** Date field that opens the calendar in a popover; value "YYYY-MM-DD" or ''. */
+export function DateInput({ value, onChange, min, max, id, placeholder = 'Select date', className = '', disabled }: DateInputProps) {
+    const [open, setOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
     return (
         <>
@@ -256,24 +299,7 @@ export function DateInput({ value, onChange, min, max, id, placeholder = 'Select
                 <span className={value ? 'text-primary' : 'text-muted'}>{value ? formatDisplayDate(value) : placeholder}</span>
                 <Calendar size={15} className="text-muted shrink-0" />
             </button>
-            {open && createPortal(
-                <div
-                    ref={popRef}
-                    role="dialog"
-                    style={{ position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? 0, width: 288 }}
-                    className="z-300 animate-scaleIn"
-                >
-                    <CalendarPanel
-                        mode="date"
-                        value={value}
-                        min={min}
-                        max={max}
-                        onChange={v => { onChange(v); setOpen(false); }}
-                        className="bg-surface shadow-float"
-                    />
-                </div>,
-                document.body,
-            )}
+            <CalendarPopover anchorRef={triggerRef} open={open} onClose={() => setOpen(false)} value={value} onChange={onChange} min={min} max={max} />
         </>
     );
 }

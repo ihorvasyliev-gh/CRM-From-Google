@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
 import PizZip from 'pizzip';
 import PublicCertificates from './PublicCertificates';
+import type { CertificateTemplate } from '../lib/certificates/library';
 
-// Nothing on the public page may reach the database: loading the client at all fails this file
+// The public page never uses the signed-in client: loading it at all fails this file
 vi.mock('../lib/supabase', () => {
-    throw new Error('The public certificates page must not load the Supabase client');
+    throw new Error('The public certificates page must not load the signed-in Supabase client');
 });
+// The certificates kept in Settings, read signed out
+const fetchTemplates = vi.fn();
+const downloadTemplate = vi.fn();
+vi.mock('../lib/certificates/library', async importOriginal => ({
+    ...(await importOriginal<typeof import('../lib/certificates/library')>()),
+    fetchPublicCertificateTemplates: () => fetchTemplates(),
+    downloadPublicCertificateTemplate: (t: unknown) => downloadTemplate(t),
+}));
 // Drawing pages needs a real browser's layout and canvas
 vi.mock('./Certificates/CertificatePreview', () => ({
     default: ({ people }: { people: { label: string }[] }) => <div data-testid="preview">{people.map(p => p.label).join(', ')}</div>,
@@ -20,6 +31,18 @@ vi.mock('../lib/certificates/output', async importOriginal => ({
 }));
 const downloadBlob = vi.fn();
 vi.mock('../lib/download', () => ({ downloadBlob: (...args: unknown[]) => downloadBlob(...args) }));
+
+function render(ui: ReactElement) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+function kept(over: Partial<CertificateTemplate>): CertificateTemplate {
+    return {
+        id: 'mh', name: 'Manual Handling', file_name: 'Manual Handling Cert.docx', storage_path: 'mh.docx', tags: [],
+        validity_months: null, is_active: true, sort_order: 0, size_bytes: 1, created_at: '', updated_at: '', ...over,
+    };
+}
 
 function templateFile(...lines: string[]): File {
     const zip = new PizZip();
@@ -42,6 +65,10 @@ describe('PublicCertificates', () => {
         makeWord.mockReset().mockResolvedValue({ blob: new Blob(['docx']), fileName: 'MH Cert - all.docx' });
         makePdf.mockReset().mockResolvedValue({ blob: new Blob(['pdf']), fileName: 'MH Cert.zip' });
         downloadBlob.mockReset();
+        fetchTemplates.mockReset().mockResolvedValue({ templates: [], available: true });
+        downloadTemplate.mockReset();
+        localStorage.clear();
+        window.history.replaceState(null, '', '/certificates');
     });
 
     it('asks for a Word template first', () => {
@@ -118,5 +145,76 @@ describe('PublicCertificates', () => {
         await openTemplate(templateFile('{firstName} {lastName}'));
         expect(screen.getByRole('button', { name: /Download Word/ })).toBeDisabled();
         expect(screen.getByText('Add the names in step 2 first.')).toBeInTheDocument();
+    });
+
+    it('offers the certificates kept in Settings and works out the expiry date from the course date', async () => {
+        const file = templateFile('{firstName} {lastName}', 'Date: {courseDate}', 'Expires: {expire}', 'Month: {courseMonth}', 'Signed: {tutor}');
+        fetchTemplates.mockResolvedValue({ templates: [kept({ tags: ['firstName', 'lastName', 'courseDate', 'expire', 'tutor'], validity_months: 36 })], available: true });
+        downloadTemplate.mockResolvedValue(await file.arrayBuffer());
+        render(<PublicCertificates />);
+
+        fireEvent.click(await screen.findByRole('button', { name: /Manual Handling/ }));
+        await screen.findByText('1. Certificate: Manual Handling');
+        expect(downloadTemplate).toHaveBeenCalledWith(expect.objectContaining({ storage_path: 'mh.docx' }));
+        // The template's own length is chosen; the expiry waits for the course date
+        expect(screen.getByRole('button', { name: '3 years' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByText('Choose the course date first')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Course date'), { target: { value: '21/09/2026' } });
+        expect(screen.getByText('21/09/2029')).toBeInTheDocument();
+        expect(screen.getByText('Course month on the certificate: September 2026')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: '2 years' }));
+        expect(screen.getByText('21/09/2028')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Tutor'), { target: { value: 'Yvonne Quilligan' } });
+        fireEvent.change(screen.getByLabelText(/One name per line/), { target: { value: 'Mary Lee' } });
+        fireEvent.click(screen.getByRole('button', { name: /Download Word/ }));
+        await waitFor(() => expect(makeWord).toHaveBeenCalled());
+        const [, name, people] = makeWord.mock.calls[0];
+        expect(name).toBe('Manual Handling');
+        expect(people[0].data).toEqual({
+            firstName: 'Mary', lastName: 'Lee', courseDate: '21/09/2026', tutor: 'Yvonne Quilligan', courseMonth: 'September 2026', expire: '21/09/2028',
+        });
+    });
+
+    it('takes a date of its own for the expiry, picked on the calendar', async () => {
+        render(<PublicCertificates />);
+        await openTemplate(templateFile('{firstName}', '{courseDate}', '{expire}'));
+        expect(screen.getByRole('button', { name: 'Own date' })).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.change(screen.getByLabelText('Course date'), { target: { value: '21/09/2026' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Choose the course date on a calendar' }));
+        const calendar = screen.getByRole('dialog', { name: 'Course date' });
+        expect(within(calendar).getByText('September 2026')).toBeInTheDocument();
+        fireEvent.click(within(calendar).getByRole('button', { name: /23 Sept? 2026/ }));
+        expect(screen.getByLabelText('Course date')).toHaveValue('23/09/2026');
+        fireEvent.click(screen.getByRole('button', { name: '5 years' }));
+        expect(screen.getByText('23/09/2031')).toBeInTheDocument();
+    });
+
+    it('opens the certificate named in the link', async () => {
+        window.history.replaceState(null, '', '/certificates?template=syob');
+        fetchTemplates.mockResolvedValue({ templates: [kept({ id: 'syob', name: 'SYOB', tags: ['firstName', 'courseMonth'] })], available: true });
+        downloadTemplate.mockResolvedValue(await templateFile('{firstName}', '{courseMonth}').arrayBuffer());
+        render(<PublicCertificates />);
+        await screen.findByText('1. Certificate: SYOB');
+        // No course date in this one: the month is picked
+        expect(screen.getByRole('button', { name: 'Choose the course month on a calendar' })).toBeInTheDocument();
+    });
+
+    it('counts the certificate numbers up and remembers the tutor for next time', async () => {
+        const { unmount } = render(<PublicCertificates />);
+        await openTemplate(templateFile('{firstName} {lastName}', 'No. {certNo}', '{tutor}'));
+        fireEvent.change(screen.getByLabelText('Certificate number (first)'), { target: { value: 'ASC-2026-009' } });
+        fireEvent.change(screen.getByLabelText('Tutor'), { target: { value: 'Anne Kelly' } });
+        fireEvent.change(screen.getByLabelText(/One name per line/), { target: { value: 'Mary Lee\nJohn Ray' } });
+        expect(screen.getByText('Counts up for each person: ASC-2026-009, ASC-2026-010')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Download PDF/ }));
+        await waitFor(() => expect(makePdf).toHaveBeenCalled());
+        expect(makePdf.mock.calls[0][2].map((p: { data: Record<string, string> }) => p.data.certNo)).toEqual(['ASC-2026-009', 'ASC-2026-010']);
+        unmount();
+
+        render(<PublicCertificates />);
+        await openTemplate(templateFile('{firstName}', '{tutor}'));
+        expect(screen.getByLabelText('Tutor')).toHaveValue('Anne Kelly');
     });
 });
