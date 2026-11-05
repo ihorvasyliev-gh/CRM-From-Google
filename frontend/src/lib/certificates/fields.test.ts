@@ -33,6 +33,36 @@ describe('fieldLabel', () => {
 });
 
 describe('templateFields', () => {
+    it('works out the course month from the course date, and the expiry once a length is chosen', () => {
+        const tags = ['firstName', 'courseDate', 'courseMonth', 'expire', 'certNo'];
+        const own = templateFields(tags, initialPerPerson(tags));
+        expect(own.shared).toEqual(['courseDate', 'expire', 'certNo']);
+        expect(own.derived).toEqual(['courseMonth']);
+        expect(own.numbered).toEqual(['certNo']);
+        expect(own.validityMonths).toBeNull();
+
+        const counted = templateFields(tags, initialPerPerson(tags), 24);
+        expect(counted.shared).toEqual(['courseDate', 'certNo']);
+        expect(counted.derived).toEqual(['courseMonth', 'expire']);
+        const row = newRow({ firstName: 'Ann' });
+        expect(personData(row, counted, { courseDate: '21/09/2026', certNo: 'C-01' }, 1)).toEqual({
+            courseDate: '21/09/2026', certNo: 'C-02', firstName: 'Ann', courseMonth: 'September 2026', expire: '21/09/2028',
+        });
+    });
+
+    it("counts the expiry from each person's own course date", () => {
+        const tags = ['firstName', 'courseDate', 'expire'];
+        const f = templateFields(tags, new Set([...initialPerPerson(tags), 'courseDate']), 12);
+        expect(f.columns).toEqual(['firstName', 'courseDate']);
+        expect(personData(newRow({ firstName: 'Ann', courseDate: '2/3/2026' }), f, {}).expire).toBe('02/03/2027');
+    });
+
+    it('asks for the course month when there is no course date', () => {
+        const f = templateFields(['firstName', 'courseMonth', 'expire'], new Set(['firstName']), 36);
+        expect(f.shared).toEqual(['courseMonth', 'expire']);
+        expect(f.validityMonths).toBeNull();
+    });
+
     const tags = ['firstName', 'lastName', 'fullName', 'courseDate', 'tutor'];
 
     it('asks names per person, the rest once, and makes the full name from the parts', () => {

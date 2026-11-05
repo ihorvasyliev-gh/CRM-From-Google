@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, CalendarClock, SlidersHorizontal, ShieldCheck, MailX, Type } from 'lucide-react';
+import { Mail, RotateCcw, Save, Eye, EyeOff, Info, AlertTriangle, Briefcase, GitMerge, Search, Loader2, Check, CheckCircle2, Rows3, Rows4, Plus, Languages, Globe, BellRing, CalendarClock, SlidersHorizontal, ShieldCheck, MailX, Type, Award } from 'lucide-react';
 import { getConfig, setConfig, resetConfig, hasConfirmationTag, type AppConfig } from '../lib/appConfig';
 import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, type StatusEmailAudience } from '../lib/emailTemplates';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import UserRolesSection from './UserRolesSection';
 import EmailOptOutSection from './EmailOptOutSection';
+import CertificateTemplatesSection from './CertificateTemplatesSection';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
@@ -147,7 +148,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
     // Highlight the section currently in view in the side navigation
     useEffect(() => {
         if (typeof IntersectionObserver === 'undefined') return;
-        const ids = ['settings-email-style', 'settings-invitation', 'settings-survey', 'settings-unsubscribes', 'settings-duplicates', 'settings-preferences', 'settings-users'];
+        const ids = ['settings-email-style', 'settings-invitation', 'settings-survey', 'settings-unsubscribes', 'settings-duplicates', 'settings-certificates', 'settings-preferences', 'settings-users'];
         const observer = new IntersectionObserver(
             entries => {
                 const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -444,6 +445,7 @@ export default function Settings({ density, onDensityChange }: { density: Densit
         { id: 'settings-survey', label: 'Outcomes survey', icon: Briefcase },
         { id: 'settings-unsubscribes', label: 'Unsubscribed', icon: MailX },
         { id: 'settings-duplicates', label: 'Duplicate profiles', icon: GitMerge },
+        { id: 'settings-certificates', label: 'Certificates', icon: Award },
         { id: 'settings-preferences', label: 'Preferences', icon: SlidersHorizontal },
         { id: 'settings-users', label: 'Users & roles', icon: ShieldCheck },
     ];
@@ -948,6 +950,9 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                             />
                         )}
                     </Card>
+
+                    {/* ═══ Certificate templates (public /certificates page) ═══ */}
+                    <CertificateTemplatesSection id="settings-certificates" />
 
                     {/* ═══ General Preferences ═══ */}
                     <Card
