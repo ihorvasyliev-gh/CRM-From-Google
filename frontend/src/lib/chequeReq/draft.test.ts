@@ -29,6 +29,32 @@ describe('description wording', () => {
         expect(descriptionPattern('Something else', 'Room hire', '')).toBeNull();
     });
 
+    it('does not learn sentences typed about one event', () => {
+        const typed = 'Safe pass Training 21st October for the approx 150 children and adults. The food included chips, chicken goujons, onion rings, and cheese sticks.';
+        expect(descriptionPattern(typed, 'Safe pass Training 21st October', '')).toBeNull();
+        expect(descriptionPattern('Room hire for 12 learners', 'Room hire', '')).toBeNull();
+        expect(descriptionPattern('Room hire for the clients of the Cork City Partnership SICAP programme this year', 'Room hire', '')).toBeNull();
+        expect(descriptionPattern('Platter of wraps 4 for the SICAP launch', 'Platter of wraps 4', '')).toBe('{item} for the SICAP launch');
+    });
+
+    it('drops such wording kept on this computer before', () => {
+        localStorage.setItem('cheque_req_defaults', JSON.stringify({ actionNumber: '9.', requestedBy: 'Jane', descriptionPattern: '{item} for the approx 150 children and adults. The food included chips.' }));
+        expect(readDefaults().descriptionPattern).toBe('');
+        localStorage.removeItem('cheque_req_defaults');
+    });
+
+    it('fills in only the invoice line when the last requisition had a story typed into it', () => {
+        const previous = saved({
+            invoice_number: 'INV-3209',
+            form: { payeeName: 'Brightway Safety Training Services', description: 'Safe pass Training 21st October for the approx 150 children and adults. The food included chips, chicken goujons, onion rings, and cheese sticks.' },
+            meta: { supplierVat: 'IE1234567T', item: 'Safe pass Training 21st October' },
+        });
+        const facts = { ...extractInvoice(xeroLikeInvoice()), items: [{ description: 'Safe pass Training 21st October', details: [], amount: 750 }], serviceDates: undefined };
+        const draft = draftFromInvoice({ facts, history: [previous], defaults: EMPTY_DEFAULTS, fileName: 'inv.pdf' });
+        expect(draft.previous?.id).toBe(previous.id);
+        expect(draft.form.description).toBe('Safe pass Training 21st October');
+    });
+
     it('builds the next description the same way', () => {
         expect(buildDescription('Manual Handling QQI Level 5', '2026-11-03', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling QQI Level 5 course 03.11.2026 for IP and TP Clients');
         expect(buildDescription('Manual Handling', '', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling course for IP and TP Clients');

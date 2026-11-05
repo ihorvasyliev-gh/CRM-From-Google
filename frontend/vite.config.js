@@ -1,0 +1,51 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+/** Long-lived vendor chunks, so an app deploy does not invalidate cached libraries. */
+const chunkGroups = {
+    vendor: ['react', 'react-dom', 'scheduler', 'lucide-react', 'react-router', 'react-router-dom', '@tanstack/react-query'],
+    charts: ['recharts'],
+    dnd: ['@dnd-kit/core'],
+    'excel-export': ['write-excel-file', 'fflate'],
+    'docx-gen': ['docxtemplater'],
+    // Shared by Word documents and the .xlsx reader
+    zip: ['pizzip'],
+};
+/** Email template editor: TipTap and the ProseMirror packages under it. */
+const editorChunk = /[\\/]node_modules[\\/](@tiptap[\\/][^\\/]+|prosemirror-[^\\/]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname)[\\/]/;
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// https://vite.dev/config/
+export default defineConfig({
+    plugins: [react(), tailwindcss()],
+    // Word templates shipped with the app (the SICAP cheque requisition)
+    assetsInclude: ['**/*.docx'],
+    // The document worker loads pizzip/docxtemplater with dynamic import(), which needs ES module workers
+    worker: { format: 'es' },
+    build: {
+        rolldownOptions: {
+            // Drop debug output in production but keep console.error / console.warn: for many
+            // failures (caught errors, failed syncs) they are the only trace left
+            treeshake: { manualPureFunctions: ['console.log', 'console.debug', 'console.info'] },
+            output: {
+                // Tesseract (reading scanned invoices) fetches its English model by file name
+                assetFileNames: asset => (asset.names.includes('eng.traineddata.gz') ? 'ocr/[name][extname]' : 'assets/[name]-[hash][extname]'),
+                minify: {
+                    compress: { dropDebugger: true },
+                },
+                codeSplitting: {
+                    groups: [
+                        // Its own chunk, so the entry imports it before the shared chunks (supabase…)
+                        // instead of running it after them in its own body
+                        { name: 'quiet-console', test: /[\\/]src[\\/]lib[\\/]quietConsole\.ts$/ },
+                        ...Object.entries(chunkGroups).map(([name, pkgs]) => ({
+                            name,
+                            test: new RegExp(`[\\\\/]node_modules[\\\\/](${pkgs.map(escapeRegExp).join('|')})[\\\\/]`),
+                        })),
+                        { name: 'editor', test: editorChunk },
+                    ],
+                },
+            },
+        },
+        chunkSizeWarningLimit: 1200,
+    },
+});

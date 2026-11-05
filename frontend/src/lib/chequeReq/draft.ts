@@ -32,7 +32,8 @@ export function readDefaults(key = DEFAULTS_KEY): ChequeReqDefaults {
         return {
             actionNumber: typeof stored.actionNumber === 'string' ? stored.actionNumber : '',
             requestedBy: typeof stored.requestedBy === 'string' ? stored.requestedBy : '',
-            descriptionPattern: typeof stored.descriptionPattern === 'string' ? stored.descriptionPattern : '',
+            // Wording kept before it had to be short and general is not carried on
+            descriptionPattern: typeof stored.descriptionPattern === 'string' && generalWording(stored.descriptionPattern) ? stored.descriptionPattern : '',
         };
     } catch {
         return { ...EMPTY_DEFAULTS };
@@ -119,7 +120,23 @@ export function descriptionPattern(description: string, item: string, serviceDat
     if (serviceDate) pattern = pattern.replace(dottedDate(serviceDate), '{date}');
     // Another date left in it would be copied onto every future requisition
     if (pattern === '{item}' || findDates(pattern.replace('{date}', '')).length > 0) return null;
-    return pattern;
+    return generalWording(pattern) ? pattern : null;
+}
+
+/** Most words a learnt wording may add around the item and date ("course … for IP and TP Clients") */
+const MAX_PATTERN_WORDS = 8;
+
+/**
+ * Wording that fits the next requisition too: a few words such as "course {date} for IP and TP
+ * Clients". Sentences typed about one event (how many came, what was served) are not: no
+ * second sentence, no numbers, a few words at most.
+ */
+export function generalWording(pattern: string): boolean {
+    const added = collapseSpaces(pattern.replace('{item}', ' ').replace('{date}', ' '));
+    if (!added) return true;
+    if (/\d/.test(added)) return false;
+    if (/[.!?;:]\s*\S/.test(added)) return false;
+    return added.split(' ').filter(w => /\w/.test(w)).length <= MAX_PATTERN_WORDS;
 }
 
 /** `days`: a course run on separate days, all of them listed */
