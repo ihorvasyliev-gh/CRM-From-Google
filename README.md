@@ -190,7 +190,12 @@ Drop a supplier invoice (PDF, Word, a scan or a photo) and the SICAP cheque requ
 The invoice is read in the browser and never uploaded; the OCR engine and its English model ship with the app (the CSP allows WebAssembly with `'wasm-unsafe-eval'`).
 
 ### 🎓 Certificates without signing in
-`/certificates` is open to anyone with the link. Choose a Word template with `{placeholders}` (`{firstName} {lastName}`, `{courseDate}`, `{tutor}` …): each one becomes a box. Names are typed for each person (or pasted as a list, straight from Excel), the rest is typed once for everyone, and any field can be switched to "each person". A preview shows the certificate as the PDF will look; downloads are Word (the template filled in) or PDF, everyone in one file or a file each in a ZIP. The PDF is drawn in the browser (docx-preview, with pictures anchored to the page put in their places) with the fonts on the device. Nothing is uploaded or saved, and the page makes no database calls.
+`/certificates` is open to anyone with the link. Choose a Word template with `{placeholders}` (`{firstName} {lastName}`, `{courseDate}`, `{tutor}` …): each one becomes a box. Names are typed for each person (or pasted as a list, straight from Excel), the rest is typed once for everyone, and any field can be switched to "each person". A preview shows the certificate as the PDF will look; downloads are Word (the template filled in) or PDF, everyone in one file or a file each in a ZIP. The PDF is drawn in the browser (docx-preview, with pictures anchored to the page put in their places) with the fonts on the device.
+
+- **Certificates kept in Settings:** admins add Word templates in **Settings → Certificates** (migration 89): a name, how long each one is valid (none, or 1–5 years), on/off, order, and a link that opens the page with that certificate chosen (`/certificates?template=<id>`). The page lists the ones that are on; anyone can still bring their own Word file.
+- **Dates:** picked on a calendar or typed (a span like `21–23/09/2026` is printed as typed). The expiry date (`{expire}`, `{expiryDate}`) counts 1–5 years from the course date to the same day, or takes a date of its own; `{courseMonth}` follows the course date.
+- **Numbers and the tutor:** `{certNo}` counts up from the first number typed (`ASC-2026-009`, `…010`); the tutor is remembered in the browser for next time.
+- Nothing typed is uploaded or saved. The page reads only the templates that are on, signed out, through a client of its own.
 
 </td>
 </tr>
@@ -268,7 +273,7 @@ Roles live in Supabase `auth.users.app_metadata.role`. New sign-ups join as **vi
 | 🧾 **PDF Forms** | PDF Forms | Set up PDF form templates (forms, new revisions, column links) and fill them |
 
 > [!NOTE]
-> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else. The public cheque requisition and certificates pages (`/cheque`, `/certificates`) make no database calls at all.
+> Public pages (`/confirm`, `/c/:token`, `/status`) never touch tables directly. They call hardened `SECURITY DEFINER` functions with a pinned `search_path`, and anonymous `EXECUTE` is revoked everywhere else. The public cheque requisition page (`/cheque`) makes no database calls at all; `/certificates` only reads the certificate templates switched on in Settings (migration 89), signed out.
 
 ---
 

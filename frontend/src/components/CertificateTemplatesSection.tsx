@@ -60,8 +60,8 @@ function TemplateRow({ template, first, last, onReplace, onDelete }: {
 
     return (
         <li className={`px-4 sm:px-5 py-4 ${template.is_active ? '' : 'bg-surface-elevated/40'}`}>
-            <div className="flex flex-col md:flex-row md:items-start gap-3">
-                <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1 basis-56 max-w-md">
                     <input
                         value={name}
                         onChange={e => setName(e.target.value)}
@@ -71,53 +71,53 @@ function TemplateRow({ template, first, last, onReplace, onDelete }: {
                         maxLength={120}
                         className={`${fieldCls} font-semibold`}
                     />
-                    <p className="text-xs text-muted leading-relaxed break-words">
-                        <span className="text-secondary">{template.file_name}</span>
-                        {labels.length > 0 ? <> · fills in {labels.join(', ')}</> : null}
+                </div>
+                <div className="flex items-center gap-0.5 ml-auto">
+                    <IconButton size="sm" label="Move up" disabled={first || move.isPending} onClick={() => move.mutate({ id: template.id, dir: -1 })}><ArrowUp size={14} /></IconButton>
+                    <IconButton size="sm" label="Move down" disabled={last || move.isPending} onClick={() => move.mutate({ id: template.id, dir: 1 })}><ArrowDown size={14} /></IconButton>
+                    <IconButton size="sm" label="Copy the link that opens this certificate" disabled={!template.is_active} onClick={() => copyText(certificateTemplateLink(template.id), 'Link')}><Link2 size={14} /></IconButton>
+                    <IconButton size="sm" label="Download the Word file" disabled={downloading} onClick={download}><Download size={14} /></IconButton>
+                    <IconButton size="sm" label="Replace the Word file" onClick={() => onReplace(template)}><RefreshCw size={14} /></IconButton>
+                    <IconButton size="sm" tone="danger" label="Delete" onClick={() => onDelete(template)}><Trash2 size={14} /></IconButton>
+                </div>
+            </div>
+            <div className="mt-2 space-y-1.5">
+                <p className="text-xs text-muted leading-relaxed break-words">
+                    <span className="text-secondary">{template.file_name}</span>
+                    {labels.length > 0 ? <> · fills in {labels.join(', ')}</> : null}
+                </p>
+                {labels.length === 0 && (
+                    <p className="text-xs text-status-requested flex items-center gap-1.5">
+                        <AlertTriangle size={12} aria-hidden="true" /> No {'{placeholders}'} in this file: nothing to fill in.
                     </p>
-                    {labels.length === 0 && (
-                        <p className="text-xs text-status-requested flex items-center gap-1.5">
-                            <AlertTriangle size={12} aria-hidden="true" /> No {'{placeholders}'} in this file: nothing to fill in.
-                        </p>
-                    )}
-                </div>
+                )}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+                <label className="flex items-center gap-2 text-xs text-muted whitespace-nowrap">
+                    Valid for
+                    <select
+                        value={template.validity_months ?? ''}
+                        onChange={e => save({ validity_months: e.target.value ? Number(e.target.value) : null }, 'Saved')}
+                        className={`${inputCls} h-8 w-auto pr-8 text-xs`}
+                    >
+                        <option value="">No set length</option>
+                        {options.map(m => <option key={m} value={m}>{validityLabel(m)}</option>)}
+                    </select>
+                </label>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:pt-1">
-                    <label className="flex items-center gap-2 text-xs text-muted">
-                        Valid for
-                        <select
-                            value={template.validity_months ?? ''}
-                            onChange={e => save({ validity_months: e.target.value ? Number(e.target.value) : null }, 'Saved')}
-                            className={`${inputCls} h-8 w-auto pr-8 text-xs`}
-                        >
-                            <option value="">No set length</option>
-                            {options.map(m => <option key={m} value={m}>{validityLabel(m)}</option>)}
-                        </select>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs text-primary font-medium cursor-pointer select-none">
-                        <span className="relative flex items-center shrink-0">
-                            <input
-                                type="checkbox"
-                                checked={template.is_active}
-                                onChange={e => save({ is_active: e.target.checked }, e.target.checked ? `“${template.name}” is on the page` : `“${template.name}” is hidden from the page`)}
-                                className="peer sr-only"
-                            />
-                            <span className="w-9 h-5 bg-border-strong rounded-full peer-checked:bg-brand-500 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40" />
-                            <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform shadow-xs" />
-                        </span>
-                        On the page
-                    </label>
-
-                    <div className="flex items-center gap-0.5">
-                        <IconButton size="sm" label="Move up" disabled={first || move.isPending} onClick={() => move.mutate({ id: template.id, dir: -1 })}><ArrowUp size={14} /></IconButton>
-                        <IconButton size="sm" label="Move down" disabled={last || move.isPending} onClick={() => move.mutate({ id: template.id, dir: 1 })}><ArrowDown size={14} /></IconButton>
-                        <IconButton size="sm" label="Copy the link that opens this certificate" disabled={!template.is_active} onClick={() => copyText(certificateTemplateLink(template.id), 'Link')}><Link2 size={14} /></IconButton>
-                        <IconButton size="sm" label="Download the Word file" disabled={downloading} onClick={download}><Download size={14} /></IconButton>
-                        <IconButton size="sm" label="Replace the Word file" onClick={() => onReplace(template)}><RefreshCw size={14} /></IconButton>
-                        <IconButton size="sm" tone="danger" label="Delete" onClick={() => onDelete(template)}><Trash2 size={14} /></IconButton>
-                    </div>
-                </div>
+                <label className="flex items-center gap-2 text-xs text-primary font-medium cursor-pointer select-none">
+                    <span className="relative flex items-center shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={template.is_active}
+                            onChange={e => save({ is_active: e.target.checked }, e.target.checked ? `“${template.name}” is on the page` : `“${template.name}” is hidden from the page`)}
+                            className="peer sr-only"
+                        />
+                        <span className="w-9 h-5 bg-border-strong rounded-full peer-checked:bg-brand-500 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40" />
+                        <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform shadow-xs" />
+                    </span>
+                    On the page
+                </label>
             </div>
             {!hasExpiry && template.validity_months && (
                 <p className="mt-2 text-xs text-muted">

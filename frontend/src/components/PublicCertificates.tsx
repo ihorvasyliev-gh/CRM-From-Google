@@ -362,7 +362,7 @@ export default function PublicCertificates() {
                                     subtitle={template.tags.length ? `Fills in: ${template.tags.map(fieldLabel).filter((l, i, all) => all.indexOf(l) === i).join(', ')}` : 'Nothing to fill in'}
                                     action={
                                         <Button size="sm" onClick={() => setTemplate(null)}>
-                                            <RefreshCw size={14} /> Another certificate
+                                            <RefreshCw size={14} /> <span className="hidden sm:inline">Another certificate</span><span className="sm:hidden">Change</span>
                                         </Button>
                                     }
                                 >
