@@ -29,6 +29,32 @@ describe('description wording', () => {
         expect(descriptionPattern('Something else', 'Room hire', '')).toBeNull();
     });
 
+    it('does not learn sentences typed about one event', () => {
+        const typed = 'Safe pass Training 21st October for the approx 150 children and adults. The food included chips, chicken goujons, onion rings, and cheese sticks.';
+        expect(descriptionPattern(typed, 'Safe pass Training 21st October', '')).toBeNull();
+        expect(descriptionPattern('Room hire for 12 learners', 'Room hire', '')).toBeNull();
+        expect(descriptionPattern('Room hire for the clients of the Cork City Partnership SICAP programme this year', 'Room hire', '')).toBeNull();
+        expect(descriptionPattern('Platter of wraps 4 for the SICAP launch', 'Platter of wraps 4', '')).toBe('{item} for the SICAP launch');
+    });
+
+    it('drops such wording kept on this computer before', () => {
+        localStorage.setItem('cheque_req_defaults', JSON.stringify({ actionNumber: '9.', requestedBy: 'Jane', descriptionPattern: '{item} for the approx 150 children and adults. The food included chips.' }));
+        expect(readDefaults().descriptionPattern).toBe('');
+        localStorage.removeItem('cheque_req_defaults');
+    });
+
+    it('fills in only the invoice line when the last requisition had a story typed into it', () => {
+        const previous = saved({
+            invoice_number: 'INV-3209',
+            form: { payeeName: 'Brightway Safety Training Services', description: 'Safe pass Training 21st October for the approx 150 children and adults. The food included chips, chicken goujons, onion rings, and cheese sticks.' },
+            meta: { supplierVat: 'IE1234567T', item: 'Safe pass Training 21st October' },
+        });
+        const facts = { ...extractInvoice(xeroLikeInvoice()), items: [{ description: 'Safe pass Training 21st October', details: [], amount: 750 }], serviceDates: undefined };
+        const draft = draftFromInvoice({ facts, history: [previous], defaults: EMPTY_DEFAULTS, fileName: 'inv.pdf' });
+        expect(draft.previous?.id).toBe(previous.id);
+        expect(draft.form.description).toBe('Safe pass Training 21st October');
+    });
+
     it('builds the next description the same way', () => {
         expect(buildDescription('Manual Handling QQI Level 5', '2026-11-03', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling QQI Level 5 course 03.11.2026 for IP and TP Clients');
         expect(buildDescription('Manual Handling', '', '{item} course {date} for IP and TP Clients')).toBe('Manual Handling course for IP and TP Clients');
@@ -52,6 +78,26 @@ describe('suppliers', () => {
         expect(sameSupplier({ ...base, vat: 'IE1234567T' }, { ...base, name: 'Other', vat: '1234567T' })).toBe(true);
         expect(sameSupplier({ ...base, domain: 'acme' }, { name: 'Different', vat: '', iban: '', domain: 'acme' })).toBe(true);
         expect(sameSupplier(base, { ...base, name: 'Greenleaf Catering' })).toBe(false);
+    });
+
+    it('never takes two different VAT numbers or IBANs for one supplier', () => {
+        const base = { name: 'Brightway Safety Training', vat: 'IE1234567T', iban: '', domain: 'brightway', phone: '087 999 0000' };
+        expect(sameSupplier(base, { ...base, name: 'Greenleaf Catering', vat: 'IE7654321X' })).toBe(false);
+        expect(sameSupplier({ ...base, vat: '', iban: 'IE29AIBK93115212345678' }, { ...base, vat: '', iban: 'IE64BOFI90583812345678' })).toBe(false);
+        expect(sameSupplier(base, { ...base, vat: '' })).toBe(true);
+    });
+
+    it('says whose requisition the payee came from and why, and asks for a look when only a phone number matched', () => {
+        const previous = saved({
+            supplier_name: 'Greenleaf Catering',
+            invoice_number: 'INV-3209',
+            form: { payeeName: 'Greenleaf Catering', payeeAddress: '12 Patrick Street, Cork' },
+            meta: { supplierPhone: '087 999 0000' },
+        });
+        const facts = extractInvoice(xeroLikeInvoice());
+        facts.supplier = { ...facts.supplier, vatNumber: undefined, iban: undefined, email: undefined, website: undefined, phone: '087 999 0000' };
+        const { flags } = draftFromInvoice({ facts, history: [previous], defaults: EMPTY_DEFAULTS, fileName: 'inv.pdf' });
+        expect(flags.payeeName).toMatchObject({ level: 'check', note: expect.stringMatching(/^As on your requisition for INV-3209 \(Greenleaf Catering, the same phone number\)\. The invoice says “Brightway/) });
     });
 
     it('recognises one with a free mail address or a name read differently by its email address or phone number', () => {
