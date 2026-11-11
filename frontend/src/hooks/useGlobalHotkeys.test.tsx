@@ -10,6 +10,7 @@ function setup(enabled = true, canAddStudent = true) {
         toggleCommandPalette: vi.fn(),
         toggleShortcuts: vi.fn(),
         openAddStudent: vi.fn(),
+        openAddEnrollment: vi.fn(),
         toggleDarkMode: vi.fn(),
         toggleDensity: vi.fn(),
     };
@@ -48,6 +49,26 @@ describe('useGlobalHotkeys', () => {
         const viewer = setup(true, false);
         fireEvent.keyDown(window, { key: 'n' });
         expect(viewer.actions.openAddStudent).not.toHaveBeenCalled();
+    });
+
+    it('E adds an enrollment: with the page\'s own button when there is one', () => {
+        const { actions } = setup();
+        fireEvent.keyDown(window, { key: 'e' });
+        expect(actions.openAddEnrollment).toHaveBeenCalledTimes(1);
+
+        const main = document.createElement('main');
+        const button = document.createElement('button');
+        button.setAttribute('data-add-enrollment', '');
+        // jsdom lays nothing out: stand in for a visible button
+        button.getClientRects = () => [{}] as unknown as DOMRectList;
+        const onClick = vi.fn();
+        button.addEventListener('click', onClick);
+        main.appendChild(button);
+        document.body.appendChild(main);
+        fireEvent.keyDown(window, { key: 'e' });
+        expect(onClick).toHaveBeenCalledTimes(1);
+        expect(actions.openAddEnrollment).toHaveBeenCalledTimes(1);
+        main.remove();
     });
 
     it('theme and density shortcuts, and nothing at all when disabled', () => {

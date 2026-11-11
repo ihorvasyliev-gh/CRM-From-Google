@@ -24,7 +24,8 @@ interface EnrollmentCardProps {
     enrollment: EnrollmentRow;
     status: string;
     isSelected: boolean;
-    toggleSelect: (id: string) => void;
+    /** `range`: Shift was held, so the column selects every card from the last one clicked to this one */
+    toggleSelect: (id: string, range?: boolean) => void;
     togglePriority: (id: string, current: boolean) => void;
     queuePosition?: number;
     /** "English #100 · Ukrainian #10" for a student queued in several languages of the course */
@@ -218,13 +219,19 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         touchStartPos.current = null;
     };
 
-    const handleClick = () => {
+    const select = (e: React.MouseEvent) => {
+        // Shift+click would also mark the text between the two cards
+        if (e.shiftKey) window.getSelection?.()?.removeAllRanges();
+        toggleSelect(enrollment.id, e.shiftKey);
+    };
+
+    const handleClick = (e: React.MouseEvent) => {
         if (touchStartPos.current && (touchStartPos.current.x === -9999 || touchStartPos.current.y === -9999)) {
             touchStartPos.current = null;
             return;
         }
         touchStartPos.current = null;
-        toggleSelect(enrollment.id);
+        select(e);
     };
 
     /** Opens the "move to" choices next to `trigger` (a sheet on phones) */
@@ -338,7 +345,14 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         </CustomTooltip>
     );
 
+    // The usual next step, one tap away on a phone (both open their dialog first)
+    const nextStep = status === 'requested'
+        ? { label: 'Invite…', icon: <Send size={14} />, target: 'invited' as const }
+        : status === 'invited'
+            ? { label: 'Confirm…', icon: <CheckCircle size={14} />, target: 'confirmed' as const }
+            : null;
     const touchMenuItems: MenuItem[] = [
+        ...(onMoveStatus && nextStep ? [{ label: nextStep.label, icon: nextStep.icon, onSelect: () => onMoveStatus(enrollment.id, status, nextStep.target) }] : []),
         ...(onMoveStatus ? [{ label: 'Move to…', icon: <ArrowRightLeft size={14} />, onSelect: () => openQuickMove(moreMenuRef.current) }] : []),
         { label: enrollment.notes ? 'Edit note' : 'Add note', icon: <Pencil size={14} />, onSelect: startEditNote },
         { label: 'Student details', icon: <Info size={14} />, onSelect: () => onShowDetail?.(enrollment) },
@@ -379,7 +393,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 aria-label={`Select ${fullName}`}
                 onClick={e => {
                     e.stopPropagation();
-                    toggleSelect(enrollment.id);
+                    select(e);
                 }}
                 className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 ${
                     isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg

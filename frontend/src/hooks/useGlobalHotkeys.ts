@@ -10,12 +10,13 @@ interface HotkeyActions {
     toggleCommandPalette: () => void;
     toggleShortcuts: () => void;
     openAddStudent: () => void;
+    openAddEnrollment: () => void;
     toggleDarkMode: () => void;
     toggleDensity: () => void;
 }
 
 /**
- * App-wide keyboard shortcuts: Ctrl/⌘+K palette, ? shortcuts, / page search, N add student,
+ * App-wide keyboard shortcuts: Ctrl/⌘+K palette, ? shortcuts, / page search, N add student, E add enrollment,
  * number keys for tabs, Ctrl/⌘+Shift+D theme, Ctrl/⌘+Shift+C density. Letter and number keys
  * are ignored while typing or while a modal is open, so they can't act "behind" it.
  */
@@ -75,6 +76,17 @@ export function useGlobalHotkeys(enabled: boolean, actions: HotkeyActions) {
                 if (a.canAddStudent && (e.key === 'n' || e.key === 'N') && plain) {
                     e.preventDefault();
                     a.openAddStudent();
+                    return;
+                }
+
+                // E -> Add Enrollment: the page's own button when it has one (the board starts the form
+                // with the course it is filtered to), otherwise the app-wide dialog
+                if (a.canAddStudent && (e.key === 'e' || e.key === 'E') && plain) {
+                    e.preventDefault();
+                    const pageButton = Array.from(document.querySelectorAll<HTMLElement>('main [data-add-enrollment]'))
+                        .find(el => el.offsetParent !== null || el.getClientRects().length > 0);
+                    if (pageButton) pageButton.click();
+                    else a.openAddEnrollment();
                     return;
                 }
 
