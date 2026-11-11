@@ -61,6 +61,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
             title: 'Quick Actions & Preferences',
             shortcuts: [
                 { keys: ['N'], description: 'Add new student' },
+                { keys: ['E'], description: 'Add new enrollment (on the board: for the course it is filtered to)' },
                 { keys: shortcutKeys('Mod', 'Shift', 'D'), description: 'Toggle Theme (Dark / Light)' },
                 { keys: shortcutKeys('Mod', 'Shift', 'C'), description: 'Toggle Density (Compact / Comfortable)' },
             ],
@@ -71,6 +72,7 @@ export default function KeyboardShortcutsModal({ open, onClose, isViewer = false
                 { keys: ['Click', 'Field'], description: '1-click copy Name, Email, Phone, Address' },
                 { keys: ['BCC', 'Copy'], description: 'Copy all selected emails formatted for email client' },
                 { keys: ['Drag & Drop'], description: 'Drag student card between status columns' },
+                { keys: ['Shift', 'Click'], description: 'Select every card from the last one clicked to this one' },
             ],
         },
     ];

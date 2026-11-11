@@ -30,6 +30,8 @@ import { useGlobalHotkeys } from './hooks/useGlobalHotkeys';
 import { useNotificationBanner } from './hooks/useNotificationBanner';
 import type { NavigateFn, NavState } from './lib/navigation';
 import { kbdLabel, shortcutLabel } from './lib/platform';
+import { ENROLLMENTS_KEY } from './lib/enrollmentCache';
+import type { EnrollmentWithRelations } from './lib/documentRender';
 
 // Lazy load heavy route components with retry logic to prevent "Failed to fetch dynamically imported module" errors
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -210,13 +212,20 @@ function App() {
 
 
     const handleOpenStudentDetail = useCallback(async (studentId: string) => {
+        // Usually already loaded with the enrollments: the panel opens at once, without a request
+        const known = queryClient.getQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY)
+            ?.find(e => e.student_id === studentId && e.students)?.students;
+        if (known) {
+            setGlobalStudentDetail(known);
+            return;
+        }
         try {
             setGlobalStudentDetail(await fetchStudent(studentId));
         } catch (e) {
             console.error('Failed to load student details', e);
             toast.error('Could not open student details');
         }
-    }, []);
+    }, [queryClient]);
 
     useGlobalHotkeys(!!user && !isOutreach, {
         tabKeys: isViewer ? VIEWER_TABS.map(t => t.key) : NAV_ITEMS.map(n => n.key),
@@ -225,6 +234,7 @@ function App() {
         toggleCommandPalette: () => setCommandPaletteOpen(prev => !prev),
         toggleShortcuts: () => setShortcutsModalOpen(prev => !prev),
         openAddStudent: () => setGlobalAddStudentOpen(true),
+        openAddEnrollment: () => setGlobalEnrollModalOpen(true),
         toggleDarkMode,
         toggleDensity,
     });

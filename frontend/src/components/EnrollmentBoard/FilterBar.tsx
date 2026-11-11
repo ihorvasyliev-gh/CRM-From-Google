@@ -443,6 +443,7 @@ export default function FilterBar({
                         type="button"
                         onClick={() => setEnrollModalOpen(true)}
                         aria-label="Add enrollment"
+                        data-add-enrollment
                         className={buttonCls('primary', 'md', 'h-9 w-9 md:w-auto px-0 md:px-4 text-sm shrink-0')}
                     >
                         <UserPlus size={16} />

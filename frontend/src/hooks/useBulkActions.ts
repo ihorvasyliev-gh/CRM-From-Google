@@ -54,6 +54,16 @@ export function useBulkActions({
         });
     }, []);
 
+    /** Adds these ids to the selection (Shift+click on the board picks a run of cards). */
+    const selectMany = useCallback((ids: string[]) => {
+        setSelectedIds(prev => {
+            if (ids.every(id => prev.has(id))) return prev;
+            const next = new Set(prev);
+            ids.forEach(id => next.add(id));
+            return next;
+        });
+    }, []);
+
     const selectAllInList = useCallback((items: EnrollmentRow[]) => {
         setSelectedIds(prev => {
             const allSelected = items.every(i => prev.has(i.id));
@@ -208,6 +218,7 @@ export function useBulkActions({
         selectedIds,
         toggleSelect,
         deselect,
+        selectMany,
         selectAllInList,
         clearSelection,
         bulkUpdateStatus,

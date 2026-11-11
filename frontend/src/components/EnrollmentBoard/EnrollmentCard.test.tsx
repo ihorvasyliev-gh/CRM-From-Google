@@ -256,7 +256,13 @@ describe('EnrollmentCard Component', () => {
         expect(card).not.toBeNull();
         fireEvent.click(card!);
 
-        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1');
+        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1', false);
+    });
+
+    it('tells the column when Shift was held, so it can select a run of cards', () => {
+        const { container } = render(<EnrollmentCard {...defaultProps} />);
+        fireEvent.click(container.querySelector('.enrollment-card')!, { shiftKey: true });
+        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1', true);
     });
 
     it('renders mobile slide-up Action Sheet with Cancel button when screen is small', () => {
@@ -290,7 +296,7 @@ describe('EnrollmentCard Component', () => {
         expect(select).toHaveAttribute('aria-checked', 'false');
         fireEvent.click(select);
         expect(mockToggleSelect).toHaveBeenCalledTimes(1);
-        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1');
+        expect(mockToggleSelect).toHaveBeenCalledWith('enrollment-1', false);
 
         const card = screen.getByRole('group', { name: 'John Doe' });
         expect(card).not.toHaveAttribute('tabindex');
@@ -335,7 +341,12 @@ describe('EnrollmentCard Component', () => {
         render(<EnrollmentCard {...defaultProps} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'More actions for John Doe' }));
-        expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Move to…', 'Edit note', 'Student details', 'Flag student']);
+        expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Invite…', 'Move to…', 'Edit note', 'Student details', 'Flag student']);
+
+        // The usual next step, straight from the menu
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Invite…' }));
+        expect(mockOnMoveStatus).toHaveBeenCalledWith('enrollment-1', 'requested', 'invited');
+        fireEvent.click(screen.getByRole('button', { name: 'More actions for John Doe' }));
 
         fireEvent.click(screen.getByRole('menuitem', { name: 'Student details' }));
         expect(mockOnShowDetail).toHaveBeenCalledWith(sampleEnrollment);

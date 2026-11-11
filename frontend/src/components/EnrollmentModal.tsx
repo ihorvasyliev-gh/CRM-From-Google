@@ -27,6 +27,8 @@ interface EnrollmentModalProps {
     open: boolean;
     preselectedStudentId?: string;
     preselectedCourseId?: string;
+    /** The language the form starts with (the board's language filter) */
+    preselectedVariant?: string;
     onSave: () => void;
     onClose: () => void;
 }
@@ -40,7 +42,7 @@ function initials(s: Student) {
     return `${s.first_name?.[0] || ''}${s.last_name?.[0] || ''}`.toUpperCase();
 }
 
-export default function EnrollmentModal({ open, preselectedStudentId, preselectedCourseId, onSave, onClose }: EnrollmentModalProps) {
+export default function EnrollmentModal({ open, preselectedStudentId, preselectedCourseId, preselectedVariant, onSave, onClose }: EnrollmentModalProps) {
     const queryClient = useQueryClient();
     const [studentSearch, setStudentSearch] = useState('');
     const debouncedSearch = useDebounce(studentSearch.trim(), 250);
@@ -92,7 +94,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         if (!open) return;
         setSelectedStudent(null);
         setSelectedCourseId(preselectedCourseId || '');
-        setVariant('');
+        setVariant(preselectedVariant || '');
         setStatus('requested');
         setNotes('');
         setError('');
@@ -101,6 +103,13 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         setShowStudentDropdown(false);
 
         if (preselectedStudentId) {
+            // Usually already loaded with the enrollments: shown at once, without a request
+            const known = queryClient.getQueryData<EnrollmentRow[]>(['enrollments'])
+                ?.find(e => e.student_id === preselectedStudentId && e.students)?.students;
+            if (known) {
+                setSelectedStudent({ id: known.id, first_name: known.first_name, last_name: known.last_name, email: known.email });
+                return;
+            }
             let active = true;
             (async () => {
                 try {
@@ -116,7 +125,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
             })();
             return () => { active = false; };
         }
-    }, [open, preselectedStudentId, preselectedCourseId]);
+    }, [open, preselectedStudentId, preselectedCourseId, preselectedVariant, queryClient]);
 
     useEffect(() => {
         setHighlightIndex(0);
@@ -157,7 +166,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
     const isDirty = !!(
         (!preselectedStudentId && selectedStudent) ||
         (selectedCourseId && selectedCourseId !== (preselectedCourseId || '')) ||
-        variant.trim() || notes.trim() || status !== 'requested'
+        variant.trim() !== (preselectedVariant || '') || notes.trim() || status !== 'requested'
     );
 
     const requestClose = useCallback(() => {

@@ -754,6 +754,7 @@ export default function EnrollmentBoard({
                                 selectAllInList={bulkActions.selectAllInList}
                                 handleCopyEmails={bulkActions.handleCopyEmails}
                                 toggleSelect={bulkActions.toggleSelect}
+                                selectMany={bulkActions.selectMany}
                                 togglePriority={enrollmentsHook.togglePriority}
                                 openEditNote={openEditNote}
                                 onUpdateNote={handleUpdateNote}
@@ -942,6 +943,9 @@ export default function EnrollmentBoard({
                     key={enrollModalMount.key}
                     open={enrollModalOpen}
                     preselectedStudentId={enrollStudentId}
+                    // "Add" on a board filtered to a course starts with that course (and language)
+                    preselectedCourseId={!enrollStudentId && selectedCourse !== 'all' ? selectedCourse : undefined}
+                    preselectedVariant={!enrollStudentId && selectedCourse !== 'all' && selectedVariant !== 'all' ? selectedVariant : undefined}
                     onSave={() => {
                         // The modal itself reads the new enrollment into the cached list
                         showToast('Enrollment created', 'success');

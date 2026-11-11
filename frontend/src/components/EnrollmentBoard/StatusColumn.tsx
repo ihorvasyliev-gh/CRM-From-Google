@@ -24,6 +24,8 @@ interface StatusColumnProps {
     selectAllInList: (items: EnrollmentRow[]) => void;
     handleCopyEmails: (items: EnrollmentRow[], label: string) => void;
     toggleSelect: (id: string) => void;
+    /** Adds a run of cards to the selection (Shift+click) */
+    selectMany?: (ids: string[]) => void;
     togglePriority: (id: string, current: boolean) => void;
     openEditNote: (enrollment: EnrollmentRow) => void;
     onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
@@ -53,6 +55,7 @@ const StatusColumn = function StatusColumn({
     selectAllInList,
     handleCopyEmails,
     toggleSelect,
+    selectMany,
     togglePriority,
     openEditNote,
     onUpdateNote,
@@ -75,6 +78,27 @@ const StatusColumn = function StatusColumn({
     const { isOver, setNodeRef } = useDroppable({
         id: status
     });
+
+    // Shift+click selects every card from the one clicked before to this one, in the column's order
+    const itemsRef = useRef(items);
+    useEffect(() => {
+        itemsRef.current = items;
+    }, [items]);
+    const anchorRef = useRef<string | null>(null);
+    const handleToggle = useCallback((id: string, range?: boolean) => {
+        const anchor = anchorRef.current;
+        anchorRef.current = id;
+        if (range && selectMany && anchor && anchor !== id) {
+            const list = itemsRef.current;
+            const from = list.findIndex(e => e.id === anchor);
+            const to = list.findIndex(e => e.id === id);
+            if (from !== -1 && to !== -1) {
+                selectMany(list.slice(Math.min(from, to), Math.max(from, to) + 1).map(e => e.id));
+                return;
+            }
+        }
+        toggleSelect(id);
+    }, [selectMany, toggleSelect]);
 
     const [visibleCount, setVisibleCount] = useState(INITIAL_CARDS);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -243,7 +267,7 @@ const StatusColumn = function StatusColumn({
                             enrollment={enrollment}
                             status={status}
                             isSelected={selectedIds.has(enrollment.id)}
-                            toggleSelect={toggleSelect}
+                            toggleSelect={handleToggle}
                             togglePriority={togglePriority}
                             openEditNote={openEditNote}
                             onUpdateNote={onUpdateNote}
@@ -280,6 +304,7 @@ const StatusColumn = function StatusColumn({
 export default memo(StatusColumn, (prev, next) => {
     if (prev.status !== next.status) return false;
     if (prev.toggleSelect !== next.toggleSelect) return false;
+    if (prev.selectMany !== next.selectMany) return false;
     if (prev.togglePriority !== next.togglePriority) return false;
     if (prev.openEditNote !== next.openEditNote) return false;
     if (prev.onUpdateNote !== next.onUpdateNote) return false;
