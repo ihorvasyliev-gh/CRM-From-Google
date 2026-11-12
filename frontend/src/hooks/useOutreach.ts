@@ -24,6 +24,8 @@ export interface OutreachContact {
     employment_type: string | null;
     last_invited_at: string | null;
     last_responded_at: string | null;
+    /** Phoned and didn't pick up (migration 90); the status is left as it was */
+    called_no_answer_at?: string | null;
     created_at: string;
     /** The same email also belongs to a CRM student */
     in_crm: boolean;

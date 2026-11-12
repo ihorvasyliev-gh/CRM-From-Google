@@ -7,6 +7,7 @@ export interface GraduateRow {
     first_name: string;
     last_name: string;
     email: string;
+    phone: string | null;
     courses: string[];
     // Employment status (may be null if not yet submitted)
     is_working: boolean | null;
@@ -17,6 +18,8 @@ export interface GraduateRow {
     // Tracking
     tracking_status: 'not_contacted' | 'pending' | 'responded';
     last_sent_at: string | null;
+    /** Phoned and didn't pick up (migration 90); tracking status is left as it was */
+    called_no_answer_at: string | null;
 }
 
 /** A completed enrollment with the student and course fields the outcomes list needs. */
@@ -24,7 +27,7 @@ interface GraduateEnrollment {
     student_id: string;
     course_id: string;
     courses: { name: string } | null;
-    students: { id: string; first_name: string; last_name: string; email: string } | null;
+    students: { id: string; first_name: string; last_name: string; email: string; phone: string | null } | null;
 }
 
 const byName = (a: GraduateRow, b: GraduateRow) =>
@@ -34,7 +37,10 @@ const byName = (a: GraduateRow, b: GraduateRow) =>
 export async function fetchGraduatesFn(): Promise<GraduateRow[]> {
     // Built by the database in one request (migration 85)
     const { data, error } = await supabase.rpc('get_outcome_graduates');
-    if (!error) return ((data ?? []) as GraduateRow[]).sort(byName);
+    // Before migration 90 the rows have no phone or call mark
+    if (!error) return ((data ?? []) as GraduateRow[])
+        .map(g => ({ ...g, phone: g.phone ?? null, called_no_answer_at: g.called_no_answer_at ?? null }))
+        .sort(byName);
     console.warn('get_outcome_graduates unavailable (is migration 85 applied?), building the list here:', error.message);
     return buildGraduates();
 }
@@ -46,7 +52,7 @@ async function buildGraduates(): Promise<GraduateRow[]> {
     const [enrollments, empStatuses] = await Promise.all([
         fetchAllPages((from, to) => supabase
             .from('enrollments')
-            .select('student_id, course_id, courses(name), students(id, first_name, last_name, email)')
+            .select('student_id, course_id, courses(name), students(id, first_name, last_name, email, phone)')
             .eq('status', 'completed')
             .order('id')
             .range(from, to)
@@ -83,6 +89,7 @@ async function buildGraduates(): Promise<GraduateRow[]> {
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 email: student.email || '',
+                phone: student.phone?.trim() || null,
                 courses: [course?.name || 'Unknown'],
                 is_working: empStatus?.is_working ?? null,
                 started_month: empStatus?.started_month ?? null,
@@ -91,6 +98,7 @@ async function buildGraduates(): Promise<GraduateRow[]> {
                 status_updated_at: empStatus?.last_responded_at ?? null,
                 tracking_status: trackingStatus,
                 last_sent_at: empStatus?.last_invited_at ?? null,
+                called_no_answer_at: empStatus?.called_no_answer_at ?? null,
             });
         } else {
             // Add course to existing student

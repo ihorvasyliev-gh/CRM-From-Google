@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSearchParams } from 'react-router-dom';
 import { Briefcase, Mail, Copy, Loader2, Filter, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
@@ -7,7 +7,8 @@ import StatTile from './ui/StatTile';
 import { Segmented } from './ui/Tabs';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
-import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
+import { TrackingBadge, EmploymentBadge, CallMarkButton, PhoneLink } from './OutcomeBadges';
+import { setGraduateCallMark, callMarkErrorMessage } from '../lib/callMark';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { getAvatarGradient } from '../lib/types';
@@ -22,8 +23,18 @@ import OutreachLists from './OutreachLists';
 export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
 import { useProgressiveList } from '../hooks/useProgressiveList';
+import { SortHeader } from './OutcomeTableSort';
+import { sortOutcomeRows, type OutcomeSort } from '../lib/outcomeSort';
 
 type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
+/** "Called, no answer" mark (only people who haven't responded can carry it) */
+type CallFilter = 'all' | 'called' | 'not_called';
+
+const CALL_FILTERS: { value: CallFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'not_called', label: 'Not called yet' },
+    { value: 'called', label: 'Called, no answer' },
+];
 
 /** Outcomes page: CRM graduates, or external lists such as Action 11 (from IRIS). */
 export default function OutcomesList() {
@@ -50,6 +61,7 @@ export default function OutcomesList() {
 function GraduateOutcomes() {
 
 
+    const queryClient = useQueryClient();
     const { data: graduates = [], isLoading: loading, error: loadError, refetch: fetchGraduates } = useQuery({
         queryKey: ['outcomes_graduates'],
         queryFn: fetchGraduatesFn,
@@ -60,6 +72,9 @@ function GraduateOutcomes() {
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [filterStatus, setFilterStatus] = useState<OutcomeFilter>('all');
     const [filterCourse, setFilterCourse] = useState('all');
+    const [filterCall, setFilterCall] = useState<CallFilter>('all');
+    const [sort, setSort] = useState<OutcomeSort>({ key: 'name', dir: 'asc' });
+    const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
     const [sending, setSending] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [editingGrad, setEditingGrad] = useState<GraduateRow | null>(null);
@@ -85,6 +100,10 @@ function GraduateOutcomes() {
         if (filterCourse !== 'all') {
             result = result.filter(g => g.courses.includes(filterCourse));
         }
+        if (filterCall !== 'all') {
+            // Responded people are left out: there is no one to call back
+            result = result.filter(g => g.tracking_status !== 'responded' && !!g.called_no_answer_at === (filterCall === 'called'));
+        }
         if (debouncedSearchQuery.trim()) {
             // Every word must match (so "john smith" finds John Smith), incl. full name and field of work
             const words = debouncedSearchQuery.toLowerCase().trim().split(/\s+/);
@@ -93,11 +112,15 @@ function GraduateOutcomes() {
                 return words.every(w => haystack.includes(w));
             });
         }
-        return result;
-    }, [graduates, filterStatus, filterCourse, debouncedSearchQuery]);
+        return sortOutcomeRows(result, sort, g => ({
+            ...g,
+            sent_at: g.last_sent_at,
+            updated_at: g.status_updated_at,
+        }));
+    }, [graduates, filterStatus, filterCourse, filterCall, debouncedSearchQuery, sort]);
 
     // Rows render in steps as the table is scrolled (a full list is hundreds of rows)
-    const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(filtered, `${filterStatus}|${filterCourse}|${debouncedSearchQuery}`);
+    const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(filtered, `${filterStatus}|${filterCourse}|${filterCall}|${debouncedSearchQuery}|${sort.key}|${sort.dir}`);
 
     // Status counts
     const statusCounts = useMemo(() => {
@@ -105,6 +128,34 @@ function GraduateOutcomes() {
         graduates.forEach(g => { counts[g.tracking_status]++; });
         return counts;
     }, [graduates]);
+
+    const callCounts = useMemo(() => {
+        const counts = { all: 0, called: 0, not_called: 0 };
+        graduates.forEach(g => {
+            if (g.tracking_status === 'responded') return;
+            counts.all++;
+            counts[g.called_no_answer_at ? 'called' : 'not_called']++;
+        });
+        return counts;
+    }, [graduates]);
+
+    /** Sets or clears "called, no answer"; the list shows it at once and goes back if saving fails. */
+    async function toggleCallMark(grad: GraduateRow) {
+        const calledAt = grad.called_no_answer_at ? null : new Date().toISOString();
+        const patch = (value: string | null) => queryClient.setQueryData<GraduateRow[]>(['outcomes_graduates'], old =>
+            old?.map(g => g.student_id === grad.student_id ? { ...g, called_no_answer_at: value } : g));
+        setCallBusy(prev => new Set(prev).add(grad.student_id));
+        patch(calledAt);
+        try {
+            await setGraduateCallMark(grad, calledAt);
+        } catch (err) {
+            console.error(err);
+            patch(grad.called_no_answer_at);
+            showToast(callMarkErrorMessage(err as { code?: string; message?: string }), 'error');
+        } finally {
+            setCallBusy(prev => { const next = new Set(prev); next.delete(grad.student_id); return next; });
+        }
+    }
 
     // Stats
     const respondedGrads = graduates.filter(g => g.is_working !== null);
@@ -245,14 +296,14 @@ function GraduateOutcomes() {
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm font-medium rounded-xl border transition-all ${
-                            showFilters || filterStatus !== 'all' || filterCourse !== 'all'
+                            showFilters || filterStatus !== 'all' || filterCourse !== 'all' || filterCall !== 'all'
                                 ? 'bg-brand-500/10 text-brand-500 border-brand-500/30'
                                 : 'bg-surface-elevated text-muted border-border-subtle hover:border-border-strong'
                         }`}
                     >
                         <Filter size={14} />
                         Filters
-                        {(filterStatus !== 'all' || filterCourse !== 'all') && (
+                        {(filterStatus !== 'all' || filterCourse !== 'all' || filterCall !== 'all') && (
                             <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
                         )}
                     </button>
@@ -287,6 +338,26 @@ function GraduateOutcomes() {
                             </div>
                         </div>
 
+                        {/* Calls: who was phoned and didn't pick up */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-muted">Calls:</span>
+                            <div className="flex flex-wrap gap-1">
+                                {CALL_FILTERS.map(({ value, label }) => (
+                                    <button
+                                        key={value}
+                                        onClick={() => setFilterCall(value)}
+                                        className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                            filterCall === value
+                                                ? 'bg-brand-500 text-white shadow-xs'
+                                                : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
+                                        }`}
+                                    >
+                                        {label}{value !== 'all' && ` (${callCounts[value]})`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Course Filter */}
                         {uniqueCourses.length > 1 && (
                             <div className="flex items-center gap-2">
@@ -304,9 +375,9 @@ function GraduateOutcomes() {
                             </div>
                         )}
 
-                        {(filterStatus !== 'all' || filterCourse !== 'all') && (
+                        {(filterStatus !== 'all' || filterCourse !== 'all' || filterCall !== 'all') && (
                             <button
-                                onClick={() => { setFilterStatus('all'); setFilterCourse('all'); }}
+                                onClick={() => { setFilterStatus('all'); setFilterCourse('all'); setFilterCall('all'); }}
                                 className="text-xs text-muted hover:text-primary flex items-center gap-1 transition-colors"
                             >
                                 <X size={12} /> Clear
@@ -340,11 +411,11 @@ function GraduateOutcomes() {
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">Student</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Courses</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <SortHeader label="Student" column="name" sort={sort} onSort={setSort} />
+                                    <SortHeader label="Courses" column="courses" sort={sort} onSort={setSort} className="hidden md:table-cell" />
+                                    <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
                                     <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
@@ -380,10 +451,12 @@ function GraduateOutcomes() {
                                                             {grad.first_name} {grad.last_name}
                                                         </p>
                                                         <p className="text-xs text-muted truncate">{grad.email}</p>
+                                                        <PhoneLink phone={grad.phone} />
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={grad.tracking_status} />
                                                             {grad.tracking_status === 'responded' && <EmploymentBadge status={grad.tracking_status} row={grad} />}
+                                                            <CallMarkButton status={grad.tracking_status} calledAt={grad.called_no_answer_at} busy={callBusy.has(grad.student_id)} onToggle={() => toggleCallMark(grad)} name={`${grad.first_name} ${grad.last_name}`} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -402,6 +475,9 @@ function GraduateOutcomes() {
                                                 {grad.tracking_status === 'pending' && grad.last_sent_at && (
                                                     <p className="text-xs text-muted mt-0.5">Sent {formatDisplayDate(grad.last_sent_at)}</p>
                                                 )}
+                                                {grad.tracking_status !== 'responded' && <div className="mt-1">
+                                                    <CallMarkButton status={grad.tracking_status} calledAt={grad.called_no_answer_at} busy={callBusy.has(grad.student_id)} onToggle={() => toggleCallMark(grad)} name={`${grad.first_name} ${grad.last_name}`} />
+                                                </div>}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={grad.tracking_status} row={grad} />

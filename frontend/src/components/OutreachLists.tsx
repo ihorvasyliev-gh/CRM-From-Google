@@ -5,7 +5,8 @@ import { Briefcase, Mail, Copy, Loader2, X, Pencil, Upload, Download, Plus, User
 import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
 import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
-import { TrackingBadge, EmploymentBadge } from './OutcomeBadges';
+import { TrackingBadge, EmploymentBadge, CallMarkButton, PhoneLink } from './OutcomeBadges';
+import { setContactCallMark, callMarkErrorMessage } from '../lib/callMark';
 import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
@@ -20,8 +21,18 @@ import SearchInput from './ui/SearchInput';
 import { fetchOutreachContactsFn, fetchOutreachListsFn, type OutreachContact } from '../hooks/useOutreach';
 import { exportOutreachListToExcel } from '../lib/outreachExport';
 import { useProgressiveList } from '../hooks/useProgressiveList';
+import { SortHeader } from './OutcomeTableSort';
+import { sortOutcomeRows, type OutcomeSort } from '../lib/outcomeSort';
 
 type StatusFilter = 'all' | OutreachContact['status'];
+/** "Called, no answer" mark (only people who haven't responded can carry it) */
+type CallFilter = 'all' | 'called' | 'not_called';
+
+const CALL_FILTERS: { value: CallFilter; label: string }[] = [
+    { value: 'all', label: 'All calls' },
+    { value: 'not_called', label: 'Not called yet' },
+    { value: 'called', label: 'Called, no answer' },
+];
 
 /** Up to this many lists are shown as tabs; more fall back to a dropdown. */
 const MAX_LIST_TABS = 6;
@@ -64,6 +75,10 @@ export default function OutreachLists() {
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [filterStatus, setFilterStatus] = useState<StatusFilter>('all');
+    const [filterCall, setFilterCall] = useState<CallFilter>('all');
+    // null: newest added first, as loaded
+    const [sort, setSort] = useState<OutcomeSort | null>(null);
+    const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
     const [sending, setSending] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [showImport, setShowImport] = useState(false);
@@ -76,6 +91,7 @@ export default function OutreachLists() {
     useEffect(() => {
         setSelectedIds(new Set());
         setFilterStatus('all');
+        setFilterCall('all');
         setSearchQuery('');
     }, [listId]);
 
@@ -94,6 +110,8 @@ export default function OutreachLists() {
     const filtered = useMemo(() => {
         let result = contacts;
         if (filterStatus !== 'all') result = result.filter(c => c.status === filterStatus);
+        // Responded people are left out: there is no one to call back
+        if (filterCall !== 'all') result = result.filter(c => c.status !== 'responded' && !!c.called_no_answer_at === (filterCall === 'called'));
         if (debouncedSearchQuery.trim()) {
             const words = debouncedSearchQuery.toLowerCase().trim().split(/\s+/);
             result = result.filter(c => {
@@ -101,17 +119,52 @@ export default function OutreachLists() {
                 return words.every(w => haystack.includes(w));
             });
         }
-        return result;
-    }, [contacts, filterStatus, debouncedSearchQuery]);
+        if (!sort) return result;
+        return sortOutcomeRows(result, sort, c => ({
+            ...c,
+            ref: c.external_ref,
+            tracking_status: c.status,
+            sent_at: c.last_invited_at,
+            updated_at: c.last_responded_at,
+        }));
+    }, [contacts, filterStatus, filterCall, debouncedSearchQuery, sort]);
 
     // Rows render in steps as the table is scrolled (imported lists can be hundreds of contacts)
-    const { visible: visibleContacts, hasMore, sentinelRef } = useProgressiveList(filtered, `${listId}|${filterStatus}|${debouncedSearchQuery}`);
+    const { visible: visibleContacts, hasMore, sentinelRef } = useProgressiveList(filtered, `${listId}|${filterStatus}|${filterCall}|${debouncedSearchQuery}|${sort?.key}|${sort?.dir}`);
 
     const statusCounts = useMemo(() => {
         const counts = { all: contacts.length, not_contacted: 0, pending: 0, responded: 0 };
         contacts.forEach(c => { counts[c.status]++; });
         return counts;
     }, [contacts]);
+
+    const callCounts = useMemo(() => {
+        const counts = { all: 0, called: 0, not_called: 0 };
+        contacts.forEach(c => {
+            if (c.status === 'responded') return;
+            counts.all++;
+            counts[c.called_no_answer_at ? 'called' : 'not_called']++;
+        });
+        return counts;
+    }, [contacts]);
+
+    /** Sets or clears "called, no answer"; the list shows it at once and goes back if saving fails. */
+    async function toggleCallMark(contact: OutreachContact) {
+        const calledAt = contact.called_no_answer_at ? null : new Date().toISOString();
+        const patch = (value: string | null | undefined) => queryClient.setQueryData<OutreachContact[]>(['outreach_contacts', contact.list_id], old =>
+            old?.map(c => c.id === contact.id ? { ...c, called_no_answer_at: value } : c));
+        setCallBusy(prev => new Set(prev).add(contact.id));
+        patch(calledAt);
+        try {
+            await setContactCallMark(contact.id, calledAt);
+        } catch (err) {
+            console.error(err);
+            patch(contact.called_no_answer_at);
+            showToast(callMarkErrorMessage(err as { code?: string; message?: string }), 'error');
+        } finally {
+            setCallBusy(prev => { const next = new Set(prev); next.delete(contact.id); return next; });
+        }
+    }
 
     const workingCount = contacts.filter(c => c.status === 'responded' && c.is_working).length;
     const responseRate = contacts.length > 0 ? Math.round((statusCounts.responded / contacts.length) * 100) : 0;
@@ -407,6 +460,23 @@ export default function OutreachLists() {
                         </button>
                     ))}
                 </div>
+                {callCounts.all > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                        {CALL_FILTERS.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                onClick={() => setFilterCall(value)}
+                                className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                    filterCall === value
+                                        ? 'bg-brand-500 text-white shadow-xs'
+                                        : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
+                                }`}
+                            >
+                                {label}{value !== 'all' && ` (${callCounts[value]})`}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Table */}
@@ -455,11 +525,11 @@ export default function OutreachLists() {
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">Contact</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">IRIS ID</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <SortHeader label="Contact" column="name" sort={sort} onSort={setSort} />
+                                    <SortHeader label="IRIS ID" column="ref" sort={sort} onSort={setSort} className="hidden md:table-cell" />
+                                    <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
                                     <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
@@ -496,10 +566,12 @@ export default function OutreachLists() {
                                                             )}
                                                         </p>
                                                         <p className="text-xs text-muted truncate">{contact.email}</p>
+                                                        <PhoneLink phone={contact.phone} />
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={contact.status} />
                                                             {contact.status === 'responded' && <EmploymentBadge status={contact.status} row={contact} />}
+                                                            <CallMarkButton status={contact.status} calledAt={contact.called_no_answer_at} busy={callBusy.has(contact.id)} onToggle={() => toggleCallMark(contact)} name={fullName(contact) || contact.email} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -512,6 +584,9 @@ export default function OutreachLists() {
                                                 {contact.status === 'pending' && contact.last_invited_at && (
                                                     <p className="text-xs text-muted mt-0.5">Sent {formatDisplayDate(contact.last_invited_at)}</p>
                                                 )}
+                                                {contact.status !== 'responded' && <div className="mt-1">
+                                                    <CallMarkButton status={contact.status} calledAt={contact.called_no_answer_at} busy={callBusy.has(contact.id)} onToggle={() => toggleCallMark(contact)} name={fullName(contact) || contact.email} />
+                                                </div>}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <EmploymentBadge status={contact.status} row={contact} />

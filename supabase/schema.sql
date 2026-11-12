@@ -158,7 +158,8 @@ CREATE TABLE IF NOT EXISTS employment_status (
     employment_type   TEXT,           -- 'full_time' or 'part_time'
     status            TEXT DEFAULT 'pending',  -- 'pending' or 'responded'
     last_invited_at   TIMESTAMPTZ,
-    last_responded_at TIMESTAMPTZ
+    last_responded_at TIMESTAMPTZ,
+    called_no_answer_at TIMESTAMPTZ   -- phoned, didn't pick up (migration 90); status unchanged
 );
 
 -- Student Flags (marks students who didn't pass, etc.)

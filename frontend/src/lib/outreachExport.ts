@@ -27,6 +27,7 @@ const COLUMNS = [
     { header: 'Hours', width: 12 },
     { header: 'Invited', width: 12 },
     { header: 'Responded', width: 12 },
+    { header: 'Called, no answer', width: 16 },
 ];
 
 /** One spreadsheet row per contact, ready for reporting (e.g. back to IRIS). */
@@ -44,6 +45,7 @@ function outreachExportRow(c: OutreachContact): string[] {
         !c.is_working ? '' : c.employment_type === 'full_time' ? 'Full-time' : c.employment_type === 'part_time' ? 'Part-time' : '',
         c.last_invited_at ? formatDateDMY(c.last_invited_at) : '',
         c.last_responded_at ? formatDateDMY(c.last_responded_at) : '',
+        c.status !== 'responded' && c.called_no_answer_at ? formatDateDMY(c.called_no_answer_at) : '',
     ];
 }
 
