@@ -23,6 +23,8 @@ import OutreachLists from './OutreachLists';
 export { type GraduateRow } from '../hooks/useOutcomes';
 import { fetchGraduatesFn, type GraduateRow } from '../hooks/useOutcomes';
 import { useProgressiveList } from '../hooks/useProgressiveList';
+import { SortHeader } from './OutcomeTableSort';
+import { sortOutcomeRows, type OutcomeSort } from '../lib/outcomeSort';
 
 type OutcomeFilter = 'all' | 'not_contacted' | 'pending' | 'responded';
 /** "Called, no answer" mark (only people who haven't responded can carry it) */
@@ -71,6 +73,7 @@ function GraduateOutcomes() {
     const [filterStatus, setFilterStatus] = useState<OutcomeFilter>('all');
     const [filterCourse, setFilterCourse] = useState('all');
     const [filterCall, setFilterCall] = useState<CallFilter>('all');
+    const [sort, setSort] = useState<OutcomeSort>({ key: 'name', dir: 'asc' });
     const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
     const [sending, setSending] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -109,11 +112,15 @@ function GraduateOutcomes() {
                 return words.every(w => haystack.includes(w));
             });
         }
-        return result;
-    }, [graduates, filterStatus, filterCourse, filterCall, debouncedSearchQuery]);
+        return sortOutcomeRows(result, sort, g => ({
+            ...g,
+            sent_at: g.last_sent_at,
+            updated_at: g.status_updated_at,
+        }));
+    }, [graduates, filterStatus, filterCourse, filterCall, debouncedSearchQuery, sort]);
 
     // Rows render in steps as the table is scrolled (a full list is hundreds of rows)
-    const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(filtered, `${filterStatus}|${filterCourse}|${filterCall}|${debouncedSearchQuery}`);
+    const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(filtered, `${filterStatus}|${filterCourse}|${filterCall}|${debouncedSearchQuery}|${sort.key}|${sort.dir}`);
 
     // Status counts
     const statusCounts = useMemo(() => {
@@ -404,11 +411,11 @@ function GraduateOutcomes() {
                                             className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                         />
                                     </th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">Student</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Courses</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Tracking</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Employment</th>
-                                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                                    <SortHeader label="Student" column="name" sort={sort} onSort={setSort} />
+                                    <SortHeader label="Courses" column="courses" sort={sort} onSort={setSort} className="hidden md:table-cell" />
+                                    <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
+                                    <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
                                     <th className="py-3 px-4 text-right text-xs font-semibold text-muted uppercase tracking-wider"><span className="sr-only sm:not-sr-only">Actions</span></th>
                                 </tr>
                             </thead>
