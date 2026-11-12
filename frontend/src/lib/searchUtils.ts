@@ -7,12 +7,17 @@
 export function isPhoneMatch(phone: string | null | undefined, query: string): boolean {
     if (!phone) return false;
 
+    // Guard: a phone search may only contain digits and phone punctuation
+    // (+, spaces, dashes, dots, brackets). Any letter means the query is a
+    // name, email or eircode, so "t23y2y" must not match a phone because its
+    // digits "232" happen to appear inside "085 782 3299".
+    if (!/^[\d\s+\-().]+$/.test(query.trim())) return false;
+
     // Strip non-digits from the query
     const qDigits = query.replace(/\D/g, '');
 
-    // Guard: only treat as phone search if ≥3 digits and mostly digits
-    // This prevents "b1ack" (1 digit out of 5 chars) from matching phones
-    if (qDigits.length < 3 || qDigits.length < query.trim().length * 0.5) return false;
+    // Need at least 3 digits to avoid matching almost every phone
+    if (qDigits.length < 3) return false;
 
     // Exact substring match on raw value (case insensitive)
     if (phone.toLowerCase().includes(query.toLowerCase())) return true;

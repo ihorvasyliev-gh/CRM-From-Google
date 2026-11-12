@@ -13,6 +13,12 @@ describe('isPhoneMatch', () => {
         expect(isPhoneMatch('+353872890084', 'a1b')).toBe(false);
     });
 
+    it('does NOT match when the query contains letters, even if mostly digits (eircode-like "t23y2y")', () => {
+        expect(isPhoneMatch('+353857823299', 't23y2y')).toBe(false);
+        expect(isPhoneMatch('+353857823299', 'T23A3C7')).toBe(false);
+        expect(matchesSearch({ firstName: 'Alana', phone: '+353857823299', eircode: 'T23A3C7' }, 't23y2y')).toBe(false);
+    });
+
     it('returns false for null/undefined phone', () => {
         expect(isPhoneMatch(null, '087')).toBe(false);
         expect(isPhoneMatch(undefined, '087')).toBe(false);
