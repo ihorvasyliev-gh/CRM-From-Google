@@ -200,9 +200,12 @@ export interface EmploymentStatusRow {
     field_of_work: string | null;
     /** 'full_time' | 'part_time' */
     employment_type: string | null;
-    status: 'pending' | 'responded' | null;
+    /** 'not_contacted' when the row only holds a call mark (no survey sent yet) */
+    status: 'not_contacted' | 'pending' | 'responded' | null;
     last_invited_at: string | null;
     last_responded_at: string | null;
+    /** Phoned and didn't pick up (migration 90); the status is left as it was */
+    called_no_answer_at?: string | null;
 }
 
 export interface StudentFlag {
