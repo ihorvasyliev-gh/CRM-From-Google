@@ -18,7 +18,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { readAllEnrollments } from '../hooks/useEnrollments';
 import { coursePreset, fetchDocumentTemplates } from '../lib/documentUtils';
 import { fetchCourses } from '../lib/queries';
-import { removeCachedEnrollments, updateCachedRelations } from '../lib/enrollmentCache';
+import { ENROLLMENTS_KEY, removeCachedEnrollments, updateCachedRelations } from '../lib/enrollmentCache';
 
 interface EnrollmentCount {
     course_id: string;
@@ -175,6 +175,9 @@ export default function CourseList() {
             // Its enrollments show the new name and settings, without reloading every enrollment
             updateCachedRelations(queryClient, { courses: [{ id: data.id, name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+            // Other lists of courses (documents) and open student cards show the new name too
+            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
+            queryClient.invalidateQueries({ queryKey: [...ENROLLMENTS_KEY, 'by_student'] });
             notify({ message: 'Course updated', type: 'success' });
         } else {
             const { data: inserted, error } = await supabase

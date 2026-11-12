@@ -100,6 +100,8 @@ describe('useGlobalRealtimeSync', () => {
             [
                 'course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'pending_completions', 'students',
                 'viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail',
+                // Every other list showing students' details
+                'palette_students', 'enrollment_modal_students', 'restricted_students_search', 'analytics_enrollments_v2',
             ].sort()
         );
     });

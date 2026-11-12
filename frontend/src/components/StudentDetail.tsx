@@ -16,7 +16,9 @@ import { CalendarPanel } from './ui/DatePicker';
 import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
 import { errorMessage } from '../lib/errors';
-import { refreshCachedEnrollments, updateCachedRelations } from '../lib/enrollmentCache';
+import { refreshCachedEnrollments } from '../lib/enrollmentCache';
+import { fetchStudent } from '../lib/students';
+import { applyStudentChange, studentRecordKey } from '../lib/studentCache';
 
 interface Enrollment {
     id: string;
@@ -43,9 +45,11 @@ interface Enrollment {
 interface Props {
     /** False while it animates out (the parent keeps it mounted with the last student) */
     open?: boolean;
+    /** The record the card opens with; it then shows the stored one, kept current (see below) */
     student: Student;
     onClose: () => void;
-    onEdit?: () => void;
+    /** Gets the card's current record, so the form never starts from values edited since */
+    onEdit?: (student: Student) => void;
     onDelete?: () => void;
     onEnroll?: () => void;
     onStudentUpdated?: (student: Student) => void;
@@ -82,7 +86,8 @@ function InlineEditField({
     type?: string;
     icon: React.JSX.Element;
     label: string;
-    onSaved: (field: string, value: string) => void;
+    /** `row`: the stored record as the database returned it after the write */
+    onSaved: (field: string, value: string, row: Student | null) => void;
     onCopy: (value: string, label: string) => void;
     onError?: (message: string) => void;
     extraActions?: React.ReactNode;
@@ -118,17 +123,19 @@ function InlineEditField({
         }
 
         try {
-            const { error } = await supabase
+            const { data: row, error } = await supabase
                 .from('students')
                 .update({ [field]: cleanValue || null })
-                .eq('id', studentId);
+                .eq('id', studentId)
+                .select()
+                .maybeSingle();
             if (error) {
                 setEditValue(value);
                 onError?.(error.message.includes('duplicate') || error.message.includes('unique')
                     ? `Another student already uses this ${label.toLowerCase()}`
                     : `Failed to update ${label.toLowerCase()}`);
             } else {
-                onSaved(field, cleanValue);
+                onSaved(field, cleanValue, (row as Student | null) ?? null);
             }
         } finally {
             savingRef.current = false;
@@ -236,8 +243,23 @@ function InlineEditField({
 }
 
 
-export default function StudentDetail({ open = true, student, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
+export default function StudentDetail({ open = true, student: openedWith, onClose, onEdit, onDelete, onEnroll, onStudentUpdated, onNavigate }: Props) {
     const queryClient = useQueryClient();
+
+    // The card shows the stored record, not the copy it was opened with: that copy is a snapshot
+    // the page took, and an edit here (or anywhere else: the Edit form, a merge, another user)
+    // left the card on the old values until it was opened again. Keyed under ['students', …], so
+    // every students invalidation — realtime sync, list edits, merges — reloads it too.
+    const { data: stored } = useQuery({
+        queryKey: studentRecordKey(openedWith.id),
+        queryFn: () => fetchStudent(openedWith.id),
+        // Shown at once; read again on opening, as the page's copy may be old
+        initialData: openedWith,
+        initialDataUpdatedAt: 0,
+    });
+    // A failed read (e.g. a student just merged away) keeps the last record shown
+    const student = stored ?? openedWith;
+
     const courseSessions = useCourseSessions();
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -371,12 +393,12 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
     }
 
     // Handle inline edit save
-    function handleFieldSaved(field: string, value: string) {
-        const updated = { ...student, [field]: value || null };
-        onStudentUpdated?.(updated as Student);
-        queryClient.invalidateQueries({ queryKey: ['students'] });
-        // The board and every other page show the student's enrollments with the new value
-        updateCachedRelations(queryClient, { students: [{ id: student.id, [field]: value || null }] });
+    function handleFieldSaved(field: string, value: string, row: Student | null) {
+        // The card, the board and every list show the new value; built on the record as it is
+        // now, not as the card was opened, so a second edit in a row keeps the first one
+        const updated = applyStudentChange(queryClient, row ?? { id: student.id, [field]: value || null })
+            ?? ({ ...student, ...row, [field]: row ? row[field as keyof Student] : value || null } as Student);
+        onStudentUpdated?.(updated);
         notify({ message: 'Saved', type: 'success' });
     }
 
@@ -433,7 +455,7 @@ export default function StudentDetail({ open = true, student, onClose, onEdit, o
                         {(onEdit || onEnroll || onDelete) && (
                             <div className="flex gap-2">
                                 {onEdit && (
-                                    <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
+                                    <button onClick={() => onEdit(student)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs sm:text-sm font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 rounded-xl transition-all">
                                         <Edit2 size={14} /> Edit
                                     </button>
                                 )}
