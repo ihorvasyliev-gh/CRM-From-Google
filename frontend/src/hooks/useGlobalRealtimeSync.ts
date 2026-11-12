@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { setupSleepAndWakeListener } from '../lib/realtimeSync';
 import { ENROLLMENTS_KEY, patchCachedEnrollments, syncCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
+import { STUDENT_VIEW_KEYS } from '../lib/studentCache';
 
 /**
  * Global Supabase realtime subscription hook.
@@ -83,6 +84,8 @@ export function useGlobalRealtimeSync() {
         pendingRelationsRef.current = { students: new Map(), courses: new Map() };
         // Their names and details on the cached enrollments, without re-reading those
         updateCachedRelations(queryClient, { students: [...relations.students.values()], courses: [...relations.courses.values()] });
+        // An open student card lists their courses by name: a renamed course shows there too
+        if (relations.courses.size > 0) queryClient.invalidateQueries({ queryKey: [...ENROLLMENTS_KEY, 'by_student'] });
         // Not just the active queries: a page that isn't open (the board while on Students) would
         // otherwise show its old data when opened again within its staleTime
         keys.forEach(key => {
@@ -161,7 +164,8 @@ export function useGlobalRealtimeSync() {
                 payload => {
                     const row = newRow(payload);
                     if (row) pendingRelationsRef.current.students.set(row.id, row);
-                    queueInvalidation(['students', 'dashboard_stats', 'viewer_students_directory', 'viewer_course_roster', 'restricted_student_detail']);
+                    // Every list that shows students' details, and an open student card
+                    queueInvalidation([...STUDENT_VIEW_KEYS]);
                 }
             )
             // ─── Courses ────────────────────────────────────

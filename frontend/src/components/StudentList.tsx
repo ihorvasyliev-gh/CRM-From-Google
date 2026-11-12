@@ -22,7 +22,8 @@ import { useEnrollmentList, type EnrollmentRow } from '../hooks/useEnrollments';
 import { STATUS_CONFIG } from '../lib/statusConfig';
 import { CustomTooltip } from './ui/Tooltip';
 import { createStudent, deleteStudent, updateStudent } from '../lib/students';
-import { removeCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
+import { removeCachedEnrollments } from '../lib/enrollmentCache';
+import { applyStudentChange } from '../lib/studentCache';
 import type { NavigateFn } from '../lib/navigation';
 
 function SkeletonRow() {
@@ -187,15 +188,19 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         return () => observer.disconnect();
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    // Optimistic cache updates
-    const updateStudentInCache = useCallback((updatedStudent: Student) => {
+    // Optimistic cache updates: this page's row and the open card's starting copy
+    const patchStudentRow = useCallback((updatedStudent: Student) => {
         queryClient.setQueryData(studentsKey, mapStudentPages(students =>
             students.map(s => s.id === updatedStudent.id ? updatedStudent : s)
         ));
-        queryClient.invalidateQueries({ queryKey: ['students'] });
-        // Their enrollments on the board show the new name and details
-        updateCachedRelations(queryClient, { students: [updatedStudent as unknown as RelationRow] });
+        setDetailStudent(prev => (prev?.id === updatedStudent.id ? updatedStudent : prev));
     }, [queryClient, studentsKey]);
+
+    const updateStudentInCache = useCallback((updatedStudent: Student) => {
+        patchStudentRow(updatedStudent);
+        // The open card, the board's cards and every other list of students show the new values
+        applyStudentChange(queryClient, updatedStudent);
+    }, [queryClient, patchStudentRow]);
 
     const addStudentToCache = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -214,9 +219,6 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             const updated = await updateStudent(id, rest);
             const merged = (updated || { ...detailStudent, ...formData }) as Student;
             updateStudentInCache(merged);
-            if (detailStudent?.id === id) {
-                setDetailStudent(prev => (prev ? { ...prev, ...merged } : prev));
-            }
             notify({ message: 'Student updated', type: 'success' });
         } else {
             const created = await createStudent(formData);
@@ -532,10 +534,10 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                     open={!!detailStudent}
                     student={shownDetail}
                     onClose={() => setDetailStudent(null)}
-                    onEdit={() => openEdit(shownDetail)}
+                    onEdit={openEdit}
                     onDelete={() => setDeleteTarget(shownDetail)}
                     onEnroll={openEnrollFromDetail}
-                    onStudentUpdated={updateStudentInCache}
+                    onStudentUpdated={patchStudentRow}
                     onNavigate={onNavigate}
                 />
             )}
