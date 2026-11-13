@@ -1,155 +1,77 @@
 import { useState, useMemo, useCallback, useDeferredValue, startTransition, memo, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Award, BookOpen, Eye, EyeOff, FileSpreadsheet, FileText, LayoutDashboard } from 'lucide-react';
 import { fetchEmploymentStatuses, setExcludedFromReports } from '../lib/queries';
 import { toast } from '../lib/toast';
 import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { usePersistentState } from '../hooks/usePersistentState';
-import { 
-    Users, 
-    GraduationCap, 
-    Download, 
-    FileSpreadsheet, 
-    Zap, 
-    Clock, 
-    Briefcase, 
-    CheckCircle2, 
-    MapPin, 
-    BookOpen, 
-    Search,
-    Award,
-    FileText,
-    Eye,
-    EyeOff
-} from 'lucide-react';
-
 import { useEnrollmentList } from '../hooks/useEnrollments';
+import { useLastPresent } from '../hooks/usePresence';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
 import type { EmploymentStatusRow, Student } from '../lib/types';
-import { cleanVariant } from '../lib/types';
 import StudentDetail from './StudentDetail';
-import { useLastPresent } from '../hooks/usePresence';
-import StatTile from './ui/StatTile';
 import { Button } from './ui/Button';
-import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
+import { Segmented, UnderlineTabs, type UnderlineTab } from './ui/Tabs';
+import { DateInput } from './ui/DatePicker';
+import { fieldCls } from './ui/styles';
+import { SelectField } from './Viewer/ViewerUI';
+import DrillDownModal from './Analytics/DrillDownModal';
+import Overview from './Analytics/Overview';
+import { courseRunKey, isReportable, listCourseRuns } from './Analytics/courseRuns';
+import { buildInsights, completedIn, dataSpan, registeredIn } from './Analytics/insights';
+import { buildNarrative } from './Analytics/narrative';
+import {
+    REPORT_PRESETS, formatPeriodLabel, presetPeriod, toDayKey,
+    type ReportPeriod, type ReportPresetId,
+} from './Analytics/summaryReport';
 
-import GlobalFilterBar, { type AnalyticsFilterState } from './Analytics/GlobalFilterBar';
-// memo(): opening a drill-down or the student drawer re-renders Analytics; the tabs (charts +
-// aggregations) only need to re-render when their data actually changes.
-const PipelineVelocityTab = memo(lazyWithRetry(() => import('./Analytics/PipelineVelocityTab')));
-const GeographyDemographicsTab = memo(lazyWithRetry(() => import('./Analytics/GeographyDemographicsTab')));
-const CourseMatrixTab = memo(lazyWithRetry(() => import('./Analytics/CourseMatrixTab')));
-const OutcomesTab = memo(lazyWithRetry(() => import('./Analytics/OutcomesTab')));
-const DataExplorerTab = memo(lazyWithRetry(() => import('./Analytics/DataExplorerTab')));
+// memo(): opening a drill-down or the student drawer re-renders Analytics; the combinations
+// tool only needs to re-render when its data changes
 const MultiCourseCompletersTab = memo(lazyWithRetry(() => import('./Analytics/MultiCourseCompletersTab')));
 const SummaryReportModal = lazyWithRetry(() => import('./Analytics/SummaryReportModal'));
 
 const EMPTY_ENROLLMENTS: EnrollmentWithRelations[] = [];
 const EMPTY_STATUSES: EmploymentStatusRow[] = [];
-import DrillDownModal from './Analytics/DrillDownModal';
-import { courseRunKey, isReportable } from './Analytics/courseRuns';
-import { 
-    calculateSpeedMetrics, 
-    calculateFunnelAnalysis, 
-    exportExecutiveExcelReport, 
-    exportCustomCSV 
-} from './Analytics/analyticsUtils';
 
-export type AnalyticsTabId = 'pipeline' | 'geography' | 'courses' | 'outcomes' | 'explorer' | 'multi-course';
+export type AnalyticsView = 'overview' | 'combinations';
+type PresetId = ReportPresetId | 'all' | 'custom';
 
-function applyFilters(enrollments: EnrollmentWithRelations[], filters: AnalyticsFilterState): EnrollmentWithRelations[] {
-    let result = enrollments;
+const PRESET_IDS: PresetId[] = [...REPORT_PRESETS.map(p => p.id), 'all', 'custom'];
+const PRESET_OPTIONS = [...REPORT_PRESETS.map(p => ({ value: p.id as PresetId, label: p.label })), { value: 'all' as PresetId, label: 'All time' }];
 
-    // Date Filter
-    if (filters.datePreset !== 'all') {
-        const now = new Date();
-        let startDate: Date | null = null;
-        let endDate: Date | null = null;
-
-        if (filters.datePreset === '30') {
-            startDate = new Date(now.getTime() - 30 * 86400000);
-        } else if (filters.datePreset === '90') {
-            startDate = new Date(now.getTime() - 90 * 86400000);
-        } else if (filters.datePreset === '180') {
-            startDate = new Date(now.getTime() - 180 * 86400000);
-        } else if (filters.datePreset === '365') {
-            startDate = new Date(now.getTime() - 365 * 86400000);
-        } else if (filters.datePreset === 'custom' && filters.customStartDate && filters.customEndDate) {
-            // Parse as local dates (plain YYYY-MM-DD would be UTC midnight and shift a day west of GMT)
-            startDate = new Date(`${filters.customStartDate}T00:00:00`);
-            endDate = new Date(`${filters.customEndDate}T00:00:00`);
-            endDate.setHours(23, 59, 59, 999);
-        }
-
-        if (startDate) {
-            result = result.filter(e => {
-                const d = new Date(e.created_at);
-                if (endDate) {
-                    return d >= startDate! && d <= endDate;
-                }
-                return d >= startDate!;
-            });
-        }
-    }
-
-    // Course Filter
-    if (filters.courseId !== 'all') {
-        result = result.filter(e => e.course_id === filters.courseId);
-    }
-
-    // Variant Filter
-    if (filters.variant !== 'all') {
-        result = result.filter(e => cleanVariant(e.courses?.name || '', e.course_variant).toLowerCase() === filters.variant.toLowerCase());
-    }
-
-    // Priority Filter
-    if (filters.priorityOnly) {
-        result = result.filter(e => !!e.is_priority);
-    }
-
-    return result;
-}
+const VIEWS: UnderlineTab<AnalyticsView>[] = [
+    { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { value: 'combinations', label: 'Course combinations', icon: Award },
+];
 
 export default function Analytics() {
-    // 1. Global Filter State
-    const [filters, setFilters] = useState<AnalyticsFilterState>({
-        datePreset: 'all',
-        customStartDate: '',
-        customEndDate: '',
-        courseId: 'all',
-        variant: 'all',
-        priorityOnly: false
+    const [view, setView] = usePersistentState<AnalyticsView>('analytics.view', 'overview', {
+        validate: (v): v is AnalyticsView => v === 'overview' || v === 'combinations',
     });
-
-    // 2. Active Tab State
-    const [activeTab, setActiveTab] = usePersistentState<AnalyticsTabId>('analytics.activeTab', 'pipeline', {
-        validate: (v): v is AnalyticsTabId => typeof v === 'string' && ['pipeline', 'geography', 'courses', 'outcomes', 'explorer', 'multi-course'].includes(v),
+    const [preset, setPreset] = usePersistentState<PresetId>('analytics.period', 'ytd', {
+        validate: (v): v is PresetId => typeof v === 'string' && PRESET_IDS.includes(v as PresetId) && v !== 'custom',
     });
+    const [custom, setCustom] = useState<ReportPeriod>(() => presetPeriod('ytd'));
+    const [courseId, setCourseId] = useState('all');
 
-    // 3. DrillDown & Student Detail State
-    const [drillDownModal, setDrillDownModal] = useState<{
+    const [drillDown, setDrillDown] = useState<{
         isOpen: boolean;
         title: string;
         data: EnrollmentWithRelations[];
         /** Set when the list is the graduates of a course run */
         runKey?: string;
-    }>({
-        isOpen: false,
-        title: '',
-        data: []
-    });
-
+    }>({ isOpen: false, title: '', data: [] });
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const shownStudent = useLastPresent(selectedStudent);
-    const [isExportingExcel, setIsExportingExcel] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     // The report dialog's chunk loads on first open and stays mounted after, so it can animate out
     const [reportOpen, setReportOpen] = useState(false);
     const [reportLoaded, setReportLoaded] = useState(false);
 
-    // 4. TanStack Data Queries
     // Every enrollment: the figures wait for older history, which loads after the current ones
     const enrollmentList = useEnrollmentList();
     const allEnrollments = enrollmentList.complete ? enrollmentList.data ?? EMPTY_ENROLLMENTS : EMPTY_ENROLLMENTS;
-    const isEnrollmentsLoading = !enrollmentList.complete;
+    const loading = !enrollmentList.complete;
 
     const { data: employmentStatuses = EMPTY_STATUSES } = useQuery({
         queryKey: ['analytics_employment_statuses_v1'],
@@ -158,84 +80,72 @@ export default function Analytics() {
         // short staleTime re-read every status on each return
     });
 
-    // 5. Course runs marked "Ignore in reports" count nowhere in Analytics; Courses & cohorts
-    // still lists them (in the current filters), to count them again
-    const { reportable, ignored } = useMemo(() => {
-        const reportable: EnrollmentWithRelations[] = [];
-        const ignored: EnrollmentWithRelations[] = [];
-        for (const e of allEnrollments) (isReportable(e) ? reportable : ignored).push(e);
-        return { reportable, ignored };
+    const courses = useMemo(() => {
+        const names = new Map<string, string>();
+        for (const e of allEnrollments) {
+            if (e.courses?.id && e.courses.name) names.set(e.courses.id, e.courses.name);
+        }
+        return [...names].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
     }, [allEnrollments]);
+    const courseName = courseId === 'all' ? null : courses.find(c => c.id === courseId)?.name ?? null;
 
-    // 6. Apply Global Filters
-    const filteredEnrollments = useMemo(() => applyFilters(reportable, filters), [reportable, filters]);
-    const filteredIgnored = useMemo(() => applyFilters(ignored, filters), [ignored, filters]);
+    // The chosen course(s): every enrollment (to list ignored course runs), and the counted ones
+    const scoped = useMemo(
+        () => (courseId === 'all' ? allEnrollments : allEnrollments.filter(e => e.course_id === courseId)),
+        [allEnrollments, courseId],
+    );
+    const counted = useMemo(() => scoped.filter(isReportable), [scoped]);
 
-    // Tabs render from deferred copies: filter controls and KPI cards update instantly while the
-    // heavier chart/aggregation re-render happens in the background (and can be interrupted).
-    const deferredFiltered = useDeferredValue(filteredEnrollments);
-    const deferredAll = useDeferredValue(reportable);
-    const deferredIgnored = useDeferredValue(filteredIgnored);
-    const isTabStale = deferredFiltered !== filteredEnrollments || deferredAll !== reportable || deferredIgnored !== filteredIgnored;
+    const period = useMemo<ReportPeriod>(() => {
+        if (preset === 'custom') return custom;
+        if (preset === 'all') return dataSpan(counted) ?? presetPeriod('ytd');
+        return presetPeriod(preset);
+    }, [preset, custom, counted]);
 
-    // Switching tabs may download a chunk and mount heavy charts — keep the current view
-    // interactive meanwhile instead of flashing the Suspense fallback.
-    const selectTab = useCallback((tab: AnalyticsTabId) => {
-        startTransition(() => setActiveTab(tab));
-    }, [setActiveTab]);
+    // The figures render from deferred copies: the period buttons respond at once while the
+    // page re-counts in the background
+    const deferredCounted = useDeferredValue(counted);
+    const deferredPeriod = useDeferredValue(period);
+    const isStale = deferredCounted !== counted || deferredPeriod !== period;
 
-    // 7. High-level KPI Summary Calculations
-    const kpiSummary = useMemo(() => {
-        const total = filteredEnrollments.length;
-        const requested = filteredEnrollments.filter(e => e.status === 'requested').length;
-        const invited = filteredEnrollments.filter(e => e.status === 'invited').length;
-        const confirmed = filteredEnrollments.filter(e => e.status === 'confirmed').length;
-        const completed = filteredEnrollments.filter(e => e.status === 'completed').length;
-        const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-        
-        const speed = calculateSpeedMetrics(filteredEnrollments);
-        const funnel = calculateFunnelAnalysis(filteredEnrollments);
+    const insights = useMemo(
+        () => buildInsights(deferredCounted, employmentStatuses, deferredPeriod, { compare: preset !== 'all' }),
+        [deferredCounted, employmentStatuses, deferredPeriod, preset],
+    );
+    const narrative = useMemo(() => buildNarrative(insights), [insights]);
+    const runs = useMemo(() => listCourseRuns(scoped, e => completedIn(e, deferredPeriod)), [scoped, deferredPeriod]);
+    const inPeriod = useMemo(
+        () => deferredCounted.filter(e => registeredIn(e, deferredPeriod) || completedIn(e, deferredPeriod)),
+        [deferredCounted, deferredPeriod],
+    );
 
-        // Employed among graduates
-        const completedStudentIds = new Set(
-            filteredEnrollments.filter(e => e.status === 'completed' && e.student_id).map(e => e.student_id)
-        );
-        // Outcomes counts people: someone who completed two courses is one graduate there
-        const graduatedPeople = completedStudentIds.size;
-        const respondedStatuses = employmentStatuses.filter(
-            es => completedStudentIds.has(es.student_id) && es.status === 'responded'
-        );
-        const workingCount = respondedStatuses.filter(es => es.is_working === true).length;
-        const employmentRate = respondedStatuses.length > 0 ? Math.round((workingCount / respondedStatuses.length) * 100) : 0;
+    // What the Outcomes page shows: everyone who ever completed a course, ignored runs included
+    const everyGraduate = useMemo(() => {
+        const people = new Set(allEnrollments.filter(e => e.status === 'completed' && e.student_id).map(e => e.student_id));
+        const seen = new Set<string>();
+        let working = 0;
+        for (const es of employmentStatuses) {
+            if (seen.has(es.student_id) || !people.has(es.student_id)) continue;
+            seen.add(es.student_id);
+            if (es.status === 'responded' && es.is_working) working++;
+        }
+        return { graduates: people.size, working };
+    }, [allEnrollments, employmentStatuses]);
 
-        return {
-            total,
-            requested,
-            invited,
-            confirmed,
-            completed,
-            graduatedPeople,
-            successRate,
-            speed,
-            funnel,
-            workingCount,
-            employmentRate,
-            respondedCount: respondedStatuses.length
-        };
-    }, [filteredEnrollments, employmentStatuses]);
+    const choosePreset = (id: PresetId) => startTransition(() => setPreset(id));
+    const setStart = (start: string) => {
+        if (!start) return;
+        setCustom({ start, end: start > period.end ? start : period.end });
+        setPreset('custom');
+    };
+    const setEnd = (end: string) => {
+        if (!end) return;
+        setCustom({ start: end < period.start ? end : period.start, end });
+        setPreset('custom');
+    };
 
-    // Handlers
     const handleDrillDown = useCallback((title: string, data: EnrollmentWithRelations[], runKey?: string) => {
-        setDrillDownModal({
-            isOpen: true,
-            title,
-            data,
-            runKey
-        });
-    }, []);
-
-    const handleOpenStudentDetail = useCallback((student: Student) => {
-        setSelectedStudent(student);
+        setDrillDown({ isOpen: true, title, data, runKey });
     }, []);
 
     // A whole course run (all its enrollments, whatever the filters) in or out of reports
@@ -256,7 +166,7 @@ export default function Analytics() {
     }, [allEnrollments, queryClient]);
 
     // The course run a drill-down lists: ignored when none of its enrollments is counted
-    const drillRunKey = drillDownModal.runKey;
+    const drillRunKey = drillDown.runKey;
     const drillRunIgnored = useMemo(() => {
         if (!drillRunKey) return false;
         const run = allEnrollments.filter(e => courseRunKey(e) === drillRunKey);
@@ -274,199 +184,112 @@ export default function Analytics() {
     };
 
     const handleExportExcel = async () => {
+        setIsExporting(true);
         try {
-            setIsExportingExcel(true);
-            const periodLabel = filters.datePreset === 'all' 
-                ? 'All Time' 
-                : (filters.datePreset === 'custom' ? `${filters.customStartDate} to ${filters.customEndDate}` : `Last ${filters.datePreset} Days`);
-            await exportExecutiveExcelReport(filteredEnrollments, employmentStatuses, periodLabel);
+            const { exportAnalyticsExcel } = await import('./Analytics/analyticsExcel');
+            await exportAnalyticsExcel({ insights, narrative, enrollments: inPeriod, employmentStatuses, courseName });
+        } catch {
+            toast.error('Could not make the Excel file');
         } finally {
-            setIsExportingExcel(false);
+            setIsExporting(false);
         }
     };
 
-    const handleExportActiveCSV = () => {
-        exportCustomCSV(filteredEnrollments, `crm_analytics_export_${new Date().toISOString().slice(0, 10)}.csv`);
-    };
-
-    const navTabs: UnderlineTab<AnalyticsTabId>[] = [
-        { value: 'pipeline', label: 'Pipeline & velocity', icon: Zap },
-        { value: 'geography', label: 'Geography & demographics', icon: MapPin },
-        { value: 'courses', label: 'Courses & cohorts', icon: BookOpen },
-        { value: 'outcomes', label: 'Graduate outcomes', icon: Briefcase },
-        { value: 'explorer', label: 'Data explorer', icon: Search },
-        { value: 'multi-course', label: 'Multi-course completers', icon: Award },
-    ];
-
-    const loadingView = (label: string) => (
-        <div className="flex flex-col items-center justify-center py-24 text-muted gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
-            <p className="text-xs font-medium">{label}</p>
-        </div>
-    );
+    const today = toDayKey(new Date());
+    const nothingLoaded = !loading && counted.length === 0;
 
     return (
-        <div className="flex-1 flex flex-col gap-5 sm:gap-6 pb-12 max-w-[1600px] mx-auto w-full">
-            {/* Filters + exports */}
-            <GlobalFilterBar
-                filters={filters}
-                onFiltersChange={setFilters}
-                allEnrollments={reportable}
-                filteredEnrollments={filteredEnrollments}
-                actions={
-                    <>
+        <div className="flex-1 flex flex-col gap-4 sm:gap-5 pb-12 max-w-[1400px] mx-auto w-full">
+            <UnderlineTabs tabs={VIEWS} value={view} onChange={v => startTransition(() => setView(v))} ariaLabel="Analytics views" />
+
+            {/* Period · course · exports */}
+            <div className="rounded-2xl bg-surface border border-border-subtle shadow-card p-3 sm:p-3.5 flex flex-col gap-3">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                    <Segmented options={PRESET_OPTIONS} value={preset} onChange={choosePreset} ariaLabel="Period" className="lg:shrink-0" />
+                    <div className="flex items-center gap-1.5 lg:ml-auto">
+                        <DateInput id="analytics-start" value={period.start} max={today} onChange={setStart} className={`${fieldCls} flex-1 lg:flex-none lg:w-[9.5rem] text-xs font-semibold whitespace-nowrap`} />
+                        <span className="text-muted text-xs" aria-hidden>–</span>
+                        <DateInput id="analytics-end" value={period.end} max={today} onChange={setEnd} className={`${fieldCls} flex-1 lg:flex-none lg:w-[9.5rem] text-xs font-semibold whitespace-nowrap`} />
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 flex-1">
+                        <SelectField label="Course" value={courseId} onChange={setCourseId} icon={<BookOpen size={14} />} className="w-full sm:w-60">
+                            <option value="all">All courses</option>
+                            {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </SelectField>
+                        <p className="text-xs text-muted" aria-live="polite">
+                            Showing <span className="font-semibold text-primary">{formatPeriodLabel(period)}</span>
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
                         <Button
                             variant="secondary"
                             size="sm"
+                            onClick={handleExportExcel}
+                            loading={isExporting}
+                            disabled={loading || nothingLoaded}
+                            title="The figures on this page and the people behind them, as an Excel file"
+                        >
+                            {!isExporting && <FileSpreadsheet size={14} />}
+                            Excel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => { setReportLoaded(true); setReportOpen(true); }}
-                            disabled={reportable.length === 0}
-                            title="One-page A4 report for a period: registrations and completions by course"
+                            disabled={loading || nothingLoaded}
+                            title="A one- or two-page A4 report for this period, with the figures explained in words"
                         >
                             <FileText size={14} />
-                            Report
+                            PDF report
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={handleExportActiveCSV} disabled={filteredEnrollments.length === 0} title="Export the current scope as CSV">
-                            <Download size={14} />
-                            CSV
-                        </Button>
-                        <Button variant="success" size="sm" onClick={handleExportExcel} loading={isExportingExcel} disabled={filteredEnrollments.length === 0} title="Executive Excel report (.xlsx)">
-                            {!isExportingExcel && <FileSpreadsheet size={14} />}
-                            {isExportingExcel ? 'Generating…' : 'Excel report'}
-                        </Button>
-                    </>
-                }
-            />
-
-            {/* KPI row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-                <StatTile
-                    label="Total pipeline"
-                    icon={Users}
-                    tone="brand"
-                    value={kpiSummary.total.toLocaleString()}
-                    hint={`Enrollments · ${(kpiSummary.completed + kpiSummary.confirmed).toLocaleString()} confirmed or completed`}
-                    loading={isEnrollmentsLoading}
-                    onClick={() => handleDrillDown('All Active Scope Applications', filteredEnrollments)}
-                />
-                <StatTile
-                    label="Waiting queue"
-                    icon={Clock}
-                    tone="warning"
-                    value={kpiSummary.requested.toLocaleString()}
-                    hint={`Enrollments · avg ${kpiSummary.speed.avgDaysToInvite}d to invite`}
-                    loading={isEnrollmentsLoading}
-                    onClick={() => handleDrillDown('Candidates In Waiting Queue', filteredEnrollments.filter(e => e.status === 'requested'))}
-                />
-                <StatTile
-                    label="In course"
-                    icon={CheckCircle2}
-                    tone="info"
-                    value={kpiSummary.confirmed.toLocaleString()}
-                    hint="Confirmed enrollments"
-                    loading={isEnrollmentsLoading}
-                    onClick={() => handleDrillDown('Confirmed Students', filteredEnrollments.filter(e => e.status === 'confirmed'))}
-                />
-                <StatTile
-                    label="Completed"
-                    icon={GraduationCap}
-                    tone="success"
-                    value={kpiSummary.completed.toLocaleString()}
-                    hint={`Enrollments · ${kpiSummary.graduatedPeople.toLocaleString()} people · ${kpiSummary.successRate}% success`}
-                    title={`${kpiSummary.completed.toLocaleString()} completed enrollments by ${kpiSummary.graduatedPeople.toLocaleString()} people (Outcomes counts people). ${kpiSummary.successRate}% of enrollments completed.`}
-                    hintTone="positive"
-                    loading={isEnrollmentsLoading}
-                    onClick={() => handleDrillDown('Graduated Course Completers', filteredEnrollments.filter(e => e.status === 'completed'))}
-                />
-                <StatTile
-                    label="Avg full cycle"
-                    icon={Zap}
-                    tone="neutral"
-                    value={<>{kpiSummary.speed.avgTotalCycleDays}<span className="text-sm font-semibold text-muted ml-0.5">d</span></>}
-                    hint="Application → graduation"
-                    loading={isEnrollmentsLoading}
-                    onClick={() => selectTab('pipeline')}
-                />
-                <StatTile
-                    label="Employed"
-                    icon={Briefcase}
-                    tone="completed"
-                    value={`${kpiSummary.employmentRate}%`}
-                    hint={`${kpiSummary.workingCount} of ${kpiSummary.respondedCount} who responded`}
-                    loading={isEnrollmentsLoading}
-                    onClick={() => selectTab('outcomes')}
-                />
+                    </div>
+                </div>
             </div>
 
-            {/* Report navigation */}
-            <UnderlineTabs tabs={navTabs} value={activeTab} onChange={selectTab} ariaLabel="Analytics reports" className="-mb-1" />
-
-            {/* Active report */}
-            <div className={`min-h-[500px] transition-opacity duration-200 ${isTabStale ? 'opacity-60' : ''}`}>
-                {isEnrollmentsLoading ? (
-                    loadingView('Aggregating CRM data…')
+            <div className={`transition-opacity duration-200 ${isStale ? 'opacity-60' : ''}`}>
+                {view === 'overview' ? (
+                    <Overview
+                        insights={insights}
+                        narrative={narrative}
+                        enrollments={deferredCounted}
+                        runs={runs}
+                        everyGraduate={courseId === 'all' ? everyGraduate : null}
+                        loading={loading}
+                        onDrillDown={handleDrillDown}
+                        onSetRunIgnored={handleSetRunIgnored}
+                    />
                 ) : (
-                    <Suspense fallback={loadingView('Loading report…')}>
-                        {activeTab === 'pipeline' && (
-                            <PipelineVelocityTab
-                                enrollments={deferredFiltered}
-                                onDrillDown={handleDrillDown}
-                            />
-                        )}
-
-                        {activeTab === 'geography' && (
-                            <GeographyDemographicsTab
-                                enrollments={deferredFiltered}
-                                onDrillDown={handleDrillDown}
-                            />
-                        )}
-
-                        {activeTab === 'courses' && (
-                            <CourseMatrixTab
-                                enrollments={deferredFiltered}
-                                ignoredEnrollments={deferredIgnored}
-                                onDrillDown={handleDrillDown}
-                                onSetRunIgnored={handleSetRunIgnored}
-                            />
-                        )}
-
-                        {activeTab === 'outcomes' && (
-                            <OutcomesTab
-                                enrollments={deferredFiltered}
-                                employmentStatuses={employmentStatuses}
-                                onDrillDown={handleDrillDown}
-                            />
-                        )}
-
-                        {activeTab === 'explorer' && (
-                            <DataExplorerTab
-                                enrollments={deferredFiltered}
-                                onOpenStudent={handleOpenStudentDetail}
-                            />
-                        )}
-
-                        {activeTab === 'multi-course' && (
-                            <MultiCourseCompletersTab
-                                allEnrollments={deferredAll}
-                                filteredEnrollments={deferredFiltered}
-                                onOpenStudent={handleOpenStudentDetail}
-                            />
-                        )}
+                    <Suspense
+                        fallback={
+                            <div className="flex flex-col items-center justify-center py-24 text-muted gap-3">
+                                <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
+                            </div>
+                        }
+                    >
+                        <MultiCourseCompletersTab allEnrollments={deferredCounted} filteredEnrollments={inPeriod} onOpenStudent={setSelectedStudent} />
                     </Suspense>
                 )}
             </div>
 
             {reportLoaded && (
                 <Suspense fallback={null}>
-                    <SummaryReportModal open={reportOpen} onClose={() => setReportOpen(false)} enrollments={reportable} />
+                    <SummaryReportModal
+                        open={reportOpen}
+                        onClose={() => setReportOpen(false)}
+                        insights={insights}
+                        narrative={narrative}
+                        courseName={courseName}
+                    />
                 </Suspense>
             )}
 
-            {/* Universal Drill-down Modal */}
             <DrillDownModal
-                isOpen={drillDownModal.isOpen}
-                onClose={() => setDrillDownModal(prev => ({ ...prev, isOpen: false }))}
-                title={drillDownModal.title}
-                data={drillDownModal.data}
+                isOpen={drillDown.isOpen}
+                onClose={() => setDrillDown(prev => ({ ...prev, isOpen: false }))}
+                title={drillDown.title}
+                data={drillDown.data}
                 actions={drillRunKey && (
                     <Button
                         variant={drillRunIgnored ? 'brand-soft' : 'secondary'}
@@ -474,17 +297,16 @@ export default function Analytics() {
                         loading={savingDrillRun}
                         onClick={toggleDrillRun}
                         title={drillRunIgnored
-                            ? 'Count this course run in Analytics and the one-page report again'
-                            : 'Leave this course run out of Analytics and the one-page report'}
+                            ? 'Count this course run in Analytics and the PDF report again'
+                            : 'Leave this course run out of Analytics and the PDF report'}
                     >
                         {!savingDrillRun && (drillRunIgnored ? <Eye size={14} /> : <EyeOff size={14} />)}
                         {drillRunIgnored ? 'Ignored · Count again' : 'Ignore in reports'}
                     </Button>
                 )}
-                onSelectStudent={handleOpenStudentDetail}
+                onSelectStudent={setSelectedStudent}
             />
 
-            {/* Student Detail Slide-Over Drawer */}
             {shownStudent && (
                 <StudentDetail
                     open={!!selectedStudent}

@@ -142,7 +142,7 @@ export default function CommandPalette({
                 { id: 'nav-enro', title: 'Enrollments', subtitle: 'Kanban registration board', tab: 'enrollments', icon: <GraduationCap size={17} />, shortcut: '4' },
                 { id: 'nav-outc', title: 'Outcomes', subtitle: 'Graduate employment tracking', tab: 'outcomes', icon: <Briefcase size={17} />, shortcut: '5' },
                 { id: 'nav-docs', title: 'Documents', subtitle: 'Generate registration forms', tab: 'documents', icon: <FileText size={17} />, shortcut: '6' },
-                { id: 'nav-anal', title: 'Analytics', subtitle: 'Stats, funnels & insights', tab: 'analytics', icon: <PieChart size={17} />, shortcut: '7' },
+                { id: 'nav-anal', title: 'Analytics', subtitle: 'Figures for a period and the PDF report', tab: 'analytics', icon: <PieChart size={17} />, shortcut: '7' },
                 { id: 'nav-sett', title: 'Settings', subtitle: 'App & email configuration', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
                 { id: 'nav-pdff', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '9' },
                 { id: 'nav-cheq', title: 'Cheque Requisitions', subtitle: 'SICAP cheque requisitions from supplier invoices', tab: 'cheque-reqs', icon: <Receipt size={17} /> },
