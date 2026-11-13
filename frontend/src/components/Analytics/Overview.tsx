@@ -33,6 +33,8 @@ interface OverviewProps {
     /** Counted enrollments in the chosen course(s): what the figures were worked out from */
     enrollments: EnrollmentWithRelations[];
     runs: CourseRun[];
+    /** The Outcomes page's totals (everyone who ever completed a course); null with a course chosen */
+    everyGraduate: { graduates: number; working: number } | null;
     loading: boolean;
     onDrillDown: DrillDown;
     onSetRunIgnored: (runKey: string, ignore: boolean) => Promise<void>;
@@ -45,7 +47,7 @@ function trend(before: number | undefined, now: number): string {
     return ` · ${now > before ? '▲' : '▼'} ${pct}%`;
 }
 
-export default function Overview({ insights, narrative, enrollments, runs, loading, onDrillDown, onSetRunIgnored }: OverviewProps) {
+export default function Overview({ insights, narrative, enrollments, runs, everyGraduate, loading, onDrillDown, onSetRunIgnored }: OverviewProps) {
     const { summary, previous, outcomes, period } = insights;
     const isEmpty = summary.registrations === 0 && summary.completions === 0;
 
@@ -122,7 +124,7 @@ export default function Overview({ insights, narrative, enrollments, runs, loadi
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
                 <QueueCard insights={insights} enrollments={enrollments} onDrillDown={onDrillDown} />
-                <OutcomesCard insights={insights} note={narrative.outcomes[narrative.outcomes.length - 1]} />
+                <OutcomesCard insights={insights} note={narrative.outcomes[narrative.outcomes.length - 1]} everyGraduate={everyGraduate} />
             </div>
 
             {insights.people.total > 0 && <PeopleCard insights={insights} />}
@@ -410,7 +412,7 @@ function QueueCard({ insights, enrollments, onDrillDown }: Pick<OverviewProps, '
 
 // ── Employment outcomes ────────────────────────────────────────────
 
-function OutcomesCard({ insights, note }: { insights: Insights; note?: string }) {
+function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; note?: string; everyGraduate: OverviewProps['everyGraduate'] }) {
     const o = insights.outcomes;
     const steps = [
         { label: 'Completed a course', value: o.graduates, of: o.graduates },
@@ -472,6 +474,13 @@ function OutcomesCard({ insights, note }: { insights: Insights; note?: string })
 
                     {note && (o.responded < 10 || o.asked === 0) && <p className="mt-3 text-xs text-muted">{note}</p>}
                 </>
+            )}
+            {everyGraduate && (everyGraduate.graduates !== o.graduates || everyGraduate.working !== o.working) && (
+                <p className="mt-3 pt-3 border-t border-border-subtle text-xs text-muted">
+                    These are the people who completed a course in the period. The Outcomes page counts everyone who ever completed one:{' '}
+                    <span className="font-semibold text-primary tabular-nums">{count(everyGraduate.graduates)}</span> graduates,{' '}
+                    <span className="font-semibold text-primary tabular-nums">{count(everyGraduate.working)}</span> working.
+                </p>
             )}
         </Card>
     );

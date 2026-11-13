@@ -119,6 +119,19 @@ export default function Analytics() {
         [deferredCounted, deferredPeriod],
     );
 
+    // What the Outcomes page shows: everyone who ever completed a course, ignored runs included
+    const everyGraduate = useMemo(() => {
+        const people = new Set(allEnrollments.filter(e => e.status === 'completed' && e.student_id).map(e => e.student_id));
+        const seen = new Set<string>();
+        let working = 0;
+        for (const es of employmentStatuses) {
+            if (seen.has(es.student_id) || !people.has(es.student_id)) continue;
+            seen.add(es.student_id);
+            if (es.status === 'responded' && es.is_working) working++;
+        }
+        return { graduates: people.size, working };
+    }, [allEnrollments, employmentStatuses]);
+
     const choosePreset = (id: PresetId) => startTransition(() => setPreset(id));
     const setStart = (start: string) => {
         if (!start) return;
@@ -242,6 +255,7 @@ export default function Analytics() {
                         narrative={narrative}
                         enrollments={deferredCounted}
                         runs={runs}
+                        everyGraduate={courseId === 'all' ? everyGraduate : null}
                         loading={loading}
                         onDrillDown={handleDrillDown}
                         onSetRunIgnored={handleSetRunIgnored}
