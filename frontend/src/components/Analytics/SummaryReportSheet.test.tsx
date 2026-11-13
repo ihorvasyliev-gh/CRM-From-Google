@@ -58,7 +58,8 @@ describe('SummaryReportSheet', () => {
         expect(screen.getByText('1,234')).toBeInTheDocument();
         expect(screen.getByText('5 course registrations')).toBeInTheDocument();
         expect(screen.getByText('with graduates, across 2 courses')).toBeInTheDocument();
-        expect(screen.getByText('75%')).toBeInTheDocument();
+        expect(screen.getByText('50%')).toBeInTheDocument();
+        expect(screen.getByText('3 of 6 sent the survey')).toBeInTheDocument();
         expect(screen.getByRole('img', { name: 'Registrations and completions by month' })).toBeInTheDocument();
         const table = screen.getByRole('table');
         expect(within(table).getByText('Course 1')).toBeInTheDocument();

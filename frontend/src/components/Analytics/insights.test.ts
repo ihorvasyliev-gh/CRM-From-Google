@@ -194,7 +194,7 @@ describe('buildInsights', () => {
         expect(text.outcomes[0]).toBe(
             '3 of the 3 people who completed a course in the period (100%) were sent the employment survey, and 2 answered (67% of those asked).',
         );
-        expect(text.outcomes[1]).toBe('Of those who answered, 1 (50%) is working: 1 full-time.');
+        expect(text.outcomes[1]).toBe('1 of the 3 people sent the survey (33%) said they are working: 1 full-time.');
         expect(text.outcomes[text.outcomes.length - 1]).toBe('With only 2 answers, these percentages are a rough guide.');
         expect(text.people[0]).toBe('100% of the people who registered chose a course in English; 25% in Ukrainian.');
     });

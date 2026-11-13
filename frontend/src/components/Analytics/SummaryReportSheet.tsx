@@ -83,8 +83,8 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                     />
                     <Figure
                         label="Working after the course"
-                        value={outcomes.responded > 0 ? `${percent(outcomes.working, outcomes.responded)}%` : '—'}
-                        hint={outcomes.responded > 0 ? `${count(outcomes.working)} of ${count(outcomes.responded)} survey answers` : 'no survey answers yet'}
+                        value={outcomes.asked > 0 ? `${percent(outcomes.working, outcomes.asked)}%` : '—'}
+                        hint={outcomes.asked > 0 ? `${count(outcomes.working)} of ${count(outcomes.asked)} sent the survey` : 'no survey sent yet'}
                     />
                 </section>
 
@@ -156,23 +156,23 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         <p className="text-[8.5pt] text-(--rs-ink-2)">{subject} · {formatPeriodLabel(period)}</p>
                     </header>
 
-                    <section className="mt-[6mm]" aria-label="Where registrations stand">
+                    <section className="mt-[4.5mm]" aria-label="Where registrations stand">
                         <SectionTitle title="Where registrations stand" />
                         <Prose sentences={narrative.pipeline} />
                         <QueueBlock insights={insights} />
                     </section>
 
-                    <section className="mt-[8mm]" aria-label="Employment after the course">
+                    <section className="mt-[4.5mm]" aria-label="Employment after the course">
                         <SectionTitle title="Employment after the course" />
                         <Prose sentences={narrative.outcomes} />
                         <OutcomesBlock insights={insights} />
                     </section>
 
                     {insights.people.total > 0 && (
-                        <section className="mt-[8mm]" aria-label="Who registered">
+                        <section className="mt-[4.5mm]" aria-label="Who registered">
                             <SectionTitle title="Who registered" />
                             <Prose sentences={narrative.people} />
-                            <div className="grid grid-cols-3 gap-[5mm] mt-[3.5mm]">
+                            <div className="grid grid-cols-3 gap-[5mm] mt-[2.5mm]">
                                 <ShareList title="Course language" items={insights.people.languages.slice(0, 6)} total={insights.people.total} />
                                 <ShareList title="Where they live" items={insights.people.areas.slice(0, 7)} total={insights.people.total} />
                                 <ShareList title="Age" items={insights.people.ages} total={insights.people.total} />
@@ -180,13 +180,14 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         </section>
                     )}
 
-                    <section className="mt-[8mm] rounded-[2.5mm] bg-(--rs-panel) px-[4mm] py-[3mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
+                    <section className="mt-[4.5mm] rounded-[2.5mm] bg-(--rs-panel) px-[4mm] py-[3mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
                         <p className="font-semibold text-(--rs-ink)">How the figures are counted</p>
                         <p className="mt-[0.8mm]">
                             A registration is dated by the day the person registered, a completion by the day the course was completed.
                             A person counts once per course, whatever the language. A course run is one course in one language on one date,
                             with at least one graduate. Course runs marked "Ignore in reports" are left out. The queue is today's, whatever
-                            the period. Employment is the outcome survey among people who completed a course in the period. Area is worked out
+                            the period. Employment is the outcome survey among people who completed a course in the
+                            period; the share working is of everyone sent the survey, answered or not. Area is worked out
                             from the address and Eircode, and age from the date of birth, as of the day the report was prepared.
                         </p>
                     </section>
@@ -292,7 +293,7 @@ function QueueBlock({ insights }: { insights: Insights }) {
     const longest = queue.courses.filter(c => c.waiting > 0).slice(0, 6).map(c => ({ name: c.name, count: c.waiting }));
 
     return (
-        <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
+        <div className="grid grid-cols-2 gap-[8mm] mt-[2.5mm]">
             <div className="min-w-0">
                 <p className={SUBHEAD}>The period's registrations, as of today</p>
                 {fates.total === 0 ? (
@@ -315,7 +316,7 @@ function QueueBlock({ insights }: { insights: Insights }) {
                         </ul>
                     </>
                 )}
-                <div className="grid grid-cols-3 gap-[2mm] mt-[3.5mm]">
+                <div className="grid grid-cols-3 gap-[2mm] mt-[2.5mm]">
                     {[
                         { label: 'Waiting today', value: queue.waiting },
                         { label: 'Invited', value: queue.invited },
@@ -343,7 +344,7 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
         { label: 'Completed a course', value: o.graduates, of: 0 },
         { label: 'Sent the survey', value: o.asked, of: o.graduates },
         { label: 'Answered', value: o.responded, of: o.asked },
-        { label: 'Working', value: o.working, of: o.responded },
+        { label: 'Working', value: o.working, of: o.asked },
     ];
     const hours = [
         { name: 'Full-time', count: o.fullTime },
@@ -353,7 +354,7 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
     const fields = o.fields.slice(0, 5);
 
     return (
-        <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
+        <div className="grid grid-cols-2 gap-[8mm] mt-[2.5mm]">
             <div className="min-w-0">
                 <p className={SUBHEAD}>From course to work</p>
                 <ul className="text-[8.5pt]">

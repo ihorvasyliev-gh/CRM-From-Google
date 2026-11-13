@@ -90,10 +90,11 @@ export default function Overview({ insights, narrative, enrollments, runs, every
                     label="Working after the course"
                     icon={Briefcase}
                     tone="completed"
-                    value={outcomes.responded > 0 ? `${percent(outcomes.working, outcomes.responded)}%` : '—'}
-                    hint={outcomes.responded > 0
-                        ? `${count(outcomes.working)} of ${count(outcomes.responded)} who answered the survey`
-                        : 'No survey answers for this period yet'}
+                    value={outcomes.asked > 0 ? `${percent(outcomes.working, outcomes.asked)}%` : '—'}
+                    hint={outcomes.asked > 0
+                        ? `${count(outcomes.working)} of ${count(outcomes.asked)} sent the survey · ${count(outcomes.responded)} answered`
+                        : 'Nobody from this period was sent the survey yet'}
+                    title="People who answered that they are working, out of everyone who was sent the outcome survey"
                     loading={loading}
                 />
             </div>
@@ -418,7 +419,7 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
         { label: 'Completed a course', value: o.graduates, of: o.graduates },
         { label: 'Sent the survey', value: o.asked, of: o.graduates },
         { label: 'Answered', value: o.responded, of: o.asked },
-        { label: 'Working', value: o.working, of: o.responded },
+        { label: 'Working', value: o.working, of: o.asked },
     ];
     const max = Math.max(1, o.graduates);
     const fields = o.fields.slice(0, 5);
