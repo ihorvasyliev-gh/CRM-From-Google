@@ -37,3 +37,40 @@ describe('courseRuns', () => {
         expect(isReportable({})).toBe(true);
     });
 });
+
+describe('listCourseRuns', () => {
+    const graduate = (id: string, date: string, extra: Partial<EnrollmentWithRelations> = {}) => ({
+        id,
+        course_id: 'c1',
+        course_variant: null,
+        courses: { id: 'c1', name: 'Safe Pass' },
+        invited_date: date,
+        confirmed_date: date,
+        completed_date: date,
+        status: 'completed',
+        ...extra,
+    }) as EnrollmentWithRelations;
+
+    it('lists runs with graduates newest first, ignored ones marked', async () => {
+        const { listCourseRuns } = await import('./courseRuns');
+        const runs = listCourseRuns([
+            graduate('1', '2026-03-05'),
+            graduate('2', '2026-03-05'),
+            graduate('3', '2026-06-20', { exclude_from_reports: true }),
+            graduate('4', '2026-07-01', { status: 'confirmed', completed_date: null }),
+        ]);
+        expect(runs.map(r => [r.date, r.ignored, r.graduates.length])).toEqual([
+            ['2026-06-20', true, 1],
+            ['2026-03-05', false, 2],
+        ]);
+    });
+
+    it('keeps only the graduates asked for', async () => {
+        const { listCourseRuns } = await import('./courseRuns');
+        const runs = listCourseRuns(
+            [graduate('1', '2026-03-05'), graduate('2', '2025-03-05')],
+            e => (e.completed_date ?? '') >= '2026-01-01',
+        );
+        expect(runs.map(r => r.date)).toEqual(['2026-03-05']);
+    });
+});

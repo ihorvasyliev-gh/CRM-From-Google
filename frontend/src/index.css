@@ -1211,3 +1211,8 @@ a:focus-visible,
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
+
+/* In the preview each sheet is a page lying on the desk */
+.report-preview .report-sheet {
+    box-shadow: 0 8px 30px rgb(0 0 0 / 0.14), 0 0 0 1px rgb(0 0 0 / 0.05);
+}

@@ -1,24 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, FileText } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { DateInput } from '../ui/DatePicker';
-import { fieldCls, labelCls } from '../ui/styles';
-import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import { Segmented } from '../ui/Tabs';
 import SummaryReportSheet from './SummaryReportSheet';
-import {
-    REPORT_PRESETS,
-    buildSummaryReport,
-    formatPeriodLabel,
-    presetPeriod,
-    type ReportPeriod,
-    type ReportPresetId,
-} from './summaryReport';
+import type { Insights } from './insights';
+import type { Narrative } from './narrative';
+import { formatPeriodLabel } from './summaryReport';
 
 /**
  * Only the report is printed: everything else on the page is hidden and the page has no margins
- * (the sheet carries its own), so the browser adds no header or footer. Mounted only while the
+ * (each sheet carries its own), so the browser adds no header or footer. Mounted only while the
  * dialog is open, so printing any other page is unchanged.
  */
 const PRINT_CSS = `
@@ -34,38 +27,32 @@ const PRINT_CSS = `
     }
     body > :not(.report-print-root) { display: none !important; }
     .report-print-root { display: block !important; }
-    /* A hair under 297 mm: rounding must not spill an empty second page */
-    .report-print-root .report-sheet { height: 296mm; break-inside: avoid; }
+    /* A hair under 297 mm: rounding must not spill an empty extra page */
+    .report-print-root .report-sheet { height: 296mm; break-inside: avoid; break-after: page; }
+    .report-print-root .report-sheet:last-child { break-after: auto; }
 }`;
 
 const SHEET_WIDTH_PX = (210 / 25.4) * 96;
 
+type PageCount = '1' | '2';
+const PAGE_OPTIONS: { value: PageCount; label: string; title: string }[] = [
+    { value: '1', label: '1 page', title: 'The summary, key figures, months and courses' },
+    { value: '2', label: '2 pages', title: 'Also where registrations stand, employment after the course and who registered' },
+];
+
 interface SummaryReportModalProps {
     open: boolean;
     onClose: () => void;
-    enrollments: EnrollmentWithRelations[];
+    /** The figures on the Analytics page: the report is the same period and course */
+    insights: Insights;
+    narrative: Narrative;
+    courseName: string | null;
 }
 
-export default function SummaryReportModal({ open, onClose, enrollments }: SummaryReportModalProps) {
-    const [preset, setPreset] = useState<ReportPresetId | 'custom'>('ytd');
-    const [period, setPeriod] = useState<ReportPeriod>(() => presetPeriod('ytd'));
-
-    const report = useMemo(() => buildSummaryReport(enrollments, period), [enrollments, period]);
-
-    const choosePreset = (id: ReportPresetId) => {
-        setPreset(id);
-        setPeriod(presetPeriod(id));
-    };
-    const setStart = (start: string) => {
-        if (!start) return;
-        setPreset('custom');
-        setPeriod(p => ({ start, end: start > p.end ? start : p.end }));
-    };
-    const setEnd = (end: string) => {
-        if (!end) return;
-        setPreset('custom');
-        setPeriod(p => ({ start: end < p.start ? end : p.start, end }));
-    };
+export default function SummaryReportModal({ open, onClose, insights, narrative, courseName }: SummaryReportModalProps) {
+    const [pageCount, setPageCount] = useState<PageCount>('2');
+    const pages = pageCount === '1' ? 1 : 2;
+    const { period } = insights;
 
     // The preview is the sheet at its real size, zoomed down when the dialog is narrower
     const [zoom, setZoom] = useState(1);
@@ -99,17 +86,19 @@ export default function SummaryReportModal({ open, onClose, enrollments }: Summa
     }, []);
     const handlePrint = () => {
         titleRef.current ??= document.title;
-        document.title = `Courses report ${period.start} to ${period.end}`;
+        document.title = `Courses report ${period.start} to ${period.end}${courseName ? ` ${courseName.replace(/[\\/:*?"<>|]/g, ' ')}` : ''}`;
         window.print();
     };
+
+    const sheet = <SummaryReportSheet insights={insights} narrative={narrative} courseName={courseName} pages={pages} />;
 
     return (
         <>
             <Modal
                 open={open}
                 onClose={onClose}
-                title="Courses report"
-                subtitle="One A4 page: who registered and who completed a course"
+                title="PDF report"
+                subtitle="The figures of the Analytics page, explained in words, on A4"
                 icon={FileText}
                 size="3xl"
                 labelId="summary-report-title"
@@ -127,48 +116,18 @@ export default function SummaryReportModal({ open, onClose, enrollments }: Summa
                     </>
                 }
             >
-                <div className="flex flex-wrap items-end gap-x-4 gap-y-3 px-5 sm:px-6 py-4 border-b border-border-subtle">
-                    <div className="min-w-0 max-w-full">
-                        <span className={labelCls}>Period</span>
-                        <div role="group" aria-label="Period" className="flex items-center gap-0.5 p-1 bg-surface-elevated border border-border-subtle rounded-xl overflow-x-auto scrollbar-none">
-                            {REPORT_PRESETS.map(p => {
-                                const active = preset === p.id;
-                                return (
-                                    <button
-                                        key={p.id}
-                                        type="button"
-                                        aria-pressed={active}
-                                        onClick={() => choosePreset(p.id)}
-                                        className={`shrink-0 h-7 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                                            active ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'
-                                        }`}
-                                    >
-                                        {p.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    <div className="flex items-end gap-2">
-                        <div>
-                            <label htmlFor="report-start" className={labelCls}>From</label>
-                            <DateInput id="report-start" value={period.start} onChange={setStart} className={`${fieldCls} w-36`} />
-                        </div>
-                        <div>
-                            <label htmlFor="report-end" className={labelCls}>To</label>
-                            <DateInput id="report-end" value={period.end} onChange={setEnd} className={`${fieldCls} w-36`} />
-                        </div>
-                    </div>
-                    <p className="text-xs text-muted pb-2" aria-live="polite">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 px-5 sm:px-6 py-3.5 border-b border-border-subtle">
+                    <p className="text-xs text-muted min-w-0">
                         <span className="font-semibold text-primary">{formatPeriodLabel(period)}</span>
-                        {' · '}
-                        {report.peopleRegistered} registered · {report.peopleCompleted} completed
+                        {' · '}{courseName ?? 'All courses'}
+                        <span className="hidden sm:inline"> · change the period or course on the Analytics page</span>
                     </p>
+                    <Segmented options={PAGE_OPTIONS} value={pageCount} onChange={setPageCount} ariaLabel="Length of the report" />
                 </div>
 
                 <div ref={previewRef} className="flex-1 bg-surface-elevated/70 px-4 py-6 overflow-x-hidden">
-                    <div className="mx-auto w-fit shadow-float ring-1 ring-black/5" style={{ zoom }}>
-                        <SummaryReportSheet report={report} period={period} />
+                    <div className="report-preview mx-auto w-fit flex flex-col gap-6" style={{ zoom }}>
+                        {sheet}
                     </div>
                 </div>
             </Modal>
@@ -176,7 +135,7 @@ export default function SummaryReportModal({ open, onClose, enrollments }: Summa
             {open && createPortal(
                 <div className="report-print-root">
                     <style>{PRINT_CSS}</style>
-                    <SummaryReportSheet report={report} period={period} />
+                    {sheet}
                 </div>,
                 document.body,
             )}

@@ -115,11 +115,11 @@ Everyone on the team sees the same board, live. Nothing is copied between spread
 <td valign="top">
 
 ### 📊 Analytics
-- Pipeline & velocity · Geography & demographics
-- Courses & cohorts · Graduate outcomes
-- Data explorer with drill-down · Multi-course completers
-- Copy emails and export CSV / Excel from every view
-- **One-page report** for any period: people registered, people who completed and course runs, by course and by month, on one A4 page to print or save as PDF
+- One page for a chosen period and course: people registered, people who completed, course runs and the share working after the course
+- By month, by course, the queue today, the outcome survey and who registered (language, area, age), each opening the list of people behind it
+- A short summary in words, written from the figures (no AI service)
+- **PDF report** on one or two A4 pages: the same figures with the summary and conclusions in sentences, to print or save as PDF
+- Excel export of the figures and the people behind them · Course combinations: who completed a given set of courses
 - **Ignore in reports**: a course run that isn't part of your programme (e.g. people sent to another team's course) is left out of every figure, and can be counted again
 
 </td>
@@ -420,7 +420,7 @@ CRM-From-Google/
 │   ├── public/                    _headers (CSP, caching), service worker, boot scripts, logos
 │   └── src/
 │       ├── components/
-│       │   ├── Analytics/         six analytics views + shared utils
+│       │   ├── Analytics/         overview, PDF report, figures + wording
 │       │   ├── ChequeRequisitions/ requisition editor, invoice preview
 │       │   ├── Dashboard/         KPIs, activity feed, reminders
 │       │   ├── DocumentGenerator/ templates, presets, generation report
