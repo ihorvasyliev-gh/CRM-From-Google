@@ -179,7 +179,7 @@ function outcomeSentences(d: Insights): string[] {
     if (o.responded === 0) return out;
     const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
     out.push(
-        `Of those who answered, ${count(o.working)} (${percent(o.working, o.responded)}%) ${be(o.working)} working` +
+        `${count(o.working)} of the ${count(o.asked)} people sent the survey (${percent(o.working, o.asked)}%) said they are working` +
         `${o.working > 0 && split.length ? `: ${listOf(split)}` : ''}.`,
     );
     const fields = o.fields.filter(f => f.name !== 'Other').slice(0, 3);
@@ -190,6 +190,8 @@ function outcomeSentences(d: Insights): string[] {
     }
     if (o.responded < 10) {
         out.push(`With only ${plural(o.responded, 'answer')}, these percentages are a rough guide.`);
+    } else if (o.responded < o.asked) {
+        out.push(`${plural(o.asked - o.responded, 'person has', 'people have')} not answered yet, so the real share working may be higher.`);
     }
     return out;
 }

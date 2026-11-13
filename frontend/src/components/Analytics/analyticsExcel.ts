@@ -58,7 +58,7 @@ export async function exportAnalyticsExcel({ insights, narrative, enrollments, e
         figure('Completed a course in the period (people)', outcomes.graduates),
         figure('Sent the survey', outcomes.asked, `${percent(outcomes.asked, outcomes.graduates)}%`),
         figure('Answered', outcomes.responded, `${percent(outcomes.responded, outcomes.asked)}% of those asked`),
-        figure('Working', outcomes.working, `${percent(outcomes.working, outcomes.responded)}% of answers`),
+        figure('Working', outcomes.working, `${percent(outcomes.working, outcomes.asked)}% of those sent the survey`),
         figure('Full-time', outcomes.fullTime),
         figure('Part-time', outcomes.partTime),
         ...shares(outcomes.fields.map(f => ({ ...f, name: `Field: ${f.name}` })), outcomes.working),
