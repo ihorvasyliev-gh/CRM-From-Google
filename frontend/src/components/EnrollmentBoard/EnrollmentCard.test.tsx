@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, onTestFinished } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import EnrollmentCard from './EnrollmentCard';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
@@ -92,13 +92,30 @@ describe('EnrollmentCard Component', () => {
         expect(screen.queryByTestId('card-schedule')).not.toBeInTheDocument();
     });
 
-    it('renders phone link directly for calling without duplicate phone button', () => {
+    it('keeps the phone number a call link on a touch screen', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+        expect(screen.getByTitle('Click to call')).toHaveAttribute('href', 'tel:+353871234567');
+    });
+
+    it('copies the phone number on a click on a computer, where there is nothing to call with', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        // A computer: a mouse that can hover
+        const realMatchMedia = window.matchMedia;
+        window.matchMedia = ((query: string) => query.includes('pointer: fine')
+            ? { ...realMatchMedia(query), matches: true }
+            : realMatchMedia(query)) as typeof window.matchMedia;
+        onTestFinished(() => { window.matchMedia = realMatchMedia; });
         render(<EnrollmentCard {...defaultProps} />);
 
-        const phoneLink = screen.getByTitle('Click to call');
-        expect(phoneLink).toBeInTheDocument();
+        const phoneLink = screen.getByTitle('Click to copy the number');
         expect(phoneLink).toHaveAttribute('href', 'tel:+353871234567');
         expect(phoneLink).toHaveTextContent('087 123 4567');
+        await act(async () => { fireEvent.click(phoneLink); });
+
+        expect(writeText).toHaveBeenCalledWith('087 123 4567');
+        expect(phoneLink).toHaveTextContent('Copied');
+        expect(mockToggleSelect).not.toHaveBeenCalled();
 
         // Verify there is NO duplicate "Call Phone Number" button
         expect(screen.queryByTitle('Call Phone Number')).toBeNull();
@@ -145,6 +162,37 @@ describe('EnrollmentCard Component', () => {
         fireEvent.click(saveBtn);
 
         expect(mockUpdateNote).toHaveBeenCalledWith('enrollment-1', 'Needs afternoon session');
+    });
+
+    it('shows an expired invitation under the avatar and invites again in one click', () => {
+        const expired = { ...sampleEnrollment, status: 'invited' as const, invited_at: '2026-01-01T10:00:00Z', invited_date: '2026-02-01', response_days: 7 };
+        render(<EnrollmentCard {...defaultProps} enrollment={expired} status="invited" />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Invitation expired. Invite John Doe again' }));
+        expect(mockOnMoveStatus).toHaveBeenCalledWith('enrollment-1', 'invited', 'invited');
+        // The card itself was not selected by that click
+        expect(mockToggleSelect).not.toHaveBeenCalled();
+    });
+
+    it('shows the time left to answer without a button while the invitation is running', () => {
+        const running = { ...sampleEnrollment, status: 'invited' as const, invited_at: new Date(Date.now() - 86400000).toISOString(), invited_date: '2026-02-01', response_days: 7 };
+        render(<EnrollmentCard {...defaultProps} enrollment={running} status="invited" />);
+
+        expect(screen.getByTitle(/left to answer \(7-day deadline\)/)).toHaveTextContent(/^5d 23h$|^6d 0h$/);
+        expect(screen.queryByRole('button', { name: /Invitation expired/ })).not.toBeInTheDocument();
+    });
+
+    it('keeps the quick note editor open with the text when the note could not be saved', async () => {
+        const mockUpdateNote = vi.fn().mockResolvedValue(false);
+        render(<EnrollmentCard {...defaultProps} onUpdateNote={mockUpdateNote} />);
+
+        fireEvent.click(screen.getByText('Needs morning session'));
+        const textarea = screen.getByPlaceholderText(/Add quick note/i) as HTMLTextAreaElement;
+        fireEvent.change(textarea, { target: { value: 'A long note that must not be lost' } });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Save$/i })); });
+
+        expect(mockUpdateNote).toHaveBeenCalled();
+        expect((screen.getByPlaceholderText(/Add quick note/i) as HTMLTextAreaElement).value).toBe('A long note that must not be lost');
     });
 
     it('saves inline quick note on Enter and cancels on Escape', () => {

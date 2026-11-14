@@ -70,6 +70,22 @@ describe('useModalBehavior', () => {
             expect(document.activeElement).toBe(trigger);
         });
 
+        it('does not take focus back from a dialog that opened as the layer closed', () => {
+            // A menu (a layer without a focus trap) whose item opens a dialog
+            const ui = (menu: boolean, dialog: boolean) => (
+                <><button>Open</button><Layer open={menu} onClose={() => {}} name="menu" /><Dialog open={dialog} /></>
+            );
+            const { rerender } = render(ui(false, false));
+            screen.getByRole('button', { name: 'Open' }).focus();
+            rerender(ui(true, false));
+
+            vi.useFakeTimers();
+            rerender(ui(false, true));
+            act(() => { vi.runAllTimers(); });
+            vi.useRealTimers();
+            expect(document.activeElement).toBe(screen.getByRole('dialog'));
+        });
+
         it('leaves focus on an autoFocus field', () => {
             render(<Dialog open autoFocusInput />);
             expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Name' }));

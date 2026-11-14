@@ -6,7 +6,7 @@ const fits = (...statuses: EnrollmentStatus[]) => fittingActions(new Set(statuse
 
 describe('fittingActions', () => {
     it('offers the whole flow for people still queued', () => {
-        expect(fits('requested')).toEqual({ invite: true, remind: false, confirm: true, complete: true, backToRequested: false, reject: true });
+        expect(fits('requested')).toEqual({ invite: true, remind: false, confirm: true, complete: true, backToRequested: false, withdraw: true, reject: true });
     });
 
     it('leaves out Invite and Confirm when everyone is already confirmed or done', () => {
@@ -18,7 +18,7 @@ describe('fittingActions', () => {
     });
 
     it('offers only going back, rejecting and deleting when everyone completed', () => {
-        expect(fits('completed')).toEqual({ invite: false, remind: false, confirm: false, complete: false, backToRequested: true, reject: true });
+        expect(fits('completed')).toEqual({ invite: false, remind: false, confirm: false, complete: false, backToRequested: true, withdraw: true, reject: true });
     });
 
     it('keeps an action when it fits at least one of a mixed selection', () => {

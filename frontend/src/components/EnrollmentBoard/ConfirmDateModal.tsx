@@ -1,4 +1,6 @@
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Loader2, Send } from 'lucide-react';
+import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import { describePeople, invitedForLabel } from './dialogPeople';
 import { formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
@@ -6,7 +8,8 @@ import DialogLayer from '../ui/DialogLayer';
 import { useLastPresent } from '../../hooks/usePresence';
 
 interface ConfirmDateModalProps {
-    target: { ids: string[] } | null;
+    /** `people`: the enrollments being confirmed, as they were when the dialog opened */
+    target: { ids: string[]; people?: EnrollmentRow[] } | null;
     date: string;
     onDateChange: (date: string) => void;
     busy: boolean;
@@ -20,6 +23,16 @@ interface ConfirmDateModalProps {
 export default function ConfirmDateModal({ target, date, onDateChange, busy, onConfirm, onClose, savedDates, getDateStats }: ConfirmDateModalProps) {
     const shown = useLastPresent(target);
     if (!shown) return null;
+    const people = shown.people ?? [];
+    const who = describePeople(people);
+    const invitedFor = invitedForLabel(people);
+    // Places on the chosen date: the course's limit per date, counting the people being confirmed
+    // (the ones already confirmed for that date are in the count already)
+    const maxCapacity = people[0]?.courses?.max_capacity ?? null;
+    const day = date ? date.split('T')[0] : '';
+    const joining = people.filter(e => !(e.status === 'confirmed' && (e.confirmed_date || '').split('T')[0] === day)).length;
+    const after = date ? getDateStats(date).confirmed + joining : 0;
+    const overBy = maxCapacity != null && date ? after - maxCapacity : 0;
     return (
         <DialogLayer
             open={!!target}
@@ -35,14 +48,22 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                 </div>
                 <div>
                     <h3 className="font-bold text-primary">Confirm Enrollment</h3>
+                    {who && <p className="text-sm font-semibold text-primary mt-0.5 break-words" data-testid="confirm-who">{who}</p>}
                     <p className="text-xs text-muted mt-0.5">
                         {shown.ids.length === 1
-                            ? 'Set the confirmation date for this enrollment'
-                            : `Set the confirmation date for ${shown.ids.length} enrollments`
+                            ? 'Choose the course date this person is confirmed for'
+                            : `Choose the course date these ${shown.ids.length} people are confirmed for`
                         }
                     </p>
                 </div>
             </div>
+
+            {invitedFor && (
+                <p className="flex items-center gap-1.5 mb-4 px-3 py-2 rounded-xl bg-info/10 text-xs font-medium text-status-invited" data-testid="confirm-invited-for">
+                    <Send size={12} className="shrink-0" />
+                    <span>Invited for <strong>{invitedFor}</strong></span>
+                </p>
+            )}
 
             {savedDates.length > 0 && (
                 <div className="mb-4">
@@ -71,7 +92,7 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                            {stats.confirmed} confirmed
+                                            {stats.confirmed}{maxCapacity != null ? `/${maxCapacity}` : ''} confirmed
                                         </span>
                                         <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited bg-sky-50 dark:bg-sky-950/50 px-2 py-0.5 rounded-sm border border-sky-200/50 dark:border-sky-800/50" title="Active pending invitations">
                                             <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
@@ -99,7 +120,7 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                     <span className="text-xs text-muted">On this date:</span>
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        {getDateStats(date).confirmed} confirmed
+                        {getDateStats(date).confirmed}{maxCapacity != null ? `/${maxCapacity}` : ''} confirmed
                     </span>
                     <span className="text-border-subtle">•</span>
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-status-invited">
@@ -107,6 +128,13 @@ export default function ConfirmDateModal({ target, date, onDateChange, busy, onC
                         {getDateStats(date).pending} pending
                     </span>
                 </div>
+            )}
+
+            {overBy > 0 && (
+                <p role="alert" className="flex items-start gap-2 mt-3 px-3 py-2 rounded-xl bg-warning/10 border border-warning/30 text-xs font-medium text-status-requested">
+                    <AlertTriangle size={14} className="shrink-0 mt-px" />
+                    <span>This date will be over its limit: {after} confirmed for {maxCapacity} places.</span>
+                </p>
             )}
 
             <div className="flex gap-3 mt-6">

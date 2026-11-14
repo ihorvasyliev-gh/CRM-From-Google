@@ -91,7 +91,13 @@ export function useModalBehavior(
             ) {
                 // Defer so the closing modal's DOM is gone before focus moves back
                 setTimeout(() => {
-                    if (document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
+                    if (!document.contains(previouslyFocused)) return;
+                    // Another dialog opened as this layer closed (a menu item that opens a dialog)
+                    // and holds the focus now: taking it back would leave that dialog without focus
+                    // and show the old button's tooltip over it
+                    const dialog = document.activeElement?.closest?.('[role="dialog"], [aria-modal="true"]');
+                    if (dialog && !dialog.contains(previouslyFocused)) return;
+                    previouslyFocused.focus({ preventScroll: true });
                 }, 0);
             }
         };

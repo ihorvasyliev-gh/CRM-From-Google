@@ -5,6 +5,7 @@ import type { InviteFlow } from '../../hooks/useInviteFlow';
 import SessionScheduleEditor from './SessionScheduleEditor';
 import DialogLayer from '../ui/DialogLayer';
 import { useLastPresent } from '../../hooks/usePresence';
+import { describePeople } from './dialogPeople';
 
 interface InviteDateModalProps {
     inviteFlow: InviteFlow;
@@ -18,6 +19,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
     // While it animates out, the dialog keeps showing the invitation it was for
     const target = useLastPresent(inviteFlow.inviteDateTarget);
     if (!target) return null;
+    const who = describePeople(target.people);
     return (
         <DialogLayer
             open={!!inviteFlow.inviteDateTarget}
@@ -34,6 +36,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                     </div>
                     <div>
                         <h3 className="font-bold text-primary">Invite to Course</h3>
+                        {who && <p className="text-sm font-semibold text-primary mt-0.5 break-words" data-testid="invite-who">{who}</p>}
                         <p className="text-xs text-muted mt-0.5">
                             {inviteFlow.multiDate
                                 ? 'Offer several dates — each student picks one'
@@ -78,19 +81,20 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                                         type="button"
                                         aria-pressed={isSelected}
                                         onClick={() => inviteFlow.multiDate ? inviteFlow.toggleInviteDate(d) : inviteFlow.setInviteDate(d)}
-                                        className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
+                                        className={`w-full flex items-center justify-between gap-2 p-2.5 rounded-xl border transition-all text-left ${
                                             isSelected
                                                 ? 'bg-info/10 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
                                                 : 'bg-surface border-border-subtle hover:border-blue-300 hover:bg-surface-elevated'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-2 min-w-0">
+                                        {/* The date is never cut short: on a narrow phone the counters wrap instead */}
+                                        <div className="flex items-center gap-2 shrink-0">
                                             <div className={`w-2 h-2 ${inviteFlow.multiDate ? 'rounded-xs' : 'rounded-full'} shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-transparent border border-border-subtle'}`} />
-                                            <span className={`text-xs font-semibold truncate ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
+                                            <span className={`text-xs font-semibold whitespace-nowrap ${isSelected ? 'text-status-invited font-bold' : 'text-primary'}`}>
                                                 {inviteFlow.multiDate ? formatDayDateShort(d) : formatDisplayDate(d)}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 shrink-0">
+                                        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0">
                                             <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed bg-success/10 px-2 py-0.5 rounded-sm border border-success/25" title="Confirmed students on this date">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                                 {stats.confirmed}{inviteFlow.targetMaxCapacity ? `/${inviteFlow.targetMaxCapacity}` : ''} confirmed

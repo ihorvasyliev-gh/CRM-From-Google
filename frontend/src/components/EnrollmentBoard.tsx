@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw, Loader2 } from 'lucide-react';
+import { Archive, GraduationCap, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
-import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { useBulkActions } from '../hooks/useBulkActions';
@@ -13,7 +12,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { sessionForEnrollment } from '../lib/courseSessions';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
+import { ALL_STATUSES, cleanVariant, fullName, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -21,6 +20,7 @@ import { STATUS_CONFIG } from '../lib/statusConfig';
 import FilterBar from './EnrollmentBoard/FilterBar';
 import StatusColumn from './EnrollmentBoard/StatusColumn';
 import EnrollmentCard from './EnrollmentBoard/EnrollmentCard';
+import SecondaryPanel from './EnrollmentBoard/SecondaryPanel';
 import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
 import GenerateDocsModal from './EnrollmentBoard/GenerateDocsModal';
@@ -35,6 +35,7 @@ import { useNowMinute } from '../hooks/useNow';
 import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
 import { courseDatesOf } from '../lib/courseDates';
 import { computeQueuePositions } from '../lib/queuePositions';
+import { sortColumn } from './EnrollmentBoard/boardSort';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -78,15 +79,13 @@ export default function EnrollmentBoard({
     const [docsFor, setDocsFor] = useState<EnrollmentRow[] | null>(null);
     const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: EnrollmentStatus } | null>(null);
     const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: EnrollmentStatus; confirmedCount: number; totalCount: number } | null>(null);
-    const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
+    const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean; people: EnrollmentRow[] } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
     const [confirmingDate, setConfirmingDate] = useState(false);
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
     const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [undoData, setUndoData] = useState<{ snapshots: EnrollmentSnapshot[]; newStatus: EnrollmentStatus; name: string } | null>(null);
-    const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Student Flags
     const [flagModalTarget, setFlagModalTarget] = useState<{ studentId: string; studentName: string } | null>(null);
@@ -99,15 +98,17 @@ export default function EnrollmentBoard({
     const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
     // Set by the search field once typing pauses
     const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
-    const [inviteFilter, setInviteFilter] = useState<InviteFilter>(initialInviteFilter || 'all');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [courseDateFrom, setCourseDateFrom] = useState('');
-    const [courseDateTo, setCourseDateTo] = useState('');
-    const [showSecondary, setShowSecondary] = usePersistentState<boolean>('board.showSecondary', false, {
-        storage: 'local',
-        validate: (v): v is boolean => typeof v === 'boolean',
+    // The invite and date filters are remembered like the rest: coming back from a student's page
+    // shows the same cards
+    const [inviteFilter, setInviteFilter] = usePersistentState<InviteFilter>('board.inviteFilter', () => initialInviteFilter || 'all', {
+        validate: (v): v is InviteFilter => v === 'all' || v === 'expired' || v === 'soon' || v === 'attention',
     });
+    const [dateFrom, setDateFrom] = usePersistentState<string>('board.dateFrom', '', { validate: isString });
+    const [dateTo, setDateTo] = usePersistentState<string>('board.dateTo', '', { validate: isString });
+    const [courseDateFrom, setCourseDateFrom] = usePersistentState<string>('board.courseDateFrom', '', { validate: isString });
+    const [courseDateTo, setCourseDateTo] = usePersistentState<string>('board.courseDateTo', '', { validate: isString });
+    // Withdrawn & Rejected open in a dialog of their own
+    const [showSecondary, setShowSecondary] = useState(false);
     const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
         storage: 'local',
         validate: (v): v is 'date-asc' | 'date-desc' | 'name' => v === 'date-asc' || v === 'date-desc' || v === 'name',
@@ -129,7 +130,7 @@ export default function EnrollmentBoard({
     // Dashboard "Expired invites" link pre-selects the invite filter
     useEffect(() => {
         if (initialInviteFilter) setInviteFilter(initialInviteFilter);
-    }, [initialInviteFilter]);
+    }, [initialInviteFilter, setInviteFilter]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -139,9 +140,10 @@ export default function EnrollmentBoard({
     }, []);
 
     const openConfirmModal = useCallback((ids: string[], defDate: string, bulk: boolean) => {
-        setConfirmDateTarget({ ids, bulk });
+        const people = enrollmentsRef.current.filter(e => ids.includes(e.id));
+        setConfirmDateTarget({ ids, bulk, people });
         setConfirmDate(defDate);
-        const first = enrollmentsRef.current.find(e => ids.includes(e.id));
+        const first = people[0];
         if (first?.course_id) {
             inviteFlowRef.current?.fetchCourseDates(first.course_id);
         }
@@ -300,6 +302,13 @@ export default function EnrollmentBoard({
         );
     }, [baseFilteredEnrollments, shownFilters, now]);
 
+    // The selection never holds a card the filters hide (or one that is gone): the bulk bar acts on
+    // what is selected, so it must be what the user can see
+    const keepSelectedOnly = bulkActions.keepOnly;
+    useEffect(() => {
+        keepSelectedOnly(new Set(filteredEnrollments.map(e => e.id)));
+    }, [filteredEnrollments, keepSelectedOnly]);
+
     // Data grouped by status
     const byStatus = useMemo(() => {
         const { sortOrder } = shownFilters;
@@ -310,23 +319,7 @@ export default function EnrollmentBoard({
             else map[e.status] = [e];
         });
 
-        Object.values(map).forEach(arr => {
-            arr.sort((a, b) => {
-                if (a.is_priority !== b.is_priority) {
-                    return a.is_priority ? -1 : 1;
-                }
-                if (sortOrder === 'name') {
-                    const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
-                    const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
-                    return aName.localeCompare(bName);
-                } else {
-                    // created_at values are ISO timestamps from Postgres — string order == time order,
-                    // which avoids allocating two Date objects per comparison on large boards
-                    const cmp = a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
-                    return sortOrder === 'date-asc' ? cmp : -cmp;
-                }
-            });
-        });
+        Object.entries(map).forEach(([status, arr]) => sortColumn(arr, status, sortOrder));
         return map;
     }, [filteredEnrollments, shownFilters]);
 
@@ -374,6 +367,7 @@ export default function EnrollmentBoard({
     }, [enrollments]);
 
     const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
+    const openSecondary = useCallback(() => setShowSecondary(true), []);
 
     // Handlers
     const openEditNote = useCallback((enrollment: EnrollmentRow) => {
@@ -381,9 +375,7 @@ export default function EnrollmentBoard({
         setEditNoteText(enrollment.notes || '');
     }, []);
 
-    const handleUpdateNote = useCallback(async (id: string, noteText: string) => {
-        await updateNote(id, noteText);
-    }, [updateNote]);
+    const handleUpdateNote = updateNote;
 
     const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
         if (enrollment.students) {
@@ -441,7 +433,7 @@ export default function EnrollmentBoard({
         setDateTo('');
         setCourseDateFrom('');
         setCourseDateTo('');
-    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery]);
+    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery, setInviteFilter, setDateFrom, setDateTo, setCourseDateFrom, setCourseDateTo]);
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
@@ -463,7 +455,8 @@ export default function EnrollmentBoard({
     const shownBulkMove = useLastPresent(bulkConfirmMoveTarget);
 
     // Escape clears the bulk selection when nothing else is open
-    const hasSelection = bulkActions.selectedIds.size > 0;
+    const selectedIds = bulkActions.selectedIds;
+    const hasSelection = selectedIds.size > 0;
     const clearSelection = bulkActions.clearSelection;
     useEffect(() => {
         if (!hasSelection) return;
@@ -480,80 +473,6 @@ export default function EnrollmentBoard({
     const mouseSensor = useSensor(MouseSensor, MOUSE_SENSOR_OPTS);
     const sensors = useSensors(mouseSensor);
 
-    // Applies a status change; for destructive moves (rejected / withdrawn) captures the previous
-    // state of every affected row first and offers a one-click Undo that restores it exactly.
-    const moveWithUndo = useCallback((enrollmentId: string, newStatus: EnrollmentStatus) => {
-        const all = enrollmentsRef.current;
-        const target = all.find(e => e.id === enrollmentId);
-        const isDestructive = newStatus === 'rejected' || newStatus === 'withdrawn';
-        const snapshots = isDestructive && target
-            ? [target, ...linkedRows(all, [target], newStatus).alsoUpdate].map(takeEnrollmentSnapshot)
-            : [];
-
-        updateStatus(enrollmentId, newStatus);
-
-        if (isDestructive && target) {
-            const name = fullName(target.students) || 'Student';
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            setUndoData({ snapshots, newStatus, name });
-            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
-        }
-    }, [updateStatus]);
-
-    useEffect(() => () => {
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    }, []);
-
-    const handleDragEnd = useCallback((event: DragEndEvent) => {
-        const { active, over } = event;
-        
-        startTransition(() => {
-            setActiveId(null);
-            if (!over) return;
-            
-            const enrollmentId = active.id as string;
-            const oldStatus = active.data.current?.status;
-            const newStatus = over.id;
-            
-            if (oldStatus && isEnrollmentStatus(newStatus) && oldStatus !== newStatus) {
-                // Moving from confirmed to anything other than completed requires confirmation
-                if (oldStatus === 'confirmed' && newStatus !== 'completed') {
-                    setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
-                    return;
-                }
-
-                // п.11: undo-toast for dangerous status transitions
-                moveWithUndo(enrollmentId, newStatus);
-            }
-        });
-    }, [moveWithUndo]);
-
-    const handleConfirmMove = useCallback(() => {
-        if (!confirmMoveTarget) return;
-        const { enrollmentId, newStatus } = confirmMoveTarget;
-        setConfirmMoveTarget(null);
-        moveWithUndo(enrollmentId, newStatus);
-    }, [confirmMoveTarget, moveWithUndo]);
-
-    const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: EnrollmentStatus) => {
-        if (oldStatus === newStatus) return;
-        if (oldStatus === 'confirmed' && newStatus !== 'completed') {
-            setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
-            return;
-        }
-        if (newStatus === 'confirmed') {
-            openConfirmModalSingle(enrollmentId, todayISO());
-            return;
-        }
-        if (newStatus === 'invited') {
-            openInviteModalProxy([enrollmentId], false);
-            return;
-        }
-        moveWithUndo(enrollmentId, newStatus);
-    }, [moveWithUndo, openConfirmModalSingle, openInviteModalProxy]);
-
-    const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
-
     const handleBulkUpdateStatus = useCallback((newStatus: EnrollmentStatus) => {
         const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
         const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
@@ -569,6 +488,60 @@ export default function EnrollmentBoard({
         
         bulkActions.bulkUpdateStatus(newStatus);
     }, [enrollments, bulkActions]);
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        
+        startTransition(() => {
+            setActiveId(null);
+            if (!over) return;
+            
+            const enrollmentId = active.id as string;
+            const oldStatus = active.data.current?.status;
+            const newStatus = over.id;
+            
+            if (oldStatus && isEnrollmentStatus(newStatus) && oldStatus !== newStatus) {
+                // A selected card carries the whole selection with it, like the bulk bar's buttons
+                if (selectedIds.size > 1 && selectedIds.has(enrollmentId)) {
+                    handleBulkUpdateStatus(newStatus);
+                    return;
+                }
+
+                // Moving from confirmed to anything other than completed requires confirmation
+                if (oldStatus === 'confirmed' && newStatus !== 'completed') {
+                    setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
+                    return;
+                }
+
+                // Opens the invite / confirm dialog where a date is needed; every move offers Undo
+                updateStatus(enrollmentId, newStatus);
+            }
+        });
+    }, [updateStatus, selectedIds, handleBulkUpdateStatus]);
+
+    const handleConfirmMove = useCallback(() => {
+        if (!confirmMoveTarget) return;
+        const { enrollmentId, newStatus } = confirmMoveTarget;
+        setConfirmMoveTarget(null);
+        updateStatus(enrollmentId, newStatus);
+    }, [confirmMoveTarget, updateStatus]);
+
+    const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: EnrollmentStatus) => {
+        if (oldStatus === newStatus) {
+            // An expired invitation sent again: the invite dialog, for the person already invited
+            if (newStatus === 'invited') openInviteModalProxy([enrollmentId], false);
+            return;
+        }
+        if (oldStatus === 'confirmed' && newStatus !== 'completed') {
+            setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
+            return;
+        }
+        // The same path as a drag: the confirm dialog starts from the date the person was invited
+        // for (not today), the invite dialog opens for 'invited'
+        updateStatus(enrollmentId, newStatus);
+    }, [updateStatus, openInviteModalProxy]);
+
+    const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
 
     const handleConfirmBulkMove = useCallback(() => {
         if (!bulkConfirmMoveTarget) return;
@@ -591,6 +564,7 @@ export default function EnrollmentBoard({
             <BulkActionBar
                 selectedCount={bulkActions.selectedIds.size}
                 selectedEnrollments={selectedEnrollments}
+                busy={bulkActions.busy}
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
                 bulkUpdateStatus={handleBulkUpdateStatus}
                 handleGenerateDocuments={() => setDocsFor(selectedEnrollments)}
@@ -649,16 +623,14 @@ export default function EnrollmentBoard({
     }, []);
 
     // Dashboard status links: show that status — its column, or the opened "Withdrawn & Rejected" section
-    const secondaryRef = useRef<HTMLDivElement | null>(null);
     useEffect(() => {
         if (!initialStatus) return;
         if ((SECONDARY_STATUSES as readonly EnrollmentStatus[]).includes(initialStatus)) {
             setShowSecondary(true);
-            const frame = requestAnimationFrame(() => secondaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-            return () => cancelAnimationFrame(frame);
+            return;
         }
         handleStatusBadgeClick(initialStatus);
-    }, [initialStatus, handleStatusBadgeClick, setShowSecondary]);
+    }, [initialStatus, handleStatusBadgeClick]);
 
     // Total pipeline count for progress bars — п.1
     const totalPipelineCount = useMemo(() => {
@@ -701,6 +673,8 @@ export default function EnrollmentBoard({
                 inviteFilter={inviteFilter}
                 setInviteFilter={setInviteFilter}
                 inviteCounts={inviteCounts}
+                secondaryCount={secondaryCount}
+                onOpenSecondary={openSecondary}
             />
 
             {/* Mobile Column Quick Switcher Bar */}
@@ -725,6 +699,16 @@ export default function EnrollmentBoard({
                         </button>
                     );
                 })}
+                {secondaryCount > 0 && (
+                    <button
+                        onClick={openSecondary}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border bg-surface border-border-subtle text-muted"
+                    >
+                        <Archive size={13} />
+                        <span>Withdrawn & Rejected</span>
+                        <span className="text-xs font-mono">({secondaryCount})</span>
+                    </button>
+                )}
             </div>
 
             <DndContext 
@@ -781,7 +765,17 @@ export default function EnrollmentBoard({
                     {activeId ? (() => {
                         const activeEnrollment = enrollments.find(e => e.id === activeId);
                         if (!activeEnrollment) return null;
+                        const carried = selectedIds.has(activeId) ? selectedIds.size : 1;
                         return (
+                            <div className="relative">
+                            {carried > 1 && (
+                                <span
+                                    data-testid="drag-count"
+                                    className="absolute -top-2.5 -left-2.5 z-110 min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-xs font-extrabold shadow-lg ring-2 ring-surface"
+                                >
+                                    {carried}
+                                </span>
+                            )}
                             <EnrollmentCard
                                 enrollment={activeEnrollment}
                                 status={activeEnrollment.status}
@@ -799,119 +793,11 @@ export default function EnrollmentBoard({
                                 onShowDetail={handleShowDetail}
                                 session={sessionForEnrollment(activeEnrollment, courseSessions)}
                             />
+                            </div>
                         );
                     })() : null}
                 </DragOverlay>
             </DndContext>
-
-            {/* п.11: Undo-toast for dangerous drag-and-drop */}
-            {undoData && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-80 animate-slideUpCenter">
-                    <div className="glass-dark rounded-2xl shadow-float px-4 py-3 flex items-center gap-3 min-w-[280px]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                        <p className="text-sm text-white/90 flex-1">
-                            <span className="font-semibold">{undoData.name}</span>
-                            {' '}moved to <span className="font-medium text-orange-300 capitalize">{undoData.newStatus}</span>
-                        </p>
-                        <button
-                            onClick={() => {
-                                enrollmentsHook.restoreSnapshots(undoData.snapshots);
-                                if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-                                setUndoData(null);
-                            }}
-                            className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
-                        >
-                            <RotateCcw size={12} /> Undo
-                        </button>
-                        <button
-                            onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUndoData(null); }}
-                            aria-label="Dismiss"
-                            className="text-white/40 hover:text-white/80 transition-colors p-1"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Secondary Statuses */}
-            {secondaryCount > 0 && (
-                <div ref={secondaryRef}>
-                    <button
-                        onClick={() => setShowSecondary(!showSecondary)}
-                        className="flex items-center gap-2 text-sm font-medium text-muted hover:text-primary transition-all mb-3"
-                    >
-                        <ChevronDown size={16} className={`transition-transform ${showSecondary ? 'rotate-180' : ''}`} />
-                        Withdrawn & Rejected ({secondaryCount})
-                        {!enrollmentsHook.complete && (
-                            <span className="flex items-center" title="Loading older enrollments">
-                                <Loader2 size={13} className="animate-spin" aria-hidden="true" />
-                                <span className="sr-only">, loading older ones</span>
-                            </span>
-                        )}
-                    </button>
-
-                    {showSecondary && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slideDown">
-                            {SECONDARY_STATUSES.map(status => {
-                                const cfg = STATUS_CONFIG[status];
-                                const items = byStatus[status] || [];
-                                if (items.length === 0) return null;
-
-                                return (
-                                    <div key={status} className="bg-surface-elevated rounded-2xl shadow-card border border-border-subtle overflow-hidden opacity-75">
-                                        <div className={`p-3 border-b ${cfg.border} ${cfg.bg}`}>
-                                            <div className="flex items-center gap-2">
-                                                <span className={cfg.color}>{cfg.icon}</span>
-                                                <h3 className="text-sm font-bold text-primary">{cfg.label}</h3>
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
-                                                    {items.length}
-                                                </span>
-                                                <button
-                                                    onClick={() => bulkActions.handleCopyEmails(items, cfg.label)}
-                                                    className="ml-auto p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all"
-                                                    title={`Copy ${cfg.label} emails`}
-                                                >
-                                                    <Copy size={13} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
-                                            {items.map(enrollment => (
-                                                <div
-                                                    key={enrollment.id}
-                                                    className="group p-3 rounded-xl border border-border-subtle bg-surface-elevated hover:shadow-xs transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-semibold text-primary text-[13px] truncate">
-                                                            {enrollment.students?.first_name} {enrollment.students?.last_name}
-                                                        </p>
-                                                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
-                                                            {getCoursePill(enrollment)}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => enrollmentsHook.updateStatus(enrollment.id, 'requested')}
-                                                        className="text-xs font-medium text-muted hover:text-brand-600 hover:bg-brand-500/10 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
-                                                    >
-                                                        Restore
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setDeleteTarget(enrollment)}
-                                                        className="text-muted hover:text-red-500 hover:bg-danger/10 p-1 rounded-lg transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {filteredEnrollments.length === 0 && (
                 <div className="text-center py-16">
@@ -932,6 +818,18 @@ export default function EnrollmentBoard({
             )}
 
             {bulkActionBar}
+
+            <SecondaryPanel
+                open={showSecondary}
+                onClose={() => setShowSecondary(false)}
+                byStatus={byStatus}
+                loading={!enrollmentsHook.complete}
+                // Back to the queue; the toast that follows offers Undo
+                onRestore={e => updateStatus(e.id, 'requested')}
+                onDelete={setDeleteTarget}
+                onShowDetail={handleShowDetail}
+                onCopyEmails={bulkActions.handleCopyEmails}
+            />
 
             {/* Modals go here */}
             <InviteDateModal inviteFlow={inviteFlow} />

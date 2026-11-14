@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import type { EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
-import { changeEnrollmentStatus, restoreEnrollments } from '../lib/enrollmentStatus';
-import { cancelListReload, refreshCachedEnrollments, restoreCachedRows } from '../lib/enrollmentCache';
+import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
+import { undoStatusChange, UNDO_TOAST_MS } from '../lib/statusUndo';
+import { cancelListReload, restoreCachedRows } from '../lib/enrollmentCache';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 
@@ -54,6 +55,18 @@ export function useBulkActions({
         });
     }, []);
 
+    /**
+     * Drops from the selection every card that is no longer shown (filtered out, or gone), so the
+     * bar's count and its actions always match the cards the user can see.
+     */
+    const keepOnly = useCallback((shown: ReadonlySet<string>) => {
+        setSelectedIds(prev => {
+            if (prev.size === 0) return prev;
+            const next = new Set([...prev].filter(id => shown.has(id)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, []);
+
     /** Adds these ids to the selection (Shift+click on the board picks a run of cards). */
     const selectMany = useCallback((ids: string[]) => {
         setSelectedIds(prev => {
@@ -78,7 +91,7 @@ export function useBulkActions({
         setSelectedIds(prev => (prev.size === 0 ? prev : new Set()));
     }, []);
 
-    const { mutate: mutateBulkStatus } = useMutation({
+    const { mutate: mutateBulkStatus, isPending: statusPending } = useMutation({
         mutationFn: ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
             const chosen = enrollments.filter(e => selectedIds.has(e.id));
             return changeEnrollmentStatus(enrollments, chosen, newStatus, { confirmedDate });
@@ -92,23 +105,10 @@ export function useBulkActions({
             );
             setSelectedIds(new Set());
 
-            const undo = async () => {
-                try {
-                    await restoreEnrollments(undoData.snapshots, undoData.removed);
-                    const byId = new Map(undoData.snapshots.map(snap => [snap.id, snap]));
-                    setEnrollments(prev => [
-                        ...removed.filter(r => !prev.some(e => e.id === r.id)),
-                        ...prev.map(e => byId.has(e.id) ? { ...e, ...byId.get(e.id)! } : e),
-                    ]);
-                    showToast('Bulk status changes undone', 'info');
-                } catch (err) {
-                    console.error('Undo failed:', err);
-                    showToast('Failed to undo status changes', 'error');
-                } finally {
-                    // What the database has now for these rows (not every enrollment reloaded)
-                    void refreshCachedEnrollments(queryClient, [...undoData.snapshots.map(snap => snap.id), ...removed.map(e => e.id)]);
-                }
-            };
+            const undo = () => undoStatusChange({
+                queryClient, setEnrollments, undo: undoData, removedRows: removed, showToast,
+                doneMessage: 'Bulk status changes undone', failMessage: 'Failed to undo status changes',
+            });
 
             if (removeFailed) {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
@@ -119,7 +119,7 @@ export function useBulkActions({
             const extra = removedCount > 0 ? `, removed ${removedCount} requested variant(s)` : '';
             showToast(`${updated.length} enrollment(s) → ${newStatus}${extra}`, 'success', {
                 action: { label: 'Undo', onClick: () => { void undo(); } },
-                duration: 7000,
+                duration: UNDO_TOAST_MS,
             });
         },
         onError: (err) => {
@@ -130,8 +130,11 @@ export function useBulkActions({
         }
     });
 
+    const busyRef = useRef(false);
+
     const bulkUpdateStatus = useCallback(async (newStatus: EnrollmentStatus, confirmedDate?: string) => {
-        if (selectedIds.size === 0) return;
+        // While a change is being saved a second one waits: the bar shows "saving…"
+        if (selectedIds.size === 0 || busyRef.current) return;
 
         if (newStatus === 'invited') {
             openInviteModal(Array.from(selectedIds), true);
@@ -140,6 +143,12 @@ export function useBulkActions({
 
         if (newStatus === 'confirmed' && !confirmedDate) {
             const ids = Array.from(selectedIds);
+            // One course date belongs to one course (the invite dialog has the same rule)
+            const chosen = enrollments.filter(e => selectedIds.has(e.id));
+            if (new Set(chosen.map(e => e.course_id)).size > 1) {
+                showToast('Select people from one course to confirm: a course date belongs to one course.', 'error');
+                return;
+            }
             const firstId = ids[0];
             const first = enrollments.find(e => e.id === firstId);
             const defaultDate = first?.invited_date || todayISO();
@@ -150,9 +159,9 @@ export function useBulkActions({
         }
 
         mutateBulkStatus({ newStatus, confirmedDate });
-    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus]);
+    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus, showToast]);
 
-    const { mutate: mutateBulkDelete } = useMutation({
+    const { mutate: mutateBulkDelete, isPending: deletePending } = useMutation({
         mutationFn: async () => {
             const ids = Array.from(selectedIds);
             const { error } = await supabase.from('enrollments').delete().in('id', ids);
@@ -180,8 +189,11 @@ export function useBulkActions({
         }
     });
 
+    const busy = statusPending || deletePending;
+    useEffect(() => { busyRef.current = busy; }, [busy]);
+
     const handleBulkDelete = useCallback(async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || busyRef.current) return;
         mutateBulkDelete();
     }, [selectedIds, mutateBulkDelete]);
 
@@ -216,9 +228,12 @@ export function useBulkActions({
 
     return {
         selectedIds,
+        /** A bulk status change or delete is being saved */
+        busy,
         toggleSelect,
         deselect,
         selectMany,
+        keepOnly,
         selectAllInList,
         clearSelection,
         bulkUpdateStatus,

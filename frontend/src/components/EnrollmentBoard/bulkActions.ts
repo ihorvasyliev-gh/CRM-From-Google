@@ -12,6 +12,7 @@ export function fittingActions(statuses: ReadonlySet<EnrollmentStatus>) {
         confirm: !only('confirmed', 'completed'),
         complete: !only('completed'),
         backToRequested: !only('requested'),
+        withdraw: !only('withdrawn'),
         reject: !only('rejected'),
     };
 }

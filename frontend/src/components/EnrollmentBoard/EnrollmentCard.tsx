@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Timer, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal } from 'lucide-react';
+import { Check, Star, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal } from 'lucide-react';
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
@@ -31,7 +31,8 @@ interface EnrollmentCardProps {
     /** "English #100 · Ukrainian #10" for a student queued in several languages of the course */
     queueDetail?: string;
     openEditNote: (enrollment: EnrollmentRow) => void;
-    onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
+    /** Resolves to false when the note could not be saved: the editor then stays open with the text */
+    onUpdateNote?: (id: string, noteText: string) => Promise<boolean | void> | void;
     studentFlags?: StudentFlag[];
     completedCourses?: Array<{id: string, name: string}>;
     onFlagClick?: (enrollment: EnrollmentRow) => void;
@@ -77,7 +78,14 @@ const iconBtn = `${iconBtnBase} text-muted hover:text-brand-500 hover:bg-surface
 const contactBtn = 'hit-area w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
-const metaChip = 'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-xs leading-none font-medium shrink-0 whitespace-nowrap';
+/** A computer with a mouse (not a phone or a tablet): a click on a phone number copies it there */
+function hasMouse(): boolean {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
+
+/** The invitation timer under the avatar: as narrow as the avatar allows */
+const timerChip = 'card-timer inline-flex items-center justify-center h-4 px-1 rounded-md text-[10px] leading-none font-bold whitespace-nowrap tabular-nums';
 // The flag as a count ("⚠ 2"): a red chip in a button as tall as the icon buttons
 const flagCountBtn = 'group/flag h-8 lg:h-6 min-w-8 lg:min-w-6 inline-flex items-center justify-center rounded-md';
 const flagCountChip = 'inline-flex items-center gap-0.5 h-5 px-1.5 rounded-md bg-red-600 group-hover/flag:bg-red-700 text-white text-xs leading-none font-extrabold tabular-nums shadow-xs transition-colors';
@@ -115,6 +123,17 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const [playDropIn] = useState(dropIn);
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
+    // The phone number shows "Copied" for a moment after a click on a computer
+    const [phoneCopied, setPhoneCopied] = useState(false);
+    useEffect(() => {
+        if (!phoneCopied) return;
+        const timer = setTimeout(() => setPhoneCopied(false), 1500);
+        return () => clearTimeout(timer);
+    }, [phoneCopied]);
+    const copiesPhone = !isMobile && hasMouse();
+    const copyPhone = (number: string) => {
+        navigator.clipboard?.writeText(number).then(() => setPhoneCopied(true)).catch(() => { /* the number stays on the card to copy by hand */ });
+    };
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteDraft, setNoteDraft] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
@@ -154,8 +173,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         if (!onUpdateNote) return;
         setIsSavingNote(true);
         try {
-            await onUpdateNote(enrollment.id, noteDraft.trim());
-            setIsEditingNote(false);
+            const saved = await onUpdateNote(enrollment.id, noteDraft.trim());
+            // A failed save keeps the editor and what was typed
+            if (saved !== false) setIsEditingNote(false);
         } finally {
             setIsSavingNote(false);
         }
@@ -353,6 +373,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             : null;
     const touchMenuItems: MenuItem[] = [
         ...(onMoveStatus && nextStep ? [{ label: nextStep.label, icon: nextStep.icon, onSelect: () => onMoveStatus(enrollment.id, status, nextStep.target) }] : []),
+        ...(onMoveStatus && inviteDeadline?.isExpired ? [{ label: 'Invite again', icon: <Send size={14} />, onSelect: () => onMoveStatus(enrollment.id, status, 'invited') }] : []),
         ...(onMoveStatus ? [{ label: 'Move to…', icon: <ArrowRightLeft size={14} />, onSelect: () => openQuickMove(moreMenuRef.current) }] : []),
         { label: enrollment.notes ? 'Edit note' : 'Add note', icon: <Pencil size={14} />, onSelect: startEditNote },
         { label: 'Student details', icon: <Info size={14} />, onSelect: () => onShowDetail?.(enrollment) },
@@ -385,75 +406,83 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             onTouchEnd={handleTouchEnd}
             onClick={handleClick}
         >
-            {/* Avatar — initials, doubles as the selection checkbox; queue position sits on its corner */}
-            <button
-                type="button"
-                role="checkbox"
-                aria-checked={isSelected}
-                aria-label={`Select ${fullName}`}
-                onClick={e => {
-                    e.stopPropagation();
-                    select(e);
-                }}
-                className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                    isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg
-                }`}
-            >
-                {isSelected ? (
-                    <Check size={16} strokeWidth={3} />
-                ) : (
-                    <>
-                        <span className="group-hover:opacity-0 transition-opacity">{initials}</span>
-                        <span className="absolute inset-0 m-auto w-4 h-4 rounded-sm border-2 border-current opacity-0 group-hover:opacity-60 transition-opacity" />
-                    </>
-                )}
-                {status === 'requested' && queuePosition !== undefined && (
-                    <span
-                        title={queueDetail ? `Position in queue: ${queueDetail}` : 'Position in queue for this course'}
-                        className="card-pill absolute -bottom-1.5 -right-2 px-1 min-w-[18px] h-[15px] inline-flex items-center justify-center text-[9.5px] leading-none font-extrabold font-mono rounded-md border-2 border-surface bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
-                    >
-                        #{queuePosition}
-                    </span>
-                )}
-            </button>
+            <div className="w-9 shrink-0 flex flex-col items-center gap-1.5">
+                {/* Avatar — initials, doubles as the selection checkbox; queue position sits on its corner */}
+                <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    aria-label={`Select ${fullName}`}
+                    onClick={e => {
+                        e.stopPropagation();
+                        select(e);
+                    }}
+                    className={`relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-extrabold select-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                        isSelected ? 'bg-brand-500 text-white border border-brand-500' : cfg.pillBg
+                    }`}
+                >
+                    {isSelected ? (
+                        <Check size={16} strokeWidth={3} />
+                    ) : (
+                        <>
+                            <span className="group-hover:opacity-0 transition-opacity">{initials}</span>
+                            <span className="absolute inset-0 m-auto w-4 h-4 rounded-sm border-2 border-current opacity-0 group-hover:opacity-60 transition-opacity" />
+                        </>
+                    )}
+                    {status === 'requested' && queuePosition !== undefined && (
+                        <span
+                            title={queueDetail ? `Position in queue: ${queueDetail}` : 'Position in queue for this course'}
+                            className="card-pill absolute -bottom-1.5 -right-2 px-1 min-w-[18px] h-[15px] inline-flex items-center justify-center text-[9.5px] leading-none font-extrabold font-mono rounded-md border-2 border-surface bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                        >
+                            #{queuePosition}
+                        </span>
+                    )}
+                </button>
+
+                {/* Invitation timer; an expired one invites the person again in one click */}
+                {inviteDeadline && enrollment.invited_at && (() => {
+                    const days = enrollment.response_days ?? DEFAULT_RESPONSE_DAYS;
+                    if (inviteDeadline.isExpired) {
+                        const invitedDate = formatLocalDate(new Date(enrollment.invited_at), { day: 'numeric', month: 'short', year: 'numeric' });
+                        const about = `Expired (${days}-day deadline) • Invited on ${invitedDate}`;
+                        const cls = `${timerChip} bg-red-500/10 text-status-rejected animate-pulse-timer`;
+                        return onMoveStatus && !isOverlay ? (
+                            <button
+                                type="button"
+                                title={`${about} • Click to invite again`}
+                                aria-label={`Invitation expired. Invite ${fullName} again`}
+                                onClick={e => { e.stopPropagation(); onMoveStatus(enrollment.id, status, 'invited'); }}
+                                onPointerDown={e => e.stopPropagation()}
+                                onTouchStart={e => e.stopPropagation()}
+                                className={`${cls} hit-area cursor-pointer hover:bg-red-500/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500`}
+                            >
+                                Expired
+                            </button>
+                        ) : <span className={cls} title={about}>Expired</span>;
+                    }
+                    const timerText = formatTimeLeft(inviteDeadline.remainingMs);
+                    return (
+                        <span
+                            className={`${timerChip} ${inviteDeadline.isDueSoon
+                                ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 animate-pulse-timer'
+                                : 'bg-info/10 text-status-invited'
+                            }`}
+                            title={`${timerText} left to answer (${days}-day deadline)`}
+                        >
+                            {timerText}
+                        </span>
+                    );
+                })()}
+            </div>
 
             {/* A size container: in the narrow four-column layout the contact row drops its decorations
                 (@max-2xs) so the phone number fits */}
             <div className="flex-1 min-w-0 @container">
-                {/* Row 1: Name, timer & actions */}
+                {/* Row 1: Name & actions (the invitation timer sits under the avatar, so the name keeps the row) */}
                 <div className="flex items-center gap-1 min-w-0">
                     <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
                         {fullName}
                     </p>
-
-                    {/* Invitation Timer */}
-                    {inviteDeadline && enrollment.invited_at && (() => {
-                        const days = enrollment.response_days ?? DEFAULT_RESPONSE_DAYS;
-
-                        if (inviteDeadline.isExpired) {
-                            const invitedDate = formatLocalDate(new Date(enrollment.invited_at), { day: 'numeric', month: 'short', year: 'numeric' });
-                            return (
-                                <span className={`${metaChip} bg-red-500/10 text-status-rejected font-bold animate-pulse-timer`} title={`Expired (${days}-day deadline) • Invited on ${invitedDate}`}>
-                                    <Timer size={10} strokeWidth={2.5} />
-                                    Expired
-                                </span>
-                            );
-                        }
-
-                        const timerText = formatTimeLeft(inviteDeadline.remainingMs);
-                        return (
-                            <span
-                                className={`${metaChip} ${inviteDeadline.isDueSoon
-                                    ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 animate-pulse-timer'
-                                    : 'bg-info/10 text-status-invited'
-                                }`}
-                                title={`${timerText} remaining (${days}-day deadline)`}
-                            >
-                                <Timer size={10} />
-                                {timerText}
-                            </span>
-                        );
-                    })()}
 
                     <div className="card-actions-col flex items-center shrink-0 -my-1.5 lg:-my-1 -mr-1">
                         {/* Secondary actions on desktop: a small toolbar over the card's top-right corner
@@ -556,14 +585,21 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 {telUrl ? (
                                     <a
                                         href={telUrl}
-                                        onClick={e => e.stopPropagation()}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            // A computer has nothing to call with: the number is copied instead
+                                            if (copiesPhone) {
+                                                e.preventDefault();
+                                                copyPhone(formatPhoneDisplay(enrollment.students!.phone!));
+                                            }
+                                        }}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors mr-1 @max-2xs:mr-0"
-                                        title="Click to call"
+                                        className={`flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums hover:underline transition-colors mr-1 @max-2xs:mr-0 ${phoneCopied ? 'text-status-confirmed' : 'text-primary hover:text-blue-600 dark:hover:text-blue-400'}`}
+                                        title={copiesPhone ? 'Click to copy the number' : 'Click to call'}
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
+                                        <span className="truncate" aria-live="polite">{phoneCopied ? 'Copied' : formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </a>
                                 ) : (
                                     <span className="flex items-center gap-1 min-w-0 tabular-nums text-primary mr-1 @max-2xs:mr-0" title={enrollment.students.phone}>
