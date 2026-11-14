@@ -73,3 +73,28 @@ describe('StatusColumn: Shift+click', () => {
         expect(selectMany).not.toHaveBeenCalled();
     });
 });
+
+describe('StatusColumn: a changed row', () => {
+    it('shows a student\'s new phone number as soon as the row changes', () => {
+        const props = {
+            status: 'requested', selectedIds: new Set<string>(), selectAllInList: vi.fn(), handleCopyEmails: vi.fn(),
+            toggleSelect: vi.fn(), togglePriority: vi.fn(), openEditNote: vi.fn(), queuePositions: new Map(),
+            queueDetails: new Map(), flagsByStudentId: new Map(), completedCoursesByStudentId: new Map(),
+            onFlagClick: vi.fn(), emptyFlags: [], emptyCompletedCourses: [], sessions: new Map(), filters: {},
+        };
+        const withPhone = (phone: string) => [1, 2].map(n => {
+            const r = row(n);
+            return n === 1 ? { ...r, students: { ...r.students!, phone } } as EnrollmentRow : r;
+        });
+        const ui = (items: EnrollmentRow[]) => (
+            <TooltipProvider><DndContext><StatusColumn {...props} items={items} /></DndContext></TooltipProvider>
+        );
+        const { rerender } = render(ui(withPhone('0851234567')));
+        expect(screen.getByText('085 123 4567')).toBeInTheDocument();
+
+        // Only the student's phone differs: id, status, notes and dates are the same
+        rerender(ui(withPhone('0879998888')));
+        expect(screen.getByText('087 999 8888')).toBeInTheDocument();
+        expect(screen.queryByText('085 123 4567')).not.toBeInTheDocument();
+    });
+});

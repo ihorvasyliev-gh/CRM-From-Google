@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
 import { daysBetween, formatDateLong, formatDateLongWithWeekday, normalizeDateList, todayISO } from '../lib/dateUtils';
 import { buildEmailBodyHtml, buildEmailSubject } from '../lib/emailTemplates';
-import { getCoursePill, type CourseEmailInfo } from '../lib/types';
+import { fullName, getCoursePill, type CourseEmailInfo } from '../lib/types';
+import { takeEnrollmentSnapshot } from '../lib/enrollmentStatus';
+import { undoStatusChange, UNDO_TOAST_MS } from '../lib/statusUndo';
 import type { ShowToast } from '../lib/toast';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
 import {
@@ -355,6 +357,21 @@ export function useInviteFlow({
         };
     }
 
+    /** Takes an invitation back: status and dates as they were, and the days each person had to answer. */
+    async function undoInvite(before: EnrollmentRow[]) {
+        const undone = await undoStatusChange({
+            queryClient, setEnrollments, showToast,
+            undo: { snapshots: before.map(takeEnrollmentSnapshot), removed: [] },
+            doneMessage: 'Invitation undone',
+        });
+        if (!undone) return;
+        // response_days is not a status field: put it back separately
+        const byDays = new Map<number | null, string[]>();
+        before.forEach(e => byDays.set(e.response_days, [...(byDays.get(e.response_days) ?? []), e.id]));
+        await Promise.all([...byDays].map(([days, ids]) => supabase.from('enrollments').update({ response_days: days }).in('id', ids)));
+        void refreshCachedEnrollments(queryClient, before.map(e => e.id));
+    }
+
     const inviteMutation = useMutation({
         mutationFn: async ({ ids, placedIds, dates, days, sessions }: { ids: string[], placedIds: string[], dates: string[], days: number, sessions: CourseSession[] }) => {
             const first = enrollments.find(e => ids.includes(e.id));
@@ -398,15 +415,24 @@ export function useInviteFlow({
             setEnrollments(prev => prev.map(e =>
                 ids.includes(e.id) ? { ...e, ...updatePayload } as EnrollmentRow : e
             ));
-            return { previousEnrollments };
+            // The rows as they were, for Undo
+            const before = (previousEnrollments ?? []).filter(e => ids.includes(e.id));
+            return { previousEnrollments, before };
         },
-        onSuccess: (data) => {
+        onSuccess: (data, _variables, context) => {
             clearSelection();
             queryClient.invalidateQueries({ queryKey: COURSE_SESSIONS_QUERY_KEY });
             // They were shown as invited straight away: put back what the database has
             if (data.skipped.length > 0) void refreshCachedEnrollments(queryClient, data.skipped);
             const kept = data.skipped.length > 0 ? ` · ${data.skipped.length} confirmed meanwhile and kept their place` : '';
-            showToast(`${data.ids.length} enrollment(s) → invited${kept}`, 'success');
+            const invited = (context?.before ?? []).filter(e => data.ids.includes(e.id));
+            const who = invited.length === 1 ? (fullName(invited[0].students) || '1 enrollment') : `${data.ids.length} enrollment(s)`;
+            const message = `${who} → invited${kept}`;
+            if (invited.length === 0) showToast(message, 'success');
+            else showToast(message, 'success', {
+                action: { label: 'Undo', onClick: () => { void undoInvite(invited); } },
+                duration: UNDO_TOAST_MS,
+            });
         },
         onError: (_err, variables, context) => {
             if (context?.previousEnrollments) {

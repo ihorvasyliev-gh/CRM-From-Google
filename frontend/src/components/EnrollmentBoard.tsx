@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, X, RotateCcw, Loader2 } from 'lucide-react';
+import { ChevronDown, GraduationCap, Copy, Trash2, RotateCcw, Loader2 } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 import { useEnrollments, type EnrollmentRow } from '../hooks/useEnrollments';
-import { linkedRows, takeEnrollmentSnapshot, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
 import { isAnyModalOpen } from '../hooks/useModalBehavior';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import { useBulkActions } from '../hooks/useBulkActions';
@@ -85,8 +84,6 @@ export default function EnrollmentBoard({
     const [editNoteText, setEditNoteText] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
     const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [undoData, setUndoData] = useState<{ snapshots: EnrollmentSnapshot[]; newStatus: EnrollmentStatus; name: string } | null>(null);
-    const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Student Flags
     const [flagModalTarget, setFlagModalTarget] = useState<{ studentId: string; studentName: string } | null>(null);
@@ -300,6 +297,13 @@ export default function EnrollmentBoard({
         );
     }, [baseFilteredEnrollments, shownFilters, now]);
 
+    // The selection never holds a card the filters hide (or one that is gone): the bulk bar acts on
+    // what is selected, so it must be what the user can see
+    const keepSelectedOnly = bulkActions.keepOnly;
+    useEffect(() => {
+        keepSelectedOnly(new Set(filteredEnrollments.map(e => e.id)));
+    }, [filteredEnrollments, keepSelectedOnly]);
+
     // Data grouped by status
     const byStatus = useMemo(() => {
         const { sortOrder } = shownFilters;
@@ -480,30 +484,6 @@ export default function EnrollmentBoard({
     const mouseSensor = useSensor(MouseSensor, MOUSE_SENSOR_OPTS);
     const sensors = useSensors(mouseSensor);
 
-    // Applies a status change; for destructive moves (rejected / withdrawn) captures the previous
-    // state of every affected row first and offers a one-click Undo that restores it exactly.
-    const moveWithUndo = useCallback((enrollmentId: string, newStatus: EnrollmentStatus) => {
-        const all = enrollmentsRef.current;
-        const target = all.find(e => e.id === enrollmentId);
-        const isDestructive = newStatus === 'rejected' || newStatus === 'withdrawn';
-        const snapshots = isDestructive && target
-            ? [target, ...linkedRows(all, [target], newStatus).alsoUpdate].map(takeEnrollmentSnapshot)
-            : [];
-
-        updateStatus(enrollmentId, newStatus);
-
-        if (isDestructive && target) {
-            const name = fullName(target.students) || 'Student';
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            setUndoData({ snapshots, newStatus, name });
-            undoTimerRef.current = setTimeout(() => setUndoData(null), 6000);
-        }
-    }, [updateStatus]);
-
-    useEffect(() => () => {
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    }, []);
-
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event;
         
@@ -522,18 +502,18 @@ export default function EnrollmentBoard({
                     return;
                 }
 
-                // п.11: undo-toast for dangerous status transitions
-                moveWithUndo(enrollmentId, newStatus);
+                // Opens the invite / confirm dialog where a date is needed; every move offers Undo
+                updateStatus(enrollmentId, newStatus);
             }
         });
-    }, [moveWithUndo]);
+    }, [updateStatus]);
 
     const handleConfirmMove = useCallback(() => {
         if (!confirmMoveTarget) return;
         const { enrollmentId, newStatus } = confirmMoveTarget;
         setConfirmMoveTarget(null);
-        moveWithUndo(enrollmentId, newStatus);
-    }, [confirmMoveTarget, moveWithUndo]);
+        updateStatus(enrollmentId, newStatus);
+    }, [confirmMoveTarget, updateStatus]);
 
     const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: EnrollmentStatus) => {
         if (oldStatus === newStatus) return;
@@ -541,16 +521,10 @@ export default function EnrollmentBoard({
             setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
             return;
         }
-        if (newStatus === 'confirmed') {
-            openConfirmModalSingle(enrollmentId, todayISO());
-            return;
-        }
-        if (newStatus === 'invited') {
-            openInviteModalProxy([enrollmentId], false);
-            return;
-        }
-        moveWithUndo(enrollmentId, newStatus);
-    }, [moveWithUndo, openConfirmModalSingle, openInviteModalProxy]);
+        // The same path as a drag: the confirm dialog starts from the date the person was invited
+        // for (not today), the invite dialog opens for 'invited'
+        updateStatus(enrollmentId, newStatus);
+    }, [updateStatus]);
 
     const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
 
@@ -803,36 +777,6 @@ export default function EnrollmentBoard({
                     })() : null}
                 </DragOverlay>
             </DndContext>
-
-            {/* п.11: Undo-toast for dangerous drag-and-drop */}
-            {undoData && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-80 animate-slideUpCenter">
-                    <div className="glass-dark rounded-2xl shadow-float px-4 py-3 flex items-center gap-3 min-w-[280px]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                        <p className="text-sm text-white/90 flex-1">
-                            <span className="font-semibold">{undoData.name}</span>
-                            {' '}moved to <span className="font-medium text-orange-300 capitalize">{undoData.newStatus}</span>
-                        </p>
-                        <button
-                            onClick={() => {
-                                enrollmentsHook.restoreSnapshots(undoData.snapshots);
-                                if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-                                setUndoData(null);
-                            }}
-                            className="flex items-center gap-1.5 text-xs font-bold text-orange-400 hover:text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
-                        >
-                            <RotateCcw size={12} /> Undo
-                        </button>
-                        <button
-                            onClick={() => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); setUndoData(null); }}
-                            aria-label="Dismiss"
-                            className="text-white/40 hover:text-white/80 transition-colors p-1"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Secondary Statuses */}
             {secondaryCount > 0 && (

@@ -232,3 +232,26 @@ describe('useBulkActions Undo System', () => {
         });
     });
 });
+
+describe('useBulkActions: selection follows what is shown', () => {
+    it('drops selected cards that are no longer shown, and keeps the rest', () => {
+        const queryClient = new QueryClient();
+        const wrapper = ({ children }: { children: React.ReactNode }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+        const { result } = renderHook(() => useBulkActions({
+            enrollments: [makeEnrollment('a', 'requested'), makeEnrollment('b', 'requested'), makeEnrollment('c', 'requested')],
+            setEnrollments: vi.fn(), showToast: vi.fn(), openInviteModal: vi.fn(), openConfirmModal: vi.fn(),
+        }), { wrapper });
+
+        act(() => result.current.selectMany(['a', 'b', 'c']));
+        // A filter now hides "b" and "c"
+        act(() => result.current.keepOnly(new Set(['a', 'x'])));
+        expect([...result.current.selectedIds]).toEqual(['a']);
+
+        // Nothing to drop: the same Set is kept, so the columns don't re-render
+        const before = result.current.selectedIds;
+        act(() => result.current.keepOnly(new Set(['a'])));
+        expect(result.current.selectedIds).toBe(before);
+    });
+});

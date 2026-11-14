@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '../lib/supabase';
 import { ENROLLMENT_SELECT, fetchAllPages } from '../lib/queries';
 import type { EnrollmentWithRelations } from '../lib/documentUtils';
-import type { EnrollmentStatus } from '../lib/types';
+import { fullName, type EnrollmentStatus } from '../lib/types';
 import type { ShowToast } from '../lib/toast';
 import { todayISO } from '../lib/dateUtils';
-import { changeEnrollmentStatus, linkedRows, restoreEnrollments, statusUpdate, type EnrollmentSnapshot } from '../lib/enrollmentStatus';
+import { changeEnrollmentStatus, linkedRows, statusUpdate } from '../lib/enrollmentStatus';
+import { undoStatusChange, UNDO_TOAST_MS } from '../lib/statusUndo';
+import { STATUS_CONFIG } from '../lib/statusConfig';
 import {
-    ENROLLMENTS_KEY, cancelListReload, isPartialList, markListPartial, noteFullLoad, refreshCachedEnrollments,
+    ENROLLMENTS_KEY, cancelListReload, isPartialList, markListPartial, noteFullLoad,
     restoreCachedRows, subscribePartialList, withHistory,
 } from '../lib/enrollmentCache';
 
@@ -28,6 +30,18 @@ interface UseEnrollmentsProps {
     openConfirmModal: (id: string, defaultDate: string, courseId: string) => void;
 }
 
+
+/**
+ * What the board says after one card moved: "Anna Murphy → Completed", plus what else the move
+ * did to the same person's other requests for the course.
+ */
+export function statusChangeMessage(name: string, status: EnrollmentStatus, alsoUpdated: number, removed: number): string {
+    const plural = (n: number) => (n === 1 ? 'their other request' : `their ${n} other requests`);
+    const moved = `${name} → ${STATUS_CONFIG[status]?.label ?? status}`;
+    if (removed > 0) return `${moved}. Removed ${plural(removed)} for this course`;
+    if (alsoUpdated > 0) return `${moved}, with ${plural(alsoUpdated)} for this course`;
+    return moved;
+}
 
 /** The statuses the board and dashboard work with; completed, withdrawn and rejected are history. */
 const CURRENT_STATUSES = '(requested,invited,confirmed)';
@@ -168,7 +182,7 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             );
             return { previousEnrollments, changedIds: [...updated, ...removed] };
         },
-        onSuccess: ({ updated, removed, removeFailed }, { status }) => {
+        onSuccess: ({ updated, removed, removeFailed, undo }, { row, status }) => {
             const saved = new Map(updated.map(snap => [snap.id, snap]));
             const removedIds = new Set(removed.map(e => e.id));
             setEnrollments(prev => prev
@@ -177,12 +191,14 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
             );
             if (removeFailed) {
                 queryClient.invalidateQueries({ queryKey: ['enrollments'] });
-                showToast('Completed, but the requested duplicate(s) could not be removed', 'error');
-            } else if (status === 'completed') {
-                showToast(removed.length > 0 ? `Completed! Removed ${removed.length} requested variant(s)` : 'Completed!', 'success');
-            } else if (status === 'withdrawn') {
-                showToast(`Updated ${updated.length} related enrollment(s)`, 'success');
+                showToast('Completed, but the other request(s) for this course could not be removed', 'error');
+                return;
             }
+            // Every move can be taken back for a few seconds, whatever the column
+            showToast(statusChangeMessage(fullName(row.students) || 'Student', status, updated.length - 1, removed.length), 'success', {
+                action: { label: 'Undo', onClick: () => { void undoStatusChange({ queryClient, setEnrollments, undo, removedRows: removed, showToast }); } },
+                duration: UNDO_TOAST_MS,
+            });
         },
         onError: (err, _variables, context) => {
             console.error('Status update failed:', err);
@@ -295,38 +311,6 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         }
     }, [removeEnrollment]);
 
-    // ─── Restore Snapshot (Undo) ─────────────────────────────────
-    // Writes back the exact previous status + date fields, instead of re-running the status
-    // flow (which would reopen the invite/confirm date pickers and lose the original dates).
-    const { mutate: mutateRestore } = useMutation({
-        mutationFn: async (snapshots: EnrollmentSnapshot[]) => {
-            await restoreEnrollments(snapshots);
-            return snapshots;
-        },
-        onMutate: async (snapshots) => {
-            cancelListReload(queryClient);
-            const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
-            const byId = new Map(snapshots.map(snap => [snap.id, snap]));
-            setEnrollments(prev => prev.map(e => {
-                const snap = byId.get(e.id);
-                return snap ? ({ ...e, ...snap } as EnrollmentRow) : e;
-            }));
-            return { previousEnrollments };
-        },
-        onSuccess: () => showToast('Change undone', 'success'),
-        onError: (_err, snapshots, context) => {
-            if (context?.previousEnrollments) restoreCachedRows(queryClient, context.previousEnrollments, snapshots.map(snap => snap.id));
-            showToast('Failed to undo change', 'error');
-        },
-        onSettled: (_data, _err, snapshots) => {
-            void refreshCachedEnrollments(queryClient, snapshots.map(snap => snap.id));
-        },
-    });
-
-    const restoreSnapshots = useCallback((snapshots: EnrollmentSnapshot[]) => {
-        if (snapshots.length > 0) mutateRestore(snapshots);
-    }, [mutateRestore]);
-
     return {
         enrollments,
         /** False while older history (completed, withdrawn, rejected) is still loading */
@@ -337,6 +321,5 @@ export function useEnrollments({ showToast, openInviteModal, openConfirmModal }:
         togglePriority,
         updateNote,
         deleteEnrollment,
-        restoreSnapshots,
     };
 }
