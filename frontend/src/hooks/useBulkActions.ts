@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { EnrollmentRow } from './useEnrollments';
@@ -91,7 +91,7 @@ export function useBulkActions({
         setSelectedIds(prev => (prev.size === 0 ? prev : new Set()));
     }, []);
 
-    const { mutate: mutateBulkStatus } = useMutation({
+    const { mutate: mutateBulkStatus, isPending: statusPending } = useMutation({
         mutationFn: ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
             const chosen = enrollments.filter(e => selectedIds.has(e.id));
             return changeEnrollmentStatus(enrollments, chosen, newStatus, { confirmedDate });
@@ -130,8 +130,11 @@ export function useBulkActions({
         }
     });
 
+    const busyRef = useRef(false);
+
     const bulkUpdateStatus = useCallback(async (newStatus: EnrollmentStatus, confirmedDate?: string) => {
-        if (selectedIds.size === 0) return;
+        // While a change is being saved a second one waits: the bar shows "saving…"
+        if (selectedIds.size === 0 || busyRef.current) return;
 
         if (newStatus === 'invited') {
             openInviteModal(Array.from(selectedIds), true);
@@ -140,6 +143,12 @@ export function useBulkActions({
 
         if (newStatus === 'confirmed' && !confirmedDate) {
             const ids = Array.from(selectedIds);
+            // One course date belongs to one course (the invite dialog has the same rule)
+            const chosen = enrollments.filter(e => selectedIds.has(e.id));
+            if (new Set(chosen.map(e => e.course_id)).size > 1) {
+                showToast('Select people from one course to confirm: a course date belongs to one course.', 'error');
+                return;
+            }
             const firstId = ids[0];
             const first = enrollments.find(e => e.id === firstId);
             const defaultDate = first?.invited_date || todayISO();
@@ -150,9 +159,9 @@ export function useBulkActions({
         }
 
         mutateBulkStatus({ newStatus, confirmedDate });
-    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus]);
+    }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus, showToast]);
 
-    const { mutate: mutateBulkDelete } = useMutation({
+    const { mutate: mutateBulkDelete, isPending: deletePending } = useMutation({
         mutationFn: async () => {
             const ids = Array.from(selectedIds);
             const { error } = await supabase.from('enrollments').delete().in('id', ids);
@@ -180,8 +189,11 @@ export function useBulkActions({
         }
     });
 
+    const busy = statusPending || deletePending;
+    useEffect(() => { busyRef.current = busy; }, [busy]);
+
     const handleBulkDelete = useCallback(async () => {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || busyRef.current) return;
         mutateBulkDelete();
     }, [selectedIds, mutateBulkDelete]);
 
@@ -216,6 +228,8 @@ export function useBulkActions({
 
     return {
         selectedIds,
+        /** A bulk status change or delete is being saved */
+        busy,
         toggleSelect,
         deselect,
         selectMany,

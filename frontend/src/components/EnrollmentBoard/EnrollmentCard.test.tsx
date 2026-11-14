@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import EnrollmentCard from './EnrollmentCard';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
@@ -145,6 +145,19 @@ describe('EnrollmentCard Component', () => {
         fireEvent.click(saveBtn);
 
         expect(mockUpdateNote).toHaveBeenCalledWith('enrollment-1', 'Needs afternoon session');
+    });
+
+    it('keeps the quick note editor open with the text when the note could not be saved', async () => {
+        const mockUpdateNote = vi.fn().mockResolvedValue(false);
+        render(<EnrollmentCard {...defaultProps} onUpdateNote={mockUpdateNote} />);
+
+        fireEvent.click(screen.getByText('Needs morning session'));
+        const textarea = screen.getByPlaceholderText(/Add quick note/i) as HTMLTextAreaElement;
+        fireEvent.change(textarea, { target: { value: 'A long note that must not be lost' } });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Save$/i })); });
+
+        expect(mockUpdateNote).toHaveBeenCalled();
+        expect((screen.getByPlaceholderText(/Add quick note/i) as HTMLTextAreaElement).value).toBe('A long note that must not be lost');
     });
 
     it('saves inline quick note on Enter and cancels on Escape', () => {

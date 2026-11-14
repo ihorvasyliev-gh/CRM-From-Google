@@ -68,6 +68,8 @@ interface InviteTarget {
     ids: string[];
     bulk: boolean;
     placedIds: string[];
+    /** The enrollments being invited, as they were when the dialog opened */
+    people: EnrollmentRow[];
 }
 
 /** Time & place of an invitation that aren't tied to one course date. */
@@ -250,7 +252,7 @@ export function useInviteFlow({
         // The board asks before re-inviting people who have a place; anyone else who
         // confirms while this dialog is open keeps their place (see inviteMutation)
         const placedIds = chosen.filter(e => PLACED_STATUSES.includes(e.status)).map(e => e.id);
-        setInviteDateTarget({ ids, bulk, placedIds });
+        setInviteDateTarget({ ids, bulk, placedIds, people: chosen });
         setInviteDate(todayISO());
         setMultiDate(false);
         setInviteDates([]);

@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, BellRing, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, Loader2, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import Menu, { type MenuItem } from '../ui/Menu';
 import { fittingActions } from './bulkActions';
 import type { EnrollmentStatus } from '../../lib/types';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
-const actionCls = 'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white leading-none whitespace-nowrap transition-colors shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white/60';
+const actionCls = 'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white leading-none whitespace-nowrap transition-colors shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-50 disabled:cursor-not-allowed';
 
 interface BulkActionBarProps {
     selectedCount: number;
     selectedEnrollments: EnrollmentRow[];
+    /** A bulk change is being saved: the actions wait, so it can't be sent twice */
+    busy?: boolean;
     handleCopySelectedEmails: () => void;
     bulkUpdateStatus: (status: EnrollmentStatus) => void;
     /** Opens the document generation dialog for the selection. */
@@ -24,6 +26,7 @@ interface BulkActionBarProps {
 export default function BulkActionBar({
     selectedCount,
     selectedEnrollments,
+    busy = false,
     handleCopySelectedEmails,
     bulkUpdateStatus,
     handleGenerateDocuments,
@@ -85,8 +88,9 @@ export default function BulkActionBar({
                     className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white leading-none rounded-lg transition-colors whitespace-nowrap ${showList ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'}`}
                     title="View selected list"
                 >
+                    {busy && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
                     <span className="font-mono">{selectedCount}</span>
-                    <span className="font-medium text-white/70">selected</span>
+                    <span className="font-medium text-white/70">{busy ? 'saving…' : 'selected'}</span>
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform ${showList ? 'rotate-180' : ''} opacity-60`}>
                         <polyline points="6 9 12 15 18 9" />
                     </svg>
@@ -101,7 +105,7 @@ export default function BulkActionBar({
                 </button>
 
                 {fits.invite && (
-                    <button type="button" onClick={() => bulkUpdateStatus('invited')} className={`${actionCls} bg-blue-500 hover:bg-blue-600`}>
+                    <button type="button" disabled={busy} onClick={() => bulkUpdateStatus('invited')} className={`${actionCls} bg-blue-500 hover:bg-blue-600`}>
                         <Send size={14} /> Invite
                     </button>
                 )}
@@ -111,12 +115,12 @@ export default function BulkActionBar({
                     </button>
                 )}
                 {fits.confirm && (
-                    <button type="button" onClick={() => bulkUpdateStatus('confirmed')} className={`${actionCls} bg-emerald-500 hover:bg-emerald-600`}>
+                    <button type="button" disabled={busy} onClick={() => bulkUpdateStatus('confirmed')} className={`${actionCls} bg-emerald-500 hover:bg-emerald-600`}>
                         <CheckCircle size={14} /> Confirm
                     </button>
                 )}
                 {fits.complete && (
-                    <button type="button" onClick={() => bulkUpdateStatus('completed')} className={`${actionCls} bg-teal-500 hover:bg-teal-600`}>
+                    <button type="button" disabled={busy} onClick={() => bulkUpdateStatus('completed')} className={`${actionCls} bg-teal-500 hover:bg-teal-600`}>
                         <GraduationCap size={14} /> Complete
                     </button>
                 )}

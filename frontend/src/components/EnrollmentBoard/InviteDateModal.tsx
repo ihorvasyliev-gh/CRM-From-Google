@@ -5,6 +5,7 @@ import type { InviteFlow } from '../../hooks/useInviteFlow';
 import SessionScheduleEditor from './SessionScheduleEditor';
 import DialogLayer from '../ui/DialogLayer';
 import { useLastPresent } from '../../hooks/usePresence';
+import { describePeople } from './dialogPeople';
 
 interface InviteDateModalProps {
     inviteFlow: InviteFlow;
@@ -18,6 +19,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
     // While it animates out, the dialog keeps showing the invitation it was for
     const target = useLastPresent(inviteFlow.inviteDateTarget);
     if (!target) return null;
+    const who = describePeople(target.people);
     return (
         <DialogLayer
             open={!!inviteFlow.inviteDateTarget}
@@ -34,6 +36,7 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                     </div>
                     <div>
                         <h3 className="font-bold text-primary">Invite to Course</h3>
+                        {who && <p className="text-sm font-semibold text-primary mt-0.5 break-words" data-testid="invite-who">{who}</p>}
                         <p className="text-xs text-muted mt-0.5">
                             {inviteFlow.multiDate
                                 ? 'Offer several dates — each student picks one'

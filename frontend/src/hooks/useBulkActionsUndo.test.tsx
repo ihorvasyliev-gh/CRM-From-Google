@@ -255,3 +255,37 @@ describe('useBulkActions: selection follows what is shown', () => {
         expect(result.current.selectedIds).toBe(before);
     });
 });
+
+describe('useBulkActions: guards', () => {
+    function setup(enrollments: EnrollmentRow[]) {
+        const queryClient = new QueryClient();
+        const wrapper = ({ children }: { children: React.ReactNode }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+        const showToast = vi.fn();
+        const openConfirmModal = vi.fn();
+        const hook = renderHook(() => useBulkActions({
+            enrollments, setEnrollments: vi.fn(), showToast, openInviteModal: vi.fn(), openConfirmModal,
+        }), { wrapper });
+        return { ...hook, showToast, openConfirmModal };
+    }
+
+    it('refuses to confirm people from different courses with one date', async () => {
+        const other = { ...makeEnrollment('b', 'invited'), course_id: 'crs-2' } as EnrollmentRow;
+        const { result, showToast, openConfirmModal } = setup([makeEnrollment('a', 'invited'), other]);
+        act(() => result.current.selectMany(['a', 'b']));
+        await act(async () => { await result.current.bulkUpdateStatus('confirmed'); });
+
+        expect(openConfirmModal).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/one course/), 'error');
+        // The selection is kept so the user can narrow it down
+        expect(result.current.selectedIds.size).toBe(2);
+    });
+
+    it('opens the confirm dialog for people of one course', async () => {
+        const { result, openConfirmModal } = setup([makeEnrollment('a', 'invited'), makeEnrollment('b', 'invited')]);
+        act(() => result.current.selectMany(['a', 'b']));
+        await act(async () => { await result.current.bulkUpdateStatus('confirmed'); });
+        expect(openConfirmModal).toHaveBeenCalledWith(['a', 'b'], expect.any(String), 'crs-1');
+    });
+});

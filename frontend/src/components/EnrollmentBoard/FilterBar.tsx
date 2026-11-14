@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
+import { Archive, Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import { useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -45,6 +45,9 @@ interface FilterBarProps {
     inviteFilter: InviteFilter;
     setInviteFilter: (f: InviteFilter) => void;
     inviteCounts: { expired: number; soon: number };
+    /** Withdrawn + rejected enrollments left by the filters; their dialog opens from the bar */
+    secondaryCount?: number;
+    onOpenSecondary?: () => void;
 }
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
@@ -218,6 +221,8 @@ export default function FilterBar({
     inviteFilter,
     setInviteFilter,
     inviteCounts,
+    secondaryCount = 0,
+    onOpenSecondary,
 }: FilterBarProps) {
     const [sheetOpen, setSheetOpen] = useState(false);
     const isSmallScreen = useIsSmallScreen();
@@ -423,6 +428,20 @@ export default function FilterBar({
                 )}
 
                 <div className="hidden md:flex items-center gap-2 ml-auto shrink-0">
+                    {secondaryCount > 0 && onOpenSecondary && (
+                        <CustomTooltip content="Withdrawn & Rejected">
+                            <button
+                                type="button"
+                                onClick={onOpenSecondary}
+                                aria-label={`Withdrawn & Rejected (${secondaryCount})`}
+                                className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl border border-border-strong bg-surface-elevated text-xs font-semibold text-muted hover:text-primary hover:border-brand-500 transition-all active:scale-95"
+                            >
+                                <Archive size={13} />
+                                <span className="hidden 2xl:inline">Withdrawn & Rejected</span>
+                                <span className="font-mono">{secondaryCount}</span>
+                            </button>
+                        </CustomTooltip>
+                    )}
                     <span className="text-xs text-muted whitespace-nowrap" aria-live="polite">
                         {isFiltered ? (
                             <><span className="font-mono font-bold text-primary">{filteredCount}</span> of <span className="font-mono">{shownCount}</span></>

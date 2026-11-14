@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
-import { ChevronDown, GraduationCap, Copy, Trash2, RotateCcw, Loader2 } from 'lucide-react';
+import { Archive, GraduationCap, RotateCcw } from 'lucide-react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -12,7 +12,7 @@ import { useInviteFlow } from '../hooks/useInviteFlow';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { sessionForEnrollment } from '../lib/courseSessions';
 import { useStudentFlags } from '../hooks/useStudentFlags';
-import { ALL_STATUSES, cleanVariant, fullName, getCoursePill, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
+import { ALL_STATUSES, cleanVariant, fullName, isEnrollmentStatus, PIPELINE_STATUSES, SECONDARY_STATUSES, Student, type EnrollmentStatus } from '../lib/types';
 import StudentDetail from './StudentDetail';
 import { todayISO } from '../lib/dateUtils';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -20,6 +20,7 @@ import { STATUS_CONFIG } from '../lib/statusConfig';
 import FilterBar from './EnrollmentBoard/FilterBar';
 import StatusColumn from './EnrollmentBoard/StatusColumn';
 import EnrollmentCard from './EnrollmentBoard/EnrollmentCard';
+import SecondaryPanel from './EnrollmentBoard/SecondaryPanel';
 import BulkActionBar from './EnrollmentBoard/BulkActionBar';
 import EnrollmentModal from './EnrollmentModal';
 import GenerateDocsModal from './EnrollmentBoard/GenerateDocsModal';
@@ -77,7 +78,7 @@ export default function EnrollmentBoard({
     const [docsFor, setDocsFor] = useState<EnrollmentRow[] | null>(null);
     const [confirmMoveTarget, setConfirmMoveTarget] = useState<{ enrollmentId: string; oldStatus: string; newStatus: EnrollmentStatus } | null>(null);
     const [bulkConfirmMoveTarget, setBulkConfirmMoveTarget] = useState<{ newStatus: EnrollmentStatus; confirmedCount: number; totalCount: number } | null>(null);
-    const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean } | null>(null);
+    const [confirmDateTarget, setConfirmDateTarget] = useState<{ ids: string[]; bulk: boolean; people: EnrollmentRow[] } | null>(null);
     const [confirmDate, setConfirmDate] = useState(todayISO());
     const [confirmingDate, setConfirmingDate] = useState(false);
     const [editNoteTarget, setEditNoteTarget] = useState<{ id: string; note: string } | null>(null);
@@ -101,10 +102,8 @@ export default function EnrollmentBoard({
     const [dateTo, setDateTo] = useState('');
     const [courseDateFrom, setCourseDateFrom] = useState('');
     const [courseDateTo, setCourseDateTo] = useState('');
-    const [showSecondary, setShowSecondary] = usePersistentState<boolean>('board.showSecondary', false, {
-        storage: 'local',
-        validate: (v): v is boolean => typeof v === 'boolean',
-    });
+    // Withdrawn & Rejected open in a dialog of their own
+    const [showSecondary, setShowSecondary] = useState(false);
     const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
         storage: 'local',
         validate: (v): v is 'date-asc' | 'date-desc' | 'name' => v === 'date-asc' || v === 'date-desc' || v === 'name',
@@ -136,9 +135,10 @@ export default function EnrollmentBoard({
     }, []);
 
     const openConfirmModal = useCallback((ids: string[], defDate: string, bulk: boolean) => {
-        setConfirmDateTarget({ ids, bulk });
+        const people = enrollmentsRef.current.filter(e => ids.includes(e.id));
+        setConfirmDateTarget({ ids, bulk, people });
         setConfirmDate(defDate);
-        const first = enrollmentsRef.current.find(e => ids.includes(e.id));
+        const first = people[0];
         if (first?.course_id) {
             inviteFlowRef.current?.fetchCourseDates(first.course_id);
         }
@@ -378,6 +378,7 @@ export default function EnrollmentBoard({
     }, [enrollments]);
 
     const secondaryCount = (byStatus['withdrawn']?.length || 0) + (byStatus['rejected']?.length || 0);
+    const openSecondary = useCallback(() => setShowSecondary(true), []);
 
     // Handlers
     const openEditNote = useCallback((enrollment: EnrollmentRow) => {
@@ -385,9 +386,7 @@ export default function EnrollmentBoard({
         setEditNoteText(enrollment.notes || '');
     }, []);
 
-    const handleUpdateNote = useCallback(async (id: string, noteText: string) => {
-        await updateNote(id, noteText);
-    }, [updateNote]);
+    const handleUpdateNote = updateNote;
 
     const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
         if (enrollment.students) {
@@ -565,6 +564,7 @@ export default function EnrollmentBoard({
             <BulkActionBar
                 selectedCount={bulkActions.selectedIds.size}
                 selectedEnrollments={selectedEnrollments}
+                busy={bulkActions.busy}
                 handleCopySelectedEmails={() => bulkActions.handleCopySelectedEmails(filteredEnrollments)}
                 bulkUpdateStatus={handleBulkUpdateStatus}
                 handleGenerateDocuments={() => setDocsFor(selectedEnrollments)}
@@ -623,16 +623,14 @@ export default function EnrollmentBoard({
     }, []);
 
     // Dashboard status links: show that status — its column, or the opened "Withdrawn & Rejected" section
-    const secondaryRef = useRef<HTMLDivElement | null>(null);
     useEffect(() => {
         if (!initialStatus) return;
         if ((SECONDARY_STATUSES as readonly EnrollmentStatus[]).includes(initialStatus)) {
             setShowSecondary(true);
-            const frame = requestAnimationFrame(() => secondaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-            return () => cancelAnimationFrame(frame);
+            return;
         }
         handleStatusBadgeClick(initialStatus);
-    }, [initialStatus, handleStatusBadgeClick, setShowSecondary]);
+    }, [initialStatus, handleStatusBadgeClick]);
 
     // Total pipeline count for progress bars — п.1
     const totalPipelineCount = useMemo(() => {
@@ -675,6 +673,8 @@ export default function EnrollmentBoard({
                 inviteFilter={inviteFilter}
                 setInviteFilter={setInviteFilter}
                 inviteCounts={inviteCounts}
+                secondaryCount={secondaryCount}
+                onOpenSecondary={openSecondary}
             />
 
             {/* Mobile Column Quick Switcher Bar */}
@@ -699,6 +699,16 @@ export default function EnrollmentBoard({
                         </button>
                     );
                 })}
+                {secondaryCount > 0 && (
+                    <button
+                        onClick={openSecondary}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border bg-surface border-border-subtle text-muted"
+                    >
+                        <Archive size={13} />
+                        <span>Withdrawn & Rejected</span>
+                        <span className="text-xs font-mono">({secondaryCount})</span>
+                    </button>
+                )}
             </div>
 
             <DndContext 
@@ -778,85 +788,6 @@ export default function EnrollmentBoard({
                 </DragOverlay>
             </DndContext>
 
-            {/* Secondary Statuses */}
-            {secondaryCount > 0 && (
-                <div ref={secondaryRef}>
-                    <button
-                        onClick={() => setShowSecondary(!showSecondary)}
-                        className="flex items-center gap-2 text-sm font-medium text-muted hover:text-primary transition-all mb-3"
-                    >
-                        <ChevronDown size={16} className={`transition-transform ${showSecondary ? 'rotate-180' : ''}`} />
-                        Withdrawn & Rejected ({secondaryCount})
-                        {!enrollmentsHook.complete && (
-                            <span className="flex items-center" title="Loading older enrollments">
-                                <Loader2 size={13} className="animate-spin" aria-hidden="true" />
-                                <span className="sr-only">, loading older ones</span>
-                            </span>
-                        )}
-                    </button>
-
-                    {showSecondary && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slideDown">
-                            {SECONDARY_STATUSES.map(status => {
-                                const cfg = STATUS_CONFIG[status];
-                                const items = byStatus[status] || [];
-                                if (items.length === 0) return null;
-
-                                return (
-                                    <div key={status} className="bg-surface-elevated rounded-2xl shadow-card border border-border-subtle overflow-hidden opacity-75">
-                                        <div className={`p-3 border-b ${cfg.border} ${cfg.bg}`}>
-                                            <div className="flex items-center gap-2">
-                                                <span className={cfg.color}>{cfg.icon}</span>
-                                                <h3 className="text-sm font-bold text-primary">{cfg.label}</h3>
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.pillBg}`}>
-                                                    {items.length}
-                                                </span>
-                                                <button
-                                                    onClick={() => bulkActions.handleCopyEmails(items, cfg.label)}
-                                                    className="ml-auto p-1.5 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all"
-                                                    title={`Copy ${cfg.label} emails`}
-                                                >
-                                                    <Copy size={13} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="p-2 space-y-1.5 max-h-[300px] overflow-y-auto">
-                                            {items.map(enrollment => (
-                                                <div
-                                                    key={enrollment.id}
-                                                    className="group p-3 rounded-xl border border-border-subtle bg-surface-elevated hover:shadow-xs transition-all flex items-center gap-3"
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="font-semibold text-primary text-[13px] truncate">
-                                                            {enrollment.students?.first_name} {enrollment.students?.last_name}
-                                                        </p>
-                                                        <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 ${cfg.pillBg}`}>
-                                                            {getCoursePill(enrollment)}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => enrollmentsHook.updateStatus(enrollment.id, 'requested')}
-                                                        className="text-xs font-medium text-muted hover:text-brand-600 hover:bg-brand-500/10 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
-                                                    >
-                                                        Restore
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setDeleteTarget(enrollment)}
-                                                        className="text-muted hover:text-red-500 hover:bg-danger/10 p-1 rounded-lg transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
-
             {filteredEnrollments.length === 0 && (
                 <div className="text-center py-16">
                     <div className="w-16 h-16 bg-surface-elevated border border-border-subtle rounded-full flex items-center justify-center mx-auto mb-4 shadow-xs">
@@ -876,6 +807,18 @@ export default function EnrollmentBoard({
             )}
 
             {bulkActionBar}
+
+            <SecondaryPanel
+                open={showSecondary}
+                onClose={() => setShowSecondary(false)}
+                byStatus={byStatus}
+                loading={!enrollmentsHook.complete}
+                // Back to the queue; the toast that follows offers Undo
+                onRestore={e => updateStatus(e.id, 'requested')}
+                onDelete={setDeleteTarget}
+                onShowDetail={handleShowDetail}
+                onCopyEmails={bulkActions.handleCopyEmails}
+            />
 
             {/* Modals go here */}
             <InviteDateModal inviteFlow={inviteFlow} />

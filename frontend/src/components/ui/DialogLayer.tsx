@@ -70,7 +70,9 @@ export default function DialogLayer({
                 aria-describedby={describedBy}
                 tabIndex={-1}
                 onKeyDown={onKeyDown}
-                className={`${position} outline-none ${panelClassName} ${closing ? exit : enter}`}
+                // text-primary: the panel sits under <body>, outside the app shell that sets the text
+                // colour, and <body> keeps the boot screen's light text (white on white in the light theme)
+                className={`${position} outline-none text-primary ${panelClassName} ${closing ? exit : enter}`}
             >
                 <Freeze frozen={closing}>{children}</Freeze>
             </div>

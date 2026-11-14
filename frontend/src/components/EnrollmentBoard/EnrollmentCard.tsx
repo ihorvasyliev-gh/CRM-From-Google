@@ -31,7 +31,8 @@ interface EnrollmentCardProps {
     /** "English #100 · Ukrainian #10" for a student queued in several languages of the course */
     queueDetail?: string;
     openEditNote: (enrollment: EnrollmentRow) => void;
-    onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
+    /** Resolves to false when the note could not be saved: the editor then stays open with the text */
+    onUpdateNote?: (id: string, noteText: string) => Promise<boolean | void> | void;
     studentFlags?: StudentFlag[];
     completedCourses?: Array<{id: string, name: string}>;
     onFlagClick?: (enrollment: EnrollmentRow) => void;
@@ -154,8 +155,9 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         if (!onUpdateNote) return;
         setIsSavingNote(true);
         try {
-            await onUpdateNote(enrollment.id, noteDraft.trim());
-            setIsEditingNote(false);
+            const saved = await onUpdateNote(enrollment.id, noteDraft.trim());
+            // A failed save keeps the editor and what was typed
+            if (saved !== false) setIsEditingNote(false);
         } finally {
             setIsSavingNote(false);
         }

@@ -28,7 +28,7 @@ interface StatusColumnProps {
     selectMany?: (ids: string[]) => void;
     togglePriority: (id: string, current: boolean) => void;
     openEditNote: (enrollment: EnrollmentRow) => void;
-    onUpdateNote?: (id: string, noteText: string) => Promise<void> | void;
+    onUpdateNote?: (id: string, noteText: string) => Promise<boolean | void> | void;
     queuePositions: Map<string, number>;
     /** Places of students queued in several languages of a course */
     queueDetails: Map<string, string>;
