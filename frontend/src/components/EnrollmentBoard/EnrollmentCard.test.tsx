@@ -148,7 +148,7 @@ describe('EnrollmentCard Component', () => {
     });
 
     it('shows an expired invitation under the avatar and invites again in one click', () => {
-        const expired = { ...sampleEnrollment, status: 'invited', invited_at: '2026-01-01T10:00:00Z', invited_date: '2026-02-01', response_days: 7 };
+        const expired = { ...sampleEnrollment, status: 'invited' as const, invited_at: '2026-01-01T10:00:00Z', invited_date: '2026-02-01', response_days: 7 };
         render(<EnrollmentCard {...defaultProps} enrollment={expired} status="invited" />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Invitation expired. Invite John Doe again' }));
@@ -158,7 +158,7 @@ describe('EnrollmentCard Component', () => {
     });
 
     it('shows the time left to answer without a button while the invitation is running', () => {
-        const running = { ...sampleEnrollment, status: 'invited', invited_at: new Date(Date.now() - 86400000).toISOString(), invited_date: '2026-02-01', response_days: 7 };
+        const running = { ...sampleEnrollment, status: 'invited' as const, invited_at: new Date(Date.now() - 86400000).toISOString(), invited_date: '2026-02-01', response_days: 7 };
         render(<EnrollmentCard {...defaultProps} enrollment={running} status="invited" />);
 
         expect(screen.getByTitle(/left to answer \(7-day deadline\)/)).toHaveTextContent(/^5d 23h$|^6d 0h$/);
