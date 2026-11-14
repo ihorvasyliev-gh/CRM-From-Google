@@ -35,6 +35,7 @@ import { useNowMinute } from '../hooks/useNow';
 import { getInviteDeadline, matchesInviteFilter, type InviteFilter } from '../lib/inviteDeadline';
 import { courseDatesOf } from '../lib/courseDates';
 import { computeQueuePositions } from '../lib/queuePositions';
+import { sortColumn } from './EnrollmentBoard/boardSort';
 
 const EMPTY_FLAGS: import('../lib/types').StudentFlag[] = [];
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -314,23 +315,7 @@ export default function EnrollmentBoard({
             else map[e.status] = [e];
         });
 
-        Object.values(map).forEach(arr => {
-            arr.sort((a, b) => {
-                if (a.is_priority !== b.is_priority) {
-                    return a.is_priority ? -1 : 1;
-                }
-                if (sortOrder === 'name') {
-                    const aName = `${a.students?.last_name || ''} ${a.students?.first_name || ''}`.toLowerCase();
-                    const bName = `${b.students?.last_name || ''} ${b.students?.first_name || ''}`.toLowerCase();
-                    return aName.localeCompare(bName);
-                } else {
-                    // created_at values are ISO timestamps from Postgres — string order == time order,
-                    // which avoids allocating two Date objects per comparison on large boards
-                    const cmp = a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
-                    return sortOrder === 'date-asc' ? cmp : -cmp;
-                }
-            });
-        });
+        Object.entries(map).forEach(([status, arr]) => sortColumn(arr, status, sortOrder));
         return map;
     }, [filteredEnrollments, shownFilters]);
 
@@ -515,7 +500,11 @@ export default function EnrollmentBoard({
     }, [confirmMoveTarget, updateStatus]);
 
     const handleCardMoveStatus = useCallback((enrollmentId: string, oldStatus: string, newStatus: EnrollmentStatus) => {
-        if (oldStatus === newStatus) return;
+        if (oldStatus === newStatus) {
+            // An expired invitation sent again: the invite dialog, for the person already invited
+            if (newStatus === 'invited') openInviteModalProxy([enrollmentId], false);
+            return;
+        }
         if (oldStatus === 'confirmed' && newStatus !== 'completed') {
             setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
             return;
@@ -523,7 +512,7 @@ export default function EnrollmentBoard({
         // The same path as a drag: the confirm dialog starts from the date the person was invited
         // for (not today), the invite dialog opens for 'invited'
         updateStatus(enrollmentId, newStatus);
-    }, [updateStatus]);
+    }, [updateStatus, openInviteModalProxy]);
 
     const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
 

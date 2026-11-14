@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Archive, Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
+import { Children, isValidElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Archive, ChevronLeft, ChevronRight, Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import { useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -8,8 +8,9 @@ import { CustomTooltip } from '../ui/Tooltip';
 import Modal from '../ui/Modal';
 import { buttonCls } from '../ui/buttonStyles';
 import type { InviteFilter } from '../../lib/inviteDeadline';
+import { SORT_HINT, type SortOrder } from './boardSort';
 
-type SortOrder = 'date-asc' | 'date-desc' | 'name';
+
 
 interface FilterBarProps {
     enrollments: EnrollmentRow[];
@@ -73,6 +74,69 @@ const CHIP_IDLE: Record<ChipTone, string> = {
     red: 'text-red-700 dark:text-red-400 hover:border-red-500',
     amber: 'text-amber-700 dark:text-amber-400 hover:border-amber-500',
 };
+
+/**
+ * One line of chips that scrolls sideways when they don't fit: arrows appear at the cut-off edges,
+ * and the chosen chip is brought into view.
+ */
+function ChipScroller({ label, className = '', children }: { label: string; className?: string; children: ReactNode }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const [edges, setEdges] = useState({ left: false, right: false });
+
+    const measure = useCallback(() => {
+        const el = ref.current;
+        if (!el) return;
+        const left = el.scrollLeft > 4;
+        const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+        setEdges(prev => (prev.left === left && prev.right === right ? prev : { left, right }));
+    }, []);
+
+    // Chips come and go with the data, and the row's width follows the window
+    useEffect(() => {
+        measure();
+        const el = ref.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const observer = new ResizeObserver(measure);
+        observer.observe(el);
+        return () => observer.disconnect();
+    });
+
+    const active = Children.toArray(children).findIndex(c => isValidElement<{ active?: boolean }>(c) && c.props.active);
+    useEffect(() => {
+        const chip = ref.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+        chip?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    }, [active]);
+
+    const page = (direction: 1 | -1) => {
+        const el = ref.current;
+        el?.scrollBy?.({ left: direction * el.clientWidth * 0.7, behavior: 'smooth' });
+    };
+    const arrowCls = 'absolute top-1/2 -translate-y-1/2 z-10 w-7 h-7 inline-flex items-center justify-center rounded-full border border-border-strong bg-surface text-muted hover:text-primary shadow-sm';
+
+    return (
+        <div className={`relative min-w-0 ${className}`}>
+            <div ref={ref} role="group" aria-label={label} onScroll={measure} className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {children}
+            </div>
+            {edges.left && (
+                <>
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-14 bg-linear-to-r from-surface to-transparent" />
+                    <button type="button" aria-label={`Earlier ${label.toLowerCase()} options`} onClick={() => page(-1)} className={`${arrowCls} left-0`}>
+                        <ChevronLeft size={14} />
+                    </button>
+                </>
+            )}
+            {edges.right && (
+                <>
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-linear-to-l from-surface to-transparent" />
+                    <button type="button" aria-label={`More ${label.toLowerCase()} options`} onClick={() => page(1)} className={`${arrowCls} right-0`}>
+                        <ChevronRight size={14} />
+                    </button>
+                </>
+            )}
+        </div>
+    );
+}
 
 function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, children }: {
     active: boolean;
@@ -408,7 +472,7 @@ export default function FilterBar({
                     )}
                 </button>
 
-                <label className="hidden md:inline-flex items-center gap-1.5 h-9 pl-3 pr-1 rounded-xl border border-border-strong bg-surface-elevated text-xs text-muted shrink-0 focus-within:border-brand-500">
+                <label title={SORT_HINT} className="hidden md:inline-flex items-center gap-1.5 h-9 pl-3 pr-1 rounded-xl border border-border-strong bg-surface-elevated text-xs text-muted shrink-0 focus-within:border-brand-500">
                     <ArrowDownUp size={13} />
                     <span className="sr-only">Sort</span>
                     <select
@@ -485,14 +549,14 @@ export default function FilterBar({
                 </div>
             )}
 
-            {/* Desktop row 2: every course, one click each */}
+            {/* Desktop row 2: every course, one click each, on one line so the board keeps its height */}
             {uniqueCourses.length > 0 && (
-                <div role="group" aria-label="Course" className="hidden md:flex flex-wrap items-center gap-1.5">
+                <ChipScroller label="Course" className="hidden md:flex">
                     <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
                     {uniqueCourses.map(c => (
                         <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
                     ))}
-                </div>
+                </ChipScroller>
             )}
 
             {/* Desktop row 3, with a course chosen: its languages and upcoming dates, one line */}
