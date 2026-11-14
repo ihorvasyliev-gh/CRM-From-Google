@@ -78,6 +78,12 @@ const iconBtn = `${iconBtnBase} text-muted hover:text-brand-500 hover:bg-surface
 const contactBtn = 'hit-area w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
+/** A computer with a mouse (not a phone or a tablet): a click on a phone number copies it there */
+function hasMouse(): boolean {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
+
 /** The invitation timer under the avatar: as narrow as the avatar allows */
 const timerChip = 'card-timer inline-flex items-center justify-center h-4 px-1 rounded-md text-[10px] leading-none font-bold whitespace-nowrap tabular-nums';
 // The flag as a count ("⚠ 2"): a red chip in a button as tall as the icon buttons
@@ -117,6 +123,17 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const [playDropIn] = useState(dropIn);
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
+    // The phone number shows "Copied" for a moment after a click on a computer
+    const [phoneCopied, setPhoneCopied] = useState(false);
+    useEffect(() => {
+        if (!phoneCopied) return;
+        const timer = setTimeout(() => setPhoneCopied(false), 1500);
+        return () => clearTimeout(timer);
+    }, [phoneCopied]);
+    const copiesPhone = !isMobile && hasMouse();
+    const copyPhone = (number: string) => {
+        navigator.clipboard?.writeText(number).then(() => setPhoneCopied(true)).catch(() => { /* the number stays on the card to copy by hand */ });
+    };
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteDraft, setNoteDraft] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
@@ -568,14 +585,21 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                 {telUrl ? (
                                     <a
                                         href={telUrl}
-                                        onClick={e => e.stopPropagation()}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            // A computer has nothing to call with: the number is copied instead
+                                            if (copiesPhone) {
+                                                e.preventDefault();
+                                                copyPhone(formatPhoneDisplay(enrollment.students!.phone!));
+                                            }
+                                        }}
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
-                                        className="flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums text-primary hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors mr-1 @max-2xs:mr-0"
-                                        title="Click to call"
+                                        className={`flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums hover:underline transition-colors mr-1 @max-2xs:mr-0 ${phoneCopied ? 'text-status-confirmed' : 'text-primary hover:text-blue-600 dark:hover:text-blue-400'}`}
+                                        title={copiesPhone ? 'Click to copy the number' : 'Click to call'}
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
-                                        <span className="truncate">{formatPhoneDisplay(enrollment.students.phone)}</span>
+                                        <span className="truncate" aria-live="polite">{phoneCopied ? 'Copied' : formatPhoneDisplay(enrollment.students.phone)}</span>
                                     </a>
                                 ) : (
                                     <span className="flex items-center gap-1 min-w-0 tabular-nums text-primary mr-1 @max-2xs:mr-0" title={enrollment.students.phone}>

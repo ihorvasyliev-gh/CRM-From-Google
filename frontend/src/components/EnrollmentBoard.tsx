@@ -98,11 +98,15 @@ export default function EnrollmentBoard({
     const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
     // Set by the search field once typing pauses
     const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
-    const [inviteFilter, setInviteFilter] = useState<InviteFilter>(initialInviteFilter || 'all');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [courseDateFrom, setCourseDateFrom] = useState('');
-    const [courseDateTo, setCourseDateTo] = useState('');
+    // The invite and date filters are remembered like the rest: coming back from a student's page
+    // shows the same cards
+    const [inviteFilter, setInviteFilter] = usePersistentState<InviteFilter>('board.inviteFilter', () => initialInviteFilter || 'all', {
+        validate: (v): v is InviteFilter => v === 'all' || v === 'expired' || v === 'soon' || v === 'attention',
+    });
+    const [dateFrom, setDateFrom] = usePersistentState<string>('board.dateFrom', '', { validate: isString });
+    const [dateTo, setDateTo] = usePersistentState<string>('board.dateTo', '', { validate: isString });
+    const [courseDateFrom, setCourseDateFrom] = usePersistentState<string>('board.courseDateFrom', '', { validate: isString });
+    const [courseDateTo, setCourseDateTo] = usePersistentState<string>('board.courseDateTo', '', { validate: isString });
     // Withdrawn & Rejected open in a dialog of their own
     const [showSecondary, setShowSecondary] = useState(false);
     const [sortOrder, setSortOrder] = usePersistentState<'date-asc' | 'date-desc' | 'name'>('board.sortOrder', 'date-asc', {
@@ -126,7 +130,7 @@ export default function EnrollmentBoard({
     // Dashboard "Expired invites" link pre-selects the invite filter
     useEffect(() => {
         if (initialInviteFilter) setInviteFilter(initialInviteFilter);
-    }, [initialInviteFilter]);
+    }, [initialInviteFilter, setInviteFilter]);
 
     const inviteFlowRef = useRef<ReturnType<typeof useInviteFlow> | null>(null);
     const enrollmentsRef = useRef<EnrollmentRow[]>([]);
@@ -429,7 +433,7 @@ export default function EnrollmentBoard({
         setDateTo('');
         setCourseDateFrom('');
         setCourseDateTo('');
-    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery]);
+    }, [setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setSearchQuery, setInviteFilter, setDateFrom, setDateTo, setCourseDateFrom, setCourseDateTo]);
 
     async function handleDeleteEnrollment() {
         if (!deleteTarget) return;
@@ -451,7 +455,8 @@ export default function EnrollmentBoard({
     const shownBulkMove = useLastPresent(bulkConfirmMoveTarget);
 
     // Escape clears the bulk selection when nothing else is open
-    const hasSelection = bulkActions.selectedIds.size > 0;
+    const selectedIds = bulkActions.selectedIds;
+    const hasSelection = selectedIds.size > 0;
     const clearSelection = bulkActions.clearSelection;
     useEffect(() => {
         if (!hasSelection) return;
@@ -468,6 +473,22 @@ export default function EnrollmentBoard({
     const mouseSensor = useSensor(MouseSensor, MOUSE_SENSOR_OPTS);
     const sensors = useSensors(mouseSensor);
 
+    const handleBulkUpdateStatus = useCallback((newStatus: EnrollmentStatus) => {
+        const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
+        const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
+        
+        if (confirmedCount > 0 && newStatus !== 'confirmed' && newStatus !== 'completed' && newStatus !== 'rejected') {
+            setBulkConfirmMoveTarget({
+                newStatus,
+                confirmedCount,
+                totalCount: selected.length
+            });
+            return;
+        }
+        
+        bulkActions.bulkUpdateStatus(newStatus);
+    }, [enrollments, bulkActions]);
+
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event;
         
@@ -480,6 +501,12 @@ export default function EnrollmentBoard({
             const newStatus = over.id;
             
             if (oldStatus && isEnrollmentStatus(newStatus) && oldStatus !== newStatus) {
+                // A selected card carries the whole selection with it, like the bulk bar's buttons
+                if (selectedIds.size > 1 && selectedIds.has(enrollmentId)) {
+                    handleBulkUpdateStatus(newStatus);
+                    return;
+                }
+
                 // Moving from confirmed to anything other than completed requires confirmation
                 if (oldStatus === 'confirmed' && newStatus !== 'completed') {
                     setConfirmMoveTarget({ enrollmentId, oldStatus, newStatus });
@@ -490,7 +517,7 @@ export default function EnrollmentBoard({
                 updateStatus(enrollmentId, newStatus);
             }
         });
-    }, [updateStatus]);
+    }, [updateStatus, selectedIds, handleBulkUpdateStatus]);
 
     const handleConfirmMove = useCallback(() => {
         if (!confirmMoveTarget) return;
@@ -515,22 +542,6 @@ export default function EnrollmentBoard({
     }, [updateStatus, openInviteModalProxy]);
 
     const [activeMobileColumn, setActiveMobileColumn] = useState<string>('requested');
-
-    const handleBulkUpdateStatus = useCallback((newStatus: EnrollmentStatus) => {
-        const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
-        const confirmedCount = selected.filter(e => e.status === 'confirmed').length;
-        
-        if (confirmedCount > 0 && newStatus !== 'confirmed' && newStatus !== 'completed' && newStatus !== 'rejected') {
-            setBulkConfirmMoveTarget({
-                newStatus,
-                confirmedCount,
-                totalCount: selected.length
-            });
-            return;
-        }
-        
-        bulkActions.bulkUpdateStatus(newStatus);
-    }, [enrollments, bulkActions]);
 
     const handleConfirmBulkMove = useCallback(() => {
         if (!bulkConfirmMoveTarget) return;
@@ -754,7 +765,17 @@ export default function EnrollmentBoard({
                     {activeId ? (() => {
                         const activeEnrollment = enrollments.find(e => e.id === activeId);
                         if (!activeEnrollment) return null;
+                        const carried = selectedIds.has(activeId) ? selectedIds.size : 1;
                         return (
+                            <div className="relative">
+                            {carried > 1 && (
+                                <span
+                                    data-testid="drag-count"
+                                    className="absolute -top-2.5 -left-2.5 z-110 min-w-7 h-7 px-2 inline-flex items-center justify-center rounded-full bg-brand-500 text-white text-xs font-extrabold shadow-lg ring-2 ring-surface"
+                                >
+                                    {carried}
+                                </span>
+                            )}
                             <EnrollmentCard
                                 enrollment={activeEnrollment}
                                 status={activeEnrollment.status}
@@ -772,6 +793,7 @@ export default function EnrollmentBoard({
                                 onShowDetail={handleShowDetail}
                                 session={sessionForEnrollment(activeEnrollment, courseSessions)}
                             />
+                            </div>
                         );
                     })() : null}
                 </DragOverlay>

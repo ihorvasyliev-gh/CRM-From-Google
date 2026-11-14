@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, BellRing, Loader2, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, Loader2, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal, LogOut } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import Menu, { type MenuItem } from '../ui/Menu';
 import { fittingActions } from './bulkActions';
@@ -43,6 +43,7 @@ export default function BulkActionBar({
     const fits = fittingActions(new Set(selectedEnrollments.map(e => e.status)));
     const moreItems: MenuItem[] = [
         ...(fits.backToRequested ? [{ label: 'Back to requested', icon: <Clock size={14} />, onSelect: () => bulkUpdateStatus('requested') }] : []),
+        ...(fits.withdraw ? [{ label: 'Withdraw', icon: <LogOut size={14} />, onSelect: () => bulkUpdateStatus('withdrawn') }] : []),
         ...(fits.reject ? [{ label: 'Reject…', icon: <Ban size={14} />, onSelect: () => setConfirmRejectOpen(true), tone: 'danger' as const }] : []),
         { label: 'Delete…', icon: <Trash2 size={14} />, onSelect: () => setBulkDeleteOpen(true), tone: 'danger' },
     ];

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, onTestFinished } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import EnrollmentCard from './EnrollmentCard';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
@@ -92,13 +92,30 @@ describe('EnrollmentCard Component', () => {
         expect(screen.queryByTestId('card-schedule')).not.toBeInTheDocument();
     });
 
-    it('renders phone link directly for calling without duplicate phone button', () => {
+    it('keeps the phone number a call link on a touch screen', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+        expect(screen.getByTitle('Click to call')).toHaveAttribute('href', 'tel:+353871234567');
+    });
+
+    it('copies the phone number on a click on a computer, where there is nothing to call with', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        // A computer: a mouse that can hover
+        const realMatchMedia = window.matchMedia;
+        window.matchMedia = ((query: string) => query.includes('pointer: fine')
+            ? { ...realMatchMedia(query), matches: true }
+            : realMatchMedia(query)) as typeof window.matchMedia;
+        onTestFinished(() => { window.matchMedia = realMatchMedia; });
         render(<EnrollmentCard {...defaultProps} />);
 
-        const phoneLink = screen.getByTitle('Click to call');
-        expect(phoneLink).toBeInTheDocument();
+        const phoneLink = screen.getByTitle('Click to copy the number');
         expect(phoneLink).toHaveAttribute('href', 'tel:+353871234567');
         expect(phoneLink).toHaveTextContent('087 123 4567');
+        await act(async () => { fireEvent.click(phoneLink); });
+
+        expect(writeText).toHaveBeenCalledWith('087 123 4567');
+        expect(phoneLink).toHaveTextContent('Copied');
+        expect(mockToggleSelect).not.toHaveBeenCalled();
 
         // Verify there is NO duplicate "Call Phone Number" button
         expect(screen.queryByTitle('Call Phone Number')).toBeNull();

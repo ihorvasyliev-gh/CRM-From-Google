@@ -54,7 +54,7 @@ interface FilterBarProps {
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
     { value: 'date-asc', label: 'Oldest first' },
     { value: 'date-desc', label: 'Newest first' },
-    { value: 'name', label: 'By name' },
+    { value: 'name', label: 'By surname' },
 ];
 
 type ChipTone = 'brand' | 'violet' | 'emerald' | 'red' | 'amber';
