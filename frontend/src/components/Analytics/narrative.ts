@@ -33,6 +33,13 @@ export function percent(part: number, whole: number): number {
     return whole > 0 ? Math.round((part / whole) * 100) : 0;
 }
 
+/** Whole-number percentage label, or "<1%" for a non-zero share under 0.5%. */
+export function formatPercent(part: number, whole: number): string {
+    if (whole <= 0 || part <= 0) return '0%';
+    const pct = Math.round((part / whole) * 100);
+    return pct === 0 ? '<1%' : `${pct}%`;
+}
+
 /** "A", "A and B", "A, B and C". */
 export function listOf(items: string[]): string {
     if (items.length <= 1) return items[0] ?? '';
@@ -137,20 +144,34 @@ function pipelineSentences(d: Insights): string[] {
     const out: string[] = [];
     if (f.total > 0) {
         const parts = [
-            `${count(f.completed)} (${percent(f.completed, f.total)}%) ${f.completed === 1 ? 'has' : 'have'} already completed the course`,
-            `${count(f.confirmed + f.invited)} ${be(f.confirmed + f.invited)} confirmed or invited`,
-            `${count(f.waiting)} (${percent(f.waiting, f.total)}%) ${be(f.waiting)} still waiting for an invitation`,
-            `${count(f.left)} withdrew or ${f.left === 1 ? 'was' : 'were'} not accepted`,
-        ];
+            f.completed > 0 && `${count(f.completed)} (${formatPercent(f.completed, f.total)}) ${f.completed === 1 ? 'has' : 'have'} already completed the course`,
+            f.confirmed + f.invited > 0 && `${count(f.confirmed + f.invited)} (${formatPercent(f.confirmed + f.invited, f.total)}) ${be(f.confirmed + f.invited)} confirmed or invited`,
+            f.waiting > 0 && `${count(f.waiting)} (${formatPercent(f.waiting, f.total)}) ${be(f.waiting)} still waiting for an invitation`,
+            f.left > 0 && `${count(f.left)} (${formatPercent(f.left, f.total)}) withdrew or ${f.left === 1 ? 'was' : 'were'} not accepted`,
+        ].filter(Boolean) as string[];
         out.push(`Of the ${plural(f.total, 'registration')} made in the period, ${listOf(parts)}.`);
+        if (d.summary.completions > f.completed) {
+            out.push(
+                `In total there were ${plural(d.summary.completions, 'completion')} in the period, including ${count(d.summary.completions - f.completed)} from people who registered earlier.`,
+            );
+        } else if (f.completed > d.summary.completions) {
+            out.push(
+                `${count(f.completed - d.summary.completions)} of those completions took place after the period ended.`,
+            );
+        }
     }
     const active = q.waiting + q.invited + q.confirmed;
+    const queueDiffersFromPeriod =
+        f.total === 0 || q.waiting !== f.waiting || q.invited !== f.invited || q.confirmed !== f.confirmed;
     if (active > 0) {
-        out.push(
-            `Today ${plural(q.waiting, 'registration is', 'registrations are')} waiting for an invitation, ` +
-            `${count(q.invited)} ${be(q.invited)} invited and waiting for a reply, and ` +
-            `${count(q.confirmed)} ${be(q.confirmed)} confirmed for a coming date.`,
-        );
+        if (queueDiffersFromPeriod) {
+            const queueParts = [
+                q.waiting > 0 && `${plural(q.waiting, 'registration is', 'registrations are')} waiting for an invitation`,
+                q.invited > 0 && `${count(q.invited)} ${be(q.invited)} invited and waiting for a reply`,
+                q.confirmed > 0 && `${count(q.confirmed)} ${be(q.confirmed)} confirmed for a coming date`,
+            ].filter(Boolean) as string[];
+            out.push(`Across all periods today, ${listOf(queueParts)}.`);
+        }
         const longest = q.courses.filter(c => c.waiting > 0).slice(0, 3);
         if (longest.length > 1) {
             out.push(`The longest waiting lists are ${listOf(longest.map(c => `${c.name} (${count(c.waiting)})`))}.`);
@@ -168,28 +189,46 @@ function outcomeSentences(d: Insights): string[] {
     if (o.graduates === 0) return ['Nobody completed a course in the period, so there are no employment outcomes to report.'];
     const out: string[] = [];
     if (o.asked === 0) {
-        out.push(`None of the ${plural(o.graduates, 'person', 'people')} who completed a course in the period has been sent the employment survey yet.`);
+        out.push(`None of the ${plural(o.graduates, 'graduate')} in the period has been sent the employment survey yet.`);
         return out;
     }
+    if (o.responded === 0) {
+        out.push(
+            `${count(o.asked)} of the ${plural(o.graduates, 'graduate')} in the period ` +
+            `(${percent(o.asked, o.graduates)}%) were sent the employment survey; none have answered yet.`,
+        );
+        return out;
+    }
+    const awaiting = o.asked - o.responded;
     out.push(
-        `${count(o.asked)} of the ${plural(o.graduates, 'person', 'people')} who completed a course in the period ` +
-        `(${percent(o.asked, o.graduates)}%) were sent the employment survey, and ${count(o.responded)} answered ` +
-        `(${percent(o.responded, o.asked)}% of those asked).`,
+        `${count(o.asked)} of the ${plural(o.graduates, 'graduate')} in the period ` +
+        `(${percent(o.asked, o.graduates)}%) were sent the employment survey; ${count(o.responded)} (${percent(o.responded, o.asked)}%) answered` +
+        `${awaiting > 0 ? ` and ${count(awaiting)} have not replied yet` : ''}.`,
     );
-    if (o.responded === 0) return out;
     const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
-    out.push(
-        `Of those who answered, ${count(o.working)} (${percent(o.working, o.responded)}%) ${be(o.working)} working` +
-        `${o.working > 0 && split.length ? `: ${listOf(split)}` : ''}.`,
-    );
-    const fields = o.fields.filter(f => f.name !== 'Other').slice(0, 3);
-    if (fields.length > 1) {
-        out.push(`The most common fields of work are ${listOf(fields.map(f => `${f.name} (${count(f.count)})`))}.`);
-    } else if (fields.length === 1) {
-        out.push(`The most common field of work is ${fields[0].name} (${count(fields[0].count)}).`);
+    if (o.working > 0) {
+        const notWorkingClause = o.notWorking > 0 ? `, while ${count(o.notWorking)} reported not working yet` : '';
+        out.push(
+            `Based on the responses received, ${count(o.working)} of the ${count(o.asked)} surveyed graduates ` +
+            `(${percent(o.working, o.asked)}%) ${be(o.working)} confirmed to be working` +
+            `${split.length ? ` (${listOf(split)})` : ''}${notWorkingClause}.`,
+        );
+    } else {
+        out.push(`None of the ${count(o.asked)} surveyed graduates (${count(o.responded)} answered) reported working yet.`);
+    }
+    const namedFields = o.fields.filter(f => f.name !== 'Other' && f.name !== NOT_KNOWN);
+    const multiFields = namedFields.filter(f => f.count >= 2).slice(0, 3);
+    if (multiFields.length > 1) {
+        out.push(`The most common sectors are ${listOf(multiFields.map(f => `${f.name} (${count(f.count)})`))}.`);
+    } else if (multiFields.length === 1) {
+        out.push(`The most common sector is ${multiFields[0].name} (${count(multiFields[0].count)}).`);
+    } else if (namedFields.length === 1) {
+        out.push(`Reported sector of work: ${namedFields[0].name} (${count(namedFields[0].count)}).`);
+    } else if (namedFields.length > 1) {
+        out.push(`Reported sectors include ${listOf(namedFields.slice(0, 3).map(f => f.name))}.`);
     }
     if (o.responded < 10) {
-        out.push(`With only ${plural(o.responded, 'answer')}, these percentages are a rough guide.`);
+        out.push(`With only ${plural(o.responded, 'answer')}, these figures are an early indication.`);
     }
     return out;
 }

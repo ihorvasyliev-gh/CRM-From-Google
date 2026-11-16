@@ -146,14 +146,41 @@ function tally(names: Iterable<string>): Map<string, number> {
     return counts;
 }
 
-/** Most common first; "Not known" always last. */
+/** Most common first; "Other" and "Not known" always last. */
 function ranked(counts: Map<string, number>): Share[] {
+    const tailRank = (name: string) => (name === NOT_KNOWN ? 2 : name === 'Other' ? 1 : 0);
     return [...counts]
         .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => Number(a.name === NOT_KNOWN) - Number(b.name === NOT_KNOWN) || b.count - a.count || a.name.localeCompare(b.name));
+        .sort((a, b) => tailRank(a.name) - tailRank(b.name) || b.count - a.count || a.name.localeCompare(b.name));
 }
 
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+
+const FIELD_PATTERNS: [RegExp, string][] = [
+    [/^(other|anything|any|any\s*job|agency|recruitment(?:\s*agency)?|temp(?:\s*agency)?|general(?:\s*operative)?|n\/?a|none|no|yes|not\s*sure|unknown|various|different|-|\.+)$/i, 'Other'],
+    [/\b(construct\w*|build(?:er|ing)\w*|labour\w*|labor\w*|carpentr?\w*|plumb\w*|electric\w*|scaffold\w*|groundwork\w*|bricklay\w*|tiler|tiling|roof\w*)\b/i, 'Construction'],
+    [/\b(hospitality|hotel\w*|restaurant\w*|cafe|café|barista|kitchen|chef|cook\w*|catering|waiter|waitress|bartend\w*|food\s*service|deli|bakery)\b/i, 'Hospitality'],
+    [/\b(health\s*care|healthcare|carer|care\s*assistant|care\s*worker|home\s*care|elder\s*care|nursing|nurse|hospital|medical|pharmacy|dental|sna|special\s*needs|child\s*care|childcare|creche|crèche|early\s*years)\b/i, 'Healthcare & care'],
+    [/\b(warehous\w*|logistic\w*|forklift|packing|packer|picker|order\s*pick\w*|dispatch|shipping|supply\s*chain|amazon|recycling|forge\s*hill|waste)\b/i, 'Warehouse & logistics'],
+    [/\b(manufactur\w*|factory|production|assembly|operator|industrial|pharma\w*|medtech|engineering|welder|welding|cnc|machin\w*)\b/i, 'Manufacturing'],
+    [/\b(clean(?:er|ing)|housekeep\w*|janitor\w*|hygiene|sanitation)\b/i, 'Cleaning'],
+    [/\b(retail\w*|shop\b|store\b|supermarket|cashier|sales\s*assistant|customer\s*assistant|grocery|merchandis\w*)\b/i, 'Retail'],
+    [/\b(security|guard\w*|door\s*supervisor)\b/i, 'Security'],
+    [/\b(transport\w*|driver|driving|delivery|courier|taxi|bus\b|truck|hgv|haulage)\b/i, 'Transport & delivery'],
+    [/\b(beauty|beautician|hair\w*|barber\w*|nail\w*|salon|spa\b|cosmet\w*|therap(?:ist|y))\b/i, 'Beauty & personal care'],
+    [/\b(office|admin\w*|reception\w*|clerical|secretary|customer\s*service|call\s*cent(?:re|er)|finance|account\w*|hr\b|it\b|software|tech\b)\b/i, 'Office & admin'],
+    [/\b(educat\w*|school|teach\w*|tutor\w*|training)\b/i, 'Education'],
+];
+
+/** Maps free-text survey answers ("Forge hill recycling", "Amazon", "Anything") to clean sectors. */
+export function normalizeFieldOfWork(raw: string | null | undefined): string {
+    const cleaned = raw?.trim().replace(/\s+/g, ' ') || '';
+    if (!cleaned) return 'Other';
+    for (const [pattern, sector] of FIELD_PATTERNS) {
+        if (pattern.test(cleaned)) return sector;
+    }
+    return capitalised(cleaned);
+}
 
 export interface InsightOptions {
     /** Compare with the period before (off for "All time") */
@@ -185,8 +212,9 @@ export function buildInsights(
         }
     }
 
-    // What became of the period's registrations
+    // What became of the period's registrations, and today's queue (one per person per course)
     const furthest = new Map<string, number>();
+    const furthestAll = new Map<string, { courseId: string; courseName: string; rank: number }>();
     const registrants = new Map<string, EnrollmentWithRelations>();
     const languagePeople = new Map<string, Set<string>>();
     const graduateCourses = new Map<string, Set<string>>();
@@ -196,10 +224,20 @@ export function buildInsights(
     for (const e of enrollments) {
         const person = personOf(e);
         const courseId = courseOf(e);
+        const pair = `${person}|${courseId}`;
+        const rank = FATE_RANK[e.status] ?? 0;
+
+        const prevAll = furthestAll.get(pair);
+        if (!prevAll || rank > prevAll.rank) {
+            furthestAll.set(pair, {
+                courseId,
+                courseName: e.courses?.name?.trim() || prevAll?.courseName || 'Unnamed course',
+                rank,
+            });
+        }
 
         if (registeredIn(e, period)) {
-            const pair = `${person}|${courseId}`;
-            furthest.set(pair, Math.max(furthest.get(pair) ?? 0, FATE_RANK[e.status] ?? 0));
+            furthest.set(pair, Math.max(furthest.get(pair) ?? 0, rank));
             if (!registrants.has(person)) registrants.set(person, e);
             const language = cleanVariant(e.courses?.name || '', e.course_variant);
             let people = languagePeople.get(language);
@@ -212,17 +250,18 @@ export function buildInsights(
             if (!courses) graduateCourses.set(person, (courses = new Set()));
             courses.add(courseId);
         }
+    }
 
-        if (e.status === 'requested' || e.status === 'invited' || e.status === 'confirmed') {
-            let row = queueByCourse.get(courseId);
-            if (!row) {
-                row = { courseId, name: e.courses?.name?.trim() || 'Unnamed course', waiting: 0, invited: 0, confirmed: 0 };
-                queueByCourse.set(courseId, row);
-            }
-            const key = e.status === 'requested' ? 'waiting' : e.status;
-            row[key]++;
-            queue[key]++;
+    for (const { courseId, courseName, rank } of furthestAll.values()) {
+        if (rank !== 1 && rank !== 2 && rank !== 3) continue;
+        let row = queueByCourse.get(courseId);
+        if (!row) {
+            row = { courseId, name: courseName, waiting: 0, invited: 0, confirmed: 0 };
+            queueByCourse.set(courseId, row);
         }
+        const key = rank === 1 ? 'waiting' : rank === 2 ? 'invited' : 'confirmed';
+        row[key]++;
+        queue[key]++;
     }
 
     const fates = { total: furthest.size, completed: 0, confirmed: 0, invited: 0, waiting: 0, left: 0 };
@@ -246,7 +285,7 @@ export function buildInsights(
             outcomes.working++;
             if (row.employment_type === 'full_time') outcomes.fullTime++;
             else if (row.employment_type === 'part_time') outcomes.partTime++;
-            fields.push(capitalised(row.field_of_work?.trim() || 'Other'));
+            fields.push(normalizeFieldOfWork(row.field_of_work));
         } else {
             outcomes.notWorking++;
         }

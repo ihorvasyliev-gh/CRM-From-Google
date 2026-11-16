@@ -15,7 +15,7 @@ import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from 
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import { formatDisplayDate } from '../../lib/dateUtils';
 import { completedIn, registeredIn, type Insights, type Share } from './insights';
-import { count, percent, plural, type Narrative } from './narrative';
+import { count, formatPercent, percent, plural, type Narrative } from './narrative';
 import { completionDay, formatPeriodLabel, registrationDay } from './summaryReport';
 import type { CourseRun } from './courseRuns';
 
@@ -400,7 +400,7 @@ function QueueCard({ insights, enrollments, onDrillDown }: Pick<OverviewProps, '
                                 <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
                                 {s.label}
                                 <span className="font-semibold text-primary tabular-nums">{count(s.value)}</span>
-                                <span className="tabular-nums">({percent(s.value, fates.total)}%)</span>
+                                <span className="tabular-nums">({formatPercent(s.value, fates.total)})</span>
                             </span>
                         ))}
                     </div>
@@ -418,7 +418,7 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
         { label: 'Completed a course', value: o.graduates, of: o.graduates },
         { label: 'Sent the survey', value: o.asked, of: o.graduates },
         { label: 'Answered', value: o.responded, of: o.asked },
-        { label: 'Working', value: o.working, of: o.responded },
+        { label: 'Working', value: o.working, of: o.asked },
     ];
     const max = Math.max(1, o.graduates);
     const fields = o.fields.slice(0, 5);
@@ -443,7 +443,7 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
                                 </span>
                                 <span className="text-right tabular-nums">
                                     <span className="font-semibold text-primary">{count(s.value)}</span>
-                                    {i > 0 && s.of > 0 && <span className="text-muted"> · {percent(s.value, s.of)}%</span>}
+                                    {i > 0 && s.of > 0 && <span className="text-muted"> · {formatPercent(s.value, s.of)}</span>}
                                 </span>
                             </li>
                         ))}
@@ -465,7 +465,7 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
                             </div>
                             {fields.length > 0 && (
                                 <div>
-                                    <p className="text-xs font-semibold text-muted mb-2">Field of work</p>
+                                    <p className="text-xs font-semibold text-muted mb-2">Sector of work</p>
                                     <ShareBars items={fields} total={o.working} color={COMPLETED} />
                                 </div>
                             )}
@@ -491,20 +491,21 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
 /** A ranked list of shares: name · bar · count and percent of `total`. */
 export function ShareBars({ items, total, color }: { items: Share[]; total: number; color: string }) {
     const max = Math.max(1, ...items.map(i => i.count));
+    const isMuted = (name: string) => name === 'Not known' || name === 'Not said' || name === 'Other';
     return (
         <ul className="space-y-1.5">
             {items.map(item => (
                 <li key={item.name} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.75rem] items-center gap-2.5 text-xs">
-                    <span className={`truncate ${item.name === 'Not known' || item.name === 'Not said' ? 'text-muted' : 'text-primary font-medium'}`} title={item.name}>{item.name}</span>
+                    <span className={`truncate ${isMuted(item.name) ? 'text-muted' : 'text-primary font-medium'}`} title={item.name}>{item.name}</span>
                     <span className="h-2 rounded-full bg-surface-elevated overflow-hidden">
                         <span
                             className="block h-full rounded-full"
-                            style={{ width: `${Math.max((item.count / max) * 100, 3)}%`, background: item.name === 'Not known' || item.name === 'Not said' ? CHART.neutral : color }}
+                            style={{ width: `${Math.max((item.count / max) * 100, 3)}%`, background: isMuted(item.name) ? CHART.neutral : color }}
                         />
                     </span>
                     <span className="text-right tabular-nums">
                         <span className="font-semibold text-primary">{count(item.count)}</span>
-                        <span className="text-muted"> · {percent(item.count, total)}%</span>
+                        <span className="text-muted"> · {formatPercent(item.count, total)}</span>
                     </span>
                 </li>
             ))}

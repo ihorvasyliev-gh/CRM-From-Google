@@ -169,10 +169,24 @@ describe('completionDay', () => {
         expect(completionDay({ status: 'completed', completed_date: '2026-03-04', completed_at: '2026-03-09T10:00:00Z', confirmed_date: null })).toBe('2026-03-04');
     });
 
-    it('falls back to when it was marked completed, then to the confirmed date', () => {
+    it('falls back to when it was marked completed, then confirmed, invited, updated or created date', () => {
         expect(completionDay({ status: 'completed', completed_date: null, completed_at: '2026-03-09T12:00:00Z', confirmed_date: '2026-03-01' })).toBe('2026-03-09');
         expect(completionDay({ status: 'completed', completed_date: null, completed_at: null, confirmed_date: '2026-03-01' })).toBe('2026-03-01');
+        expect(completionDay({ status: 'completed', completed_date: null, completed_at: null, confirmed_date: null, invited_date: '2026-03-02' })).toBe('2026-03-02');
+        expect(completionDay({ status: 'completed', completed_date: null, completed_at: null, confirmed_date: null, created_at: '2026-03-05T12:00:00Z' })).toBe('2026-03-05');
         expect(completionDay({ status: 'completed', completed_date: null, completed_at: null, confirmed_date: null })).toBeNull();
+    });
+
+    it('clamps a completion date that precedes registration so period completions and fates agree', () => {
+        expect(
+            completionDay({
+                status: 'completed',
+                completed_date: '2025-11-10',
+                completed_at: '2026-02-15T12:00:00Z',
+                confirmed_date: null,
+                created_at: '2026-02-01T12:00:00Z',
+            }),
+        ).toBe('2026-02-15');
     });
 
     it('is null for an enrollment that is not completed', () => {

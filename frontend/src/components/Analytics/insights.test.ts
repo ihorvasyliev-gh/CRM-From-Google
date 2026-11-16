@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { EmploymentStatusRow } from '../../lib/types';
-import { ageGroup, ageOn, buildInsights, dataSpan, previousPeriod } from './insights';
+import { ageGroup, ageOn, buildInsights, dataSpan, normalizeFieldOfWork, previousPeriod } from './insights';
 import { buildNarrative } from './narrative';
 
 const COURSES: Record<string, string> = { safe: 'Safe Pass', sna: 'SNA Level 5', barista: 'Barista' };
@@ -91,6 +91,16 @@ describe('age', () => {
     });
 });
 
+describe('normalizeFieldOfWork', () => {
+    it('groups free-text companies and roles into sectors and maps non-answers to Other', () => {
+        expect(normalizeFieldOfWork('Forge hill recycling')).toBe('Warehouse & logistics');
+        expect(normalizeFieldOfWork('Amazon')).toBe('Warehouse & logistics');
+        expect(normalizeFieldOfWork('Construction')).toBe('Construction');
+        expect(normalizeFieldOfWork('Agency')).toBe('Other');
+        expect(normalizeFieldOfWork('Anything')).toBe('Other');
+    });
+});
+
 describe('buildInsights', () => {
     const rows = [
         // Anna: completed Safe Pass, is waiting for SNA
@@ -137,11 +147,11 @@ describe('buildInsights', () => {
         expect(insights.fates).toEqual({ total: 6, completed: 3, confirmed: 0, invited: 1, waiting: 1, left: 1 });
     });
 
-    it("counts today's queue by enrollment, longest waiting list first", () => {
-        expect(insights.queue.waiting).toBe(2);
+    it("counts today's queue one per person and course, longest waiting list first", () => {
+        expect(insights.queue.waiting).toBe(1);
         expect(insights.queue.invited).toBe(1);
         expect(insights.queue.confirmed).toBe(0);
-        expect(insights.queue.courses.map(c => [c.name, c.waiting, c.invited])).toEqual([['Safe Pass', 1, 1], ['SNA Level 5', 1, 0]]);
+        expect(insights.queue.courses.map(c => [c.name, c.waiting, c.invited])).toEqual([['SNA Level 5', 1, 0], ['Safe Pass', 0, 1]]);
     });
 
     it('reads the survey of the people who completed in the period', () => {
@@ -185,17 +195,20 @@ describe('buildInsights', () => {
         expect(text.courses[0]).toBe('Demand was highest for Safe Pass: 3 registrations, 50% of all. Next came Barista (2) and SNA Level 5 (1).');
         expect(text.courses).toContain('1 course had registrations but no completions in the period: SNA Level 5 (1).');
         expect(text.pipeline[0]).toBe(
-            'Of the 6 registrations made in the period, 3 (50%) have already completed the course, 1 is confirmed or invited, ' +
-            '1 (17%) is still waiting for an invitation and 1 withdrew or was not accepted.',
+            'Of the 6 registrations made in the period, 3 (50%) have already completed the course, 1 (17%) is confirmed or invited, ' +
+            '1 (17%) is still waiting for an invitation and 1 (17%) withdrew or was not accepted.',
         );
         expect(text.pipeline[1]).toBe(
-            'Today 2 registrations are waiting for an invitation, 1 is invited and waiting for a reply, and 0 are confirmed for a coming date.',
+            'In total there were 4 completions in the period, including 1 from people who registered earlier.',
         );
+        expect(text.pipeline[2]).toBe('Everyone waiting is waiting for SNA Level 5.');
         expect(text.outcomes[0]).toBe(
-            '3 of the 3 people who completed a course in the period (100%) were sent the employment survey, and 2 answered (67% of those asked).',
+            '3 of the 3 graduates in the period (100%) were sent the employment survey; 2 (67%) answered and 1 have not replied yet.',
         );
-        expect(text.outcomes[1]).toBe('Of those who answered, 1 (50%) is working: 1 full-time.');
-        expect(text.outcomes[text.outcomes.length - 1]).toBe('With only 2 answers, these percentages are a rough guide.');
+        expect(text.outcomes[1]).toBe(
+            'Based on the responses received, 1 of the 3 surveyed graduates (33%) is confirmed to be working (1 full-time), while 1 reported not working yet.',
+        );
+        expect(text.outcomes[text.outcomes.length - 1]).toBe('With only 2 answers, these figures are an early indication.');
         expect(text.people[0]).toBe('100% of the people who registered chose a course in English; 25% in Ukrainian.');
     });
 

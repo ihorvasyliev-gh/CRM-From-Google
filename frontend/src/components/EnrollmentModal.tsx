@@ -229,18 +229,34 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
         try {
             const cleanedVariant = cleanVariant(selectedCourseName, variant);
 
+            const nowIso = new Date().toISOString();
+            const todayStr = nowIso.slice(0, 10);
             const payload: {
                 student_id: string;
                 course_id: string;
                 status: string;
                 course_variant: string | null;
                 notes?: string;
+                invited_at?: string;
+                confirmed_date?: string;
+                confirmed_at?: string;
+                completed_date?: string;
+                completed_at?: string;
             } = {
                 student_id: selectedStudent.id,
                 course_id: selectedCourseId,
                 status,
                 course_variant: cleanedVariant,
             };
+            if (status === 'invited') {
+                payload.invited_at = nowIso;
+            } else if (status === 'confirmed') {
+                payload.confirmed_date = todayStr;
+                payload.confirmed_at = nowIso;
+            } else if (status === 'completed') {
+                payload.completed_date = todayStr;
+                payload.completed_at = nowIso;
+            }
             if (notes.trim()) payload.notes = notes.trim();
 
             const { data: inserted, error: dbError } = await supabase.from('enrollments').insert(payload).select('id');

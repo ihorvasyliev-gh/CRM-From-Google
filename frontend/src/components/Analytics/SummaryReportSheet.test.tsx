@@ -58,7 +58,9 @@ describe('SummaryReportSheet', () => {
         expect(screen.getByText('1,234')).toBeInTheDocument();
         expect(screen.getByText('5 course registrations')).toBeInTheDocument();
         expect(screen.getByText('with graduates, across 2 courses')).toBeInTheDocument();
-        expect(screen.getByText('75%')).toBeInTheDocument();
+        // 3 working out of 6 surveyed = 50%
+        expect(screen.getByText('50%')).toBeInTheDocument();
+        expect(screen.getByText('3 of 6 surveyed (4 answered)')).toBeInTheDocument();
         expect(screen.getByRole('img', { name: 'Registrations and completions by month' })).toBeInTheDocument();
         const table = screen.getByRole('table');
         expect(within(table).getByText('Course 1')).toBeInTheDocument();
@@ -73,8 +75,9 @@ describe('SummaryReportSheet', () => {
         const second = screen.getByRole('article', { name: 'Courses report, page 2' });
         expect(within(second).getByText(/^Of the 4 registrations made in the period/)).toBeInTheDocument();
         expect(within(second).getByText('Longest waiting lists today')).toBeInTheDocument();
-        expect(within(second).getByText(/were sent the employment survey, and 4 answered/)).toBeInTheDocument();
+        expect(within(second).getByText(/were sent the employment survey; 4 \(67%\) answered/)).toBeInTheDocument();
         expect(within(second).getByText('Construction')).toBeInTheDocument();
+        expect(within(second).getByText('Full-time')).toBeInTheDocument();
         expect(within(second).getByText('Ukrainian')).toBeInTheDocument();
         expect(within(second).getByText('How the figures are counted')).toBeInTheDocument();
         expect(within(second).getByText('Page 2 of 2')).toBeInTheDocument();

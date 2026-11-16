@@ -76,15 +76,30 @@ export function registrationDay(e: Pick<EnrollmentWithRelations, 'created_at'>):
 
 /**
  * The day the course was completed, or null when the enrollment is not completed. completed_date
- * is the course date (set from the confirmed date on completion); older rows fall back to the
- * moment it was marked completed, then to the confirmed course date.
+ * is the course date (set from the confirmed date on completion); older or manually added rows
+ * fall back to the moment it was marked completed, then to the confirmed or invited course date,
+ * then to updated_at or created_at. When a course date precedes registration or lies after the
+ * completion timestamp, it is clamped so a completion is never dated before its registration.
  */
 export function completionDay(
-    e: Pick<EnrollmentWithRelations, 'status' | 'completed_date' | 'completed_at' | 'confirmed_date'>,
+    e: Pick<EnrollmentWithRelations, 'status' | 'completed_date' | 'completed_at' | 'confirmed_date'> &
+        Partial<Pick<EnrollmentWithRelations, 'invited_date' | 'updated_at' | 'created_at'>>,
 ): string | null {
     if (e.status !== 'completed') return null;
-    if (e.completed_date) return e.completed_date.slice(0, 10);
-    return timestampDay(e.completed_at) ?? (e.confirmed_date ? e.confirmed_date.slice(0, 10) : null);
+    const reg = timestampDay(e.created_at);
+    const completedAt = timestampDay(e.completed_at);
+    const raw =
+        e.completed_date?.slice(0, 10) ||
+        completedAt ||
+        e.confirmed_date?.slice(0, 10) ||
+        e.invited_date?.slice(0, 10) ||
+        timestampDay(e.updated_at) ||
+        reg;
+    if (!raw) return null;
+    let day = raw;
+    if (completedAt && day > completedAt) day = completedAt;
+    if (reg && day < reg) day = completedAt && completedAt >= reg ? completedAt : reg;
+    return day;
 }
 
 function monthsOf(period: ReportPeriod): string[] {

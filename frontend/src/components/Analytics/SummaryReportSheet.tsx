@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { formatLocalDate } from '../../lib/dateUtils';
 import type { Insights, Share } from './insights';
-import { count, percent, plural, type Narrative } from './narrative';
+import { count, formatPercent, percent, plural, type Narrative } from './narrative';
 import { foldCourses, formatPeriodLabel, niceStep, type ReportMonth } from './summaryReport';
 
 /**
@@ -77,14 +77,20 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         hint={plural(report.completions, 'course completion')}
                     />
                     <Figure
+                        swatch="var(--rs-runs)"
                         label="Course runs"
                         value={count(report.courseRuns)}
                         hint={`with graduates, across ${plural(report.coursesDelivered, 'course')}`}
                     />
                     <Figure
+                        swatch="var(--rs-working)"
                         label="Working after the course"
-                        value={outcomes.responded > 0 ? `${percent(outcomes.working, outcomes.responded)}%` : '—'}
-                        hint={outcomes.responded > 0 ? `${count(outcomes.working)} of ${count(outcomes.responded)} survey answers` : 'no survey answers yet'}
+                        value={outcomes.responded > 0 ? `${percent(outcomes.working, outcomes.asked)}%` : '—'}
+                        hint={
+                            outcomes.responded > 0
+                                ? `${count(outcomes.working)} of ${count(outcomes.asked)} surveyed (${count(outcomes.responded)} answered)`
+                                : 'no survey answers yet'
+                        }
                     />
                 </section>
 
@@ -113,8 +119,8 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                                     <tr className="text-left text-[7.5pt] uppercase tracking-wider text-(--rs-muted) border-b border-(--rs-rule)">
                                         <th className="font-semibold py-[1.2mm] pr-[3mm]">Course</th>
                                         <th className="font-semibold py-[1.2mm] pr-[4mm] text-right">Runs</th>
-                                        <th className="font-semibold py-[1.2mm] pr-[3mm]">Registered</th>
-                                        <th className="font-semibold py-[1.2mm]">Completed</th>
+                                        <th className="font-semibold py-[1.2mm] pr-[3mm] text-right">Registered</th>
+                                        <th className="font-semibold py-[1.2mm] text-right">Completed</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -134,11 +140,11 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                                     ))}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="font-semibold">
+                                    <tr className="font-semibold border-t border-(--rs-rule)">
                                         <td className="pt-[1.6mm] pr-[3mm]">Total</td>
                                         <td className="pt-[1.6mm] pr-[4mm] text-right tabular-nums">{count(report.courseRuns)}</td>
-                                        <td className="pt-[1.6mm] pr-[3mm] tabular-nums">{count(report.registrations)}</td>
-                                        <td className="pt-[1.6mm] tabular-nums">{count(report.completions)}</td>
+                                        <td className="pt-[1.6mm] pr-[3mm] text-right tabular-nums">{count(report.registrations)}</td>
+                                        <td className="pt-[1.6mm] text-right tabular-nums">{count(report.completions)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -156,20 +162,20 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         <p className="text-[8.5pt] text-(--rs-ink-2)">{subject} · {formatPeriodLabel(period)}</p>
                     </header>
 
-                    <section className="mt-[6mm]" aria-label="Where registrations stand">
+                    <section className="mt-[5.5mm]" aria-label="Where registrations stand">
                         <SectionTitle title="Where registrations stand" />
                         <Prose sentences={narrative.pipeline} />
                         <QueueBlock insights={insights} />
                     </section>
 
-                    <section className="mt-[8mm]" aria-label="Employment after the course">
+                    <section className="mt-[7mm]" aria-label="Employment after the course">
                         <SectionTitle title="Employment after the course" />
                         <Prose sentences={narrative.outcomes} />
                         <OutcomesBlock insights={insights} />
                     </section>
 
                     {insights.people.total > 0 && (
-                        <section className="mt-[8mm]" aria-label="Who registered">
+                        <section className="mt-[7mm]" aria-label="Who registered">
                             <SectionTitle title="Who registered" />
                             <Prose sentences={narrative.people} />
                             <div className="grid grid-cols-3 gap-[5mm] mt-[3.5mm]">
@@ -180,14 +186,15 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         </section>
                     )}
 
-                    <section className="mt-[8mm] rounded-[2.5mm] bg-(--rs-panel) px-[4mm] py-[3mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
+                    <section className="mt-[7mm] rounded-[2.5mm] bg-(--rs-panel) border border-(--rs-rule) px-[4mm] py-[2.8mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
                         <p className="font-semibold text-(--rs-ink)">How the figures are counted</p>
                         <p className="mt-[0.8mm]">
                             A registration is dated by the day the person registered, a completion by the day the course was completed.
                             A person counts once per course, whatever the language. A course run is one course in one language on one date,
                             with at least one graduate. Course runs marked "Ignore in reports" are left out. The queue is today's, whatever
-                            the period. Employment is the outcome survey among people who completed a course in the period. Area is worked out
-                            from the address and Eircode, and age from the date of birth, as of the day the report was prepared.
+                            the period. Employment is the outcome survey among people who completed a course in the period; the working rate
+                            is the share of surveyed graduates confirmed to be in employment. Area is worked out from the address and Eircode,
+                            and age from the date of birth, as of the day the report was prepared.
                         </p>
                     </section>
 
@@ -205,13 +212,13 @@ function Prose({ sentences, className = '' }: { sentences: string[]; className?:
 
 function Figure({ label, value, hint, swatch }: { label: string; value: ReactNode; hint: string; swatch?: string }) {
     return (
-        <div className="rounded-[2.5mm] bg-(--rs-panel) px-[3.5mm] py-[3mm] min-w-0">
+        <div className="rounded-[2.5mm] bg-(--rs-panel) border border-(--rs-rule) px-[3.5mm] py-[3mm] min-w-0">
             <p className="flex items-center gap-[1.6mm] text-[8pt] font-medium text-(--rs-ink-2) whitespace-nowrap">
                 {swatch && <span className="inline-block w-[2.4mm] h-[2.4mm] rounded-full shrink-0" style={{ background: swatch }} />}
                 {label}
             </p>
-            <p className="mt-[1mm] text-[22pt] leading-none font-semibold tracking-tight">{value}</p>
-            <p className="mt-[1.6mm] text-[7.5pt] text-(--rs-muted)">{hint}</p>
+            <p className="mt-[1.2mm] text-[21pt] leading-none font-semibold tracking-tight tabular-nums">{value}</p>
+            <p className="mt-[1.5mm] text-[7.5pt] leading-[1.3] text-(--rs-muted)">{hint}</p>
         </div>
     );
 }
@@ -260,18 +267,19 @@ const SUBHEAD = 'text-[7.5pt] uppercase tracking-wider font-semibold text-(--rs-
 /** A ranked list: name · bar · count and percent of `total`. */
 function ShareList({ title, items, total, color = 'var(--rs-registered)' }: { title: string; items: Share[]; total: number; color?: string }) {
     const max = Math.max(1, ...items.map(i => i.count));
+    const isMutedItem = (name: string) => name === 'Not known' || name === 'Not said' || name === 'Other';
     return (
         <div className="min-w-0">
             <p className={SUBHEAD}>{title}</p>
             <ul className="text-[8.5pt]">
                 {items.map(item => (
                     <li key={item.name} className="flex items-center gap-[2mm] py-[0.75mm]">
-                        <span className="w-[46%] truncate">{item.name}</span>
+                        <span className={`w-[46%] truncate ${isMutedItem(item.name) ? 'text-(--rs-ink-2)' : ''}`}>{item.name}</span>
                         <span className="flex-1 h-[2.2mm]">
-                            <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((item.count / max) * 100, 2)}%`, background: item.name === 'Not known' || item.name === 'Not said' ? 'var(--rs-axis)' : color }} />
+                            <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((item.count / max) * 100, 2)}%`, background: isMutedItem(item.name) ? 'var(--rs-axis)' : color }} />
                         </span>
                         <span className="w-[15mm] text-right tabular-nums whitespace-nowrap">
-                            {count(item.count)} <span className="text-(--rs-muted)">· {percent(item.count, total)}%</span>
+                            {count(item.count)} <span className="text-(--rs-muted)">· {formatPercent(item.count, total)}</span>
                         </span>
                     </li>
                 ))}
@@ -284,12 +292,17 @@ function QueueBlock({ insights }: { insights: Insights }) {
     const { fates, queue } = insights;
     const segments = [
         { label: 'Completed', value: fates.completed, color: 'var(--rs-completed)' },
-        { label: 'Confirmed', value: fates.confirmed, color: '#1f9d8a' },
+        { label: 'Confirmed', value: fates.confirmed, color: 'var(--rs-working)' },
         { label: 'Invited', value: fates.invited, color: 'var(--rs-registered)' },
-        { label: 'Waiting', value: fates.waiting, color: '#e3b23c' },
+        { label: 'Waiting', value: fates.waiting, color: 'var(--rs-waiting)' },
         { label: 'Withdrew / not accepted', value: fates.left, color: 'var(--rs-axis)' },
     ].filter(s => s.value > 0);
     const longest = queue.courses.filter(c => c.waiting > 0).slice(0, 6).map(c => ({ name: c.name, count: c.waiting }));
+    const showAllTimeQueue =
+        fates.total === 0 ||
+        queue.waiting !== fates.waiting ||
+        queue.invited !== fates.invited ||
+        queue.confirmed !== fates.confirmed;
 
     return (
         <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
@@ -306,33 +319,48 @@ function QueueBlock({ insights }: { insights: Insights }) {
                         </div>
                         <ul className="mt-[2mm] text-[8.5pt]">
                             {segments.map(s => (
-                                <li key={s.label} className="flex items-center gap-[1.8mm] py-[0.6mm]">
+                                <li key={s.label} className="flex items-center gap-[1.8mm] py-[0.65mm]">
                                     <span className="inline-block w-[2.4mm] h-[2.4mm] rounded-[0.6mm] shrink-0" style={{ background: s.color }} />
                                     <span className="flex-1">{s.label}</span>
-                                    <span className="tabular-nums">{count(s.value)} <span className="text-(--rs-muted)">· {percent(s.value, fates.total)}%</span></span>
+                                    <span className="tabular-nums">{count(s.value)} <span className="text-(--rs-muted)">· {formatPercent(s.value, fates.total)}</span></span>
                                 </li>
                             ))}
                         </ul>
                     </>
                 )}
-                <div className="grid grid-cols-3 gap-[2mm] mt-[3.5mm]">
-                    {[
-                        { label: 'Waiting today', value: queue.waiting },
-                        { label: 'Invited', value: queue.invited },
-                        { label: 'Confirmed', value: queue.confirmed },
-                    ].map(f => (
-                        <div key={f.label} className="rounded-[2mm] bg-(--rs-panel) px-[2.5mm] py-[2mm]">
-                            <p className="text-[14pt] leading-none font-semibold">{count(f.value)}</p>
-                            <p className="mt-[1mm] text-[7.5pt] text-(--rs-muted)">{f.label}</p>
-                        </div>
-                    ))}
-                </div>
+                {showAllTimeQueue && (
+                    <div className="grid grid-cols-3 gap-[2mm] mt-[3mm]">
+                        {[
+                            { label: 'Waiting today', value: queue.waiting },
+                            { label: 'Invited', value: queue.invited },
+                            { label: 'Confirmed', value: queue.confirmed },
+                        ].map(f => (
+                            <div key={f.label} className="rounded-[2mm] bg-(--rs-panel) border border-(--rs-rule) px-[2.5mm] py-[2mm]">
+                                <p className="text-[13pt] leading-none font-semibold tabular-nums">{count(f.value)}</p>
+                                <p className="mt-[1mm] text-[7.5pt] text-(--rs-muted)">{f.label}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
             {longest.length > 0
-                ? <ShareList title="Longest waiting lists today" items={longest} total={queue.waiting} color="#e3b23c" />
+                ? <ShareList title="Longest waiting lists today" items={longest} total={queue.waiting} color="var(--rs-waiting)" />
                 : <div />}
         </div>
     );
+}
+
+/** Keeps the top multi-person sectors and folds singletons/overflow into "Other" so the table sums to 100%. */
+function compactFields(fields: Share[], maxRows = 4): Share[] {
+    const named = fields.filter(f => f.name !== 'Other' && f.name !== 'Not known');
+    const tailCount = fields.filter(f => f.name === 'Other' || f.name === 'Not known').reduce((s, f) => s + f.count, 0);
+    const hasMulti = named.some(f => f.count >= 2);
+    const candidate = hasMulti ? named.filter(f => f.count >= 2) : named;
+    const droppedCount = hasMulti ? named.filter(f => f.count < 2).reduce((s, f) => s + f.count, 0) : 0;
+    const needOther = tailCount + droppedCount > 0 || candidate.length > maxRows;
+    const kept = candidate.slice(0, needOther ? Math.max(1, maxRows - 1) : maxRows);
+    const overflow = candidate.slice(kept.length).reduce((s, f) => s + f.count, 0) + droppedCount + tailCount;
+    return overflow > 0 ? [...kept, { name: 'Other', count: overflow }] : kept;
 }
 
 function OutcomesBlock({ insights }: { insights: Insights }) {
@@ -340,33 +368,33 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
     if (o.graduates === 0 || o.asked === 0) return null;
     const max = Math.max(1, o.graduates);
     const steps = [
-        { label: 'Completed a course', value: o.graduates, of: 0 },
-        { label: 'Sent the survey', value: o.asked, of: o.graduates },
-        { label: 'Answered', value: o.responded, of: o.asked },
-        { label: 'Working', value: o.working, of: o.responded },
+        { label: 'Completed a course', value: o.graduates, of: 0, color: 'var(--rs-completed)', opacity: 1 },
+        { label: 'Sent the survey', value: o.asked, of: o.graduates, color: 'var(--rs-registered)', opacity: 0.9 },
+        { label: 'Answered', value: o.responded, of: o.asked, color: 'var(--rs-registered)', opacity: 0.65 },
+        { label: 'Working', value: o.working, of: o.asked, color: 'var(--rs-working)', opacity: 1 },
     ];
     const hours = [
         { name: 'Full-time', count: o.fullTime },
         { name: 'Part-time', count: o.partTime },
         { name: 'Not said', count: o.working - o.fullTime - o.partTime },
     ].filter(s => s.count > 0);
-    const fields = o.fields.slice(0, 5);
+    const fields = compactFields(o.fields, 4);
 
     return (
         <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
             <div className="min-w-0">
                 <p className={SUBHEAD}>From course to work</p>
                 <ul className="text-[8.5pt]">
-                    {steps.map((s, i) => (
+                    {steps.map(s => (
                         <li key={s.label} className="flex items-center gap-[2mm] py-[0.75mm]">
-                            <span className="w-[34%]">{s.label}</span>
+                            <span className="w-[36%]">{s.label}</span>
                             <span className="flex-1 h-[2.6mm]">
                                 {s.value > 0 && (
-                                    <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((s.value / max) * 100, 1.5)}%`, background: i === 3 ? 'var(--rs-completed)' : 'var(--rs-registered)', opacity: i === 3 ? 1 : 1 - i * 0.25 }} />
+                                    <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((s.value / max) * 100, 1.5)}%`, background: s.color, opacity: s.opacity }} />
                                 )}
                             </span>
                             <span className="w-[16mm] text-right tabular-nums whitespace-nowrap">
-                                {count(s.value)}{s.of > 0 && <span className="text-(--rs-muted)"> · {percent(s.value, s.of)}%</span>}
+                                {count(s.value)}{s.of > 0 && <span className="text-(--rs-muted)"> · {formatPercent(s.value, s.of)}</span>}
                             </span>
                         </li>
                     ))}
@@ -374,8 +402,8 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
             </div>
             {o.working > 0 ? (
                 <div className="min-w-0 flex flex-col gap-[3mm]">
-                    {fields.length > 0 && <ShareList title="Field of work" items={fields} total={o.working} color="var(--rs-completed)" />}
-                    {fields.length <= 3 && hours.length > 0 && <ShareList title="Hours" items={hours} total={o.working} color="var(--rs-completed)" />}
+                    {hours.length > 0 && <ShareList title="Hours" items={hours} total={o.working} color="var(--rs-working)" />}
+                    {fields.length > 0 && <ShareList title="Sector of work" items={fields} total={o.working} color="var(--rs-working)" />}
                 </div>
             ) : <div />}
         </div>
