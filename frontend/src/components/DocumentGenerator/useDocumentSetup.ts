@@ -3,11 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import {
     SINGLE_TEMPLATES, checkTemplate, createTemplate, deleteTemplate, fetchDocumentTemplates, fetchExcelColumns,
-    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, saveExcelColumns, variablesForArchive, variablesToMap,
+    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, saveExcelColumns, saveTemplateOrder, variablesForArchive, variablesToMap,
     MAX_TEMPLATE_BYTES, type DateRule, type SingleKind, type TemplateKind,
 } from '../../lib/documentUtils';
 import type { ExcelColumn } from '../../lib/appConfig';
-import type { DocumentTemplate, TemplateVariable } from '../../lib/types';
+import type { Course, DocumentTemplate, TemplateVariable } from '../../lib/types';
 
 const DOC_KEYS = {
     templates: ['doc_templates'],
@@ -78,6 +78,30 @@ export function useDocumentSetup() {
             // The database drops the template from course presets (migration 73)
             queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
+        },
+    });
+    const reorderTemplates = useMutation({
+        mutationFn: (ordered: DocumentTemplate[]) => saveTemplateOrder(ordered),
+        onMutate: ordered => {
+            const previous = queryClient.getQueryData<DocumentTemplate[]>(DOC_KEYS.templates);
+            queryClient.setQueryData(DOC_KEYS.templates, ordered);
+            const rank = new Map(ordered.map((t, i) => [t.id, i]));
+            const sortCourseIds = (old?: Course[]) => old?.map(c => (
+                c.template_ids && c.template_ids.length > 1
+                    ? { ...c, template_ids: [...c.template_ids].sort((a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER)) }
+                    : c
+            ));
+            queryClient.setQueryData<Course[]>(['doc_courses'], sortCourseIds);
+            queryClient.setQueryData<Course[]>(['courses'], sortCourseIds);
+            return { previous };
+        },
+        onSuccess: next => {
+            queryClient.setQueryData(DOC_KEYS.templates, next);
+            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+        },
+        onError: (_err, _ordered, context) => {
+            if (context?.previous) queryClient.setQueryData(DOC_KEYS.templates, context.previous);
         },
     });
 
@@ -152,7 +176,7 @@ export function useDocumentSetup() {
         archiveVariables,
         excelColumns: excelQuery.data?.columns ?? [],
         excelShared,
-        uploadTemplate, replaceTemplate, toggleActive, removeTemplate,
+        uploadTemplate, replaceTemplate, toggleActive, removeTemplate, reorderTemplates,
         saveSingle, removeSingle,
         addVariable, updateVariable, removeVariable,
         saveColumns,

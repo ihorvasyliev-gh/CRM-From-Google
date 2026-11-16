@@ -563,11 +563,11 @@ function splitDocumentXml(xml: string): ParsedDocXml {
 
 /** Ensure a section-break `<w:sectPr>` starts on a new page rather than continuing inline. */
 function toNextPageSectPr(sectPr: string): string {
-    if (/^<w:sectPr\s*\/>$/.test(sectPr)) return sectPr;
+    if (/^<w:sectPr\s*\/>$/.test(sectPr)) return '<w:sectPr><w:type w:val="nextPage"/></w:sectPr>';
     if (/<w:type\b[^>]*\/>/.test(sectPr)) {
         return sectPr.replace(/<w:type\b[^>]*\/>/g, '<w:type w:val="nextPage"/>');
     }
-    return sectPr;
+    return sectPr.replace(/^<w:sectPr(\b[^>]*)>/, '<w:sectPr$1><w:type w:val="nextPage"/>');
 }
 
 /** Normalize a zip path like `word/../media/img.png` to `media/img.png`. */
@@ -594,9 +594,30 @@ function toWordTarget(zipPath: string): string {
     return zipPath.startsWith('word/') ? zipPath.slice('word/'.length) : `../${zipPath}`;
 }
 
+/** Merge `<w:style>` definitions from `sourceStylesXml` that are missing in `targetStylesXml`. */
+function mergeMissingStyles(targetStylesXml: string, sourceStylesXml: string): string {
+    const existingIds = new Set([...targetStylesXml.matchAll(/\bw:styleId="([^"]+)"/g)].map(m => m[1]));
+    const toAdd: string[] = [];
+    for (const sm of sourceStylesXml.matchAll(/<w:style\b[^>]*\bw:styleId="([^"]+)"[\s\S]*?<\/w:style>/g)) {
+        if (!existingIds.has(sm[1])) {
+            existingIds.add(sm[1]);
+            toAdd.push(sm[0].replace(/\s+w:default="(?:1|true)"/g, ''));
+        }
+    }
+    return toAdd.length > 0 ? targetStylesXml.replace(/<\/w:styles>\s*$/, `${toAdd.join('')}</w:styles>`) : targetStylesXml;
+}
+
+const SINGLETON_REL_TYPES = new Set([
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme',
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering',
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes',
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes',
+]);
+
 /**
  * Merge multiple rendered `.docx` files for one student into a single `.docx`, one template after
- * another on new pages. Preserves images/relationships, styles, and per-template page setup.
+ * another on new pages. Preserves images/relationships, styles, and per-template page setup
+ * (including isolating headers/footers across all internal and trailing section breaks).
  */
 export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayBuffer {
     if (buffers.length === 0) throw new Error('No documents to merge');
@@ -651,11 +672,21 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
         if (!otherXml) throw new Error('word/document.xml has no body');
         const part = splitDocumentXml(otherXml);
 
-        // 1. Merge any missing xmlns declarations onto <w:document>
+        // 1. Merge any missing xmlns declarations and mc:Ignorable tokens onto <w:document>
         for (const m of part.docOpen.matchAll(/\s(xmlns(?::[A-Za-z0-9_-]+)?)=("[^"]*"|'[^']*')/g)) {
             const [, attrName, attrVal] = m;
             if (!new RegExp(`\\s${attrName}=`).test(docOpen)) {
                 docOpen = docOpen.replace(/>$/, ` ${attrName}=${attrVal}>`);
+            }
+        }
+        const otherIgnorable = /\bmc:Ignorable="([^"]*)"/.exec(part.docOpen)?.[1];
+        if (otherIgnorable) {
+            const baseIgnorable = /\bmc:Ignorable="([^"]*)"/.exec(docOpen)?.[1];
+            if (baseIgnorable) {
+                const mergedTokens = [...new Set([...baseIgnorable.split(/\s+/), ...otherIgnorable.split(/\s+/)].filter(Boolean))].join(' ');
+                docOpen = docOpen.replace(/\bmc:Ignorable="[^"]*"/, `mc:Ignorable="${mergedTokens}"`);
+            } else {
+                docOpen = docOpen.replace(/>$/, ` mc:Ignorable="${otherIgnorable}">`);
             }
         }
 
@@ -678,6 +709,25 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
                 const type = /\bType="([^"]+)"/.exec(attrs)?.[1];
                 const targetMode = /\bTargetMode="([^"]+)"/.exec(attrs)?.[1];
                 if (!id || !target || !type) continue;
+
+                // Copy missing singleton document parts (e.g. theme1.xml, numbering.xml) when baseZip is a minimal pdfToDocx file
+                if (SINGLETON_REL_TYPES.has(type) && targetMode !== 'External') {
+                    if (!baseRelsXml || !baseRelsXml.includes(`Type="${type}"`)) {
+                        const partZipPath = resolveWordTarget(target);
+                        const entry = otherZip.file(partZipPath);
+                        if (entry && !baseZip.file(partZipPath)) {
+                            baseZip.file(partZipPath, entry.asArrayBuffer());
+                            appendRel(`<Relationship Id="${allocRelId()}" Type="${type}" Target="${toWordTarget(partZipPath)}"/>`);
+                            if (otherTypesXml && baseTypesXml) {
+                                const ovRe = new RegExp(`<Override\\b[^>]*\\bPartName="/?${partZipPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*\\bContentType="([^"]+)"`, 'i');
+                                const ovMatch = ovRe.exec(otherTypesXml);
+                                if (ovMatch) addContentTypeOverride(partZipPath, ovMatch[1]);
+                            }
+                        }
+                    }
+                    continue;
+                }
+
                 if (!chunkXml.includes(`"${id}"`) && !chunkXml.includes(`'${id}'`)) continue;
 
                 const newId = allocRelId();
@@ -715,6 +765,11 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
                             const newSubTargetPath = prefixPathFile(oldSubTargetPath, prefix);
                             baseZip.file(newSubTargetPath, subTargetEntry.asArrayBuffer());
                             subRelsText = subRelsText.replace(`Target="${sTarget}"`, `Target="${toWordTarget(newSubTargetPath)}"`);
+                            if (otherTypesXml && baseTypesXml) {
+                                const subOvRe = new RegExp(`<Override\\b[^>]*\\bPartName="/?${oldSubTargetPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*\\bContentType="([^"]+)"`, 'i');
+                                const subOvMatch = subOvRe.exec(otherTypesXml);
+                                if (subOvMatch) addContentTypeOverride(newSubTargetPath, subOvMatch[1]);
+                            }
                         }
                     }
                     baseZip.file(`${oldDir}_rels/${prefix}${oldFile}.rels`, subRelsText);
@@ -736,42 +791,35 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
             }
         }
 
-        // 3. Merge missing styles from word/styles.xml
+        // 3. Merge word/styles.xml (preferring a full Word stylesheet with latentStyles/docDefaults over a minimal pdfToDocx one)
         const otherStylesXml = otherZip.file('word/styles.xml')?.asText();
         if (otherStylesXml) {
             if (!baseStylesXml) {
                 baseStylesXml = otherStylesXml;
+            } else if (!baseStylesXml.includes('<w:latentStyles') && otherStylesXml.includes('<w:latentStyles')) {
+                baseStylesXml = mergeMissingStyles(otherStylesXml, baseStylesXml);
             } else {
-                const existingIds = new Set([...baseStylesXml.matchAll(/\bw:styleId="([^"]+)"/g)].map(m => m[1]));
-                const toAdd: string[] = [];
-                for (const sm of otherStylesXml.matchAll(/<w:style\b[^>]*\bw:styleId="([^"]+)"[\s\S]*?<\/w:style>/g)) {
-                    if (!existingIds.has(sm[1])) {
-                        existingIds.add(sm[1]);
-                        toAdd.push(sm[0].replace(/\s+w:default="(?:1|true)"/g, ''));
-                    }
-                }
-                if (toAdd.length > 0) {
-                    baseStylesXml = baseStylesXml.replace(/<\/w:styles>\s*$/, `${toAdd.join('')}</w:styles>`);
-                }
+                baseStylesXml = mergeMissingStyles(baseStylesXml, otherStylesXml);
             }
         }
 
         parsed.push(part);
     }
 
-    // 4. Join sections: use simple page breaks when all templates share the same page setup,
+    // 4. Join sections: use simple page breaks when all templates share the same page setup and have no internal section breaks,
     // or per-template section breaks when page setup (size, orientation, margins, headers/footers) differs.
     const normSect = (s: string | null) => (!s || /^<w:sectPr\s*\/>$/.test(s) ? '' : s);
-    const sameSectSetup = new Set(parsed.map(p => normSect(p.sectPr))).size <= 1;
+    const hasInternalSects = parsed.some(p => p.content.includes('<w:sectPr'));
+    const sameSectSetup = !hasInternalSects && new Set(parsed.map(p => normSect(p.sectPr))).size <= 1;
     const pageBreakPara = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 
     let mergedBody: string;
     if (sameSectSetup) {
         mergedBody = parsed.map(p => p.content).join(pageBreakPara) + (parsed[parsed.length - 1].sectPr ?? '');
     } else {
-        // Prevent headers/footers from an earlier template leaking into a later template that has none
-        let seenHdrTypes = new Set<string>();
-        let seenFtrTypes = new Set<string>();
+        // Prevent headers/footers from an earlier template leaking into a later template (including its internal section breaks!)
+        const seenHdrTypes = new Set<string>();
+        const seenFtrTypes = new Set<string>();
         let blankHdrRId: string | null = null;
         let blankFtrRId: string | null = null;
 
@@ -795,44 +843,59 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
             return blankFtrRId;
         };
 
-        const isolateHeadersFooters = (sect: string | null): string => {
-            let s = sect && !/^<w:sectPr\s*\/>$/.test(sect) ? sect : '<w:sectPr></w:sectPr>';
-            const curHdrs = new Set([...s.matchAll(/<w:headerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
-            const curFtrs = new Set([...s.matchAll(/<w:footerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
-            const inject: string[] = [];
-            for (const t of seenHdrTypes) {
-                if (!curHdrs.has(t)) inject.push(`<w:headerReference w:type="${t}" r:id="${getBlankHdrRId()}"/>`);
-            }
-            for (const t of seenFtrTypes) {
-                if (!curFtrs.has(t)) inject.push(`<w:footerReference w:type="${t}" r:id="${getBlankFtrRId()}"/>`);
-            }
-            seenHdrTypes = new Set([...seenHdrTypes, ...curHdrs]);
-            seenFtrTypes = new Set([...seenFtrTypes, ...curFtrs]);
-            if (inject.length > 0) {
-                if (!/\sxmlns:r=/.test(docOpen)) {
-                    docOpen = docOpen.replace(/>$/, ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
-                }
-                s = s.replace(/^<w:sectPr(\b[^>]*)>/, `<w:sectPr$1>${inject.join('')}`);
-            }
-            return s;
-        };
-
         const chunks: string[] = [];
         for (let i = 0; i < parsed.length; i++) {
             const p = parsed[i];
-            const sect = isolateHeadersFooters(p.sectPr);
+            // Within standalone template `p`, track which header/footer types exist from the start of `p`
+            const tplHdrs = new Set<string>();
+            const tplFtrs = new Set<string>();
+
+            const isolateSect = (sect: string | null): string => {
+                let s = sect && !/^<w:sectPr\s*\/>$/.test(sect) ? sect : '<w:sectPr></w:sectPr>';
+                const curHdrs = new Set([...s.matchAll(/<w:headerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
+                const curFtrs = new Set([...s.matchAll(/<w:footerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
+                for (const t of curHdrs) tplHdrs.add(t);
+                for (const t of curFtrs) tplFtrs.add(t);
+
+                const inject: string[] = [];
+                for (const t of seenHdrTypes) {
+                    if (!curHdrs.has(t) && !tplHdrs.has(t)) inject.push(`<w:headerReference w:type="${t}" r:id="${getBlankHdrRId()}"/>`);
+                }
+                for (const t of seenFtrTypes) {
+                    if (!curFtrs.has(t) && !tplFtrs.has(t)) inject.push(`<w:footerReference w:type="${t}" r:id="${getBlankFtrRId()}"/>`);
+                }
+                for (const t of curHdrs) seenHdrTypes.add(t);
+                for (const t of curFtrs) seenFtrTypes.add(t);
+
+                if (inject.length > 0) {
+                    if (!/\sxmlns:r=/.test(docOpen)) {
+                        docOpen = docOpen.replace(/>$/, ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+                    }
+                    s = s.replace(/^<w:sectPr(\b[^>]*)>/, `<w:sectPr$1>${inject.join('')}`);
+                }
+                return s;
+            };
+
+            // Isolate every internal <w:sectPr> inside p.content as well as the trailing p.sectPr
+            const content = p.content.replace(/<w:sectPr\b(?:[^>]*\/>|[\s\S]*?<\/w:sectPr>)/g, m => isolateSect(m));
+            const sect = isolateSect(p.sectPr);
+
             if (i < parsed.length - 1) {
-                chunks.push(`${p.content}<w:p><w:pPr>${toNextPageSectPr(sect)}</w:pPr></w:p>`);
+                const nextSect = toNextPageSectPr(sect);
+                // Minimal zero-height section-break paragraph so it never overflows a full page onto an extra blank page
+                chunks.push(`${content}<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>${nextSect}</w:pPr></w:p>`);
             } else {
-                chunks.push(`${p.content}${sect}`);
+                chunks.push(`${content}${sect}`);
             }
         }
         mergedBody = chunks.join('');
     }
 
-    // 5. Ensure every drawing object has a unique id across the merged document
+    // 5. Ensure every drawing object and content control has a unique id across the merged document
     let nextDocPrId = 1;
     mergedBody = mergedBody.replace(/<(wp:docPr|pic:cNvPr)\b([^>]*?)\bid="\d+"/g, (_m, tag: string, before: string) => `<${tag}${before}id="${nextDocPrId++}"`);
+    let nextSdtId = 1000;
+    mergedBody = mergedBody.replace(/<w:sdtPr>([\s\S]*?)<\/w:sdtPr>/g, (_m, inner: string) => `<w:sdtPr>${inner.replace(/<w:id\b[^>]*\bw:val="\d+"/g, () => `<w:id w:val="${nextSdtId++}"`)}</w:sdtPr>`);
 
     const finalXml = `${parsed[0].beforeDocOpen}${docOpen}${parsed[0].beforeBody}${parsed[0].bodyOpen}${mergedBody}${parsed[0].afterBody}`;
     baseZip.file('word/document.xml', finalXml);

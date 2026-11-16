@@ -286,6 +286,27 @@ describe('DocumentGenerator', () => {
         expect(screen.getByText(/shared by every admin/)).toBeInTheDocument();
     });
 
+    it('reorders Word document templates and updates course preset order', async () => {
+        tables.document_templates.push({
+            id: 't2',
+            name: 'SICAP Individual Form.docx',
+            storage_path: 'template_2.docx',
+            is_active: true,
+            created_at: '2026-01-02T00:00:00.000Z',
+            updated_at: '2026-01-02T00:00:00.000Z',
+        });
+        tables.courses = [{ id: 'c1', name: 'Python 101', created_at: '2026-01-01', template_ids: ['t1', 't2'] }];
+        renderPage();
+        await chooseCourse();
+        expect(screen.getByText(/2 Word templates per student \(course preset\): Certificate\.docx, SICAP Individual Form\.docx/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Move SICAP Individual Form.docx up' }));
+        await waitFor(() => expect(calls.some(c => c.table === 'document_templates' && c.op === 'update')).toBe(true));
+        await waitFor(() => expect(calls.some(c => c.table === 'courses' && c.op === 'update')).toBe(true));
+        const courseUpdate = calls.find(c => c.table === 'courses' && c.op === 'update');
+        expect(courseUpdate?.payload).toEqual({ template_ids: ['t2', 't1'] });
+    });
+
     it('creates a date variable worked out from the course date', async () => {
         renderPage();
         await screen.findByText('Certificate.docx');

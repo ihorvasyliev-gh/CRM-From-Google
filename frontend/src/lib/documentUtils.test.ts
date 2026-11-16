@@ -546,6 +546,87 @@ describe('combined file', () => {
         expect(docXml).toContain('Second for Mukhamed Mukhamedov');
         expect(docXml.match(/<w:sectPr>/g)).toHaveLength(2);
     });
+
+    it('isolates headers and footers on internal section breaks of multi-page templates in any order', async () => {
+        // Template with header/footer logos + full Word styles
+        const makeHeaderedWordDocx = (text: string) => {
+            const zip = new PizZip(makeDocx('x'));
+            zip.file('word/header1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>SICAP_LOGO</w:t></w:r></w:p></w:hdr>');
+            zip.file('word/footer1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>EU_FOOTER</w:t></w:r></w:p></w:ftr>');
+            zip.file('word/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults/><w:latentStyles/><w:style w:type="table" w:styleId="TableNormal"><w:name w:val="Normal Table"/></w:style></w:styles>');
+            zip.file('word/theme/theme1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme"/>');
+            zip.file('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>'
+                + '<Relationship Id="rId12" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>'
+                + '<Relationship Id="rId13" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
+                + '</Relationships>');
+            zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                + `<w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rId12"/><w:footerReference w:type="default" r:id="rId13"/><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:body></w:document>`);
+            return zip.generate({ type: 'arraybuffer' });
+        };
+
+        // Multi-page pdfToDocx-style template with internal <w:sectPr> per page and no headers/footers
+        const makeMultiPageFormDocx = (text: string) => {
+            const zip = new PizZip(makeDocx('x'));
+            zip.file('word/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>');
+            zip.file('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                + '</Relationships>');
+            zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                + `<w:body>`
+                + `<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:pPr><w:r><w:t>${text} p1</w:t></w:r></w:p>`
+                + `<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:pPr><w:r><w:t>${text} p2</w:t></w:r></w:p>`
+                + `<w:p><w:r><w:t>${text} p3</w:t></w:r></w:p>`
+                + `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>`
+                + `</w:body></w:document>`);
+            return zip.generate({ type: 'arraybuffer' });
+        };
+
+        // Case 1: Headered template first, multi-page form second
+        const { blob: blob1 } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Ikechukwu', 'Obijiaku')],
+            templates: [
+                { name: 'Personal Plan.docx', storagePath: 'plan' },
+                { name: 'SICAP Individual Form.docx', storagePath: 'form' },
+            ],
+            combined: true,
+            fetchTemplate: files({
+                plan: makeHeaderedWordDocx('Plan for {fullName}'),
+                form: makeMultiPageFormDocx('Form for {fullName}'),
+            }),
+        });
+        const merged1 = new PizZip(new PizZip(await blob1.arrayBuffer()).file('Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
+        const docXml1 = merged1.file('word/document.xml')!.asText();
+        const sectPrs1 = [...docXml1.matchAll(/<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/g)].map(m => m[0]);
+        expect(sectPrs1).toHaveLength(4);
+        // Every section break (including the 2 internal page breaks of the form) has explicit header & footer refs
+        for (const sect of sectPrs1) {
+            expect(sect).toContain('<w:headerReference w:type="default"');
+            expect(sect).toContain('<w:footerReference w:type="default"');
+        }
+        expect(merged1.file('word/blank_hdr.xml')).toBeTruthy();
+        expect(merged1.file('word/blank_ftr.xml')).toBeTruthy();
+
+        // Case 2: Multi-page form first, headered template second
+        const { blob: blob2 } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Ikechukwu', 'Obijiaku')],
+            templates: [
+                { name: 'SICAP Individual Form.docx', storagePath: 'form' },
+                { name: 'Personal Plan.docx', storagePath: 'plan' },
+            ],
+            combined: true,
+            fetchTemplate: files({
+                form: makeMultiPageFormDocx('Form for {fullName}'),
+                plan: makeHeaderedWordDocx('Plan for {fullName}'),
+            }),
+        });
+        const merged2 = new PizZip(new PizZip(await blob2.arrayBuffer()).file('Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
+        expect(merged2.file('word/styles.xml')!.asText()).toContain('<w:latentStyles/>');
+        expect(merged2.file('word/theme/theme1.xml')).toBeTruthy();
+    });
 });
 
 describe('cancelling', () => {

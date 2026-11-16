@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, ClipboardList, FileText, Info, Tag, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ClipboardList, FileText, Info, Tag, Trash2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import FileDropzone from '../ui/FileDropzone';
@@ -63,10 +63,18 @@ export function WordTemplatesCard({ setup, showToast, confirmDelete }: CardProps
         onError: err => showToast(`Failed to toggle: ${errorText(err)}`, 'error'),
     });
 
+    const move = (from: number, to: number) => {
+        const next = [...templates];
+        next.splice(to, 0, ...next.splice(from, 1));
+        setup.reorderTemplates.mutate(next, {
+            onError: err => showToast(`Could not reorder templates: ${errorText(err)}`, 'error'),
+        });
+    };
+
     return (
         <Card
             title="Word document templates"
-            subtitle="Toggle which .docx templates are used during generation"
+            subtitle="Toggle and order which .docx templates are used during generation"
             icon={FileText}
             tone="completed"
             action={<Badge tone="completed" shape="pill" className="tabular-nums">{templates.length}</Badge>}
@@ -79,8 +87,9 @@ export function WordTemplatesCard({ setup, showToast, confirmDelete }: CardProps
                     </div>
                 ) : (
                     <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
-                        {templates.map(tpl => (
-                            <li key={tpl.id} className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${tpl.is_active ? '' : 'bg-surface-elevated/40'}`}>
+                        {templates.map((tpl, idx) => (
+                            <li key={tpl.id} className={`flex items-center gap-2.5 px-3 py-2.5 transition-colors ${tpl.is_active ? '' : 'bg-surface-elevated/40'}`}>
+                                <span className="text-xs tabular-nums text-muted w-4 text-right shrink-0">{idx + 1}</span>
                                 <button
                                     type="button"
                                     role="switch"
@@ -98,28 +107,48 @@ export function WordTemplatesCard({ setup, showToast, confirmDelete }: CardProps
                                         {busy === tpl.id ? 'Uploading…' : `Updated ${formatDisplayDate(tpl.updated_at || tpl.created_at)}`}
                                     </p>
                                 </div>
-                                <DownloadButton label={`Download ${tpl.name}`} onClick={() => saveCopy(tpl, showToast)} />
-                                <ReplaceFileButton
-                                    label={`Replace ${tpl.name} with a new file`}
-                                    disabled={busy !== null}
-                                    onFile={file => upload(tpl.id, 'document', file, `"${tpl.name}" replaced — courses using it keep it`, f => setup.replaceTemplate.mutateAsync({ tpl, file: f }))}
-                                />
-                                <IconButton
-                                    size="sm"
-                                    tone="danger"
-                                    label={`Delete template ${tpl.name}`}
-                                    title="Delete template"
-                                    onClick={() => confirmDelete({
-                                        title: 'Delete Template',
-                                        message: `Delete "${tpl.name}"? The file will be removed permanently and courses that picked it will stop using it.`,
-                                        run: () => setup.removeTemplate.mutateAsync(tpl).then(
-                                            () => showToast('Template deleted', 'success'),
-                                            err => showToast(`Delete failed: ${errorText(err)}`, 'error'),
-                                        ),
-                                    })}
-                                >
-                                    <Trash2 size={14} />
-                                </IconButton>
+                                <span className="flex items-center shrink-0">
+                                    <IconButton
+                                        size="sm"
+                                        label={`Move ${tpl.name} up`}
+                                        title="Move up"
+                                        disabled={idx === 0}
+                                        onClick={() => move(idx, idx - 1)}
+                                    >
+                                        <ArrowUp size={13} />
+                                    </IconButton>
+                                    <IconButton
+                                        size="sm"
+                                        label={`Move ${tpl.name} down`}
+                                        title="Move down"
+                                        disabled={idx === templates.length - 1}
+                                        onClick={() => move(idx, idx + 1)}
+                                    >
+                                        <ArrowDown size={13} />
+                                    </IconButton>
+                                    <DownloadButton label={`Download ${tpl.name}`} onClick={() => saveCopy(tpl, showToast)} />
+                                    <ReplaceFileButton
+                                        label={`Replace ${tpl.name} with a new file`}
+                                        disabled={busy !== null}
+                                        onFile={file => upload(tpl.id, 'document', file, `"${tpl.name}" replaced — courses using it keep it`, f => setup.replaceTemplate.mutateAsync({ tpl, file: f }))}
+                                    />
+                                    <IconButton
+                                        size="sm"
+                                        tone="danger"
+                                        label={`Delete template ${tpl.name}`}
+                                        title="Delete template"
+                                        onClick={() => confirmDelete({
+                                            title: 'Delete Template',
+                                            message: `Delete "${tpl.name}"? The file will be removed permanently and courses that picked it will stop using it.`,
+                                            run: () => setup.removeTemplate.mutateAsync(tpl).then(
+                                                () => showToast('Template deleted', 'success'),
+                                                err => showToast(`Delete failed: ${errorText(err)}`, 'error'),
+                                            ),
+                                        })}
+                                    >
+                                        <Trash2 size={14} />
+                                    </IconButton>
+                                </span>
                             </li>
                         ))}
                     </ul>

@@ -137,6 +137,48 @@ export async function deleteTemplate(table: TemplateTable, row: DocumentTemplate
     await removeTemplateFiles([row.storage_path]);
 }
 
+/**
+ * Persist a new template order. `fetchDocumentTemplates` sorts by `created_at` ascending, so
+ * assigning strictly increasing `created_at` timestamps reorders templates without a schema change.
+ * Course presets (`courses.template_ids`) are also reordered to match.
+ */
+export async function saveTemplateOrder(ordered: DocumentTemplate[]): Promise<DocumentTemplate[]> {
+    if (ordered.length < 2) return ordered;
+    const parsed = ordered.map(t => Date.parse(t.created_at)).filter(Number.isFinite);
+    let cursor = parsed.length ? Math.min(...parsed) : Date.now() - ordered.length * 1000;
+    const next: DocumentTemplate[] = [];
+    const updates: { id: string; created_at: string }[] = [];
+    for (const tpl of ordered) {
+        const currentMs = Date.parse(tpl.created_at);
+        const targetMs = Number.isFinite(currentMs) && currentMs > cursor ? currentMs : cursor + 1000;
+        cursor = targetMs;
+        const created_at = new Date(targetMs).toISOString();
+        if (created_at !== tpl.created_at) {
+            updates.push({ id: tpl.id, created_at });
+            next.push({ ...tpl, created_at });
+        } else {
+            next.push(tpl);
+        }
+    }
+    await Promise.all(updates.map(async u => {
+        const { error } = await supabase.from('document_templates').update({ created_at: u.created_at }).eq('id', u.id);
+        if (error) throw error;
+    }));
+
+    const rank = new Map(ordered.map((t, i) => [t.id, i]));
+    const { data: courses } = await supabase.from('courses').select('id, template_ids');
+    if (Array.isArray(courses)) {
+        const courseUpdates = (courses as { id: string; template_ids?: string[] | null }[]).flatMap(c => {
+            const ids = c.template_ids;
+            if (!Array.isArray(ids) || ids.length < 2) return [];
+            const sorted = [...ids].sort((a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER));
+            return sorted.some((id, i) => id !== ids[i]) ? [{ id: c.id, template_ids: sorted }] : [];
+        });
+        await Promise.all(courseUpdates.map(u => supabase.from('courses').update({ template_ids: u.template_ids }).eq('id', u.id)));
+    }
+    return next;
+}
+
 /** Download a template's bytes. The bucket is private, so this goes through the signed-in session. */
 async function fetchTemplateFile(storagePath: string): Promise<ArrayBuffer> {
     const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
@@ -156,12 +198,14 @@ export async function downloadTemplate(tpl: Pick<DocumentTemplate, 'name' | 'sto
 export type PresetState = 'all' | 'preset' | 'preset-off';
 
 /**
- * Which templates a course uses. A course that picked templates uses the picked ones that
- * are switched on — or none, if they are all switched off ('preset-off'), rather than silently
- * falling back to every active template. No picks (or only picks of deleted templates) = all active.
+ * Which templates a course uses. A course that picked templates uses the picked ones (in the
+ * order they were picked) that are switched on — or none, if they are all switched off
+ * ('preset-off'), rather than silently falling back to every active template.
+ * No picks (or only picks of deleted templates) = all active.
  */
 export function coursePreset<T extends { id: string; is_active: boolean }>(templates: T[], templateIds?: string[] | null): { templates: T[]; state: PresetState } {
-    const picked = templates.filter(t => templateIds?.includes(t.id));
+    const byId = new Map(templates.map(t => [t.id, t]));
+    const picked = (templateIds ?? []).map(id => byId.get(id)).filter((t): t is T => !!t);
     if (!picked.length) return { templates: templates.filter(t => t.is_active), state: 'all' };
     const active = picked.filter(t => t.is_active);
     return { templates: active, state: active.length ? 'preset' : 'preset-off' };

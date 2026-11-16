@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Users, Globe, Languages, Mail, BellRing } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Users, Globe, Languages, Mail, BellRing } from 'lucide-react';
 import { Course, CourseEmailInfo, DocumentTemplate } from '../lib/types';
 import { getConfig, type InviteEmailKind } from '../lib/appConfig';
 import { buildEmailBodyHtml } from '../lib/emailTemplates';
 import { cardTextStyle } from '../lib/emailFormat';
 import EmailEditor from './EmailEditor/EmailEditor';
 import Modal, { FormError } from './ui/Modal';
-import { Button } from './ui/Button';
+import { Button, IconButton } from './ui/Button';
 import { Segmented } from './ui/Tabs';
 import { fieldCls, labelCls } from './ui/styles';
 import FieldError from './ui/FieldError';
@@ -215,21 +215,69 @@ export default function CourseModal({ open, course, templates, onSave, onClose }
                     <span className={labelCls}>Document templates</span>
                     {templates.length === 0 ? (
                         <p className="text-xs text-muted">No active templates — upload and switch them on in Documents.</p>
-                    ) : (
-                        <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle max-h-56 overflow-y-auto">
-                            {templates.map(t => (
-                                <label key={t.id} className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-primary cursor-pointer hover:bg-surface-elevated/50">
-                                    <input
-                                        type="checkbox"
-                                        className="accent-brand-500"
-                                        checked={templateIds.includes(t.id)}
-                                        onChange={() => setTemplateIds(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
-                                    />
-                                    <span className="truncate" title={t.name}>{t.name}</span>
-                                </label>
-                            ))}
-                        </div>
-                    )}
+                    ) : (() => {
+                        const checkedVisibleIds = templateIds.filter(id => templates.some(t => t.id === id));
+                        const orderedTemplates = [
+                            ...checkedVisibleIds.map(id => templates.find(t => t.id === id)!),
+                            ...templates.filter(t => !templateIds.includes(t.id)),
+                        ];
+                        const moveTemplate = (id: string, delta: -1 | 1) => {
+                            setTemplateIds(prev => {
+                                const visibleIds = prev.filter(pid => templates.some(t => t.id === pid));
+                                const idx = visibleIds.indexOf(id);
+                                const targetIdx = idx + delta;
+                                if (idx < 0 || targetIdx < 0 || targetIdx >= visibleIds.length) return prev;
+                                const otherId = visibleIds[targetIdx];
+                                return prev.map(pid => pid === id ? otherId : pid === otherId ? id : pid);
+                            });
+                        };
+                        return (
+                            <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle max-h-56 overflow-y-auto">
+                                {orderedTemplates.map(t => {
+                                    const checkedIdx = checkedVisibleIds.indexOf(t.id);
+                                    const checked = checkedIdx !== -1;
+                                    return (
+                                        <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-primary hover:bg-surface-elevated/50">
+                                            <label className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    className="accent-brand-500"
+                                                    checked={checked}
+                                                    onChange={() => setTemplateIds(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
+                                                />
+                                                {checked && checkedVisibleIds.length > 1 && (
+                                                    <span className="text-xs tabular-nums text-muted shrink-0">{checkedIdx + 1}.</span>
+                                                )}
+                                                <span className="truncate" title={t.name}>{t.name}</span>
+                                            </label>
+                                            {checked && checkedVisibleIds.length > 1 && (
+                                                <span className="flex items-center shrink-0">
+                                                    <IconButton
+                                                        size="sm"
+                                                        label={`Move ${t.name} up`}
+                                                        title="Move up"
+                                                        disabled={checkedIdx === 0}
+                                                        onClick={() => moveTemplate(t.id, -1)}
+                                                    >
+                                                        <ArrowUp size={13} />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="sm"
+                                                        label={`Move ${t.name} down`}
+                                                        title="Move down"
+                                                        disabled={checkedIdx === checkedVisibleIds.length - 1}
+                                                        onClick={() => moveTemplate(t.id, 1)}
+                                                    >
+                                                        <ArrowDown size={13} />
+                                                    </IconButton>
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
                     <p className="text-xs text-muted mt-1.5">
                         Used when generating documents for this course. Pick none to use all active templates; if everything picked is switched off later, the course gets no Word documents until you switch one back on.
                     </p>
