@@ -1205,11 +1205,11 @@ a:focus-visible,
     box-sizing: border-box;
     width: 210mm;
     height: 297mm;
-    padding: 12mm 15mm 10mm;
+    padding: 10mm 14mm 9mm;
     overflow: hidden;
     background: var(--rs-paper);
     color: var(--rs-ink);
-    font-size: 9pt;
+    font-size: 8.75pt;
     line-height: 1.35;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

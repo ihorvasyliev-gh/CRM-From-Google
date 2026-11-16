@@ -83,14 +83,25 @@ describe('SummaryReportSheet', () => {
         expect(within(second).getByText('Page 2 of 2')).toBeInTheDocument();
     });
 
-    it('folds a long course list into "Other courses" so it stays on the page', () => {
+    it('shows up to 15 courses individually without folding into "Other courses"', () => {
+        const eleven = Array.from({ length: 11 }, (_, i) => course(i + 1, 20 - i, 1));
+        render(sheet(insights(eleven), 1));
+
+        const rows = within(screen.getByRole('table')).getAllByRole('row');
+        // Header, 11 courses, total
+        expect(rows).toHaveLength(13);
+        expect(screen.getByText('Course 11')).toBeInTheDocument();
+        expect(screen.queryByText(/Other courses/)).not.toBeInTheDocument();
+    });
+
+    it('folds a very long course list into "Other courses" so it stays on the page', () => {
         const many = Array.from({ length: 30 }, (_, i) => course(i + 1, 30 - i, 1));
         render(sheet(insights(many), 1));
 
         const rows = within(screen.getByRole('table')).getAllByRole('row');
-        // Header, 10 rows (9 courses and "Other"), total
-        expect(rows).toHaveLength(12);
-        expect(screen.getByText('Other courses (21)')).toBeInTheDocument();
+        // Header, 15 rows (14 courses and "Other"), total
+        expect(rows).toHaveLength(17);
+        expect(screen.getByText('Other courses (16)')).toBeInTheDocument();
     });
 
     it('says so when nothing happened in the period, without an empty chart', () => {

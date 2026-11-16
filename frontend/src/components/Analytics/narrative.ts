@@ -129,11 +129,12 @@ function courseSentences(d: Insights): string[] {
     }
     const notDelivered = s.courses.filter(c => c.registered > 0 && c.completed === 0);
     if (notDelivered.length > 0 && byCompleted.length > 0) {
-        const names = notDelivered.slice(0, 3).map(c => `${c.name} (${count(c.registered)})`);
-        const more = notDelivered.length - names.length;
+        const shown = notDelivered.length <= 4 ? notDelivered : notDelivered.slice(0, 3);
+        const more = notDelivered.length - shown.length;
+        const items = shown.map(c => `${c.name} (${count(c.registered)})`);
+        if (more > 0) items.push(`${count(more)} more`);
         out.push(
-            `${plural(notDelivered.length, 'course')} had registrations but no completions in the period: ` +
-            `${listOf(names)}${more > 0 ? ` and ${count(more)} more` : ''}.`,
+            `${plural(notDelivered.length, 'course')} had registrations but no completions in the period: ${listOf(items)}.`,
         );
     }
     return out;

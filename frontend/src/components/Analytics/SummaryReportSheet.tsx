@@ -12,8 +12,8 @@ import { foldCourses, formatPeriodLabel, niceStep, type ReportMonth } from './su
  * not fit into "Other courses", and every list is capped.
  */
 
-const COURSE_ROWS_WITH_CHART = 10;
-const COURSE_ROWS = 18;
+const COURSE_ROWS_WITH_CHART = 15;
+const COURSE_ROWS = 22;
 
 interface SummaryReportSheetProps {
     insights: Insights;
@@ -31,11 +31,13 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
     const isEmpty = report.registrations === 0 && report.completions === 0;
     const showChart = report.months.length >= 2 && !isEmpty;
     const rows = foldCourses(report.courses, showChart ? COURSE_ROWS_WITH_CHART : COURSE_ROWS);
+    const denseTable = rows.length > 10;
+    const rowPad = denseTable ? 'py-[0.65mm]' : 'py-[0.95mm]';
     // One scale for both columns: a course's completions read against its registrations
     const scaleMax = Math.max(1, ...rows.map(r => Math.max(r.registered, r.completed)));
     const subject = courseName ?? 'All courses';
     const footer = (page: number) => (
-        <footer className="mt-auto pt-[3mm] flex items-center justify-between text-[7.5pt] text-(--rs-muted) border-t border-(--rs-rule)">
+        <footer className="mt-auto pt-[2.2mm] shrink-0 flex items-center justify-between text-[7.5pt] text-(--rs-muted) border-t border-(--rs-rule)">
             <span>Cork City Partnership · Courses report · {formatPeriodLabel(period)}</span>
             <span>Page {page} of {pages}</span>
         </footer>
@@ -44,26 +46,25 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
     return (
         <>
             <article className="report-sheet" aria-label="Courses report">
-                <header className="flex items-start justify-between gap-6">
-                    <img src="/logos-banner.png" alt="Cork City Partnership · SICAP" className="h-[15mm] w-auto" />
-                    <p className="text-[8pt] text-(--rs-muted) text-right whitespace-nowrap pt-[1mm]">
-                        Prepared {formatLocalDate(preparedOn, { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </p>
+                <header className="shrink-0 flex items-center justify-between gap-6 pb-[3mm] border-b border-(--rs-rule)">
+                    <img src="/logos-banner.png" alt="Cork City Partnership · SICAP" className="h-[12.5mm] w-auto" />
+                    <div className="text-right">
+                        <h1 className="text-[16pt] leading-tight font-semibold tracking-tight">Courses report</h1>
+                        <p className="mt-[0.6mm] text-[8.75pt] text-(--rs-ink-2)">
+                            {subject} · <span className="font-semibold text-(--rs-ink)">{formatPeriodLabel(period)}</span>
+                        </p>
+                        <p className="mt-[0.4mm] text-[7.25pt] text-(--rs-muted)">
+                            Prepared {formatLocalDate(preparedOn, { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                    </div>
                 </header>
 
-                <div className="mt-[6mm] pb-[3.5mm] border-b border-(--rs-rule)">
-                    <h1 className="text-[20pt] leading-tight font-semibold tracking-tight">Courses report</h1>
-                    <p className="mt-[1mm] text-[10.5pt] text-(--rs-ink-2)">
-                        {subject} · <span className="font-semibold text-(--rs-ink)">{formatPeriodLabel(period)}</span>
-                    </p>
-                </div>
-
-                <section className="mt-[4.5mm]" aria-label="Summary">
+                <section className="mt-[3.2mm] shrink-0" aria-label="Summary">
                     <SectionTitle title="Summary" />
                     <Prose sentences={narrative.summary} />
                 </section>
 
-                <section className="grid grid-cols-4 gap-[3mm] mt-[4.5mm]" aria-label="Key figures">
+                <section className="grid grid-cols-4 gap-[2.8mm] mt-[3.2mm] shrink-0" aria-label="Key figures">
                     <Figure
                         swatch="var(--rs-registered)"
                         label="People registered"
@@ -95,20 +96,20 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                 </section>
 
                 {showChart && (
-                    <section className="mt-[5mm]" aria-label="By month">
+                    <section className="mt-[3.5mm] shrink-0" aria-label="By month">
                         <SectionTitle title="By month" legend />
                         <MonthChart months={report.months} />
                     </section>
                 )}
 
-                <section className="mt-[5mm] min-h-0" aria-label="Courses">
+                <section className="mt-[3.5mm] pb-[2mm] shrink-0" aria-label="Courses">
                     <SectionTitle title="Courses by demand" legend={!showChart && !isEmpty} />
                     {isEmpty ? (
                         <p className="py-[10mm] text-center text-(--rs-ink-2)">No registrations or completions in this period.</p>
                     ) : (
                         <>
-                            <Prose sentences={narrative.courses} className="mb-[2.5mm]" />
-                            <table className="w-full table-fixed border-collapse text-[8.5pt]">
+                            <Prose sentences={narrative.courses} className="mb-[2mm]" />
+                            <table className={`w-full table-fixed border-collapse ${denseTable ? 'text-[8pt]' : 'text-[8.5pt]'}`}>
                                 <colgroup>
                                     <col className="w-[38%]" />
                                     <col className="w-[10%]" />
@@ -116,24 +117,24 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                                     <col className="w-[26%]" />
                                 </colgroup>
                                 <thead>
-                                    <tr className="text-left text-[7.5pt] uppercase tracking-wider text-(--rs-muted) border-b border-(--rs-rule)">
-                                        <th className="font-semibold py-[1.2mm] pr-[3mm]">Course</th>
-                                        <th className="font-semibold py-[1.2mm] pr-[4mm] text-right">Runs</th>
-                                        <th className="font-semibold py-[1.2mm] pr-[3mm] text-right">Registered</th>
-                                        <th className="font-semibold py-[1.2mm] text-right">Completed</th>
+                                    <tr className="text-left text-[7pt] uppercase tracking-wider text-(--rs-muted) border-b border-(--rs-rule)">
+                                        <th className="font-semibold py-[1mm] pr-[3mm]">Course</th>
+                                        <th className="font-semibold py-[1mm] pr-[4mm] text-right">Runs</th>
+                                        <th className="font-semibold py-[1mm] pr-[3mm] text-right">Registered</th>
+                                        <th className="font-semibold py-[1mm] text-right">Completed</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {rows.map(row => (
                                         <tr key={row.courseId} className="border-b border-(--rs-rule-soft)">
-                                            <td className={`py-[1.05mm] pr-[3mm] truncate ${row.courseId === 'other' ? 'text-(--rs-ink-2) italic' : 'font-medium'}`} title={row.name}>
+                                            <td className={`${rowPad} pr-[3mm] truncate ${row.courseId === 'other' ? 'text-(--rs-ink-2) italic' : 'font-medium'}`} title={row.name}>
                                                 {row.name}
                                             </td>
-                                            <td className="py-[1.05mm] pr-[4mm] text-right tabular-nums">{count(row.runs)}</td>
-                                            <td className="py-[1.05mm] pr-[3mm]">
+                                            <td className={`${rowPad} pr-[4mm] text-right tabular-nums`}>{count(row.runs)}</td>
+                                            <td className={`${rowPad} pr-[3mm]`}>
                                                 <BarCell value={row.registered} max={scaleMax} color="var(--rs-registered)" />
                                             </td>
-                                            <td className="py-[1.05mm]">
+                                            <td className={rowPad}>
                                                 <BarCell value={row.completed} max={scaleMax} color="var(--rs-completed)" />
                                             </td>
                                         </tr>
@@ -141,10 +142,10 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                                 </tbody>
                                 <tfoot>
                                     <tr className="font-semibold border-t border-(--rs-rule)">
-                                        <td className="pt-[1.6mm] pr-[3mm]">Total</td>
-                                        <td className="pt-[1.6mm] pr-[4mm] text-right tabular-nums">{count(report.courseRuns)}</td>
-                                        <td className="pt-[1.6mm] pr-[3mm] text-right tabular-nums">{count(report.registrations)}</td>
-                                        <td className="pt-[1.6mm] text-right tabular-nums">{count(report.completions)}</td>
+                                        <td className="pt-[1.2mm] pr-[3mm]">Total</td>
+                                        <td className="pt-[1.2mm] pr-[4mm] text-right tabular-nums">{count(report.courseRuns)}</td>
+                                        <td className="pt-[1.2mm] pr-[3mm] text-right tabular-nums">{count(report.registrations)}</td>
+                                        <td className="pt-[1.2mm] text-right tabular-nums">{count(report.completions)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -157,28 +158,28 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
 
             {pages === 2 && (
                 <article className="report-sheet" aria-label="Courses report, page 2">
-                    <header className="flex items-baseline justify-between gap-6 pb-[3mm] border-b border-(--rs-rule)">
+                    <header className="shrink-0 flex items-baseline justify-between gap-6 pb-[2.8mm] border-b border-(--rs-rule)">
                         <p className="text-[10.5pt] font-semibold">Courses report</p>
                         <p className="text-[8.5pt] text-(--rs-ink-2)">{subject} · {formatPeriodLabel(period)}</p>
                     </header>
 
-                    <section className="mt-[5.5mm]" aria-label="Where registrations stand">
+                    <section className="mt-[4.5mm] shrink-0" aria-label="Where registrations stand">
                         <SectionTitle title="Where registrations stand" />
                         <Prose sentences={narrative.pipeline} />
                         <QueueBlock insights={insights} />
                     </section>
 
-                    <section className="mt-[7mm]" aria-label="Employment after the course">
+                    <section className="mt-[6mm] shrink-0" aria-label="Employment after the course">
                         <SectionTitle title="Employment after the course" />
                         <Prose sentences={narrative.outcomes} />
                         <OutcomesBlock insights={insights} />
                     </section>
 
                     {insights.people.total > 0 && (
-                        <section className="mt-[7mm]" aria-label="Who registered">
+                        <section className="mt-[6mm] shrink-0" aria-label="Who registered">
                             <SectionTitle title="Who registered" />
                             <Prose sentences={narrative.people} />
-                            <div className="grid grid-cols-3 gap-[5mm] mt-[3.5mm]">
+                            <div className="grid grid-cols-3 gap-[5mm] mt-[3mm]">
                                 <ShareList title="Course language" items={insights.people.languages.slice(0, 6)} total={insights.people.total} />
                                 <ShareList title="Where they live" items={insights.people.areas.slice(0, 7)} total={insights.people.total} />
                                 <ShareList title="Age" items={insights.people.ages} total={insights.people.total} />
@@ -186,7 +187,7 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
                         </section>
                     )}
 
-                    <section className="mt-[7mm] rounded-[2.5mm] bg-(--rs-panel) border border-(--rs-rule) px-[4mm] py-[2.8mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
+                    <section className="mt-[6mm] shrink-0 rounded-[2.5mm] bg-(--rs-panel) border border-(--rs-rule) px-[4mm] py-[2.6mm] text-[7.5pt] leading-[1.45] text-(--rs-ink-2)" aria-label="How the figures are counted">
                         <p className="font-semibold text-(--rs-ink)">How the figures are counted</p>
                         <p className="mt-[0.8mm]">
                             A registration is dated by the day the person registered, a completion by the day the course was completed.
@@ -207,28 +208,28 @@ export default function SummaryReportSheet({ insights, narrative, courseName = n
 
 function Prose({ sentences, className = '' }: { sentences: string[]; className?: string }) {
     if (sentences.length === 0) return null;
-    return <p className={`text-[9.5pt] leading-[1.5] text-(--rs-ink) ${className}`}>{sentences.join(' ')}</p>;
+    return <p className={`text-[8.75pt] leading-[1.42] text-(--rs-ink) ${className}`}>{sentences.join(' ')}</p>;
 }
 
 function Figure({ label, value, hint, swatch }: { label: string; value: ReactNode; hint: string; swatch?: string }) {
     return (
-        <div className="rounded-[2.5mm] bg-(--rs-panel) border border-(--rs-rule) px-[3.5mm] py-[3mm] min-w-0">
-            <p className="flex items-center gap-[1.6mm] text-[8pt] font-medium text-(--rs-ink-2) whitespace-nowrap">
-                {swatch && <span className="inline-block w-[2.4mm] h-[2.4mm] rounded-full shrink-0" style={{ background: swatch }} />}
+        <div className="rounded-[2.2mm] bg-(--rs-panel) border border-(--rs-rule) px-[3mm] py-[2.3mm] min-w-0">
+            <p className="flex items-center gap-[1.5mm] text-[7.5pt] font-medium text-(--rs-ink-2) whitespace-nowrap">
+                {swatch && <span className="inline-block w-[2.2mm] h-[2.2mm] rounded-full shrink-0" style={{ background: swatch }} />}
                 {label}
             </p>
-            <p className="mt-[1.2mm] text-[21pt] leading-none font-semibold tracking-tight tabular-nums">{value}</p>
-            <p className="mt-[1.5mm] text-[7.5pt] leading-[1.3] text-(--rs-muted)">{hint}</p>
+            <p className="mt-[1mm] text-[18.5pt] leading-none font-semibold tracking-tight tabular-nums">{value}</p>
+            <p className="mt-[1.2mm] text-[7pt] leading-[1.25] text-(--rs-muted)">{hint}</p>
         </div>
     );
 }
 
 function SectionTitle({ title, legend }: { title: string; legend?: boolean }) {
     return (
-        <div className="flex items-baseline justify-between gap-4 mb-[1.8mm]">
-            <h2 className="text-[11pt] font-semibold">{title}</h2>
+        <div className="flex items-baseline justify-between gap-4 mb-[1.2mm]">
+            <h2 className="text-[10.5pt] font-semibold">{title}</h2>
             {legend && (
-                <div className="flex items-center gap-[4mm] text-[8pt] text-(--rs-ink-2)">
+                <div className="flex items-center gap-[4mm] text-[7.5pt] text-(--rs-ink-2)">
                     <LegendKey color="var(--rs-registered)" label="Registered" />
                     <LegendKey color="var(--rs-completed)" label="Completed" />
                 </div>
@@ -240,7 +241,7 @@ function SectionTitle({ title, legend }: { title: string; legend?: boolean }) {
 function LegendKey({ color, label }: { color: string; label: string }) {
     return (
         <span className="flex items-center gap-[1.4mm]">
-            <span className="inline-block w-[2.6mm] h-[2.6mm] rounded-[0.6mm]" style={{ background: color }} />
+            <span className="inline-block w-[2.4mm] h-[2.4mm] rounded-[0.6mm]" style={{ background: color }} />
             {label}
         </span>
     );
@@ -250,7 +251,7 @@ function BarCell({ value, max, color }: { value: number; max: number; color: str
     const pct = (value / max) * 100;
     return (
         <div className="flex items-center gap-[2mm]">
-            <div className="flex-1 h-[2.4mm]">
+            <div className="flex-1 h-[2.2mm]">
                 {value > 0 && (
                     <div className="h-full rounded-r-[1mm]" style={{ width: `${Math.max(pct, 1.5)}%`, background: color }} />
                 )}
@@ -262,7 +263,7 @@ function BarCell({ value, max, color }: { value: number; max: number; color: str
 
 // ── Page 2 blocks ──────────────────────────────────────────────────
 
-const SUBHEAD = 'text-[7.5pt] uppercase tracking-wider font-semibold text-(--rs-muted) mb-[1.6mm]';
+const SUBHEAD = 'text-[7pt] uppercase tracking-wider font-semibold text-(--rs-muted) mb-[1.4mm]';
 
 /** A ranked list: name · bar · count and percent of `total`. */
 function ShareList({ title, items, total, color = 'var(--rs-registered)' }: { title: string; items: Share[]; total: number; color?: string }) {
@@ -271,11 +272,11 @@ function ShareList({ title, items, total, color = 'var(--rs-registered)' }: { ti
     return (
         <div className="min-w-0">
             <p className={SUBHEAD}>{title}</p>
-            <ul className="text-[8.5pt]">
+            <ul className="text-[8.25pt]">
                 {items.map(item => (
-                    <li key={item.name} className="flex items-center gap-[2mm] py-[0.75mm]">
-                        <span className={`w-[46%] truncate ${isMutedItem(item.name) ? 'text-(--rs-ink-2)' : ''}`}>{item.name}</span>
-                        <span className="flex-1 h-[2.2mm]">
+                    <li key={item.name} className="flex items-center gap-[2mm] py-[0.65mm]">
+                        <span className={`w-[45%] truncate ${isMutedItem(item.name) ? 'text-(--rs-ink-2)' : ''}`}>{item.name}</span>
+                        <span className="flex-1 h-[2.1mm]">
                             <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((item.count / max) * 100, 2)}%`, background: isMutedItem(item.name) ? 'var(--rs-axis)' : color }} />
                         </span>
                         <span className="w-[15mm] text-right tabular-nums whitespace-nowrap">
@@ -305,22 +306,22 @@ function QueueBlock({ insights }: { insights: Insights }) {
         queue.confirmed !== fates.confirmed;
 
     return (
-        <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
+        <div className="grid grid-cols-2 gap-[8mm] mt-[3mm]">
             <div className="min-w-0">
                 <p className={SUBHEAD}>The period's registrations, as of today</p>
                 {fates.total === 0 ? (
-                    <p className="text-[8.5pt] text-(--rs-ink-2)">No registrations in the period.</p>
+                    <p className="text-[8.25pt] text-(--rs-ink-2)">No registrations in the period.</p>
                 ) : (
                     <>
-                        <div className="flex h-[3.2mm] gap-[0.3mm] rounded-[1mm] overflow-hidden">
+                        <div className="flex h-[3mm] gap-[0.3mm] rounded-[1mm] overflow-hidden">
                             {segments.map(s => (
                                 <span key={s.label} style={{ flexGrow: s.value, flexBasis: 0, minWidth: '0.8mm', background: s.color }} />
                             ))}
                         </div>
-                        <ul className="mt-[2mm] text-[8.5pt]">
+                        <ul className="mt-[1.8mm] text-[8.25pt]">
                             {segments.map(s => (
-                                <li key={s.label} className="flex items-center gap-[1.8mm] py-[0.65mm]">
-                                    <span className="inline-block w-[2.4mm] h-[2.4mm] rounded-[0.6mm] shrink-0" style={{ background: s.color }} />
+                                <li key={s.label} className="flex items-center gap-[1.8mm] py-[0.6mm]">
+                                    <span className="inline-block w-[2.3mm] h-[2.3mm] rounded-[0.6mm] shrink-0" style={{ background: s.color }} />
                                     <span className="flex-1">{s.label}</span>
                                     <span className="tabular-nums">{count(s.value)} <span className="text-(--rs-muted)">· {formatPercent(s.value, fates.total)}</span></span>
                                 </li>
@@ -329,15 +330,15 @@ function QueueBlock({ insights }: { insights: Insights }) {
                     </>
                 )}
                 {showAllTimeQueue && (
-                    <div className="grid grid-cols-3 gap-[2mm] mt-[3mm]">
+                    <div className="grid grid-cols-3 gap-[2mm] mt-[2.5mm]">
                         {[
                             { label: 'Waiting today', value: queue.waiting },
                             { label: 'Invited', value: queue.invited },
                             { label: 'Confirmed', value: queue.confirmed },
                         ].map(f => (
-                            <div key={f.label} className="rounded-[2mm] bg-(--rs-panel) border border-(--rs-rule) px-[2.5mm] py-[2mm]">
-                                <p className="text-[13pt] leading-none font-semibold tabular-nums">{count(f.value)}</p>
-                                <p className="mt-[1mm] text-[7.5pt] text-(--rs-muted)">{f.label}</p>
+                            <div key={f.label} className="rounded-[2mm] bg-(--rs-panel) border border-(--rs-rule) px-[2.5mm] py-[1.8mm]">
+                                <p className="text-[12.5pt] leading-none font-semibold tabular-nums">{count(f.value)}</p>
+                                <p className="mt-[0.8mm] text-[7pt] text-(--rs-muted)">{f.label}</p>
                             </div>
                         ))}
                     </div>
@@ -351,7 +352,7 @@ function QueueBlock({ insights }: { insights: Insights }) {
 }
 
 /** Keeps the top multi-person sectors and folds singletons/overflow into "Other" so the table sums to 100%. */
-function compactFields(fields: Share[], maxRows = 4): Share[] {
+function compactFields(fields: Share[], maxRows = 5): Share[] {
     const named = fields.filter(f => f.name !== 'Other' && f.name !== 'Not known');
     const tailCount = fields.filter(f => f.name === 'Other' || f.name === 'Not known').reduce((s, f) => s + f.count, 0);
     const hasMulti = named.some(f => f.count >= 2);
@@ -378,33 +379,33 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
         { name: 'Part-time', count: o.partTime },
         { name: 'Not said', count: o.working - o.fullTime - o.partTime },
     ].filter(s => s.count > 0);
-    const fields = compactFields(o.fields, 4);
+    const fields = compactFields(o.fields, 5);
 
     return (
-        <div className="grid grid-cols-2 gap-[8mm] mt-[3.5mm]">
+        <div className="grid grid-cols-3 gap-[5mm] mt-[3mm]">
             <div className="min-w-0">
                 <p className={SUBHEAD}>From course to work</p>
-                <ul className="text-[8.5pt]">
+                <ul className="text-[8.25pt]">
                     {steps.map(s => (
-                        <li key={s.label} className="flex items-center gap-[2mm] py-[0.75mm]">
-                            <span className="w-[36%]">{s.label}</span>
-                            <span className="flex-1 h-[2.6mm]">
+                        <li key={s.label} className="flex items-center gap-[2mm] py-[0.65mm]">
+                            <span className="w-[45%] truncate">{s.label}</span>
+                            <span className="flex-1 h-[2.1mm]">
                                 {s.value > 0 && (
-                                    <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((s.value / max) * 100, 1.5)}%`, background: s.color, opacity: s.opacity }} />
+                                    <span className="block h-full rounded-r-[1mm]" style={{ width: `${Math.max((s.value / max) * 100, 2)}%`, background: s.color, opacity: s.opacity }} />
                                 )}
                             </span>
-                            <span className="w-[16mm] text-right tabular-nums whitespace-nowrap">
+                            <span className="w-[15mm] text-right tabular-nums whitespace-nowrap">
                                 {count(s.value)}{s.of > 0 && <span className="text-(--rs-muted)"> · {formatPercent(s.value, s.of)}</span>}
                             </span>
                         </li>
                     ))}
                 </ul>
             </div>
-            {o.working > 0 ? (
-                <div className="min-w-0 flex flex-col gap-[3mm]">
-                    {hours.length > 0 && <ShareList title="Hours" items={hours} total={o.working} color="var(--rs-working)" />}
-                    {fields.length > 0 && <ShareList title="Sector of work" items={fields} total={o.working} color="var(--rs-working)" />}
-                </div>
+            {o.working > 0 && hours.length > 0 ? (
+                <ShareList title="Hours" items={hours} total={o.working} color="var(--rs-working)" />
+            ) : <div />}
+            {o.working > 0 && fields.length > 0 ? (
+                <ShareList title="Sector of work" items={fields} total={o.working} color="var(--rs-working)" />
             ) : <div />}
         </div>
     );
@@ -412,8 +413,8 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
 
 // ── Monthly columns ────────────────────────────────────────────────
 
-const CHART_W = 680; // ≈ the sheet's 180 mm text width at 96 dpi, so 1 unit ≈ 1 px
-const CHART_H = 132;
+const CHART_W = 680; // ≈ the sheet's 182 mm text width at 96 dpi, so 1 unit ≈ 1 px
+const CHART_H = 104;
 const AXIS_W = 30;
 const LABEL_H = 16;
 
