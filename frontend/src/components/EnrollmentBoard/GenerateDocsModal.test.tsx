@@ -89,7 +89,8 @@ describe('GenerateDocsModal', () => {
         download.mockImplementation(async (path: string) => ({ data: docx(`${path}: {fullName}, {Tutor}, until {expire}`), error: null }));
     });
 
-    it('generates the course preset with text and date variables, a combined file and a report', async () => {
+    it('generates the course preset with text and date variables, a combined file per student and a report', async () => {
+        tables.courses = [{ id: 'c1', template_ids: ['t1', 't2'] }];
         const onClose = vi.fn();
         render(<GenerateDocsModal open selected={selection} onClose={onClose} />);
         expect(screen.getByText('Python 101')).toBeInTheDocument();
@@ -100,13 +101,21 @@ describe('GenerateDocsModal', () => {
 
         const { name, files, text } = await archive();
         expect(name).toBe('Python 101 (English) 01 10 2026.zip');
-        expect(files).toEqual(['Certificate/Ann_Test.docx', 'Certificate/Bob_Test.docx', 'Certificate_All.docx']);
+        expect(files.filter(f => !f.endsWith('/'))).toEqual([
+            'Ann_Test.docx',
+            'Bob_Test.docx',
+            'Certificate/Ann_Test.docx',
+            'Certificate/Bob_Test.docx',
+            'Letter/Ann_Test.docx',
+            'Letter/Bob_Test.docx',
+        ]);
         expect(text('Certificate/Ann_Test.docx')).toBe('cert: Ann Test, Jane, until 01 Oct 2028');
-        expect(text('Certificate_All.docx')).toContain('Bob Test, Jane, until 01 Oct 2028');
+        expect(text('Ann_Test.docx')).toBe('cert: Ann Test, Jane, until 01 Oct 2028letter: Ann Test, Jane, until 01 Oct 2028');
+        expect(text('Bob_Test.docx')).toBe('cert: Bob Test, Jane, until 01 Oct 2028letter: Bob Test, Jane, until 01 Oct 2028');
         expect(courseLookups).toEqual(['c1']);
 
         expect(await screen.findByText('Downloaded')).toBeInTheDocument();
-        expect(screen.getByText('Certificate.docx — all in one file')).toBeInTheDocument();
+        expect(screen.getByText('2 combined student files — all templates per person')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Done' }));
         expect(onClose).toHaveBeenCalledWith(true);
         // The choice is remembered for next time (shared with the Documents page)

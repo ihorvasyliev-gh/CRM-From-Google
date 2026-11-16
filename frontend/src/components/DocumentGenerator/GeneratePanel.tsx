@@ -129,7 +129,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                 labelTemplatePath: labelTemplate?.storage_path,
                 ...archiveVariables,
                 excelColumns,
-                combined: combined && !sample,
+                combined,
                 signal: controller.signal,
                 onProgress: (done, total) => setProgress({ done, total, sample }),
             });
@@ -303,8 +303,8 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                             className="accent-brand-500 mt-0.5"
                         />
                         <span>
-                            <span className="inline-flex items-center gap-1 font-medium"><Printer size={13} /> Also one combined file per template</span>
-                            <span className="block text-muted">Everyone in a single .docx, one after another on new pages — for printing.</span>
+                            <span className="inline-flex items-center gap-1 font-medium"><Printer size={13} /> Also one combined file per student</span>
+                            <span className="block text-muted">All templates for each person in a single .docx, one after another on new pages — for printing.</span>
                         </span>
                     </label>
 

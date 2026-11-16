@@ -297,7 +297,7 @@ export interface ArchiveOptions {
     /** Custom variables worked out per participant (see variablesForArchive). */
     dateVariables?: DateVariable[];
     excelColumns?: ExcelColumn[];
-    /** Also add one file per template with everyone in it, for printing. */
+    /** Also add one combined file per student with all their templates, for printing. */
     combined?: boolean;
     /** Called after every generated file. */
     onProgress?: (done: number, total: number) => void;
@@ -348,7 +348,7 @@ export async function generateDocumentsArchive(archiveName: string, options: Arc
 }
 
 export interface SelectionOptions {
-    /** Also add one file per template with everyone in it, for printing. */
+    /** Also add one combined file per student with all their templates, for printing. */
     combined?: boolean;
     signal?: AbortSignal;
     onProgress?: (done: number, total: number) => void;

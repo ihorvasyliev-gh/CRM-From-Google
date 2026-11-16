@@ -481,25 +481,70 @@ function makeDocxWithPicture(text: string): ArrayBuffer {
 }
 
 describe('combined file', () => {
-    it('puts everyone into one file, page after page, with unique picture ids and no trailing page break', async () => {
+    it('puts all templates for each person into one file per student, page after page, with unique picture ids and no trailing page break', async () => {
         const { blob, result } = await buildDocumentsArchive({
             enrollments: [person('1', 'Zoe', 'Byrne'), person('2', 'Mary', 'Ahern')],
-            templates: [{ name: 'Certificate.docx', storagePath: 'cert' }],
+            templates: [
+                { name: 'Certificate.docx', storagePath: 'cert' },
+                { name: 'Welcome letter.docx', storagePath: 'letter' },
+            ],
             customVariables: { Tutor: 'Jane' },
             combined: true,
-            fetchTemplate: files({ cert: makeDocxWithPicture('{fullName} — {Tutor}') }),
+            fetchTemplate: files({
+                cert: makeDocxWithPicture('Cert: {fullName} — {Tutor}'),
+                letter: makeDocxWithPicture('Letter: {fullName}'),
+            }),
         });
         const zip = new PizZip(await blob.arrayBuffer());
-        expect(Object.keys(zip.files).sort()).toEqual(['Certificate/Mary_Ahern.docx', 'Certificate/Zoe_Byrne.docx', 'Certificate_All.docx']);
-        const xml = new PizZip(zip.file('Certificate_All.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        expect(Object.keys(zip.files).filter(p => !p.endsWith('/')).sort()).toEqual([
+            'Certificate/Mary_Ahern.docx',
+            'Certificate/Zoe_Byrne.docx',
+            'Mary_Ahern.docx',
+            'Welcome_letter/Mary_Ahern.docx',
+            'Welcome_letter/Zoe_Byrne.docx',
+            'Zoe_Byrne.docx',
+        ]);
+        const xml = new PizZip(zip.file('Mary_Ahern.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
         const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).filter(Boolean);
-        expect(texts).toEqual(['Mary Ahern — Jane', 'Zoe Byrne — Jane']);
+        expect(texts).toEqual(['Cert: Mary Ahern — Jane', 'Letter: Mary Ahern']);
         expect(xml.match(/w:type="page"/g)).toHaveLength(1);
         expect([...xml.matchAll(/<wp:docPr id="(\d+)"/g)].map(m => m[1])).toEqual(['1', '2']);
         // Page setup stays after the repeated content, once
         expect(xml.match(/<w:sectPr>/g)).toHaveLength(1);
-        expect(xml.indexOf('<w:sectPr>')).toBeGreaterThan(xml.lastIndexOf('Zoe Byrne'));
-        expect(result.extras).toEqual([{ label: 'Certificate.docx — all in one file', ok: true, files: 1 }]);
+        expect(xml.indexOf('<w:sectPr>')).toBeGreaterThan(xml.lastIndexOf('Letter: Mary Ahern'));
+        expect(result.extras).toEqual([{ label: '2 combined student files — all templates per person', ok: true, files: 1 }]);
+    });
+
+    it('preserves distinct page setups and remaps embedded media when merging templates for a student', async () => {
+        const makeRichDocx = (text: string, pgW: string, imgBytes: string) => {
+            const zip = new PizZip(makeDocx('x'));
+            zip.file('word/media/image1.png', imgBytes);
+            zip.file('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>');
+            zip.file('word/document.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+                + `<w:body><w:p><w:r><a:blip r:embed="rId5"/><w:t>${text}</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="${pgW}" w:h="11906"/></w:sectPr></w:body></w:document>`);
+            return zip.generate({ type: 'arraybuffer' });
+        };
+
+        const { blob } = await buildDocumentsArchive({
+            enrollments: [person('1', 'Mukhamed', 'Mukhamedov')],
+            templates: [
+                { name: 'Doc1.docx', storagePath: 'd1' },
+                { name: 'Doc2.docx', storagePath: 'd2' },
+            ],
+            combined: true,
+            fetchTemplate: files({
+                d1: makeRichDocx('First for {fullName}', '11906', 'IMG_ONE'),
+                d2: makeRichDocx('Second for {fullName}', '16838', 'IMG_TWO'),
+            }),
+        });
+        const mergedZip = new PizZip(new PizZip(await blob.arrayBuffer()).file('Mukhamed_Mukhamedov.docx')!.asArrayBuffer());
+        expect(mergedZip.file('word/media/image1.png')!.asText()).toBe('IMG_ONE');
+        expect(mergedZip.file('word/media/d1_image1.png')!.asText()).toBe('IMG_TWO');
+        const docXml = mergedZip.file('word/document.xml')!.asText();
+        expect(docXml).toContain('First for Mukhamed Mukhamedov');
+        expect(docXml).toContain('Second for Mukhamed Mukhamedov');
+        expect(docXml.match(/<w:sectPr>/g)).toHaveLength(2);
     });
 });
 
@@ -599,7 +644,7 @@ describe('date variables', () => {
         const docs = await readArchive(blob);
         expect(docs['Cert/Ann_Ahern.docx']).toBe('Ann Ahern until 01 Oct 2028 (01/10/2030)');
         expect(docs['Cert/Bob_Byrne.docx']).toBe('Bob Byrne until 05 Nov 2028 (05/11/2030)');
-        expect(docs['Cert_All.docx']).toContain('Bob Byrne until 05 Nov 2028');
+        expect(docs['Bob_Byrne.docx']).toContain('Bob Byrne until 05 Nov 2028');
         // The sheet header uses the earliest date; each row its own
         expect(docs['Attendance_Sheet.docx']).toBe('Valid until 01 Oct 2028\nAnn Ahern: 01 Oct 2028\nBob Byrne: 05 Nov 2028');
 
@@ -609,7 +654,7 @@ describe('date variables', () => {
 });
 
 describe('archive layout', () => {
-    it('puts each template in its own folder with a file per person, and group files at the top', async () => {
+    it('puts each template in its own folder with a file per person, plus combined per-student and group files at the top', async () => {
         const people = Array.from({ length: 12 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
         const { blob } = await buildDocumentsArchive({
             enrollments: people,
@@ -625,9 +670,13 @@ describe('archive layout', () => {
 
         expect(inFolder('Certificate')).toHaveLength(12);
         expect(inFolder('Welcome_letter')).toHaveLength(12);
-        expect(paths.filter(p => !p.includes('/')).sort()).toEqual([
-            'Address_Labels.docx', 'Attendance_Sheet.docx', 'Certificate_All.docx', 'Participants.xlsx', 'Welcome_letter_All.docx',
-        ]);
-        expect(paths).toHaveLength(12 * 2 + 5);
+        const topFiles = paths.filter(p => !p.includes('/')).sort();
+        expect(topFiles).toContain('Address_Labels.docx');
+        expect(topFiles).toContain('Attendance_Sheet.docx');
+        expect(topFiles).toContain('Participants.xlsx');
+        expect(topFiles).toContain('P0_S00.docx');
+        expect(topFiles).toContain('P11_S11.docx');
+        expect(topFiles).toHaveLength(12 + 3);
+        expect(paths).toHaveLength(12 * 2 + 12 + 3);
     });
 });

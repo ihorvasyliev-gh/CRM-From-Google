@@ -518,6 +518,331 @@ export interface ExtraFile {
     error?: string;
 }
 
+/**
+ * Split `word/document.xml` into its outer tags, the inner `<w:body>` content, and the trailing
+ * `<w:sectPr>` (page setup, margins, headers/footers) if one sits at the end of the body.
+ */
+interface ParsedDocXml {
+    beforeDocOpen: string;
+    docOpen: string;
+    beforeBody: string;
+    bodyOpen: string;
+    content: string;
+    sectPr: string | null;
+    afterBody: string;
+}
+
+function splitDocumentXml(xml: string): ParsedDocXml {
+    const docMatch = xml.match(/<w:document(?:\s[^>]*)?>/);
+    const open = xml.match(/<w:body(?:\s[^>]*)?>/);
+    const bodyEnd = xml.lastIndexOf('</w:body>');
+    if (!docMatch || docMatch.index === undefined || !open || open.index === undefined || bodyEnd < 0) {
+        throw new Error('word/document.xml has no body');
+    }
+
+    const docStart = docMatch.index;
+    const docOpenEnd = docStart + docMatch[0].length;
+    const bodyStart = open.index + open[0].length;
+
+    let insertAt = bodyEnd;
+    const lastSect = xml.lastIndexOf('<w:sectPr', bodyEnd);
+    if (lastSect >= bodyStart && /^<w:sectPr\b(?:[^>]*\/>|[\s\S]*<\/w:sectPr>)\s*$/.test(xml.slice(lastSect, bodyEnd))) {
+        insertAt = lastSect;
+    }
+
+    return {
+        beforeDocOpen: xml.slice(0, docStart),
+        docOpen: docMatch[0],
+        beforeBody: xml.slice(docOpenEnd, open.index),
+        bodyOpen: open[0],
+        content: xml.slice(bodyStart, insertAt),
+        sectPr: insertAt < bodyEnd ? xml.slice(insertAt, bodyEnd).trim() : null,
+        afterBody: xml.slice(bodyEnd),
+    };
+}
+
+/** Ensure a section-break `<w:sectPr>` starts on a new page rather than continuing inline. */
+function toNextPageSectPr(sectPr: string): string {
+    if (/^<w:sectPr\s*\/>$/.test(sectPr)) return sectPr;
+    if (/<w:type\b[^>]*\/>/.test(sectPr)) {
+        return sectPr.replace(/<w:type\b[^>]*\/>/g, '<w:type w:val="nextPage"/>');
+    }
+    return sectPr;
+}
+
+/** Normalize a zip path like `word/../media/img.png` to `media/img.png`. */
+function resolveWordTarget(target: string): string {
+    if (target.startsWith('/')) return target.slice(1);
+    const parts = `word/${target}`.split('/');
+    const out: string[] = [];
+    for (const p of parts) {
+        if (!p || p === '.') continue;
+        if (p === '..') out.pop();
+        else out.push(p);
+    }
+    return out.join('/');
+}
+
+/** Add prefix to the filename part of a path: `word/media/image1.png` -> `word/media/d1_image1.png`. */
+function prefixPathFile(path: string, prefix: string): string {
+    const slash = path.lastIndexOf('/');
+    return slash >= 0 ? `${path.slice(0, slash + 1)}${prefix}${path.slice(slash + 1)}` : `${prefix}${path}`;
+}
+
+/** Relative target from `word/` to a zip path. */
+function toWordTarget(zipPath: string): string {
+    return zipPath.startsWith('word/') ? zipPath.slice('word/'.length) : `../${zipPath}`;
+}
+
+/**
+ * Merge multiple rendered `.docx` files for one student into a single `.docx`, one template after
+ * another on new pages. Preserves images/relationships, styles, and per-template page setup.
+ */
+export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayBuffer {
+    if (buffers.length === 0) throw new Error('No documents to merge');
+    if (buffers.length === 1) return buffers[0];
+
+    const baseZip = new libs.PizZip(buffers[0]);
+    const baseXml = baseZip.file('word/document.xml')?.asText();
+    if (!baseXml) throw new Error('word/document.xml has no body');
+
+    const parsed: ParsedDocXml[] = [splitDocumentXml(baseXml)];
+    let docOpen = parsed[0].docOpen;
+    let baseRelsXml = baseZip.file('word/_rels/document.xml.rels')?.asText() ?? null;
+    let baseTypesXml = baseZip.file('[Content_Types].xml')?.asText() ?? null;
+    let baseStylesXml = baseZip.file('word/styles.xml')?.asText() ?? null;
+    let nextRelSeq = 1;
+
+    const allocRelId = () => {
+        while (baseRelsXml && baseRelsXml.includes(`"rId_m${nextRelSeq}"`)) nextRelSeq++;
+        return `rId_m${nextRelSeq++}`;
+    };
+
+    const ensureBaseRels = () => {
+        if (!baseRelsXml) {
+            baseRelsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+        }
+    };
+
+    const appendRel = (relTag: string) => {
+        ensureBaseRels();
+        baseRelsXml = baseRelsXml!.replace(/<\/Relationships>\s*$/, `${relTag}</Relationships>`);
+    };
+
+    const addContentTypeDefault = (ext: string, contentType: string) => {
+        if (!baseTypesXml) return;
+        const re = new RegExp(`<Default\\b[^>]*\\bExtension=["']${ext}["']`, 'i');
+        if (!re.test(baseTypesXml)) {
+            baseTypesXml = baseTypesXml.replace(/<\/Types>\s*$/, `<Default Extension="${ext}" ContentType="${contentType}"/></Types>`);
+        }
+    };
+
+    const addContentTypeOverride = (partName: string, contentType: string) => {
+        if (!baseTypesXml) return;
+        const normalized = partName.startsWith('/') ? partName : `/${partName}`;
+        if (!baseTypesXml.includes(`PartName="${normalized}"`)) {
+            baseTypesXml = baseTypesXml.replace(/<\/Types>\s*$/, `<Override PartName="${normalized}" ContentType="${contentType}"/></Types>`);
+        }
+    };
+
+    for (let i = 1; i < buffers.length; i++) {
+        const otherZip = new libs.PizZip(buffers[i]);
+        const otherXml = otherZip.file('word/document.xml')?.asText();
+        if (!otherXml) throw new Error('word/document.xml has no body');
+        const part = splitDocumentXml(otherXml);
+
+        // 1. Merge any missing xmlns declarations onto <w:document>
+        for (const m of part.docOpen.matchAll(/\s(xmlns(?::[A-Za-z0-9_-]+)?)=("[^"]*"|'[^']*')/g)) {
+            const [, attrName, attrVal] = m;
+            if (!new RegExp(`\\s${attrName}=`).test(docOpen)) {
+                docOpen = docOpen.replace(/>$/, ` ${attrName}=${attrVal}>`);
+            }
+        }
+
+        // 2. Copy referenced relationships (images, headers, footers, links, etc.) and remap rIds
+        const otherRelsXml = otherZip.file('word/_rels/document.xml.rels')?.asText();
+        const otherTypesXml = otherZip.file('[Content_Types].xml')?.asText();
+        if (otherTypesXml && baseTypesXml) {
+            for (const dm of otherTypesXml.matchAll(/<Default\b[^>]*\bExtension="([^"]+)"[^>]*\bContentType="([^"]+)"[^>]*\/?>/g)) {
+                addContentTypeDefault(dm[1], dm[2]);
+            }
+        }
+
+        const chunkXml = part.content + (part.sectPr ?? '');
+        if (otherRelsXml) {
+            const rIdMap = new Map<string, string>();
+            for (const rm of otherRelsXml.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+                const attrs = rm[1];
+                const id = /\bId="([^"]+)"/.exec(attrs)?.[1];
+                const target = /\bTarget="([^"]+)"/.exec(attrs)?.[1];
+                const type = /\bType="([^"]+)"/.exec(attrs)?.[1];
+                const targetMode = /\bTargetMode="([^"]+)"/.exec(attrs)?.[1];
+                if (!id || !target || !type) continue;
+                if (!chunkXml.includes(`"${id}"`) && !chunkXml.includes(`'${id}'`)) continue;
+
+                const newId = allocRelId();
+                rIdMap.set(id, newId);
+
+                if (targetMode === 'External') {
+                    appendRel(`<Relationship Id="${newId}" Type="${type}" Target="${target}" TargetMode="External"/>`);
+                    continue;
+                }
+
+                const oldZipPath = resolveWordTarget(target);
+                const fileInOther = otherZip.file(oldZipPath);
+                if (!fileInOther) continue;
+
+                const prefix = `d${i}_`;
+                const newZipPath = prefixPathFile(oldZipPath, prefix);
+                baseZip.file(newZipPath, fileInOther.asArrayBuffer());
+
+                // If the copied part has its own .rels (e.g. a header with an embedded logo), copy it and its media too
+                const slash = oldZipPath.lastIndexOf('/');
+                const oldDir = slash >= 0 ? oldZipPath.slice(0, slash + 1) : '';
+                const oldFile = slash >= 0 ? oldZipPath.slice(slash + 1) : oldZipPath;
+                const oldSubRelsPath = `${oldDir}_rels/${oldFile}.rels`;
+                const subRelsFile = otherZip.file(oldSubRelsPath);
+                if (subRelsFile) {
+                    let subRelsText = subRelsFile.asText();
+                    for (const srm of subRelsText.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+                        const sAttrs = srm[1];
+                        const sTarget = /\bTarget="([^"]+)"/.exec(sAttrs)?.[1];
+                        const sMode = /\bTargetMode="([^"]+)"/.exec(sAttrs)?.[1];
+                        if (!sTarget || sMode === 'External') continue;
+                        const oldSubTargetPath = resolveWordTarget(sTarget);
+                        const subTargetEntry = otherZip.file(oldSubTargetPath);
+                        if (subTargetEntry) {
+                            const newSubTargetPath = prefixPathFile(oldSubTargetPath, prefix);
+                            baseZip.file(newSubTargetPath, subTargetEntry.asArrayBuffer());
+                            subRelsText = subRelsText.replace(`Target="${sTarget}"`, `Target="${toWordTarget(newSubTargetPath)}"`);
+                        }
+                    }
+                    baseZip.file(`${oldDir}_rels/${prefix}${oldFile}.rels`, subRelsText);
+                }
+
+                if (otherTypesXml && baseTypesXml) {
+                    const ovRe = new RegExp(`<Override\\b[^>]*\\bPartName="/?${oldZipPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*\\bContentType="([^"]+)"`, 'i');
+                    const ovMatch = ovRe.exec(otherTypesXml);
+                    if (ovMatch) addContentTypeOverride(newZipPath, ovMatch[1]);
+                }
+
+                appendRel(`<Relationship Id="${newId}" Type="${type}" Target="${toWordTarget(newZipPath)}"/>`);
+            }
+
+            if (rIdMap.size > 0) {
+                const remap = (s: string) => s.replace(/(["'])([^"']+)\1/g, (full, q: string, val: string) => (rIdMap.has(val) ? `${q}${rIdMap.get(val)}${q}` : full));
+                part.content = remap(part.content);
+                if (part.sectPr) part.sectPr = remap(part.sectPr);
+            }
+        }
+
+        // 3. Merge missing styles from word/styles.xml
+        const otherStylesXml = otherZip.file('word/styles.xml')?.asText();
+        if (otherStylesXml) {
+            if (!baseStylesXml) {
+                baseStylesXml = otherStylesXml;
+            } else {
+                const existingIds = new Set([...baseStylesXml.matchAll(/\bw:styleId="([^"]+)"/g)].map(m => m[1]));
+                const toAdd: string[] = [];
+                for (const sm of otherStylesXml.matchAll(/<w:style\b[^>]*\bw:styleId="([^"]+)"[\s\S]*?<\/w:style>/g)) {
+                    if (!existingIds.has(sm[1])) {
+                        existingIds.add(sm[1]);
+                        toAdd.push(sm[0].replace(/\s+w:default="(?:1|true)"/g, ''));
+                    }
+                }
+                if (toAdd.length > 0) {
+                    baseStylesXml = baseStylesXml.replace(/<\/w:styles>\s*$/, `${toAdd.join('')}</w:styles>`);
+                }
+            }
+        }
+
+        parsed.push(part);
+    }
+
+    // 4. Join sections: use simple page breaks when all templates share the same page setup,
+    // or per-template section breaks when page setup (size, orientation, margins, headers/footers) differs.
+    const normSect = (s: string | null) => (!s || /^<w:sectPr\s*\/>$/.test(s) ? '' : s);
+    const sameSectSetup = new Set(parsed.map(p => normSect(p.sectPr))).size <= 1;
+    const pageBreakPara = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+    let mergedBody: string;
+    if (sameSectSetup) {
+        mergedBody = parsed.map(p => p.content).join(pageBreakPara) + (parsed[parsed.length - 1].sectPr ?? '');
+    } else {
+        // Prevent headers/footers from an earlier template leaking into a later template that has none
+        let seenHdrTypes = new Set<string>();
+        let seenFtrTypes = new Set<string>();
+        let blankHdrRId: string | null = null;
+        let blankFtrRId: string | null = null;
+
+        const getBlankHdrRId = () => {
+            if (!blankHdrRId) {
+                blankHdrRId = allocRelId();
+                baseZip.file('word/blank_hdr.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:hdr>');
+                appendRel(`<Relationship Id="${blankHdrRId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="blank_hdr.xml"/>`);
+                addContentTypeOverride('/word/blank_hdr.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml');
+            }
+            return blankHdrRId;
+        };
+
+        const getBlankFtrRId = () => {
+            if (!blankFtrRId) {
+                blankFtrRId = allocRelId();
+                baseZip.file('word/blank_ftr.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p/></w:ftr>');
+                appendRel(`<Relationship Id="${blankFtrRId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="blank_ftr.xml"/>`);
+                addContentTypeOverride('/word/blank_ftr.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml');
+            }
+            return blankFtrRId;
+        };
+
+        const isolateHeadersFooters = (sect: string | null): string => {
+            let s = sect && !/^<w:sectPr\s*\/>$/.test(sect) ? sect : '<w:sectPr></w:sectPr>';
+            const curHdrs = new Set([...s.matchAll(/<w:headerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
+            const curFtrs = new Set([...s.matchAll(/<w:footerReference\b[^>]*\bw:type="([^"]+)"/g)].map(m => m[1]));
+            const inject: string[] = [];
+            for (const t of seenHdrTypes) {
+                if (!curHdrs.has(t)) inject.push(`<w:headerReference w:type="${t}" r:id="${getBlankHdrRId()}"/>`);
+            }
+            for (const t of seenFtrTypes) {
+                if (!curFtrs.has(t)) inject.push(`<w:footerReference w:type="${t}" r:id="${getBlankFtrRId()}"/>`);
+            }
+            seenHdrTypes = new Set([...seenHdrTypes, ...curHdrs]);
+            seenFtrTypes = new Set([...seenFtrTypes, ...curFtrs]);
+            if (inject.length > 0) {
+                if (!/\sxmlns:r=/.test(docOpen)) {
+                    docOpen = docOpen.replace(/>$/, ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+                }
+                s = s.replace(/^<w:sectPr(\b[^>]*)>/, `<w:sectPr$1>${inject.join('')}`);
+            }
+            return s;
+        };
+
+        const chunks: string[] = [];
+        for (let i = 0; i < parsed.length; i++) {
+            const p = parsed[i];
+            const sect = isolateHeadersFooters(p.sectPr);
+            if (i < parsed.length - 1) {
+                chunks.push(`${p.content}<w:p><w:pPr>${toNextPageSectPr(sect)}</w:pPr></w:p>`);
+            } else {
+                chunks.push(`${p.content}${sect}`);
+            }
+        }
+        mergedBody = chunks.join('');
+    }
+
+    // 5. Ensure every drawing object has a unique id across the merged document
+    let nextDocPrId = 1;
+    mergedBody = mergedBody.replace(/<(wp:docPr|pic:cNvPr)\b([^>]*?)\bid="\d+"/g, (_m, tag: string, before: string) => `<${tag}${before}id="${nextDocPrId++}"`);
+
+    const finalXml = `${parsed[0].beforeDocOpen}${docOpen}${parsed[0].beforeBody}${parsed[0].bodyOpen}${mergedBody}${parsed[0].afterBody}`;
+    baseZip.file('word/document.xml', finalXml);
+    if (baseRelsXml) baseZip.file('word/_rels/document.xml.rels', baseRelsXml);
+    if (baseTypesXml) baseZip.file('[Content_Types].xml', baseTypesXml);
+    if (baseStylesXml) baseZip.file('word/styles.xml', baseStylesXml);
+
+    return baseZip.generate({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+
 export interface RenderInput {
     enrollments: EnrollmentWithRelations[];
     templates: TemplateFile[];
@@ -527,7 +852,7 @@ export interface RenderInput {
     customVariables?: Record<string, string>;
     /** Custom variables worked out per participant, e.g. {expire} = course date + 2 years. */
     dateVariables?: DateVariable[];
-    /** Also add one file per template with every participant, page after page, for printing. */
+    /** Also add one combined file per participant with all their templates, page after page, for printing. */
     combined?: boolean;
     today?: string;
 }
@@ -538,7 +863,7 @@ export interface RenderHooks {
     signal?: AbortSignal;
 }
 
-/** Outcome of an extra file in the archive: attendance sheet, labels, combined file or the Excel list. */
+/** Outcome of an extra file in the archive: attendance sheet, labels, combined files or the Excel list. */
 export interface ExtraFileResult {
     label: string;
     ok: boolean;
@@ -611,8 +936,9 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         { label: 'Address labels', file: 'Address_Labels', template: hasPeople ? labels : null, slots: LABEL_SLOTS },
     ].filter(s => s.template);
     const extras = hasPeople ? extraFiles : [];
-    const perTemplate = people.length + Number(combined && hasPeople);
-    const total = templates.length * perTemplate + sheets.length + extras.length;
+    const combinedCount = combined && hasPeople && templates.length > 0 ? people.length : 0;
+    const total = templates.length * people.length + combinedCount + sheets.length + extras.length;
+    const studentDocs: ArrayBuffer[][] = people.map(() => []);
 
     let done = 0;
     let lastYield = performance.now();
@@ -631,7 +957,7 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
     for (const tpl of templates) {
         const skip = async (message: string) => {
             result.failedTemplates.push({ name: tpl.name, error: message });
-            for (let i = 0; i < perTemplate; i++) await tick();
+            for (let i = 0; i < people.length; i++) await tick();
         };
         if (!tpl.buffer) { await skip(tpl.error || 'Download failed'); continue; }
 
@@ -645,19 +971,21 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         }
 
         const base = safeFileName(tpl.name.replace(/\.docx$/i, ''), 'Template');
-        // Archive layout: one folder per template with a file per person; everything that covers
-        // the whole group (combined files, attendance sheet, labels, Participants.xlsx) sits at the top
+        // Archive layout: one folder per template with a file per person; combined per-student
+        // files and group files (attendance sheet, labels, Participants.xlsx) sit at the top
         const folder = `${base}/`;
         const missing = new Set<string>();
         let templateOk = true;
 
-        for (const enrollment of people) {
+        for (let i = 0; i < people.length; i++) {
+            const enrollment = people[i];
             const s = enrollment.students!;
             try {
                 const data = personData(enrollment);
                 const file = renderDoc(createDoc(libs, tpl.buffer, missing), data);
                 const name = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
                 zip.file(uniquePath(usedPaths, folder + name), file);
+                if (combined) studentDocs[i].push(file);
                 result.totalDocs++;
             } catch (err) {
                 templateOk = false;
@@ -666,28 +994,44 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
             await tick();
         }
 
-        if (combined && hasPeople) {
-            const label = `${tpl.name} — all in one file`;
-            try {
-                const course = courseFields(people, today);
-                const data = {
-                    ...course,
-                    ...customVariables,
-                    ...sheetDateValues(dateVariables, people, today),
-                    __people: people.map((e, i) => ({ ...personData(e), __last: i === people.length - 1 })),
-                };
-                // Loops copy pictures, so give every copy its own drawing id (Word rejects duplicates)
-                const file = renderDoc(createDoc(libs, toCombinedTemplate(libs, tpl.buffer), undefined, [libs.fixDocPrCorruption]), data);
-                zip.file(uniquePath(usedPaths, `${base}_All.docx`), file);
-                result.extras.push({ label, ok: true, files: 1 });
-            } catch (err) {
-                result.extras.push({ label, ok: false, files: 0, error: describeDocxError(err) });
+        if (templateOk) result.successTemplates.push(tpl.name);
+        if (missing.size) result.unknownTags.push({ template: tpl.name, tags: [...missing].sort() });
+    }
+
+    // ── One combined document per student with all their rendered templates ──
+    if (combinedCount > 0) {
+        let made = 0;
+        const errors: string[] = [];
+        for (let i = 0; i < people.length; i++) {
+            const s = people[i].students!;
+            const docs = studentDocs[i];
+            if (docs.length > 0) {
+                try {
+                    const merged = mergeStudentDocs(libs, docs);
+                    const name = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
+                    zip.file(uniquePath(usedPaths, name), merged);
+                    made++;
+                } catch (err) {
+                    errors.push(`${fullName(s) || 'Unknown'}: ${describeDocxError(err)}`);
+                }
             }
             await tick();
         }
-
-        if (templateOk) result.successTemplates.push(tpl.name);
-        if (missing.size) result.unknownTags.push({ template: tpl.name, tags: [...missing].sort() });
+        if (made > 0) {
+            result.extras.push({
+                label: `${made} combined student file${made !== 1 ? 's' : ''} — all templates per person`,
+                ok: true,
+                files: 1,
+            });
+        }
+        if (errors.length > 0) {
+            result.extras.push({
+                label: 'Combined student files',
+                ok: false,
+                files: 0,
+                error: errors.slice(0, 3).join('; ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : ''),
+            });
+        }
     }
 
     // ── Attendance sheet / address labels: one file per page of numbered slots ──
