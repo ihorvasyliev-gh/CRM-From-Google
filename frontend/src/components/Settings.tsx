@@ -8,6 +8,7 @@ import MergeModal from './MergeModal';
 import ConfirmDialog from './ConfirmDialog';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import UserRolesSection from './UserRolesSection';
+import StaffNameField from './StaffNameField';
 import EmailOptOutSection from './EmailOptOutSection';
 import CertificateTemplatesSection from './CertificateTemplatesSection';
 import Card from './ui/Card';
@@ -959,13 +960,14 @@ export default function Settings({ density, onDensityChange }: { density: Densit
                         id="settings-preferences"
                         className="scroll-mt-20"
                         title="Preferences"
-                        subtitle="Email branding and interface density"
+                        subtitle="Your name, email branding and interface density"
                         icon={SlidersHorizontal}
                         tone="success"
                         divided
                         bodyClassName="p-0!"
                     >
                         <div className="divide-y divide-border-subtle">
+                            <StaffNameField />
                             <label className="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 cursor-pointer">
                                 <div className="min-w-0">
                                     <span className="block text-[13px] font-semibold text-primary">Include logos in emails</span>

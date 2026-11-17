@@ -5,6 +5,7 @@ import type { Student, Course, Enrollment } from './types';
 import { cleanVariant, fullName } from './types';
 import { formatDateLong, formatDateDMY, todayISO } from './dateUtils';
 import { loadChunk } from './deployRecovery';
+import { courseDateKey, sessionDays, type CourseSession } from './courseSessions';
 
 /** Enrollment with joined student and course data (from Supabase select with joins). */
 export interface EnrollmentWithRelations extends Enrollment {
@@ -16,6 +17,10 @@ export const MAX_TEMPLATE_BYTES = 5 * 1024 * 1024;
 /** Numbered slots ({firstName1} … {firstName34}) on one attendance sheet / label page. */
 export const ATTENDANCE_SLOTS = 34;
 export const LABEL_SLOTS = 28;
+/** Participant rows on one page of the SICAP course form (page 2 of the form). */
+export const SICAP_SLOTS = 9;
+/** In the SICAP form, {#participantPages}…{/participantPages} repeats the participant page for every 9 people. */
+export const SICAP_PAGE_LOOP = 'participantPages';
 /** A table row wrapped in {#students}…{/students} repeats for every participant instead. */
 export const SHEET_LOOP = 'students';
 
@@ -45,6 +50,11 @@ export const PLACEHOLDER_CATEGORIES: PlaceholderCategory[] = [
             { key: 'courseId', desc: 'Course ID' },
             { key: 'courseTitle', desc: 'Course Title' },
             { key: 'courseVariant', desc: 'Course Variant (language)' },
+            { key: 'courseNameDate', desc: 'Course name and last day, e.g. Manual Handling 12/11/2026' },
+            { key: 'startDate', desc: 'First day of the course (DD/MM/YYYY)' },
+            { key: 'endDate', desc: 'Last day of the course (DD/MM/YYYY)' },
+            { key: 'venue', desc: 'Where the course takes place (course date place)' },
+            { key: 'staffName', desc: 'Your name (signed-in staff member, set in Settings)' },
         ],
     },
     {
@@ -94,6 +104,11 @@ export const SHEET_PLACEHOLDER_CATEGORIES: PlaceholderCategory[] = [
             { key: 'courseTitle', desc: 'Course Title' },
             { key: 'courseVariant', desc: 'Course Variant(s)' },
             { key: 'courseDate', desc: 'Course Date(s)' },
+            { key: 'courseNameDate', desc: 'Course name and last day' },
+            { key: 'startDate', desc: 'First day (DD/MM/YYYY)' },
+            { key: 'endDate', desc: 'Last day (DD/MM/YYYY)' },
+            { key: 'venue', desc: 'Where the course takes place' },
+            { key: 'staffName', desc: 'Your name (signed-in staff member)' },
             { key: 'participantCount', desc: 'Number of participants' },
             { key: 'page', desc: 'Page number' },
             { key: 'pages', desc: 'Number of pages' },
@@ -107,6 +122,31 @@ export const SHEET_PLACEHOLDER_CATEGORIES: PlaceholderCategory[] = [
     {
         title: `Inside {#${SHEET_LOOP}}…{/${SHEET_LOOP}}`,
         items: [{ key: 'n', desc: 'Row number' }, ...SHEET_ROW_FIELDS],
+    },
+];
+
+export const SICAP_PLACEHOLDER_CATEGORIES: PlaceholderCategory[] = [
+    {
+        title: 'Course (page 1)',
+        items: [
+            { key: 'courseNameDate', desc: 'Course name and last day, e.g. Manual Handling 12/11/2026' },
+            { key: 'startDate', desc: 'First day (DD/MM/YYYY)' },
+            { key: 'endDate', desc: 'Last day (DD/MM/YYYY; the first day for a one-day course)' },
+            { key: 'venue', desc: 'Place of the course date' },
+            { key: 'staffName', desc: 'Your name (Settings → Your name)' },
+            { key: 'courseTitle', desc: 'Course Title' },
+            { key: 'participantCount', desc: 'Number of participants' },
+            { key: 'today', desc: 'Generation date' },
+        ],
+    },
+    {
+        title: `Inside {#${SICAP_PAGE_LOOP}}…{/${SICAP_PAGE_LOOP}}`,
+        items: [
+            ...SHEET_ROW_FIELDS.filter(f => ['fullName', 'firstName', 'lastName', 'dateOfBirth'].includes(f.key))
+                .map(f => ({ key: `${f.key}1`, desc: `${f.desc}, row 1 of ${SICAP_SLOTS}` })),
+            { key: 'page', desc: 'Participant page number' },
+            { key: 'pages', desc: 'Number of participant pages' },
+        ],
     },
 ];
 
@@ -226,7 +266,51 @@ export function courseDateOf(e: Pick<Enrollment, 'confirmed_date' | 'invited_dat
 }
 
 
-export function buildPlaceholderData(enrollment: EnrollmentWithRelations, today: string = todayISO()): Record<string, string> {
+/** Course dates with their time, place and days (migration 79), keyed by courseDateKey(course id, first day). */
+export type SessionMap = Record<string, CourseSession>;
+
+/** What documents know beyond the enrollments themselves. */
+export interface DocContext {
+    /** Schedules of the course dates: days and place. */
+    sessions?: SessionMap;
+    /** The signed-in staff member, for {staffName}. */
+    staffName?: string;
+}
+
+/** First and last day (YYYY-MM-DD) and the place of the course dates these people attend. */
+export function courseRun(people: EnrollmentWithRelations[], sessions: SessionMap = {}): { first: string | null; last: string | null; venue: string } {
+    const days: string[] = [];
+    const venues: string[] = [];
+    for (const e of people) {
+        const date = courseDateOf(e)?.slice(0, 10);
+        if (!date) continue;
+        const session = e.course_id ? sessions[courseDateKey(e.course_id, date)] : undefined;
+        if (session) {
+            days.push(...sessionDays(session).map(d => d.date));
+            if (session.location) venues.push(session.location);
+        } else {
+            days.push(date);
+        }
+    }
+    days.sort();
+    return { first: days[0] ?? null, last: days[days.length - 1] ?? null, venue: distinct(venues) };
+}
+
+/** {courseNameDate}, {startDate}, {endDate}, {venue} and {staffName} for one person or a whole group. */
+function runFields(people: EnrollmentWithRelations[], ctx: DocContext) {
+    const run = courseRun(people, ctx.sessions);
+    const endDate = formatDateDMY(run.last);
+    const name = distinct(people.map(e => e.courses?.name || ''));
+    return {
+        courseNameDate: [name, endDate].filter(Boolean).join(' '),
+        startDate: formatDateDMY(run.first),
+        endDate,
+        venue: run.venue,
+        staffName: ctx.staffName ?? '',
+    };
+}
+
+export function buildPlaceholderData(enrollment: EnrollmentWithRelations, today: string = todayISO(), ctx: DocContext = {}): Record<string, string> {
     const s = enrollment.students;
     const c = enrollment.courses;
     const status = enrollment.status || '';
@@ -256,6 +340,7 @@ export function buildPlaceholderData(enrollment: EnrollmentWithRelations, today:
         enrollmentStatus: status.charAt(0).toUpperCase() + status.slice(1),
         enrollmentNotes: enrollment.notes || '',
         today: formatDateLong(today),
+        ...runFields([enrollment], ctx),
     };
 }
 
@@ -269,13 +354,14 @@ export function sortBySurname<T extends { students: Pick<Student, 'first_name' |
 const distinct = (values: string[]) => [...new Set(values.filter(Boolean))].join(', ');
 
 /** Course-level fields shared by every participant: sheet headers, combined documents. */
-function courseFields(people: EnrollmentWithRelations[], today: string) {
+function courseFields(people: EnrollmentWithRelations[], today: string, ctx: DocContext = {}) {
     const dates = [...new Set(people.map(courseDateOf).filter((d): d is string => !!d))].sort();
     return {
         courseTitle: distinct(people.map(e => e.courses?.name || '')),
         courseVariant: distinct(people.map(e => cleanVariant(e.courses?.name || '', e.course_variant))),
         courseDate: dates.map(d => formatDateLong(d)).join(', '),
         today: formatDateLong(today),
+        ...runFields(people, ctx),
     };
 }
 
@@ -291,12 +377,13 @@ export function buildSheetPages(
     today: string = todayISO(),
     /** Extra per-participant fields for rows inside {#students} (date variables). */
     rowExtra?: (enrollment: EnrollmentWithRelations) => Record<string, string>,
+    ctx: DocContext = {},
 ): Record<string, unknown>[] {
     const people = sortBySurname(enrollments.filter(e => e.students));
     const pageSize = slots ?? Math.max(people.length, 1);
     const pageCount = Math.max(1, Math.ceil(people.length / pageSize));
     const common = {
-        ...courseFields(people, today),
+        ...courseFields(people, today, ctx),
         participantCount: String(people.length),
         pages: String(pageCount),
     };
@@ -327,6 +414,33 @@ export function buildSheetPages(
         }
         return page;
     });
+}
+
+/**
+ * Data for the SICAP course form: the course details (page 1) and, under {#participantPages},
+ * one entry per 9 participants with {fullName1}…{fullName9} (page 2, repeated as needed).
+ * The top level also carries the first page's slots, for a form without the page loop.
+ */
+export function buildSicapData(
+    enrollments: EnrollmentWithRelations[],
+    today: string = todayISO(),
+    ctx: DocContext = {},
+    rowExtra?: (enrollment: EnrollmentWithRelations) => Record<string, string>,
+): Record<string, unknown> {
+    const pages = buildSheetPages(enrollments, SICAP_SLOTS, today, rowExtra, ctx);
+    return { ...pages[0], [SICAP_PAGE_LOOP]: pages };
+}
+
+/** People grouped by course date (course + first day), in date order: one SICAP form per group. */
+export function groupByCourseRun(people: EnrollmentWithRelations[]): EnrollmentWithRelations[][] {
+    const groups = new Map<string, EnrollmentWithRelations[]>();
+    for (const e of people) {
+        const key = `${courseDateOf(e)?.slice(0, 10) ?? ''}|${e.courses?.name ?? ''}|${e.course_id}`;
+        const list = groups.get(key);
+        if (list) list.push(e);
+        else groups.set(key, [e]);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, list]) => list);
 }
 
 // ─── Rendering ──────────────────────────────────────────────
@@ -446,7 +560,13 @@ export async function fillTemplateForAll(template: ArrayBuffer, people: Record<s
     return renderDoc(doc, { __people: people.map((p, i) => ({ ...p, __last: i === people.length - 1 })) });
 }
 
-export type TemplateKind = 'document' | 'attendance' | 'labels';
+/** Pages of a sheet (attendance) rendered into one file, a page break between them. */
+function renderPagesInOneFile(libs: DocxLibs, template: ArrayBuffer, pages: Record<string, unknown>[], missing: Set<string>): ArrayBuffer {
+    const doc = createDoc(libs, toCombinedTemplate(libs, template), missing, [libs.fixDocPrCorruption]);
+    return renderDoc(doc, { __people: pages.map((page, i) => ({ ...page, __last: i === pages.length - 1 })) });
+}
+
+export type TemplateKind = 'document' | 'attendance' | 'labels' | 'sicap';
 
 export interface TemplateCheck {
     /** Syntax errors: the template cannot be rendered at all. */
@@ -473,7 +593,9 @@ export async function checkTemplateBuffer(template: ArrayBuffer, kind: TemplateK
     try {
         const sample: Record<string, unknown> = kind === 'document'
             ? Object.fromEntries([...PLACEHOLDER_KEYS].map(k => [k, 'x']))
-            : buildSheetPages([sampleParticipant()], kind === 'attendance' ? ATTENDANCE_SLOTS : LABEL_SLOTS)[0];
+            : kind === 'sicap'
+                ? buildSicapData([sampleParticipant()])
+                : buildSheetPages([sampleParticipant()], kind === 'attendance' ? ATTENDANCE_SLOTS : LABEL_SLOTS)[0];
         renderDoc(createDoc(libs, template, missing), { ...sample, ...customVariables });
     } catch (err) {
         return { error: describeDocxError(err), unknownTags: [] };
@@ -911,7 +1033,11 @@ export interface RenderInput {
     templates: TemplateFile[];
     attendance?: TemplateFile | null;
     labels?: TemplateFile | null;
+    /** The SICAP course form: one file per course date. */
+    sicap?: TemplateFile | null;
     extraFiles?: ExtraFile[];
+    /** Course date schedules ({startDate}, {endDate}, {venue}) and the signed-in staff member. */
+    context?: DocContext;
     customVariables?: Record<string, string>;
     /** Custom variables worked out per participant, e.g. {expire} = course date + 2 years. */
     dateVariables?: DateVariable[];
@@ -973,8 +1099,8 @@ function yieldToEventLoop(): Promise<void> {
 const YIELD_EVERY_MS = 40;
 
 export async function renderArchive(input: RenderInput, hooks: RenderHooks = {}): Promise<{ zip: ArrayBuffer; result: GenerationResult }> {
-    const { templates, attendance, labels, extraFiles = [], customVariables = {}, dateVariables = [], combined = false, today = todayISO() } = input;
-    const personData = (e: EnrollmentWithRelations) => ({ ...buildPlaceholderData(e, today), ...customVariables, ...dateVariableValues(dateVariables, e, today) });
+    const { templates, attendance, labels, sicap, extraFiles = [], customVariables = {}, dateVariables = [], combined = false, today = todayISO(), context = {} } = input;
+    const personData = (e: EnrollmentWithRelations) => ({ ...buildPlaceholderData(e, today, context), ...customVariables, ...dateVariableValues(dateVariables, e, today) });
     const personDates = (e: EnrollmentWithRelations) => dateVariableValues(dateVariables, e, today);
     const { onProgress, signal } = hooks;
     const people = sortBySurname(input.enrollments.filter(e => e.students));
@@ -995,12 +1121,14 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
 
     const hasPeople = people.length > 0;
     const sheets = [
-        { label: 'Attendance sheet', file: 'Attendance_Sheet', template: hasPeople ? attendance : null, slots: ATTENDANCE_SLOTS },
-        { label: 'Address labels', file: 'Address_Labels', template: hasPeople ? labels : null, slots: LABEL_SLOTS },
+        // The attendance sheet keeps all its pages in one file, ready to print
+        { label: 'Attendance sheet', file: 'Attendance_Sheet', template: hasPeople ? attendance : null, slots: ATTENDANCE_SLOTS, oneFile: true },
+        { label: 'Address labels', file: 'Address_Labels', template: hasPeople ? labels : null, slots: LABEL_SLOTS, oneFile: false },
     ].filter(s => s.template);
+    const sicapGroups = hasPeople && sicap ? groupByCourseRun(people) : [];
     const extras = hasPeople ? extraFiles : [];
     const combinedCount = combined && hasPeople && templates.length > 0 ? people.length : 0;
-    const total = templates.length * people.length + combinedCount + sheets.length + extras.length;
+    const total = templates.length * people.length + combinedCount + sheets.length + sicapGroups.length + extras.length;
     const studentDocs: ArrayBuffer[][] = people.map(() => []);
 
     let done = 0;
@@ -1105,14 +1233,19 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         } else {
             try {
                 const usesLoop = createDoc(libs, buffer).getFullText().includes(`{#${SHEET_LOOP}}`);
-                const pages = buildSheetPages(people, usesLoop ? null : sheet.slots, today, personDates);
+                const pages = buildSheetPages(people, usesLoop ? null : sheet.slots, today, personDates, context);
                 const sheetDates = sheetDateValues(dateVariables, people, today);
                 const missing = new Set<string>();
-                pages.forEach((page, i) => {
-                    const file = renderDoc(createDoc(libs, buffer, missing), { ...page, ...customVariables, ...sheetDates });
-                    const suffix = pages.length > 1 ? `_${i + 1}_of_${pages.length}` : '';
-                    zip.file(uniquePath(usedPaths, `${sheet.file}${suffix}.docx`), file);
-                });
+                if (sheet.oneFile && pages.length > 1) {
+                    const file = renderPagesInOneFile(libs, buffer, pages.map(page => ({ ...page, ...customVariables, ...sheetDates })), missing);
+                    zip.file(uniquePath(usedPaths, `${sheet.file}.docx`), file);
+                } else {
+                    pages.forEach((page, i) => {
+                        const file = renderDoc(createDoc(libs, buffer, missing), { ...page, ...customVariables, ...sheetDates });
+                        const suffix = pages.length > 1 ? `_${i + 1}_of_${pages.length}` : '';
+                        zip.file(uniquePath(usedPaths, `${sheet.file}${suffix}.docx`), file);
+                    });
+                }
                 result.extras.push({ label: sheet.label, ok: true, files: pages.length });
                 if (missing.size) result.unknownTags.push({ template: sheet.label, tags: [...missing].sort() });
             } catch (err) {
@@ -1120,6 +1253,60 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
             }
         }
         await tick();
+    }
+
+    // ── SICAP course form: one file per course date, with every participant page in it ──
+    if (sicapGroups.length > 0) {
+        const label = 'SICAP course form';
+        const { buffer, error } = sicap!;
+        let setupError = buffer ? null : error || 'Download failed';
+        let usesPageLoop = false;
+        let usesRowLoop = false;
+        if (buffer) {
+            try {
+                const text = createDoc(libs, buffer).getFullText();
+                usesPageLoop = text.includes(`{#${SICAP_PAGE_LOOP}}`);
+                usesRowLoop = text.includes(`{#${SHEET_LOOP}}`);
+            } catch (err) {
+                setupError = describeDocxError(err);
+            }
+        }
+        const missing = new Set<string>();
+        const errors: string[] = [];
+        let made = 0;
+        for (const group of sicapGroups) {
+            if (buffer && !setupError) {
+                const run = courseRun(group, context.sessions);
+                const course = group[0].courses?.name || 'Course';
+                const fileName = sicapGroups.length === 1
+                    ? 'SICAP_Course_Form.docx'
+                    : `SICAP_${safeFileName(course, 'Course')}_${run.last ? formatDateDMY(run.last).replace(/\//g, '-') : 'no_date'}.docx`;
+                try {
+                    const extra = { ...customVariables, ...sheetDateValues(dateVariables, group, today) };
+                    let file: ArrayBuffer;
+                    if (usesPageLoop) {
+                        // The page loop copies the form's pictures: give every copy its own id
+                        const doc = createDoc(libs, buffer, missing, [libs.fixDocPrCorruption]);
+                        file = renderDoc(doc, { ...buildSicapData(group, today, context, personDates), ...extra });
+                    } else if (usesRowLoop) {
+                        file = renderDoc(createDoc(libs, buffer, missing), { ...buildSheetPages(group, null, today, personDates, context)[0], ...extra });
+                    } else {
+                        // No loop: the whole form repeats for every 9 people, in one file
+                        const pages = buildSheetPages(group, SICAP_SLOTS, today, personDates, context).map(page => ({ ...page, ...extra }));
+                        file = pages.length > 1 ? renderPagesInOneFile(libs, buffer, pages, missing) : renderDoc(createDoc(libs, buffer, missing), pages[0]);
+                    }
+                    zip.file(uniquePath(usedPaths, fileName), file);
+                    made++;
+                } catch (err) {
+                    errors.push(`${course}${run.last ? ` ${formatDateDMY(run.last)}` : ''}: ${describeDocxError(err)}`);
+                }
+            }
+            await tick();
+        }
+        if (setupError) result.extras.push({ label, ok: false, files: 0, error: setupError });
+        if (made > 0) result.extras.push({ label: made > 1 ? `${made} SICAP course forms — one per course date` : label, ok: true, files: 1 });
+        if (errors.length > 0) result.extras.push({ label, ok: false, files: 0, error: errors.slice(0, 3).join('; ') + (errors.length > 3 ? ` (+${errors.length - 3} more)` : '') });
+        if (missing.size) result.unknownTags.push({ template: label, tags: [...missing].sort() });
     }
 
     // ── Ready-made files (Participants.xlsx) ──

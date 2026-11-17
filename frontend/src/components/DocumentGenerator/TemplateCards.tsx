@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, ArrowDown, ArrowUp, ClipboardList, FileText, Info, Tag, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ClipboardCheck, ClipboardList, Download, FileText, Info, Tag, Trash2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import FileDropzone from '../ui/FileDropzone';
@@ -9,10 +9,11 @@ import { DownloadButton, ReplaceFileButton } from './shared';
 import { errorText, fileInputHandler, type ConfirmDelete, type ShowToast } from './helpers';
 import { vetTemplateFile, type DocumentSetup } from './useDocumentSetup';
 import {
-    ATTENDANCE_SLOTS, LABEL_SLOTS, SHEET_LOOP, SINGLE_TEMPLATES, downloadTemplate,
+    ATTENDANCE_SLOTS, LABEL_SLOTS, SHEET_LOOP, SICAP_PAGE_LOOP, SICAP_SLOTS, SINGLE_TEMPLATES, downloadTemplate,
     type SingleKind, type TemplateKind,
 } from '../../lib/documentUtils';
 import type { DocumentTemplate } from '../../lib/types';
+import sicapStarterUrl from '../../assets/templates/sicap-course-form.docx?url';
 import { formatDisplayDate } from '../../lib/dateUtils';
 
 interface CardProps {
@@ -188,13 +189,27 @@ const SINGLE_CARDS = {
         deleteTitle: 'Delete Label Template',
         deleteMessage: 'Delete the label template? The file will be removed permanently.',
     },
+    sicap: {
+        title: 'SICAP course form',
+        name: 'SICAP Form',
+        icon: ClipboardCheck,
+        tone: 'success' as const,
+        slots: SICAP_SLOTS,
+        subtitle: <>Page 1 filled in from the course, names on page 2: {'{fullName1}'} … {`{fullName${SICAP_SLOTS}}`}</>,
+        empty: 'No SICAP form template uploaded yet',
+        deleteTitle: 'Delete SICAP Form Template',
+        deleteMessage: 'Delete the SICAP course form template? The file will be removed permanently.',
+    },
 };
 
-/** The attendance sheet or the address labels: one current template, replaced by uploading a new one. */
+
+
+/** The attendance sheet, the address labels or the SICAP form: one current template, replaced by uploading a new one. */
 export function SingleTemplateCard({ kind, setup, showToast, confirmDelete }: CardProps & { kind: SingleKind }) {
     const cfg = SINGLE_CARDS[kind];
     const { label } = SINGLE_TEMPLATES[kind];
-    const tpl = kind === 'attendance' ? setup.attTemplate : setup.labelTemplate;
+    const tpl = { attendance: setup.attTemplate, labels: setup.labelTemplate, sicap: setup.sicapTemplate }[kind];
+    const needsMigration = kind === 'sicap' && !setup.sicapReady;
     const { busy, upload } = useTemplateUpload(setup, showToast);
 
     return (
@@ -230,6 +245,11 @@ export function SingleTemplateCard({ kind, setup, showToast, confirmDelete }: Ca
                             </IconButton>
                         </div>
                     </div>
+                ) : needsMigration ? (
+                    <div className={`${calloutCls.warning} flex items-start gap-2 px-3 py-2 text-xs font-medium`}>
+                        <AlertCircle size={14} className="text-status-requested shrink-0 mt-px" />
+                        <span>Run <code className="font-mono">supabase/91_sicap_templates.sql</code> in the Supabase SQL editor once, then upload the form here.</span>
+                    </div>
                 ) : (
                     <div className={`${calloutCls.warning} flex items-center gap-2 px-3 py-2 text-xs font-medium`}>
                         <AlertCircle size={14} className="text-status-requested shrink-0" />
@@ -242,14 +262,38 @@ export function SingleTemplateCard({ kind, setup, showToast, confirmDelete }: Ca
                     onChange={fileInputHandler(file => upload(kind, kind, file, `${label} uploaded`, f => setup.saveSingle.mutateAsync({ kind, file: f })))}
                     uploading={busy === kind}
                     title={`${tpl ? 'Replace' : 'Upload'} ${cfg.name} Template`}
-                    hint="Drop a .docx here or click to browse · max 5MB · see “Attendance sheet & labels” in Available variables"
+                    hint={kind === 'sicap'
+                        ? 'Drop a .docx here or click to browse · max 5MB · see “SICAP course form” in Available variables'
+                        : 'Drop a .docx here or click to browse · max 5MB · see “Attendance sheet & labels” in Available variables'}
                 />
-                <p className="text-xs text-muted flex items-start gap-1.5">
-                    <Info size={13} className="shrink-0 mt-px" />
-                    <span>
-                        Groups over {cfg.slots} continue on extra pages. Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.
-                    </span>
-                </p>
+                {kind === 'sicap' ? (
+                    <>
+                        <p className="text-xs text-muted flex items-start gap-1.5">
+                            <Info size={13} className="shrink-0 mt-px" />
+                            <span>
+                                One file per course date. The participant page sits inside <code className="font-mono text-primary">{`{#${SICAP_PAGE_LOOP}}…{/${SICAP_PAGE_LOOP}}`}</code> and repeats for every {SICAP_SLOTS} people; Individual ID and the outcome stay blank to fill in by hand.
+                            </span>
+                        </p>
+                        <a
+                            href={sicapStarterUrl}
+                            download="SICAP_Course_Form_template.docx"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                            <Download size={13} />
+                            Download the ready-made SICAP form (Jan 2026)
+                        </a>
+                    </>
+                ) : (
+                    <p className="text-xs text-muted flex items-start gap-1.5">
+                        <Info size={13} className="shrink-0 mt-px" />
+                        <span>
+                            {kind === 'attendance'
+                                ? <>Groups over {cfg.slots} continue on extra pages of the same file.</>
+                                : <>Groups over {cfg.slots} continue in extra files, one per page.</>}
+                            {' '}Or use one table row with <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code> — it repeats for every participant on a single sheet.
+                        </span>
+                    </p>
+                )}
             </div>
         </Card>
     );
