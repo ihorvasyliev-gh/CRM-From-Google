@@ -502,12 +502,12 @@ describe('combined file', () => {
         expect(Object.keys(zip.files).filter(p => !p.endsWith('/')).sort()).toEqual([
             'Certificate/Mary_Ahern.docx',
             'Certificate/Zoe_Byrne.docx',
-            'Mary_Ahern.docx',
+            'Combined/Mary_Ahern.docx',
+            'Combined/Zoe_Byrne.docx',
             'Welcome_letter/Mary_Ahern.docx',
             'Welcome_letter/Zoe_Byrne.docx',
-            'Zoe_Byrne.docx',
         ]);
-        const xml = new PizZip(zip.file('Mary_Ahern.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
+        const xml = new PizZip(zip.file('Combined/Mary_Ahern.docx')!.asArrayBuffer()).file('word/document.xml')!.asText();
         const texts = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).filter(Boolean);
         expect(texts).toEqual(['Cert: Mary Ahern — Jane', 'Letter: Mary Ahern']);
         expect(xml.match(/w:type="page"/g)).toHaveLength(1);
@@ -541,7 +541,7 @@ describe('combined file', () => {
                 d2: makeRichDocx('Second for {fullName}', '16838', 'IMG_TWO'),
             }),
         });
-        const mergedZip = new PizZip(new PizZip(await blob.arrayBuffer()).file('Mukhamed_Mukhamedov.docx')!.asArrayBuffer());
+        const mergedZip = new PizZip(new PizZip(await blob.arrayBuffer()).file('Combined/Mukhamed_Mukhamedov.docx')!.asArrayBuffer());
         expect(mergedZip.file('word/media/image1.png')!.asText()).toBe('IMG_ONE');
         expect(mergedZip.file('word/media/d1_image1.png')!.asText()).toBe('IMG_TWO');
         const docXml = mergedZip.file('word/document.xml')!.asText();
@@ -601,7 +601,7 @@ describe('combined file', () => {
                 form: makeMultiPageFormDocx('Form for {fullName}'),
             }),
         });
-        const merged1 = new PizZip(new PizZip(await blob1.arrayBuffer()).file('Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
+        const merged1 = new PizZip(new PizZip(await blob1.arrayBuffer()).file('Combined/Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
         const docXml1 = merged1.file('word/document.xml')!.asText();
         const sectPrs1 = [...docXml1.matchAll(/<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/g)].map(m => m[0]);
         expect(sectPrs1).toHaveLength(4);
@@ -626,7 +626,7 @@ describe('combined file', () => {
                 plan: makeHeaderedWordDocx('Plan for {fullName}'),
             }),
         });
-        const merged2 = new PizZip(new PizZip(await blob2.arrayBuffer()).file('Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
+        const merged2 = new PizZip(new PizZip(await blob2.arrayBuffer()).file('Combined/Ikechukwu_Obijiaku.docx')!.asArrayBuffer());
         expect(merged2.file('word/styles.xml')!.asText()).toContain('<w:latentStyles/>');
         expect(merged2.file('word/theme/theme1.xml')).toBeTruthy();
     });
@@ -728,7 +728,7 @@ describe('date variables', () => {
         const docs = await readArchive(blob);
         expect(docs['Cert/Ann_Ahern.docx']).toBe('Ann Ahern until 01 Oct 2028 (01/10/2030)');
         expect(docs['Cert/Bob_Byrne.docx']).toBe('Bob Byrne until 05 Nov 2028 (05/11/2030)');
-        expect(docs['Bob_Byrne.docx']).toContain('Bob Byrne until 05 Nov 2028');
+        expect(docs['Combined/Bob_Byrne.docx']).toContain('Bob Byrne until 05 Nov 2028');
         // The sheet header uses the earliest date; each row its own
         expect(docs['Attendance_Sheet.docx']).toBe('Valid until 01 Oct 2028\nAnn Ahern: 01 Oct 2028\nBob Byrne: 05 Nov 2028');
 
@@ -738,7 +738,7 @@ describe('date variables', () => {
 });
 
 describe('archive layout', () => {
-    it('puts each template in its own folder with a file per person, plus combined per-student and group files at the top', async () => {
+    it('puts each template in its own folder with a file per person, the combined files in Combined/, and group files at the top', async () => {
         const people = Array.from({ length: 12 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
         const { blob } = await buildDocumentsArchive({
             enrollments: people,
@@ -758,9 +758,9 @@ describe('archive layout', () => {
         expect(topFiles).toContain('Address_Labels.docx');
         expect(topFiles).toContain('Attendance_Sheet.docx');
         expect(topFiles).toContain('Participants.xlsx');
-        expect(topFiles).toContain('P0_S00.docx');
-        expect(topFiles).toContain('P11_S11.docx');
-        expect(topFiles).toHaveLength(12 + 3);
+        expect(inFolder('Combined')).toHaveLength(12);
+        expect(inFolder('Combined')).toContain('Combined/P0_S00.docx');
+        expect(topFiles).toEqual(['Address_Labels.docx', 'Attendance_Sheet.docx', 'Participants.xlsx']);
         expect(paths).toHaveLength(12 * 2 + 12 + 3);
     });
 });
