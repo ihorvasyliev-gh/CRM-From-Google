@@ -21,6 +21,8 @@ export const LABEL_SLOTS = 28;
 export const SICAP_SLOTS = 9;
 /** In the SICAP form, {#participantPages}…{/participantPages} repeats the participant page for every 9 people. */
 export const SICAP_PAGE_LOOP = 'participantPages';
+/** Archive folder of the combined per-student files ("Also one combined file per student"). */
+export const COMBINED_FOLDER = 'Combined';
 /** A table row wrapped in {#students}…{/students} repeats for every participant instead. */
 export const SHEET_LOOP = 'students';
 
@@ -1162,8 +1164,8 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
         }
 
         const base = safeFileName(tpl.name.replace(/\.docx$/i, ''), 'Template');
-        // Archive layout: one folder per template with a file per person; combined per-student
-        // files and group files (attendance sheet, labels, Participants.xlsx) sit at the top
+        // Archive layout: one folder per template with a file per person, the combined per-student
+        // files in Combined/; group files (attendance sheet, labels, SICAP form, Participants.xlsx) sit at the top
         const folder = `${base}/`;
         const missing = new Set<string>();
         let templateOk = true;
@@ -1200,7 +1202,7 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
                 try {
                     const merged = mergeStudentDocs(libs, docs);
                     const name = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
-                    zip.file(uniquePath(usedPaths, name), merged);
+                    zip.file(uniquePath(usedPaths, `${COMBINED_FOLDER}/${name}`), merged);
                     made++;
                 } catch (err) {
                     errors.push(`${fullName(s) || 'Unknown'}: ${describeDocxError(err)}`);

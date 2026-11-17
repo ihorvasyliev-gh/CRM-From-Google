@@ -308,7 +308,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
                         />
                         <span>
                             <span className="inline-flex items-center gap-1 font-medium"><Printer size={13} /> Also one combined file per student</span>
-                            <span className="block text-muted">All templates for each person in a single .docx, one after another on new pages — for printing.</span>
+                            <span className="block text-muted">All templates for each person in a single .docx, one after another on new pages — for printing. Saved in the Combined folder of the ZIP.</span>
                         </span>
                     </label>
 
