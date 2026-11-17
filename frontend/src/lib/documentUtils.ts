@@ -9,9 +9,10 @@ import { downloadBlob } from './download';
 import { errorMessage } from './errors';
 import { styledTable, xlsxBlob } from './excelExport';
 import { runRenderJob } from './documentJob';
+import { courseDateKey, SESSION_COLUMNS, sessionFromRow } from './courseSessions';
 import {
     abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, parseDateRule,
-    type DateVariable, type EnrollmentWithRelations, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
+    type DateVariable, type DocContext, type EnrollmentWithRelations, type SessionMap, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
 } from './documentRender';
 
 export * from './documentRender';
@@ -27,12 +28,13 @@ export interface TemplateDescriptor {
 
 // ─── Templates ──────────────────────────────────────────────
 
-export type TemplateTable = 'document_templates' | 'attendance_templates' | 'label_templates';
+export type TemplateTable = 'document_templates' | 'attendance_templates' | 'label_templates' | 'sicap_templates';
 
-/** The attendance sheet and address labels: one current template each. */
+/** The attendance sheet, address labels and the SICAP course form: one current template each. */
 export const SINGLE_TEMPLATES = {
     attendance: { table: 'attendance_templates', queryKey: 'doc_att_template', prefix: 'template_att', label: 'Attendance template' },
     labels: { table: 'label_templates', queryKey: 'doc_label_template', prefix: 'template_lbl', label: 'Label template' },
+    sicap: { table: 'sicap_templates', queryKey: 'doc_sicap_template', prefix: 'template_sicap', label: 'SICAP form template' },
 } as const;
 export type SingleKind = keyof typeof SINGLE_TEMPLATES;
 
@@ -42,10 +44,21 @@ export async function fetchDocumentTemplates(): Promise<DocumentTemplate[]> {
     return (data || []) as DocumentTemplate[];
 }
 
+/** PostgREST (PGRST205) or Postgres (42P01): the table does not exist yet, its migration has not run. */
+export const isMissingTable = (error: { code?: string } | null | undefined) => error?.code === 'PGRST205' || error?.code === '42P01';
+
 export async function fetchSingleTemplate(kind: SingleKind): Promise<DocumentTemplate | null> {
     const { data, error } = await supabase.from(SINGLE_TEMPLATES[kind].table).select('*').order('updated_at', { ascending: false }).limit(1);
+    // Before migration 91 there is no SICAP table: the card says to run it, the rest works as before
+    if (error && kind === 'sicap' && isMissingTable(error)) return null;
     if (error) throw error;
     return (data?.[0] as DocumentTemplate | undefined) ?? null;
+}
+
+/** Whether the SICAP template table exists (migration 91 has run). */
+export async function sicapTableReady(): Promise<boolean> {
+    const { error } = await supabase.from(SINGLE_TEMPLATES.sicap.table).select('id', { head: true, count: 'exact' }).limit(1);
+    return !isMissingTable(error);
 }
 
 export async function fetchTemplateVariables(): Promise<TemplateVariable[]> {
@@ -301,7 +314,7 @@ export async function fetchExcelColumns(): Promise<{ columns: ExcelColumn[]; sha
     const { data, error } = await supabase.from('document_settings').select('excel_columns').eq('id', true).maybeSingle();
     if (error) {
         // Table not created yet (PostgREST: PGRST205, Postgres: 42P01): keep using this browser's copy
-        if (error.code === 'PGRST205' || error.code === '42P01') return { columns: getConfig().excelColumns, shared: false };
+        if (isMissingTable(error)) return { columns: getConfig().excelColumns, shared: false };
         throw error;
     }
     const saved = data?.excel_columns;
@@ -321,13 +334,52 @@ async function buildParticipantsWorkbook(
     customVariables: Record<string, string>,
     dateVariables: DateVariable[],
     today: string,
+    context: DocContext,
 ): Promise<ArrayBuffer> {
     const rows = enrollments.map(enrollment => {
-        const data = { ...buildPlaceholderData(enrollment, today), ...customVariables, ...dateVariableValues(dateVariables, enrollment, today) };
+        const data = { ...buildPlaceholderData(enrollment, today, context), ...customVariables, ...dateVariableValues(dateVariables, enrollment, today) };
         return columns.map(col => data[col.placeholder]);
     });
     const sheet = styledTable('Participants', columns.map(col => col.header), rows, { filter: true });
     return (await xlsxBlob([sheet])).arrayBuffer();
+}
+
+// ─── Context: course date schedules, signed-in staff member ─
+
+/** The signed-in person's name for {staffName}: the name set in Settings → Your name, or ''. */
+export function staffNameOf(user: { user_metadata?: Record<string, unknown> } | null | undefined): string {
+    const meta = user?.user_metadata ?? {};
+    const name = typeof meta.full_name === 'string' ? meta.full_name : typeof meta.name === 'string' ? meta.name : '';
+    return name.trim();
+}
+
+/**
+ * Days and place of the course dates these people attend, and the signed-in staff member.
+ * Either part may be missing (no schedule saved, migration 79 not run): its placeholders print blank.
+ */
+export async function fetchDocContext(people: EnrollmentWithRelations[]): Promise<DocContext> {
+    const courseIds = [...new Set(people.map(e => e.course_id).filter(Boolean))];
+    const [sessions, staffName] = await Promise.all([
+        (async (): Promise<SessionMap> => {
+            if (!courseIds.length) return {};
+            const { data, error } = await Promise.resolve()
+                .then(() => supabase.from('invite_dates').select(SESSION_COLUMNS).in('course_id', courseIds))
+                .then(res => res ?? { data: null, error: null }, (err: unknown) => ({ data: null, error: err }));
+            if (error) {
+                console.warn('Course date schedules unavailable for documents:', error);
+                return {};
+            }
+            const map: SessionMap = {};
+            for (const row of data || []) {
+                const session = sessionFromRow(row);
+                if (session && typeof row.course_id === 'string') map[courseDateKey(row.course_id, session.date)] = session;
+            }
+            return map;
+        })(),
+        // No name is no reason to stop: {staffName} then prints blank
+        Promise.resolve().then(() => supabase.auth.getSession()).then(({ data }) => staffNameOf(data.session?.user), () => ''),
+    ]);
+    return { sessions, staffName };
 }
 
 // ─── Archive ────────────────────────────────────────────────
@@ -337,6 +389,9 @@ export interface ArchiveOptions {
     templates: TemplateDescriptor[];
     attendanceTemplatePath?: string | null;
     labelTemplatePath?: string | null;
+    sicapTemplatePath?: string | null;
+    /** Course date schedules and the signed-in staff member (see fetchDocContext). */
+    context?: DocContext;
     customVariables?: Record<string, string>;
     /** Custom variables worked out per participant (see variablesForArchive). */
     dateVariables?: DateVariable[];
@@ -354,8 +409,8 @@ export interface ArchiveOptions {
 
 export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ blob: Blob; result: GenerationResult }> {
     const {
-        templates, attendanceTemplatePath, labelTemplatePath, excelColumns = [], combined = false,
-        customVariables = {}, dateVariables = [], onProgress, signal, fetchTemplate = fetchTemplateFile, today = todayISO(),
+        templates, attendanceTemplatePath, labelTemplatePath, sicapTemplatePath, excelColumns = [], combined = false,
+        customVariables = {}, dateVariables = [], onProgress, signal, fetchTemplate = fetchTemplateFile, today = todayISO(), context = {},
     } = options;
     const people = options.enrollments.filter(e => e.students);
     const hasPeople = people.length > 0;
@@ -365,20 +420,21 @@ export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ 
         buffer => ({ name, buffer }),
         (err: unknown) => ({ name, buffer: null, error: `Download failed: ${errorMessage(err, String(err))}` }),
     );
-    const excelFile = (): Promise<ExtraFile> => buildParticipantsWorkbook(people, excelColumns, customVariables, dateVariables, today).then(
+    const excelFile = (): Promise<ExtraFile> => buildParticipantsWorkbook(people, excelColumns, customVariables, dateVariables, today, context).then(
         buffer => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer }),
         (err: unknown) => ({ label: 'Participants.xlsx', path: 'Participants.xlsx', buffer: null, error: errorMessage(err, String(err)) }),
     );
-    const [docFiles, attendance, labels, excel] = await Promise.all([
+    const [docFiles, attendance, labels, sicap, excel] = await Promise.all([
         Promise.all(templates.map(t => download(t.name, t.storagePath))),
         attendanceTemplatePath && hasPeople ? download('Attendance sheet', attendanceTemplatePath) : null,
         labelTemplatePath && hasPeople ? download('Address labels', labelTemplatePath) : null,
+        sicapTemplatePath && hasPeople ? download('SICAP course form', sicapTemplatePath) : null,
         excelColumns.length && hasPeople ? excelFile() : null,
     ]);
     if (signal?.aborted) throw abortError();
 
     const { zip, result } = await runRenderJob(
-        { enrollments: people, templates: docFiles, attendance, labels, extraFiles: excel ? [excel] : [], customVariables, dateVariables, combined, today },
+        { enrollments: people, templates: docFiles, attendance, labels, sicap, extraFiles: excel ? [excel] : [], customVariables, dateVariables, combined, today, context },
         { onProgress, signal },
     );
     return { blob: new Blob([zip], { type: 'application/zip' }), result };
@@ -410,12 +466,14 @@ export async function generateSelectionArchive(
     const { people, skipped } = await refreshParticipants(selected);
     if (!people.length) throw new Error('The selected enrollments no longer exist.');
     const courseIds = [...new Set(people.map(e => e.course_id))];
-    const [templates, attTemplate, lblTemplate, vars, excel, course] = await Promise.all([
+    const [templates, attTemplate, lblTemplate, sicapTemplate, vars, excel, context, course] = await Promise.all([
         fetchDocumentTemplates(),
         fetchSingleTemplate('attendance'),
         fetchSingleTemplate('labels'),
+        fetchSingleTemplate('sicap'),
         fetchTemplateVariables(),
         fetchExcelColumns(),
+        fetchDocContext(people),
         // A course preset only applies when the whole selection is one course
         courseIds.length === 1
             ? supabase.from('courses').select('template_ids').eq('id', courseIds[0]).maybeSingle().then(({ data, error }) => {
@@ -425,7 +483,7 @@ export async function generateSelectionArchive(
             : null,
     ]);
     const wordTemplates = templatesForCourse(templates, course?.template_ids);
-    if (!wordTemplates.length && !attTemplate && !lblTemplate && !excel.columns.length) {
+    if (!wordTemplates.length && !attTemplate && !lblTemplate && !sicapTemplate && !excel.columns.length) {
         throw new Error('No active template found. Please upload and activate at least one template.');
     }
 
@@ -435,6 +493,8 @@ export async function generateSelectionArchive(
         templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
         attendanceTemplatePath: attTemplate?.storage_path,
         labelTemplatePath: lblTemplate?.storage_path,
+        sicapTemplatePath: sicapTemplate?.storage_path,
+        context,
         ...variablesForArchive(vars),
         excelColumns: excel.columns,
         combined,

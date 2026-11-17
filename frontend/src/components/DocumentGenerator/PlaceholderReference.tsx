@@ -8,16 +8,17 @@ import { PlaceholderButton } from './shared';
 import { variableSummary } from './helpers';
 import {
     ATTENDANCE_SLOTS, LABEL_SLOTS, PLACEHOLDER_CATEGORIES, SHEET_LOOP, SHEET_PLACEHOLDER_CATEGORIES,
+    SICAP_PAGE_LOOP, SICAP_PLACEHOLDER_CATEGORIES, SICAP_SLOTS,
 } from '../../lib/documentUtils';
 import type { TemplateVariable } from '../../lib/types';
 
-type Tab = 'documents' | 'sheets';
+type Tab = 'documents' | 'sheets' | 'sicap';
 
 /** Every placeholder a template can use, by template type. Click one to copy it. */
 export default function PlaceholderReference({ customVars }: { customVars: TemplateVariable[] }) {
     const [open, setOpen] = useState(true);
     const [tab, setTab] = useState<Tab>('documents');
-    const categories = tab === 'documents' ? PLACEHOLDER_CATEGORIES : SHEET_PLACEHOLDER_CATEGORIES;
+    const categories = { documents: PLACEHOLDER_CATEGORIES, sheets: SHEET_PLACEHOLDER_CATEGORIES, sicap: SICAP_PLACEHOLDER_CATEGORIES }[tab];
 
     return (
         <Card
@@ -42,14 +43,25 @@ export default function PlaceholderReference({ customVars }: { customVars: Templ
                         options={[
                             { value: 'documents', label: 'Word documents (per student)' },
                             { value: 'sheets', label: 'Attendance sheet & labels' },
+                            { value: 'sicap', label: 'SICAP course form' },
                         ]}
                     />
+                    {tab === 'sicap' && (
+                        <p className="text-xs text-muted flex items-start gap-1.5">
+                            <Info size={13} className="shrink-0 mt-px" />
+                            <span>
+                                One form per course date. Put the participant page between <code className="font-mono text-primary">{`{#${SICAP_PAGE_LOOP}}`}</code> and{' '}
+                                <code className="font-mono text-primary">{`{/${SICAP_PAGE_LOOP}}`}</code> (each on its own line): it repeats for every {SICAP_SLOTS} people,
+                                with {'{fullName1}'} … {`{fullName${SICAP_SLOTS}}`} on each copy.
+                            </span>
+                        </p>
+                    )}
                     {tab === 'sheets' && (
                         <p className="text-xs text-muted flex items-start gap-1.5">
                             <Info size={13} className="shrink-0 mt-px" />
                             <span>
                                 Numbered slots go up to {ATTENDANCE_SLOTS} on the attendance sheet and {LABEL_SLOTS} on labels ({'{fullName1}'} … {`{fullName${ATTENDANCE_SLOTS}}`});
-                                bigger groups continue on extra pages. Or repeat one table row for everyone with{' '}
+                                bigger groups continue on extra pages (the attendance sheet in the same file). Or repeat one table row for everyone with{' '}
                                 <code className="font-mono text-primary">{`{#${SHEET_LOOP}}{n}. {fullName}{/${SHEET_LOOP}}`}</code>.
                             </span>
                         </p>

@@ -37,7 +37,7 @@ export default function DocumentGenerator() {
         );
     }
 
-    const { templates, attTemplate, labelTemplate, customVars, excelColumns } = setup;
+    const { templates, attTemplate, labelTemplate, sicapTemplate, customVars, excelColumns } = setup;
     const activeCount = templates.filter(t => t.is_active).length;
     const cardProps = { setup, showToast, confirmDelete: setPendingDelete };
 
@@ -77,12 +77,12 @@ export default function DocumentGenerator() {
                     hint="With confirmed participants"
                 />
                 <StatTile
-                    label="Attendance & labels"
+                    label="Sheets & SICAP form"
                     icon={Tag}
                     tone="info"
                     accent={false}
-                    value={<>{Number(!!attTemplate) + Number(!!labelTemplate)}<span className="text-sm font-semibold text-muted"> / 2</span></>}
-                    hint={attTemplate && labelTemplate ? 'Both templates set' : 'Optional sheets'}
+                    value={<>{Number(!!attTemplate) + Number(!!labelTemplate) + Number(!!sicapTemplate)}<span className="text-sm font-semibold text-muted"> / 3</span></>}
+                    hint={attTemplate && labelTemplate && sicapTemplate ? 'All templates set' : 'Attendance, labels, SICAP form'}
                 />
                 <StatTile
                     label="Custom variables"
@@ -106,6 +106,7 @@ export default function DocumentGenerator() {
                     <WordTemplatesCard {...cardProps} />
                     <SingleTemplateCard kind="attendance" {...cardProps} />
                     <SingleTemplateCard kind="labels" {...cardProps} />
+                    <SingleTemplateCard kind="sicap" {...cardProps} />
                     <CustomVariablesCard {...cardProps} />
                     <ExcelColumnsCard setup={setup} showToast={showToast} />
                 </div>

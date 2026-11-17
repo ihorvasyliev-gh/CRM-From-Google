@@ -17,7 +17,7 @@ import { formatDisplayDate } from '../../lib/dateUtils';
 import { formatPhoneDisplay } from '../../lib/contactUtils';
 import type { Course } from '../../lib/types';
 import {
-    archiveFileName, coursePreset, defaultSessionKey, generateDocumentsArchive, groupSessions, isAbortError,
+    archiveFileName, coursePreset, defaultSessionKey, fetchDocContext, generateDocumentsArchive, groupSessions, isAbortError,
     refreshParticipants, sessionKeyOf, sortBySurname, summarizeGeneration,
     type EnrollmentWithRelations, type GenerationResult, type GenerationStatus,
 } from '../../lib/documentUtils';
@@ -25,7 +25,7 @@ import {
 const plural = (n: number, word: string) => `${n} ${word}${n !== 1 ? 's' : ''}`;
 
 const STATUS_OPTIONS: { value: GenerationStatus; label: string; title: string }[] = [
-    { value: 'confirmed', label: 'Confirmed', title: 'People confirmed for a course date — letters, attendance sheets, labels' },
+    { value: 'confirmed', label: 'Confirmed', title: 'People confirmed for a course date — letters, attendance sheets, labels, SICAP form' },
     { value: 'completed', label: 'Completed', title: 'People who finished the course — certificates' },
 ];
 
@@ -36,7 +36,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
     showToast: ShowToast;
 }) {
     const queryClient = useQueryClient();
-    const { templates, attTemplate, labelTemplate, archiveVariables, excelColumns } = setup;
+    const { templates, attTemplate, labelTemplate, sicapTemplate, archiveVariables, excelColumns } = setup;
 
     const [status, setStatus] = usePersistentState<GenerationStatus>('doc_gen_status', 'confirmed', {
         validate: (v): v is GenerationStatus => v === 'confirmed' || v === 'completed',
@@ -83,7 +83,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
     // ─── What goes into the archive ─────────────────────────
     const preset = coursePreset(templates, course?.template_ids);
     const wordTemplates = preset.templates;
-    const hasOutput = wordTemplates.length > 0 || !!attTemplate || !!labelTemplate || excelColumns.length > 0;
+    const hasOutput = wordTemplates.length > 0 || !!attTemplate || !!labelTemplate || !!sicapTemplate || excelColumns.length > 0;
     const canGenerate = !setup.error && selected.length > 0 && hasOutput;
     const presetNote = { all: 'all active — no course preset', preset: 'course preset', 'preset-off': '' }[preset.state];
     const archiveContents = [
@@ -96,6 +96,7 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
             },
         { key: 'att', label: 'Attendance sheet', ok: !!attTemplate },
         { key: 'lbl', label: 'Address labels', ok: !!labelTemplate },
+        { key: 'sicap', label: 'SICAP course form', ok: !!sicapTemplate },
         { key: 'xlsx', label: `Participants.xlsx (${plural(excelColumns.length, 'column')})`, ok: excelColumns.length > 0 },
     ];
 
@@ -122,11 +123,14 @@ export default function GeneratePanel({ courses, enrollments, setup, showToast }
             }
 
             const fileName = archiveFileName(people, sample ? 'SAMPLE ' : '');
+            const context = await fetchDocContext(people);
             const result = await generateDocumentsArchive(fileName, {
                 enrollments: people,
                 templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
                 attendanceTemplatePath: attTemplate?.storage_path,
                 labelTemplatePath: labelTemplate?.storage_path,
+                sicapTemplatePath: sicapTemplate?.storage_path,
+                context,
                 ...archiveVariables,
                 excelColumns,
                 combined,

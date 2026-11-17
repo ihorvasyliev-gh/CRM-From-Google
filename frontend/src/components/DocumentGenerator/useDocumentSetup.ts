@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import {
     SINGLE_TEMPLATES, checkTemplate, createTemplate, deleteTemplate, fetchDocumentTemplates, fetchExcelColumns,
-    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, saveExcelColumns, saveTemplateOrder, variablesForArchive, variablesToMap,
+    fetchSingleTemplate, fetchTemplateVariables, replaceTemplateFile, sicapTableReady, saveExcelColumns, saveTemplateOrder, variablesForArchive, variablesToMap,
     MAX_TEMPLATE_BYTES, type DateRule, type SingleKind, type TemplateKind,
 } from '../../lib/documentUtils';
 import type { ExcelColumn } from '../../lib/appConfig';
@@ -39,10 +39,13 @@ export function useDocumentSetup() {
     const templatesQuery = useQuery({ queryKey: DOC_KEYS.templates, queryFn: fetchDocumentTemplates });
     const attendanceQuery = useQuery({ queryKey: DOC_KEYS.single('attendance'), queryFn: () => fetchSingleTemplate('attendance') });
     const labelsQuery = useQuery({ queryKey: DOC_KEYS.single('labels'), queryFn: () => fetchSingleTemplate('labels') });
+    const sicapQuery = useQuery({ queryKey: DOC_KEYS.single('sicap'), queryFn: () => fetchSingleTemplate('sicap') });
+    // Only for the card's "run migration 91" note: a missing table must not block the page
+    const sicapReadyQuery = useQuery({ queryKey: ['doc_sicap_ready'], queryFn: sicapTableReady, staleTime: 5 * 60_000 });
     const variablesQuery = useQuery({ queryKey: DOC_KEYS.variables, queryFn: fetchTemplateVariables });
     const excelQuery = useQuery({ queryKey: DOC_KEYS.excel, queryFn: fetchExcelColumns });
 
-    const queries = [templatesQuery, attendanceQuery, labelsQuery, variablesQuery, excelQuery];
+    const queries = [templatesQuery, attendanceQuery, labelsQuery, sicapQuery, variablesQuery, excelQuery];
     const error = queries.find(q => q.error)?.error ?? null;
     const templates = templatesQuery.data ?? [];
     const customVars = useMemo(() => variablesQuery.data ?? [], [variablesQuery.data]);
@@ -105,7 +108,7 @@ export function useDocumentSetup() {
         },
     });
 
-    // ── Attendance sheet / labels: one template each ──
+    // ── Attendance sheet / labels / SICAP form: one template each ──
     const saveSingle = useMutation({
         mutationFn: async ({ kind, file }: { kind: SingleKind; file: File }) => {
             const { table, prefix } = SINGLE_TEMPLATES[kind];
@@ -171,6 +174,8 @@ export function useDocumentSetup() {
         templates,
         attTemplate: attendanceQuery.data ?? null,
         labelTemplate: labelsQuery.data ?? null,
+        sicapTemplate: sicapQuery.data ?? null,
+        sicapReady: sicapReadyQuery.data ?? true,
         customVars,
         customVarMap,
         archiveVariables,

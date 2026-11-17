@@ -95,7 +95,7 @@ export default function GenerateDocsModal({ open, selected, onClose }: { open: b
                     <dd className="text-primary">{dates.map(d => formatDisplayDate(d)).join(', ') || 'No course date'}</dd>
                     <dt className="text-muted">Templates</dt>
                     <dd className="text-primary">
-                        {courses.length === 1 ? "The course's template preset" : 'All active templates (several courses selected)'}, plus the attendance sheet, labels and Participants.xlsx when set up
+                        {courses.length === 1 ? "The course's template preset" : 'All active templates (several courses selected)'}, plus the attendance sheet, labels, SICAP course form and Participants.xlsx when set up
                     </dd>
                 </dl>
 

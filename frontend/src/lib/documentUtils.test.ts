@@ -8,10 +8,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import PizZip from 'pizzip';
+import sicapStarter from '../assets/templates/sicap-course-form.docx?inline';
 import {
     buildPlaceholderData, templatesForCourse, coursePreset, buildSheetPages, buildDocumentsArchive, checkTemplate,
     safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, groupSessions, defaultSessionKey,
     archiveFileName, isAbortError, addToDate, dateRuleIso, describeDateRule, parseDateRule, variablesForArchive, PLACEHOLDER_KEYS,
+    courseRun, SICAP_PAGE_LOOP, staffNameOf,
 } from './documentUtils';
 import type { DateRule, EnrollmentWithRelations } from './documentUtils';
 
@@ -356,7 +358,7 @@ describe('buildDocumentsArchive', () => {
         expect(summarizeGeneration(result).type).toBe('error');
     });
 
-    it('paginates the attendance sheet and puts templates in subfolders', async () => {
+    it('keeps every page of the attendance sheet in one file and puts templates in subfolders', async () => {
         const people = Array.from({ length: 40 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
         const progress: number[] = [];
         const { blob, result } = await buildDocumentsArchive({
@@ -369,8 +371,8 @@ describe('buildDocumentsArchive', () => {
         const docs = await readArchive(blob);
         expect(docs['One/P0_S00.docx']).toBe('P0');
         expect(docs['Two/P0_S00.docx']).toBe('P0');
-        expect(docs['Attendance_Sheet_1_of_2.docx']).toBe('Python 101 p1/2: P0 S00');
-        expect(docs['Attendance_Sheet_2_of_2.docx']).toBe('Python 101 p2/2: P34 S34');
+        expect(docs['Attendance_Sheet.docx']).toBe('Python 101 p1/2: P0 S00\nPython 101 p2/2: P34 S34');
+        expect(Object.keys(docs).filter(p => p.startsWith('Attendance'))).toEqual(['Attendance_Sheet.docx']);
         expect(result.extras).toEqual([{ label: 'Attendance sheet', ok: true, files: 2 }]);
         expect(progress[progress.length - 1]).toBe(81);
     });
@@ -443,13 +445,14 @@ describe('placeholders', () => {
         expect(data.mobileNumber).toBe('+353861234567');
     });
 
-    it('fills every per-person field in numbered slots and rows, and drops the always-empty {venue}', () => {
+    it('fills every per-person field in numbered slots and rows; {venue} is for the whole sheet', () => {
         const [page] = buildSheetPages([{ ...person('1', 'Olena', 'Kovalenko'), course_variant: 'Python 101 (Ukrainian)' }], 2);
         expect(page.mobileNumber1).toBe('+353861234567');
         expect(page.dateOfBirth1).toMatch(/22\s+Apr\s+1990/);
         expect(page.courseVariant1).toBe('Ukrainian');
         expect(page.courseVariant2).toBe('');
-        expect(page).not.toHaveProperty('venue');
+        expect(page.venue).toBe('');
+        expect(page).not.toHaveProperty('venue1');
         expect((page.students as Record<string, string>[])[0].mobileNumber).toBe('+353861234567');
     });
 
@@ -759,5 +762,143 @@ describe('archive layout', () => {
         expect(topFiles).toContain('P11_S11.docx');
         expect(topFiles).toHaveLength(12 + 3);
         expect(paths).toHaveLength(12 * 2 + 12 + 3);
+    });
+});
+
+// ─── Course date schedule, staff member, SICAP course form ───────────────────
+
+const twoDaySession = (date: string, location: string | null = '15 Hanover St, Cork') => ({
+    date, start_time: '10:00', end_time: '14:00', location,
+    days: [{ date }, { date: '2024-06-22' }],
+});
+
+describe('course date fields', () => {
+    it('fill start, end, place and course name with the last day from the course date schedule', () => {
+        const sessions = { 'crs-abc|2024-06-15': twoDaySession('2024-06-15') };
+        const data = buildPlaceholderData(makeFullEnrollment(), '2024-06-01', { sessions, staffName: 'Mary Byrne' });
+        expect(data.startDate).toBe('15/06/2024');
+        expect(data.endDate).toBe('22/06/2024');
+        expect(data.courseNameDate).toBe('Python 101 22/06/2024');
+        expect(data.venue).toBe('15 Hanover St, Cork');
+        expect(data.staffName).toBe('Mary Byrne');
+    });
+
+    it('use the course date for both ends of a one-day course without a schedule', () => {
+        const data = buildPlaceholderData(makeFullEnrollment());
+        expect(data.startDate).toBe('15/06/2024');
+        expect(data.endDate).toBe('15/06/2024');
+        expect(data.courseNameDate).toBe('Python 101 15/06/2024');
+        expect(data.venue).toBe('');
+        expect(data.staffName).toBe('');
+    });
+
+    it('courseRun spans every course date of a group', () => {
+        const people = [person('1', 'A', 'A'), { ...person('2', 'B', 'B'), confirmed_date: '2024-07-01' }];
+        expect(courseRun(people, { 'crs-abc|2024-06-15': twoDaySession('2024-06-15', null) })).toEqual({ first: '2024-06-15', last: '2024-07-01', venue: '' });
+    });
+});
+
+describe('SICAP course form', () => {
+    const form = () => makeDocx(
+        'CAB: Cork City (17-1) | Staff: {staffName}',
+        'Course: {courseNameDate} | {startDate} - {endDate} | Venue: {venue}',
+        `{#${SICAP_PAGE_LOOP}}`,
+        'Page {page}/{pages} {courseNameDate}: {fullName1} | {fullName9}',
+        `{/${SICAP_PAGE_LOOP}}`,
+        'Privacy',
+    );
+
+    it('fills page 1 once and repeats the participant page for every 9 people, in one file', async () => {
+        const people = Array.from({ length: 12 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [],
+            sicapTemplatePath: 'sicap',
+            context: { sessions: { 'crs-abc|2024-06-15': twoDaySession('2024-06-15') }, staffName: 'Mary Byrne' },
+            fetchTemplate: files({ sicap: form() }),
+        });
+        const docs = await readArchive(blob);
+        expect(Object.keys(docs)).toEqual(['SICAP_Course_Form.docx']);
+        expect(docs['SICAP_Course_Form.docx']).toBe([
+            'CAB: Cork City (17-1) | Staff: Mary Byrne',
+            'Course: Python 101 22/06/2024 | 15/06/2024 - 22/06/2024 | Venue: 15 Hanover St, Cork',
+            'Page 1/2 Python 101 22/06/2024: P0 S00 | P8 S08',
+            'Page 2/2 Python 101 22/06/2024: P9 S09 | ',
+            'Privacy',
+        ].join('\n'));
+        expect(result.extras).toEqual([{ label: 'SICAP course form', ok: true, files: 1 }]);
+        expect(result.unknownTags).toEqual([]);
+    });
+
+    it('makes one form per course date', async () => {
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: [person('1', 'A', 'A'), { ...person('2', 'B', 'B'), confirmed_date: '2024-07-01' }],
+            templates: [],
+            sicapTemplatePath: 'sicap',
+            fetchTemplate: files({ sicap: form() }),
+        });
+        const docs = await readArchive(blob);
+        expect(Object.keys(docs).sort()).toEqual(['SICAP_Python_101_01-07-2024.docx', 'SICAP_Python_101_15-06-2024.docx']);
+        expect(docs['SICAP_Python_101_01-07-2024.docx']).toContain('Page 1/1 Python 101 01/07/2024: B B | ');
+        expect(result.extras).toEqual([{ label: '2 SICAP course forms — one per course date', ok: true, files: 1 }]);
+    });
+
+    it('repeats a form without the page loop for every 9 people, in one file', async () => {
+        const people = Array.from({ length: 10 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [],
+            sicapTemplatePath: 'sicap',
+            fetchTemplate: files({ sicap: makeDocx('{courseNameDate}: {fullName1}') }),
+        });
+        expect((await readArchive(blob))['SICAP_Course_Form.docx']).toBe('Python 101 15/06/2024: P0 S00\nPython 101 15/06/2024: P9 S09');
+    });
+
+    it('checks a form template against the SICAP placeholders', async () => {
+        expect(await checkTemplate(new Blob([form()]), 'sicap')).toEqual({ unknownTags: [] });
+        const res = await checkTemplate(new Blob([makeDocx(`{#${SICAP_PAGE_LOOP}}`, '{fulName1}', `{/${SICAP_PAGE_LOOP}}`)]), 'sicap');
+        expect(res).toEqual({ unknownTags: ['fulName1'] });
+    });
+
+    it('the ready-made form shipped with the app has no unknown placeholders and fills nine names per page', async () => {
+        // Through a Blob, so the ArrayBuffer comes from the test window like a downloaded template
+        const bytes = Uint8Array.from(atob(sicapStarter.split(',')[1]), c => c.charCodeAt(0));
+        const buffer = await new Blob([bytes]).arrayBuffer();
+        expect(await checkTemplate(new Blob([buffer]), 'sicap')).toEqual({ unknownTags: [] });
+
+        const people = Array.from({ length: 10 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [],
+            sicapTemplatePath: 'sicap',
+            context: { staffName: 'Mary Byrne' },
+            fetchTemplate: files({ sicap: buffer }),
+        });
+        expect(result.extras).toEqual([{ label: 'SICAP course form', ok: true, files: 1 }]);
+        const text = (await readArchive(blob))['SICAP_Course_Form.docx'];
+        expect(text).toContain('Cork City (17-1)');
+        expect(text).toContain('Mary Byrne');
+        expect(text).toContain('P0 S00');
+        expect(text).toContain('P9 S09');
+        expect(text.match(/Individual Name/g)).toHaveLength(2);
+        expect(text).not.toContain('{');
+        // Every picture keeps a unique drawing id after the page is repeated
+        const xml = new PizZip(await (await readArchiveFile(blob, 'SICAP_Course_Form.docx')).arrayBuffer()).file('word/document.xml')!.asText();
+        const ids = [...xml.matchAll(/<wp:docPr[^>]* id="(\d+)"/g)].map(m => m[1]);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+});
+
+async function readArchiveFile(blob: Blob, name: string): Promise<Blob> {
+    const zip = new PizZip(await blob.arrayBuffer());
+    return new Blob([zip.file(name)!.asArrayBuffer()]);
+}
+
+describe('staffNameOf', () => {
+    it('uses the name saved on the account, never the email', () => {
+        expect(staffNameOf({ user_metadata: { full_name: ' Mary Byrne ' } })).toBe('Mary Byrne');
+        expect(staffNameOf({ user_metadata: { name: 'Ann' } })).toBe('Ann');
+        expect(staffNameOf({ user_metadata: {} })).toBe('');
+        expect(staffNameOf(null)).toBe('');
     });
 });
