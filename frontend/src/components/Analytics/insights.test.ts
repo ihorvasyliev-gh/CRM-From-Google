@@ -203,13 +203,15 @@ describe('buildInsights', () => {
         );
         expect(text.pipeline[2]).toBe('Everyone waiting is waiting for SNA Level 5.');
         expect(text.outcomes[0]).toBe(
-            '3 of the 3 graduates in the period (100%) were sent the employment survey; 2 (67%) answered and 1 have not replied yet.',
+            '3 of the 3 graduates in the period (100%) were sent the employment survey; 2 (67%) answered and 1 has not replied yet.',
         );
         expect(text.outcomes[1]).toBe(
             'Based on the responses received, 1 of the 3 surveyed graduates (33%) is confirmed to be working (1 full-time), while 1 reported not working yet.',
         );
         expect(text.outcomes[text.outcomes.length - 1]).toBe('With only 2 answers, these figures are an early indication.');
         expect(text.people[0]).toBe('100% of the people who registered chose a course in English; 25% in Ukrainian.');
+        expect(text.highlights.bullets.length).toBeGreaterThanOrEqual(2);
+        expect(text.highlights.leads.outcomes).toContain('1 of 3 surveyed (33%) is confirmed working');
     });
 
     it('says so when nothing happened', () => {

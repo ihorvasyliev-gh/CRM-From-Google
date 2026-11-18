@@ -1182,34 +1182,44 @@ a:focus-visible,
     content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: #94a3b8;
 }
 
-/* ── One-page report (Analytics → Report) ─────────────────────────────────
-   A sheet of A4 paper: white in either theme, since it is printed or saved as a PDF.
-   Series colours are the validated categorical pair (blue / orange). */
+/* ── Two-page executive report (Analytics → PDF report) ─────────────────────
+   A4 sheets in an editorial annual-report palette harmonised with the Cork City Partnership
+   (deep forest & Irish emerald) and SICAP (cerulean blue) brand identity. Always light paper,
+   since it is printed or saved as a PDF. */
 .report-sheet {
     --rs-paper: #ffffff;
-    --rs-ink: #0b0b0b;
-    --rs-ink-2: #52514e;
-    --rs-muted: #7a7974;
-    --rs-rule: #e4e3df;
-    --rs-rule-soft: #f0efec;
-    --rs-axis: #c9c8c2;
-    --rs-panel: #f6f6f4;
-    --rs-registered: #2a78d6;
-    --rs-completed: #eb6834;
-    --rs-working: #0d9488;
-    --rs-runs: #4f46e5;
+    --rs-ink: #0f241d;
+    --rs-ink-2: #475551;
+    --rs-muted: #6b7974;
+    --rs-rule: #dde4e0;
+    --rs-rule-soft: #eef2f0;
+    --rs-axis: #c2ccc7;
+    --rs-panel: #f6f9f7;
+    --rs-track: #edf2ef;
+    --rs-brand: #15803d;
+    --rs-brand-dark: #14532d;
+    --rs-registered: #0369a1;
+    --rs-completed: #15803d;
+    --rs-working: #0f766e;
+    --rs-runs: #334155;
     --rs-waiting: #d97706;
+    --rs-part-time: #0284c7;
+    --rs-age-soft: #86c5a0;
+    --rs-up-bg: #dcfce7;
+    --rs-up-ink: #166534;
+    --rs-down-bg: #fee2e2;
+    --rs-down-ink: #991b1b;
     color-scheme: light;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
     width: 210mm;
     height: 297mm;
-    padding: 10mm 14mm 9mm;
+    padding: 0 13mm 8mm;
     overflow: hidden;
     background: var(--rs-paper);
     color: var(--rs-ink);
-    font-size: 8.75pt;
+    font-size: 8.5pt;
     line-height: 1.35;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -1217,5 +1227,5 @@ a:focus-visible,
 
 /* In the preview each sheet is a page lying on the desk */
 .report-preview .report-sheet {
-    box-shadow: 0 8px 30px rgb(0 0 0 / 0.14), 0 0 0 1px rgb(0 0 0 / 0.05);
+    box-shadow: 0 10px 34px rgb(15 36 29 / 0.14), 0 0 0 1px rgb(15 36 29 / 0.06);
 }

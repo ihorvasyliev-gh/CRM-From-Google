@@ -7,6 +7,18 @@ import { formatPeriodLabel } from './summaryReport';
  * there is nothing to say (no earlier period, no survey answers, one course only…).
  */
 
+export interface ReportHighlights {
+    /** 2–3 concise executive bullets for Page 1's Key Highlights callout */
+    bullets: string[];
+    /** Concise single-line lead takeaways for each visual section */
+    leads: {
+        courses: string;
+        pipeline: string;
+        outcomes: string;
+        people: string;
+    };
+}
+
 export interface Narrative {
     /** The period at a glance */
     summary: string[];
@@ -18,6 +30,8 @@ export interface Narrative {
     outcomes: string[];
     /** Who registered: language, area, age */
     people: string[];
+    /** Concise executive takeaways and single-line section leads for the PDF report */
+    highlights: ReportHighlights;
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -204,7 +218,7 @@ function outcomeSentences(d: Insights): string[] {
     out.push(
         `${count(o.asked)} of the ${plural(o.graduates, 'graduate')} in the period ` +
         `(${percent(o.asked, o.graduates)}%) were sent the employment survey; ${count(o.responded)} (${percent(o.responded, o.asked)}%) answered` +
-        `${awaiting > 0 ? ` and ${count(awaiting)} have not replied yet` : ''}.`,
+        `${awaiting > 0 ? ` and ${count(awaiting)} ${awaiting === 1 ? 'has' : 'have'} not replied yet` : ''}.`,
     );
     const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
     if (o.working > 0) {
@@ -273,6 +287,165 @@ function peopleSentences(d: Insights): string[] {
     return out;
 }
 
+function buildHighlights(d: Insights): ReportHighlights {
+    const { summary: s, previous, fates: f, queue: q, outcomes: o, people: p } = d;
+    const empty = s.registrations === 0 && s.completions === 0;
+    const periodLabel = formatPeriodLabel(d.period);
+
+    const byDemand = s.courses.filter(c => c.registered > 0);
+    const byCompleted = s.courses.filter(c => c.completed > 0).sort((a, b) => b.completed - a.completed);
+    const notDelivered = s.courses.filter(c => c.registered > 0 && c.completed === 0);
+
+    // ── Executive bullets (Page 1) ──
+    const bullets: string[] = [];
+    if (empty) {
+        bullets.push(`No registrations or course completions were recorded in ${periodLabel}.`);
+    } else {
+        if (previous) {
+            bullets.push(
+                `Compared with ${formatPeriodLabel(previous.period)}, course registrations were ${change(previous.registrations, s.registrations)} ` +
+                `and completions were ${change(previous.completions, s.completions)}.`,
+            );
+        } else if (s.courseRuns > 0) {
+            const perRun = Math.round((s.completions / s.courseRuns) * 10) / 10;
+            bullets.push(
+                `${plural(s.courseRuns, 'course run')} with graduates delivered across ${plural(s.coursesDelivered, 'course')}, ` +
+                `averaging ${count(perRun)} ${perRun === 1 ? 'graduate' : 'graduates'} per run.`,
+            );
+        }
+
+        if (s.months.length >= 3) {
+            const topReg = s.months.reduce((a, b) => (b.registered > a.registered ? b : a));
+            const topComp = s.months.reduce((a, b) => (b.completed > a.completed ? b : a));
+            const parts: string[] = [];
+            if (topReg.registered > 0) parts.push(`registrations peaked in ${monthName(topReg.month)} (${count(topReg.registered)})`);
+            if (topComp.completed > 0) {
+                parts.push(
+                    topComp.month === topReg.month && parts.length
+                        ? `which also saw the most completions (${count(topComp.completed)})`
+                        : `most completions were in ${monthName(topComp.month)} (${count(topComp.completed)})`,
+                );
+            }
+            if (parts.length) bullets.push(`${parts.join('; ').replace(/^./, c => c.toUpperCase())}.`);
+        } else if (s.courseRuns > 0 && previous) {
+            const perRun = Math.round((s.completions / s.courseRuns) * 10) / 10;
+            bullets.push(
+                `${plural(s.courseRuns, 'course run')} with graduates delivered across ${plural(s.coursesDelivered, 'course')}, ` +
+                `averaging ${count(perRun)} ${perRun === 1 ? 'graduate' : 'graduates'} per run.`,
+            );
+        }
+
+        if (notDelivered.length > 0 && byCompleted.length > 0) {
+            const unmetRegs = notDelivered.reduce((sum, c) => sum + c.registered, 0);
+            const shown = notDelivered.length <= 4 ? notDelivered : notDelivered.slice(0, 3);
+            const more = notDelivered.length - shown.length;
+            const names = shown.map(c => `${c.name} (${count(c.registered)})`);
+            if (more > 0) names.push(`${count(more)} more`);
+            bullets.push(
+                `Unmet demand: ${plural(notDelivered.length, 'course')} recorded ${plural(unmetRegs, 'registration')} with no completions yet — ${listOf(names)}.`,
+            );
+        } else if (d.multiCourse > 0) {
+            bullets.push(
+                `Repeat progression: ${plural(d.multiCourse, 'participant')} completed two or more different courses in the period.`,
+            );
+        } else if (o.asked > 0 && o.responded > 0) {
+            bullets.push(
+                `Post-course employment: ${count(o.working)} of ${count(o.asked)} surveyed graduates (${percent(o.working, o.asked)}%) ${be(o.working)} confirmed working (${count(o.responded)} responses).`,
+            );
+        }
+
+        if (bullets.length < 3 && d.multiCourse > 0 && !bullets.some(b => b.includes('Repeat progression'))) {
+            bullets.push(
+                `Repeat progression: ${plural(d.multiCourse, 'participant')} completed two or more different courses in the period.`,
+            );
+        }
+    }
+
+    // ── Section leads ──
+    let coursesLead = '';
+    if (!empty) {
+        if (byDemand.length === 1) {
+            coursesLead = `All ${plural(byDemand[0].registered, 'registration')} were for ${byDemand[0].name}.`;
+        } else if (byDemand.length > 1) {
+            const topComp = byCompleted[0];
+            coursesLead =
+                `${byDemand[0].name} led demand (${count(byDemand[0].registered)} · ${percent(byDemand[0].registered, s.registrations)}%)` +
+                `${topComp ? `, while ${topComp.name} delivered the most completions (${count(topComp.completed)} across ${plural(topComp.runs, 'run')}, ${percent(topComp.completed, s.completions)}%)` : ''}.`;
+        }
+    }
+
+    let pipelineLead = '';
+    if (f.total > 0) {
+        const parts = [
+            f.completed > 0 && `${count(f.completed)} (${formatPercent(f.completed, f.total)}) completed`,
+            f.confirmed + f.invited > 0 && `${count(f.confirmed + f.invited)} (${formatPercent(f.confirmed + f.invited, f.total)}) confirmed or invited`,
+            f.waiting > 0 && `${count(f.waiting)} (${formatPercent(f.waiting, f.total)}) waiting`,
+            f.left > 0 && `${count(f.left)} (${formatPercent(f.left, f.total)}) withdrew / not accepted`,
+        ].filter(Boolean) as string[];
+        pipelineLead = `Of ${plural(f.total, 'registration')} made in the period, ${listOf(parts)}.`;
+        if (s.completions > f.completed) {
+            pipelineLead += ` Including ${count(s.completions - f.completed)} earlier registrants, total period completions reached ${count(s.completions)}.`;
+        } else if (f.completed > s.completions) {
+            pipelineLead += ` ${count(f.completed - s.completions)} of those completed after the period ended.`;
+        }
+    } else if (q.waiting + q.invited + q.confirmed === 0) {
+        pipelineLead = 'No registrations in this period and nobody is in the active queue today.';
+    } else {
+        pipelineLead = `No registrations in this period; ${plural(q.waiting, 'registration is', 'registrations are')} waiting in the overall queue today.`;
+    }
+
+    let outcomesLead = '';
+    if (o.graduates === 0) {
+        outcomesLead = 'No graduates completed a course in this period, so there are no employment outcomes to report.';
+    } else if (o.asked === 0) {
+        outcomesLead = `None of the ${plural(o.graduates, 'graduate')} in the period has been sent the employment survey yet.`;
+    } else if (o.responded === 0) {
+        outcomesLead = `${count(o.asked)} of ${plural(o.graduates, 'graduate')} (${percent(o.asked, o.graduates)}%) received the employment survey; none have replied yet.`;
+    } else {
+        const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
+        const awaiting = o.asked - o.responded;
+        outcomesLead =
+            `${count(o.asked)} of ${plural(o.graduates, 'graduate')} (${percent(o.asked, o.graduates)}%) were surveyed; ` +
+            `${count(o.responded)} (${percent(o.responded, o.asked)}%) answered${awaiting > 0 ? ` (${count(awaiting)} awaiting reply)` : ''}, ` +
+            `and ${count(o.working)} of ${count(o.asked)} surveyed (${percent(o.working, o.asked)}%) ${be(o.working)} confirmed working` +
+            `${o.working > 0 && split.length ? ` (${listOf(split)})` : ''}.` +
+            `${o.responded < 10 ? ` Early indication based on ${plural(o.responded, 'response')}.` : ''}`;
+    }
+
+    let peopleLead = '';
+    if (p.total > 0) {
+        const bits: string[] = [];
+        if (p.languages.length > 0) {
+            const topLang = p.languages[0];
+            bits.push(`${percent(topLang.count, p.total)}% chose ${topLang.name}`);
+        }
+        const areas = named(p.areas);
+        if (areas.length > 0) {
+            bits.push(`most live in ${areas[0].name} (${percent(areas[0].count, p.total)}%)`);
+        }
+        const ages = named(p.ages);
+        if (ages.length > 0) {
+            const unknownAge = p.ages.find(a => a.name === NOT_KNOWN)?.count ?? 0;
+            const known = p.total - unknownAge;
+            const topAge = ages.reduce((a, b) => (b.count > a.count ? b : a));
+            bits.push(`the largest age group is ${topAge.name} (${percent(topAge.count, known)}% of known)`);
+        }
+        if (bits.length > 0) {
+            peopleLead = `Across ${plural(p.total, 'unique registrant')}: ${listOf(bits)}.`;
+        }
+    }
+
+    return {
+        bullets: bullets.slice(0, 3),
+        leads: {
+            courses: coursesLead,
+            pipeline: pipelineLead,
+            outcomes: outcomesLead,
+            people: peopleLead,
+        },
+    };
+}
+
 export function buildNarrative(d: Insights): Narrative {
     const empty = d.summary.registrations === 0 && d.summary.completions === 0;
     return {
@@ -281,5 +454,6 @@ export function buildNarrative(d: Insights): Narrative {
         pipeline: pipelineSentences(d),
         outcomes: outcomeSentences(d),
         people: peopleSentences(d),
+        highlights: buildHighlights(d),
     };
 }
