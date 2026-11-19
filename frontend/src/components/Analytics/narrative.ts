@@ -374,7 +374,7 @@ function buildHighlights(d: Insights): ReportHighlights {
         }
     }
 
-    let pipelineLead = '';
+    let pipelineLead: string;
     if (f.total > 0) {
         const parts = [
             f.completed > 0 && `${count(f.completed)} (${formatPercent(f.completed, f.total)}) completed`,
@@ -394,7 +394,7 @@ function buildHighlights(d: Insights): ReportHighlights {
         pipelineLead = `No registrations in this period; ${plural(q.waiting, 'registration is', 'registrations are')} waiting in the overall queue today.`;
     }
 
-    let outcomesLead = '';
+    let outcomesLead: string;
     if (o.graduates === 0) {
         outcomesLead = 'No graduates completed a course in this period, so there are no employment outcomes to report.';
     } else if (o.asked === 0) {

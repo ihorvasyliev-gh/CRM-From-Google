@@ -658,13 +658,11 @@ function HoursDonut({ slices, total }: { slices: { name: string; count: number; 
     const circumference = 2 * Math.PI * r;
     const gap = slices.length > 1 ? 2 : 0;
 
-    let offset = 0;
-    const arcs = slices.map(slice => {
+    const arcs = slices.map((slice, idx) => {
         const rawLen = (slice.count / total) * circumference;
         const dash = Math.max(1, rawLen - gap);
-        const currentOffset = offset;
-        offset += rawLen;
-        return { ...slice, dash, offset: currentOffset };
+        const prior = slices.slice(0, idx).reduce((sum, s) => sum + (s.count / total) * circumference, 0);
+        return { ...slice, dash, offset: prior };
     });
 
     return (
