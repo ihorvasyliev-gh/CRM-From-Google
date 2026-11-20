@@ -73,7 +73,7 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
     { key: 'outcomes', label: 'Outcomes', icon: Briefcase, subtitle: 'Track graduate employment status', group: 'Insights' },
     { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Tools' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
-    { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Email templates, data quality and preferences', group: 'System' },
+    { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Preferences, email studio, certificates, data hygiene and users', group: 'System' },
     // Last in the list so the 1–8 shortcuts above keep their keys; shown under Tools (number keys stop at 9)
     { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Tools' },
     { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Tools' },
@@ -195,7 +195,7 @@ function App() {
         scrollPositions.current.set(scrolledTab.current, e.currentTarget.scrollTop);
     }, []);
 
-    const { darkMode, toggleDarkMode } = useTheme();
+    const { darkMode, setDarkMode, toggleDarkMode } = useTheme();
     // Owned here; Settings gets it as props
     const { density, setDensity, toggleDensity } = useDensity();
 
@@ -629,7 +629,14 @@ function App() {
                                     )}
                                     {tab === 'analytics' && <Analytics />}
                                     {tab === 'documents' && <DocumentGenerator />}
-                                    {tab === 'settings' && <Settings density={density} onDensityChange={setDensity} />}
+                                    {tab === 'settings' && (
+                                        <Settings
+                                            darkMode={darkMode}
+                                            onDarkModeChange={setDarkMode}
+                                            density={density}
+                                            onDensityChange={setDensity}
+                                        />
+                                    )}
                                 </PageView>
                             </Activity>
                         ))}

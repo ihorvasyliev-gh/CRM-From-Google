@@ -1,5 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { getConfig, setConfig, resetConfig, DEFAULT_CONFIG } from './appConfig';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+    getConfig,
+    setConfig,
+    resetConfig,
+    saveConfig,
+    resetEmailConfig,
+    onConfigUpdated,
+    storeServerConfig,
+    clearStoredConfig,
+    EMAIL_CONFIG_KEYS,
+    DEFAULT_CONFIG,
+} from './appConfig';
+import { supabase } from './supabase';
 import { buildEmailBodyHtml, buildEmailSubject, buildStatusEmailBodyHtml, buildStatusEmailSubject, UNSUBSCRIBE_FOOTER_TEXT, hasUnsubscribeText, convertRgbToHex, convertQuillClassesToInlineStyles, replaceColorSpansWithFontTags } from './emailTemplates';
 
 describe('appConfig', () => {
@@ -64,6 +76,119 @@ describe('appConfig', () => {
             const result = resetConfig();
             expect(result).toEqual(DEFAULT_CONFIG);
             expect(localStorage.getItem('crm_app_config')).toBeNull();
+        });
+    });
+
+    describe('saveConfig', () => {
+        it('merges partial patches without overwriting newer excelColumns in localStorage', async () => {
+            const customColumns = [{ header: 'PPSN', placeholder: 'ppsn' }];
+            setConfig({ excelColumns: customColumns });
+
+            const result = await saveConfig({ emailSubjectFormat: 'Updated Subject' });
+
+            expect(result.synced).toBe(true);
+            expect(result.error).toBeUndefined();
+            expect(result.config.emailSubjectFormat).toBe('Updated Subject');
+            expect(result.config.excelColumns).toEqual(customColumns);
+            expect(getConfig().excelColumns).toEqual(customColumns);
+        });
+
+        it('awaits Supabase user_settings upsert when signed in', async () => {
+            const upsert = vi.fn().mockResolvedValue({ error: null });
+            vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
+                data: { session: { user: { id: 'user-123' } } as any },
+                error: null,
+            });
+            vi.mocked(supabase.from).mockReturnValueOnce({ upsert } as any);
+
+            const result = await saveConfig({ includeLogosInEmails: true });
+
+            expect(result.synced).toBe(true);
+            expect(result.config.includeLogosInEmails).toBe(true);
+            expect(supabase.from).toHaveBeenCalledWith('user_settings');
+            expect(upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    user_id: 'user-123',
+                    settings: expect.objectContaining({ includeLogosInEmails: true }),
+                }),
+                { onConflict: 'user_id' },
+            );
+        });
+
+        it('persists locally and returns synced: false with error when Supabase sync fails', async () => {
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const upsert = vi.fn().mockResolvedValue({ error: { message: 'Network unavailable' } });
+            vi.mocked(supabase.auth.getSession).mockResolvedValueOnce({
+                data: { session: { user: { id: 'user-123' } } as any },
+                error: null,
+            });
+            vi.mocked(supabase.from).mockReturnValueOnce({ upsert } as any);
+
+            const result = await saveConfig({ emailSubjectFormat: 'Saved Locally' });
+
+            expect(result.synced).toBe(false);
+            expect(result.error).toBe('Network unavailable');
+            expect(result.config.emailSubjectFormat).toBe('Saved Locally');
+            expect(getConfig().emailSubjectFormat).toBe('Saved Locally');
+            errorSpy.mockRestore();
+        });
+    });
+
+    describe('resetEmailConfig', () => {
+        it('resets only EMAIL_CONFIG_KEYS and preserves excelColumns', async () => {
+            expect(EMAIL_CONFIG_KEYS).not.toContain('excelColumns');
+            expect(EMAIL_CONFIG_KEYS).toContain('htmlEmailTemplate');
+            expect(EMAIL_CONFIG_KEYS).toContain('emailStyle');
+            expect(EMAIL_CONFIG_KEYS).toContain('includeLogosInEmails');
+
+            const customColumns = [
+                { header: 'Full Name', placeholder: 'fullName' },
+                { header: 'Eircode', placeholder: 'eircode' },
+            ];
+            await saveConfig({
+                excelColumns: customColumns,
+                emailSubjectFormat: 'Custom Invite {courseName}',
+                statusEmailSubjectFormat: 'Custom Survey',
+                includeLogosInEmails: true,
+                emailStyle: {
+                    fontFamily: "Georgia, 'Times New Roman', serif",
+                    fontSize: 18,
+                    textColor: '#111111',
+                    lineHeight: 2,
+                },
+            });
+
+            const result = await resetEmailConfig();
+
+            expect(result.synced).toBe(true);
+            expect(result.config.excelColumns).toEqual(customColumns);
+            for (const key of EMAIL_CONFIG_KEYS) {
+                expect(result.config[key]).toEqual(DEFAULT_CONFIG[key]);
+            }
+            expect(getConfig().excelColumns).toEqual(customColumns);
+            expect(getConfig().emailSubjectFormat).toBe(DEFAULT_CONFIG.emailSubjectFormat);
+        });
+    });
+
+    describe('onConfigUpdated', () => {
+        it('notifies listeners on storeServerConfig and clearStoredConfig and supports unsubscribe', () => {
+            const received: Array<{ subject: string; logos: boolean }> = [];
+            const unsubscribe = onConfigUpdated(cfg => {
+                received.push({ subject: cfg.emailSubjectFormat, logos: cfg.includeLogosInEmails });
+            });
+
+            storeServerConfig({ emailSubjectFormat: 'From Server', includeLogosInEmails: true });
+            expect(received).toEqual([{ subject: 'From Server', logos: true }]);
+
+            clearStoredConfig();
+            expect(received).toEqual([
+                { subject: 'From Server', logos: true },
+                { subject: DEFAULT_CONFIG.emailSubjectFormat, logos: DEFAULT_CONFIG.includeLogosInEmails },
+            ]);
+
+            unsubscribe();
+            storeServerConfig({ emailSubjectFormat: 'After Unsubscribe', includeLogosInEmails: true });
+            expect(received).toHaveLength(2);
         });
     });
 

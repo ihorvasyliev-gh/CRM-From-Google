@@ -489,13 +489,19 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
         );
     }
     
+    // Invitations and reminders go out as one BCC message, so they can't be personalised
+    body = body.replace(/\s*\{studentName\}/g, '');
+
     body = body
-        .replace(/\{courseDetails\}/g, courseDetailsHtml)
-        .replace(/\{englishWarning\}/g, requiresEnglish ? englishWarningHtml : '')
-        .replace(/\{capacityNotice\}/g, capacityNoticeHtml)
-        .replace(/\{attendanceNotice\}/g, attendanceNoticeHtml)
-        .replace(/\{confirmationButton\}/g, buttonHtml)
-        .replace(/\{responseDays\}/g, String(days));
+        .replace(/\{courseName\}/g, () => safeCourseTitle)
+        .replace(/\{date\}/g, () => escapeHtml(dateList.join(', ')))
+        .replace(/\{confirmationLink\}/g, () => (confirmationLink ? linkStr : ''))
+        .replace(/\{responseDays\}/g, () => String(days))
+        .replace(/\{courseDetails\}/g, () => courseDetailsHtml)
+        .replace(/\{englishWarning\}/g, () => (requiresEnglish ? englishWarningHtml : ''))
+        .replace(/\{capacityNotice\}/g, () => capacityNoticeHtml)
+        .replace(/\{attendanceNotice\}/g, () => attendanceNoticeHtml)
+        .replace(/\{confirmationButton\}/g, () => buttonHtml);
 
     return getEmailWrapper(body, kind, config.includeLogosInEmails ?? false, emailStyle, safeCourseTitle);
 }
@@ -504,13 +510,13 @@ ${dateList.map(d => `            <div style="font-size:15px;color:#0369a1;font-w
 export function buildEmailSubject(courseName: string, date: string, customConfig?: AppConfig, kind: InviteEmailKind = 'invite'): string {
     const config = customConfig || getConfig();
     const format = kind === 'reminder_tomorrow'
-        ? config.reminderTomorrowEmailSubjectFormat || DEFAULT_CONFIG.reminderTomorrowEmailSubjectFormat
+        ? config.reminderTomorrowEmailSubjectFormat?.trim() || DEFAULT_CONFIG.reminderTomorrowEmailSubjectFormat
         : kind === 'reminder'
-        ? config.reminderEmailSubjectFormat || DEFAULT_CONFIG.reminderEmailSubjectFormat
-        : config.emailSubjectFormat;
+        ? config.reminderEmailSubjectFormat?.trim() || DEFAULT_CONFIG.reminderEmailSubjectFormat
+        : config.emailSubjectFormat?.trim() || DEFAULT_CONFIG.emailSubjectFormat;
     return format
-        .replace(/\{courseName\}/g, courseName)
-        .replace(/\{date\}/g, date);
+        .replace(/\{courseName\}/g, () => courseName)
+        .replace(/\{date\}/g, () => date);
 }
 
 /** Who a status survey email goes to: CRM graduates or an external outreach list (e.g. Action 11). */
@@ -590,6 +596,6 @@ export function buildStatusEmailBodyHtml(statusLink: string, customConfig?: AppC
 export function buildStatusEmailSubject(customConfig?: AppConfig, audience: StatusEmailAudience = 'graduates'): string {
     const config = customConfig || getConfig();
     return audience === 'outreach'
-        ? config.outreachEmailSubjectFormat || DEFAULT_CONFIG.outreachEmailSubjectFormat
-        : config.statusEmailSubjectFormat;
+        ? config.outreachEmailSubjectFormat?.trim() || DEFAULT_CONFIG.outreachEmailSubjectFormat
+        : config.statusEmailSubjectFormat?.trim() || DEFAULT_CONFIG.statusEmailSubjectFormat;
 }

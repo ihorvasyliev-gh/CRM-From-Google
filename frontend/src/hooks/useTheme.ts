@@ -7,7 +7,7 @@ import { readStorage, writeStorage } from '../lib/storage';
  * before first paint) or the system preference, and applies it to <html>.
  */
 export function useTheme() {
-    const [darkMode, setDarkMode] = useState(() => {
+    const [darkMode, setDarkModeState] = useState(() => {
         const saved = readStorage('theme');
         if (saved) return saved === 'dark';
         return window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -23,14 +23,14 @@ export function useTheme() {
         writeStorage('theme', darkMode ? 'dark' : 'light');
     }, [darkMode]);
 
-    const toggleDarkMode = useCallback(() => {
+    const setDarkMode = useCallback((next: boolean) => {
         const root = document.documentElement;
-        const next = !root.classList.contains('dark');
+        if (next === root.classList.contains('dark')) return;
         // Swap the class synchronously so the view transition snapshots the finished theme
         // (a plain setState would commit after the snapshot and cross-fade to the old one).
         const apply = () => {
             root.classList.toggle('dark', next);
-            flushSync(() => setDarkMode(next));
+            flushSync(() => setDarkModeState(next));
         };
         // Suppress the per-element colour transitions while the theme flips
         root.classList.add('theme-switching');
@@ -45,5 +45,9 @@ export function useTheme() {
         }
     }, []);
 
-    return { darkMode, toggleDarkMode };
+    const toggleDarkMode = useCallback(() => {
+        setDarkMode(!document.documentElement.classList.contains('dark'));
+    }, [setDarkMode]);
+
+    return { darkMode, setDarkMode, toggleDarkMode };
 }

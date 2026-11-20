@@ -315,5 +315,81 @@ describe('CommandPalette Component', () => {
             expect(mockNavigate).toHaveBeenCalledWith('courses/c-1');
             expect(mockClose).toHaveBeenCalledTimes(1);
         });
+
+        it('does not expose Settings quick-jump entries to viewers', () => {
+            render(
+                <CommandPalette
+                    open={true}
+                    onClose={mockClose}
+                    onNavigate={mockNavigate}
+                    darkMode={false}
+                    toggleDarkMode={mockToggleDarkMode}
+                    density="comfortable"
+                    toggleDensity={mockToggleDensity}
+                    isViewer={true}
+                />
+            );
+
+            const input = screen.getByPlaceholderText(/search students, courses, pages/i);
+
+            fireEvent.change(input, { target: { value: 'duplicate' } });
+            expect(screen.queryByText('Settings → Duplicate Profiles')).not.toBeInTheDocument();
+
+            fireEvent.change(input, { target: { value: 'email' } });
+            expect(screen.queryByText('Settings → Email Studio')).not.toBeInTheDocument();
+            expect(screen.queryByText('Settings → Unsubscribed Emails')).not.toBeInTheDocument();
+        });
+    });
+
+    describe('Admin Settings Quick Jumps', () => {
+        it('surfaces Settings → Duplicate Profiles when searching "duplicate" and navigates to settings?tab=data&sub=duplicates', () => {
+            render(
+                <CommandPalette
+                    open={true}
+                    onClose={mockClose}
+                    onNavigate={mockNavigate}
+                    darkMode={false}
+                    toggleDarkMode={mockToggleDarkMode}
+                    density="comfortable"
+                    toggleDensity={mockToggleDensity}
+                    isViewer={false}
+                />
+            );
+
+            const input = screen.getByPlaceholderText(/search students, courses, pages/i);
+            fireEvent.change(input, { target: { value: 'duplicate' } });
+
+            const duplicateJump = screen.getByText('Settings → Duplicate Profiles');
+            expect(duplicateJump).toBeInTheDocument();
+
+            fireEvent.click(duplicateJump);
+            expect(mockNavigate).toHaveBeenCalledWith('settings?tab=data&sub=duplicates');
+            expect(mockClose).toHaveBeenCalledTimes(1);
+        });
+
+        it('surfaces Settings → Email Studio when searching "email" and navigates to settings?tab=emails', () => {
+            render(
+                <CommandPalette
+                    open={true}
+                    onClose={mockClose}
+                    onNavigate={mockNavigate}
+                    darkMode={false}
+                    toggleDarkMode={mockToggleDarkMode}
+                    density="comfortable"
+                    toggleDensity={mockToggleDensity}
+                    isViewer={false}
+                />
+            );
+
+            const input = screen.getByPlaceholderText(/search students, courses, pages/i);
+            fireEvent.change(input, { target: { value: 'email' } });
+
+            const emailStudioJump = screen.getByText('Settings → Email Studio');
+            expect(emailStudioJump).toBeInTheDocument();
+
+            fireEvent.click(emailStudioJump);
+            expect(mockNavigate).toHaveBeenCalledWith('settings?tab=emails');
+            expect(mockClose).toHaveBeenCalledTimes(1);
+        });
     });
 });

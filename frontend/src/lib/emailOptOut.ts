@@ -100,3 +100,14 @@ export async function optInEmail(email: string): Promise<void> {
     const { error } = await supabase.rpc('opt_in_email', { p_email: normalizeEmail(email) });
     if (error) throw error;
 }
+
+/** Update or clear the note on an existing opt-out without altering `opted_out_at`. */
+export async function updateEmailOptOutNote(email: string, note?: string | null): Promise<void> {
+    const cleaned = note?.trim() || null;
+    const { error } = await supabase
+        .from('email_opt_outs')
+        .update({ note: cleaned })
+        .eq('email', normalizeEmail(email));
+    if (error) throw error;
+}
+

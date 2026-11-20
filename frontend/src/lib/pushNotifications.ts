@@ -29,6 +29,22 @@ async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null
 
 // ─── Push Subscription Operations ──────────────────────────────
 
+export type PushStatus = {
+    supported: boolean;
+    permission: NotificationPermission | 'unsupported';
+    subscribed: boolean;
+};
+
+function isPushSupported(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        typeof navigator !== 'undefined' &&
+        'serviceWorker' in navigator &&
+        'PushManager' in window &&
+        'Notification' in window
+    );
+}
+
 /**
  * Checks if the user is currently subscribed to push notifications in this browser.
  */
@@ -45,6 +61,18 @@ export async function isUserSubscribed(): Promise<boolean> {
         console.error('Error checking subscription status:', err);
         return false;
     }
+}
+
+/**
+ * Returns browser support, Notification permission, and active subscription status.
+ */
+export async function getPushStatus(): Promise<PushStatus> {
+    if (!isPushSupported()) {
+        return { supported: false, permission: 'unsupported', subscribed: false };
+    }
+    const permission = Notification.permission;
+    const subscribed = await isUserSubscribed();
+    return { supported: true, permission, subscribed };
 }
 
 /**
@@ -97,6 +125,43 @@ export async function subscribeUserToPush(userId: string): Promise<boolean> {
         return true;
     } catch (err) {
         console.error('Failed to subscribe to Web Push:', err);
+        return false;
+    }
+}
+
+/**
+ * Unsubscribes this browser from Web Push and deletes the matching subscription from Supabase.
+ * Returns true on success (or if already unsubscribed), false on error.
+ */
+export async function unsubscribeUserFromPush(userId: string): Promise<boolean> {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return true;
+    }
+    try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) return true;
+
+        const subscription = await registration.pushManager.getSubscription();
+        if (!subscription) return true;
+
+        const endpoint = subscription.endpoint || subscription.toJSON().endpoint;
+        const unsubscribed = await subscription.unsubscribe();
+        if (!unsubscribed) {
+            return false;
+        }
+
+        if (endpoint) {
+            const { error } = await supabase
+                .from('user_push_subscriptions')
+                .delete()
+                .eq('user_id', userId)
+                .eq('endpoint', endpoint);
+            if (error) throw error;
+        }
+
+        return true;
+    } catch (err) {
+        console.error('Failed to unsubscribe from Web Push:', err);
         return false;
     }
 }

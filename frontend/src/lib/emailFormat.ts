@@ -187,6 +187,14 @@ export function prepareEditorHtml(html: string): string {
 /** Heading sizes relative to the base text size (kept in sync with the editor's CSS). */
 const HEADING_SCALE: Record<string, number> = { H1: 1.75, H2: 1.4, H3: 1.2 };
 
+/** Matches the primary body colour hard-coded in default templates (#1e293b / rgb(30, 41, 59)). */
+function isLegacyBodyColor(color: string): boolean {
+    const normalized = color.trim().toLowerCase();
+    if (normalized === DEFAULT_EMAIL_STYLE.textColor.toLowerCase()) return true;
+    const rgb = normalized.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/);
+    return !!rgb && Number(rgb[1]) === 30 && Number(rgb[2]) === 41 && Number(rgb[3]) === 59;
+}
+
 /**
  * Editor HTML → email-ready HTML. Paragraphs and lists that already exist keep their exact
  * markup; only structure the editor adds (list item wrappers, blank lines) and new elements
@@ -217,6 +225,60 @@ export function inlineEmailStyles(html: string, style: EmailTextStyle): string {
 
     // A blank line typed in the editor must still take up a line (Quill wrote <p><br></p>)
     root.querySelectorAll('p').forEach(p => { if (isEmptyBlock(p)) p.innerHTML = '<br>'; });
+
+    // The default templates inline Arial, sizes, line-heights, and #1e293b on each block:
+    // follow the chosen email style while leaving default style output untouched.
+    // Run before heading/table defaults are inlined so newly styled h1-h3/td/th aren't shifted twice.
+    const customFont = !isLegacyDefaultFont(s.fontFamily);
+    const fontSizeDelta = s.fontSize - DEFAULT_EMAIL_STYLE.fontSize;
+    const customSize = fontSizeDelta !== 0;
+    const customLineHeight = s.lineHeight !== DEFAULT_EMAIL_STYLE.lineHeight;
+    const customColor = s.textColor.toLowerCase() !== DEFAULT_EMAIL_STYLE.textColor.toLowerCase();
+
+    if (customFont || customSize || customLineHeight || customColor) {
+        root.querySelectorAll('[style*="-apple-system"]').forEach(el => {
+            const map = parseStyle(el.getAttribute('style'));
+            const family = map.get('font-family');
+            if (!family || !isLegacyDefaultFont(family)) return;
+
+            let changed = false;
+
+            if (customFont) {
+                map.set('font-family', s.fontFamily);
+                changed = true;
+            }
+
+            const rawSize = map.get('font-size');
+            const sizeMatch = rawSize?.match(/^(\d+(?:\.\d+)?)px$/i);
+            const elPx = sizeMatch ? parseFloat(sizeMatch[1]) : null;
+
+            if (customSize) {
+                if (elPx !== null) {
+                    const newPx = Math.max(10, Math.round(elPx + fontSizeDelta));
+                    map.set('font-size', px(newPx));
+                    map.set('line-height', px(newPx * s.lineHeight));
+                    changed = true;
+                } else if (customLineHeight) {
+                    map.set('line-height', px(s.fontSize * s.lineHeight));
+                    changed = true;
+                }
+            } else if (customLineHeight) {
+                const basePx = elPx ?? s.fontSize;
+                map.set('line-height', px(basePx * s.lineHeight));
+                changed = true;
+            }
+
+            if (customColor) {
+                const color = map.get('color');
+                if (color && isLegacyBodyColor(color)) {
+                    map.set('color', s.textColor);
+                    changed = true;
+                }
+            }
+
+            if (changed) writeStyle(el, map);
+        });
+    }
 
     root.querySelectorAll('h1, h2, h3').forEach(el => {
         addDefaults(el, {
@@ -259,18 +321,6 @@ export function inlineEmailStyles(html: string, style: EmailTextStyle): string {
         if (el.tagName === 'TH') addDefaults(el, { 'background-color': '#f1f5f9', 'font-weight': 'bold' });
         el.querySelectorAll(':scope > p').forEach(p => addDefaults(p, { margin: '0' }));
     });
-
-    // The default templates inline Arial on each paragraph: follow the chosen email font instead
-    if (!isLegacyDefaultFont(s.fontFamily)) {
-        root.querySelectorAll('[style*="-apple-system"]').forEach(el => {
-            const map = parseStyle(el.getAttribute('style'));
-            const family = map.get('font-family');
-            if (family && isLegacyDefaultFont(family)) {
-                map.set('font-family', s.fontFamily);
-                writeStyle(el, map);
-            }
-        });
-    }
 
     return root.innerHTML;
 }

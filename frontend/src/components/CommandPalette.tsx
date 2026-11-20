@@ -11,7 +11,8 @@ import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
     Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
     Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
-    X, CornerDownLeft, Sparkles, Loader2, Receipt
+    X, CornerDownLeft, Sparkles, Loader2, Receipt,
+    SlidersHorizontal, Mail, Award, GitMerge, MailX, ShieldCheck
 } from 'lucide-react';
 import type { NavigateFn } from '../lib/navigation';
 import { kbdLabel } from '../lib/platform';
@@ -143,7 +144,7 @@ export default function CommandPalette({
                 { id: 'nav-outc', title: 'Outcomes', subtitle: 'Graduate employment tracking', tab: 'outcomes', icon: <Briefcase size={17} />, shortcut: '5' },
                 { id: 'nav-docs', title: 'Documents', subtitle: 'Generate registration forms', tab: 'documents', icon: <FileText size={17} />, shortcut: '6' },
                 { id: 'nav-anal', title: 'Analytics', subtitle: 'Figures for a period and the PDF report', tab: 'analytics', icon: <PieChart size={17} />, shortcut: '7' },
-                { id: 'nav-sett', title: 'Settings', subtitle: 'App & email configuration', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
+                { id: 'nav-sett', title: 'Settings', subtitle: 'Preferences, email studio, certificates, data hygiene & users', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
                 { id: 'nav-pdff', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '9' },
                 { id: 'nav-cheq', title: 'Cheque Requisitions', subtitle: 'SICAP cheque requisitions from supplier invoices', tab: 'cheque-reqs', icon: <Receipt size={17} /> },
             ];
@@ -164,6 +165,77 @@ export default function CommandPalette({
                     });
                 }
             });
+
+            if (q.length > 0) {
+                const settingsJumps = [
+                    {
+                        id: 'nav-sett-general',
+                        title: 'Settings → General & Appearance',
+                        subtitle: 'Profile, theme, density and browser notifications',
+                        tab: 'settings?tab=general',
+                        icon: <SlidersHorizontal size={17} />,
+                        keywords: ['appearance', 'theme', 'density', 'notifications', 'push', 'staff name', 'profile', 'general', 'settings'],
+                    },
+                    {
+                        id: 'nav-sett-emails',
+                        title: 'Settings → Email Studio',
+                        subtitle: 'Templates, subjects, logos and email text style',
+                        tab: 'settings?tab=emails',
+                        icon: <Mail size={17} />,
+                        keywords: ['email', 'template', 'invitation', 'reminder', 'survey', 'logo', 'font', 'style', 'settings'],
+                    },
+                    {
+                        id: 'nav-sett-certificates',
+                        title: 'Settings → Certificates',
+                        subtitle: 'Word templates for the public Certificates page',
+                        tab: 'settings?tab=certificates',
+                        icon: <Award size={17} />,
+                        keywords: ['certificate', 'docx', 'public', 'templates', 'settings'],
+                    },
+                    {
+                        id: 'nav-sett-duplicates',
+                        title: 'Settings → Duplicate Profiles',
+                        subtitle: 'Scan and merge duplicate student profiles',
+                        tab: 'settings?tab=data&sub=duplicates',
+                        icon: <GitMerge size={17} />,
+                        keywords: ['duplicate', 'merge', 'hygiene', 'data', 'cleanup', 'settings'],
+                    },
+                    {
+                        id: 'nav-sett-unsubscribed',
+                        title: 'Settings → Unsubscribed Emails',
+                        subtitle: 'Manage email opt-outs and resubscriptions',
+                        tab: 'settings?tab=data&sub=unsubscribed',
+                        icon: <MailX size={17} />,
+                        keywords: ['unsubscribed', 'opt out', 'opt-out', 'mailing', 'hygiene', 'data', 'settings'],
+                    },
+                    {
+                        id: 'nav-sett-users',
+                        title: 'Settings → Users & Roles',
+                        subtitle: 'Manage admin, viewer, outreach and forms access',
+                        tab: 'settings?tab=users',
+                        icon: <ShieldCheck size={17} />,
+                        keywords: ['users', 'roles', 'admin', 'viewer', 'outreach', 'forms', 'access', 'permissions', 'settings'],
+                    },
+                ];
+
+                const terms = q.split(/\s+/).filter(Boolean);
+                settingsJumps.forEach(item => {
+                    const searchable = `${item.title} ${item.subtitle} ${item.keywords.join(' ')}`.toLowerCase();
+                    if (terms.every(term => searchable.includes(term))) {
+                        result.push({
+                            id: item.id,
+                            title: item.title,
+                            subtitle: item.subtitle,
+                            category: 'Navigation',
+                            icon: item.icon,
+                            onSelect: () => {
+                                onNavigate(item.tab);
+                                onClose();
+                            },
+                        });
+                    }
+                });
+            }
         } else {
             const viewerNavs = [
                 { id: 'nav-home', title: 'Home', subtitle: 'Upcoming sessions & what needs attention', tab: 'home', icon: <LayoutDashboard size={17} />, shortcut: '1' },

@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import { Selection } from '@tiptap/pm/state';
 import { createEmailExtensions } from './extensions';
 import EditorToolbar from './EditorToolbar';
-import { lineHeightPx, prepareEditorHtml, type EmailTextStyle } from '../../lib/emailFormat';
+import { DEFAULT_EMAIL_STYLE, lineHeightPx, prepareEditorHtml, type EmailTextStyle } from '../../lib/emailFormat';
 
 export interface EmailEditorHandle {
     /**
@@ -87,7 +87,13 @@ export default function EmailEditor({ value, onChange, textStyle, variant = 'ema
     }) as CSSProperties, [textStyle, minHeight, maxHeight]);
 
     return (
-        <div className="email-editor w-full bg-surface border border-border-subtle rounded-xl focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-colors" style={cssVars}>
+        <div
+            className="email-editor w-full bg-surface border border-border-subtle rounded-xl focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 transition-colors"
+            style={cssVars}
+            data-custom-size={textStyle.fontSize !== DEFAULT_EMAIL_STYLE.fontSize ? '' : undefined}
+            data-custom-lh={textStyle.lineHeight !== DEFAULT_EMAIL_STYLE.lineHeight ? '' : undefined}
+            data-custom-color={textStyle.textColor.toLowerCase() !== DEFAULT_EMAIL_STYLE.textColor.toLowerCase() ? '' : undefined}
+        >
             {editor && <EditorToolbar editor={editor} textStyle={textStyle} />}
             <EditorContent editor={editor} className="email-editor-scroll rounded-b-xl" />
         </div>

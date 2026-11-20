@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { templateTags } from '../lib/documentRender';
@@ -30,10 +31,14 @@ export function nameFromFile(fileName: string): string {
     return fileName.replace(/\.docx$/i, '').replace(/[_]+/g, ' ').replace(/\s+(cert(ificate)?|template)(\s+template)?$/i, '').trim() || 'Certificate';
 }
 
-/** The file checked as a template: its placeholders, or an error saying what is wrong */
-async function readTemplate(file: File): Promise<{ tags: string[] }> {
+function validateTemplateFile(file: File): void {
     if (!/\.docx$/i.test(file.name)) throw new Error('Choose a Word file (.docx). An old .doc or a Publisher file can be saved as .docx from Word.');
     if (file.size > MAX_TEMPLATE_BYTES) throw new Error('This file is over 15 MB. Make the pictures in it smaller in Word and try again.');
+}
+
+/** The file checked as a template: its placeholders, or an error saying what is wrong */
+async function readTemplate(file: File): Promise<{ tags: string[] }> {
+    validateTemplateFile(file);
     return { tags: await templateTags(await file.arrayBuffer()) };
 }
 
@@ -54,24 +59,49 @@ export function useCertificateTemplateMutations() {
     const queryClient = useQueryClient();
     const refresh = () => queryClient.invalidateQueries({ queryKey: ['certificate_templates'] });
     const current = () => queryClient.getQueryData<CertificateLibrary>(CERT_TEMPLATES_KEY)?.templates ?? [];
+    // Track the highest sort_order reserved by concurrent uploads so rapid multi-file uploads
+    // receive strictly increasing sort_order values instead of colliding on stale cache data.
+    const lastQueuedOrderRef = useRef<number | null>(null);
+    const inFlightUploadsRef = useRef(0);
+
+    const reserveSortOrder = () => {
+        const currentMax = Math.max(-1, ...current().map(t => t.sort_order));
+        const base = lastQueuedOrderRef.current === null
+            ? currentMax
+            : Math.max(currentMax, lastQueuedOrderRef.current);
+        const next = base + 1;
+        lastQueuedOrderRef.current = next;
+        return next;
+    };
 
     const upload = useMutation({
         mutationFn: async (file: File): Promise<CertificateTemplate> => {
-            const { tags } = await readTemplate(file);
-            const path = await uploadFile(file);
-            const order = Math.max(-1, ...current().map(t => t.sort_order)) + 1;
-            const { data, error } = await supabase
-                .from(CERT_TEMPLATES_TABLE)
-                .insert({ name: nameFromFile(file.name), file_name: file.name, storage_path: path, tags, size_bytes: file.size, sort_order: order })
-                .select('*')
-                .single();
-            if (error) {
-                await removeFile(path);
-                throw error;
+            validateTemplateFile(file);
+            inFlightUploadsRef.current += 1;
+            const order = reserveSortOrder();
+            try {
+                const { tags } = await readTemplate(file);
+                const path = await uploadFile(file);
+                const { data, error } = await supabase
+                    .from(CERT_TEMPLATES_TABLE)
+                    .insert({ name: nameFromFile(file.name), file_name: file.name, storage_path: path, tags, size_bytes: file.size, sort_order: order })
+                    .select('*')
+                    .single();
+                if (error) {
+                    await removeFile(path);
+                    throw error;
+                }
+                return data as CertificateTemplate;
+            } finally {
+                inFlightUploadsRef.current -= 1;
             }
-            return data as CertificateTemplate;
         },
-        onSettled: refresh,
+        onSettled: async () => {
+            await refresh();
+            if (inFlightUploadsRef.current === 0) {
+                lastQueuedOrderRef.current = null;
+            }
+        },
     });
 
     const replace = useMutation({

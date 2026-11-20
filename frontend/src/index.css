@@ -1167,8 +1167,13 @@ a:focus-visible,
     content: ''; position: absolute; inset: 0; pointer-events: none;
     background: oklch(var(--accent-primary) / 0.14);
 }
-/* The old default templates inline Arial on every paragraph; it follows the chosen email font */
+/* The old default templates inline Arial, size, line-height and #1e293b on every paragraph;
+ * they follow the chosen email style when customized in Settings */
 .email-editor-content [style*="-apple-system"] { font-family: var(--ee-font) !important; }
+.email-editor[data-custom-size] .email-editor-content [style*="-apple-system"] { font-size: var(--ee-size) !important; line-height: var(--ee-lh) !important; }
+.email-editor[data-custom-lh] .email-editor-content [style*="-apple-system"] { line-height: var(--ee-lh) !important; }
+.email-editor[data-custom-color] .email-editor-content [style*="-apple-system"][style*="#1e293b"],
+.email-editor[data-custom-color] .email-editor-content [style*="-apple-system"][style*="rgb(30, 41, 59)"] { color: var(--ee-color) !important; }
 /* Course card text: tight paragraphs and lists, like cardText() in appConfig.ts */
 .email-editor-card p { margin: 0 0 4px 0; }
 .email-editor-card ul,

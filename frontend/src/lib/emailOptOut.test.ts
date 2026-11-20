@@ -1,19 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const inMock = vi.hoisted(() => vi.fn());
+const eqMock = vi.hoisted(() => vi.fn());
+const updateMock = vi.hoisted(() => vi.fn(() => ({ eq: eqMock })));
 
 vi.mock('./supabase', () => ({
     supabase: {
         from: () => ({
             select: () => ({ in: inMock }),
+            update: updateMock,
         }),
     },
 }));
 
-import { fetchOptedOutEmails, normalizeEmail, partitionByOptOut, skippedNote } from './emailOptOut';
+import { fetchOptedOutEmails, normalizeEmail, partitionByOptOut, skippedNote, updateEmailOptOutNote } from './emailOptOut';
 
 describe('emailOptOut', () => {
-    beforeEach(() => inMock.mockReset());
+    beforeEach(() => {
+        inMock.mockReset();
+        eqMock.mockReset();
+        updateMock.mockClear();
+    });
 
     it('normalizes emails', () => {
         expect(normalizeEmail('  John.Doe@Mail.COM ')).toBe('john.doe@mail.com');
@@ -54,5 +61,17 @@ describe('emailOptOut', () => {
     it('throws on other errors so a mailing never ignores the list', async () => {
         inMock.mockResolvedValueOnce({ data: null, error: { code: '500', message: 'boom' } });
         await expect(fetchOptedOutEmails(['a@x.com'])).rejects.toMatchObject({ message: 'boom' });
+    });
+
+    it('updates and clears a note on an existing opt-out without touching opted_out_at', async () => {
+        eqMock.mockResolvedValueOnce({ error: null });
+        await updateEmailOptOutNote('  Alice@Example.com ', '  called office ');
+        expect(updateMock).toHaveBeenCalledWith({ note: 'called office' });
+        expect(eqMock).toHaveBeenCalledWith('email', 'alice@example.com');
+
+        eqMock.mockResolvedValueOnce({ error: null });
+        await updateEmailOptOutNote('alice@example.com', '   ');
+        expect(updateMock).toHaveBeenLastCalledWith({ note: null });
+        expect(eqMock).toHaveBeenLastCalledWith('email', 'alice@example.com');
     });
 });

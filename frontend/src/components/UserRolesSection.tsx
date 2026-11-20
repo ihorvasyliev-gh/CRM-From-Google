@@ -1,14 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShieldCheck, Eye, ListChecks, FileInput, Search, Loader2, ArrowUpCircle, RotateCcw, Info } from 'lucide-react';
+import {
+    ArrowUpCircle,
+    Eye,
+    FileInput,
+    Info,
+    ListChecks,
+    RotateCcw,
+    ShieldCheck,
+    Users,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from '../lib/toast';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDisplayDate } from '../lib/dateUtils';
 import ConfirmDialog from './ConfirmDialog';
 import Card from './ui/Card';
-import { IconButton } from './ui/Button';
-import { calloutCls, fieldCls } from './ui/styles';
+import Badge from './ui/Badge';
+import { Button, IconButton } from './ui/Button';
+import SearchInput from './ui/SearchInput';
+import { Segmented, type SegmentOption } from './ui/Tabs';
+import { EmptyState, SkeletonRows } from './ui/States';
+import { calloutCls, panelCls } from './ui/styles';
 import { normalizeRole, ROLE_LABELS, type AppRole } from '../lib/roles';
 
 export interface AppUser {
@@ -28,19 +41,41 @@ const ROLE_BADGE_CLS: Record<AppRole, string> = {
     forms: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
 };
 
-const FILTERS = ['all', 'viewer', 'outreach', 'forms', 'admin'] as const;
-const FILTER_LABELS: Record<(typeof FILTERS)[number], string> = { all: 'All', viewer: 'Viewers', outreach: 'External Lists', forms: 'PDF Forms', admin: 'Admins' };
+const ROLE_GUIDE: readonly { role: AppRole; title: string; description: string }[] = [
+    {
+        role: 'admin',
+        title: 'Admin',
+        description: 'Full CRM access, settings, templates & user management (one-way promotion).',
+    },
+    {
+        role: 'viewer',
+        title: 'Viewer',
+        description: 'Read-only students & courses, plus External Lists and PDF Forms.',
+    },
+    {
+        role: 'outreach',
+        title: 'External Lists',
+        description: 'Create & manage External Lists and fill PDF Forms.',
+    },
+    {
+        role: 'forms',
+        title: 'PDF Forms',
+        description: 'Manage & fill PDF Forms only.',
+    },
+];
+
+type RoleFilter = 'all' | AppRole;
 
 /**
  * Admin-only list of app users. New sign-ups are viewers by default; an admin can switch a
- * viewer to "External Lists" (outreach - manages Outcomes > External lists only) or
- * "PDF Forms" (forms - fills and sets up PDF forms only) and back, or promote any of them to admin. Demoting an admin is intentionally not possible.
+ * non-admin between "Viewer", "External Lists" (outreach) and "PDF Forms" (forms),
+ * or promote any of them to admin. Demoting an admin is intentionally not possible.
  */
 export default function UserRolesSection() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
-    const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
+    const [filter, setFilter] = useState<RoleFilter>('all');
     const [confirmUser, setConfirmUser] = useState<AppUser | null>(null);
 
     const { data: users = [], isLoading, error, refetch, isFetching } = useQuery<AppUser[]>({
@@ -80,26 +115,52 @@ export default function UserRolesSection() {
         onError: (err: Error) => toast.error(err.message || 'Failed to change role'),
     });
 
-    const counts = useMemo(() => ({
-        all: users.length,
-        admin: users.filter(u => normalizeRole(u.role) === 'admin').length,
-        viewer: users.filter(u => normalizeRole(u.role) === 'viewer').length,
-        outreach: users.filter(u => normalizeRole(u.role) === 'outreach').length,
-        forms: users.filter(u => normalizeRole(u.role) === 'forms').length,
-    }), [users]);
+    const counts = useMemo(
+        () => ({
+            all: users.length,
+            admin: users.filter(u => normalizeRole(u.role) === 'admin').length,
+            viewer: users.filter(u => normalizeRole(u.role) === 'viewer').length,
+            outreach: users.filter(u => normalizeRole(u.role) === 'outreach').length,
+            forms: users.filter(u => normalizeRole(u.role) === 'forms').length,
+        }),
+        [users],
+    );
+
+    const filterOptions: SegmentOption<RoleFilter>[] = useMemo(
+        () => [
+            { value: 'all', label: 'All', count: counts.all },
+            { value: 'viewer', label: 'Viewers', count: counts.viewer },
+            { value: 'outreach', label: 'External Lists', count: counts.outreach },
+            { value: 'forms', label: 'PDF Forms', count: counts.forms },
+            { value: 'admin', label: 'Admins', count: counts.admin },
+        ],
+        [counts],
+    );
 
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase();
-        return users.filter(u =>
-            (filter === 'all' || normalizeRole(u.role) === filter) &&
-            (!q || u.email?.toLowerCase().includes(q))
+        return users.filter(
+            u =>
+                (filter === 'all' || normalizeRole(u.role) === filter) &&
+                (!q || u.email?.toLowerCase().includes(q)),
         );
     }, [users, search, filter]);
 
+    const hasActiveFilter = filter !== 'all' || search.trim().length > 0;
+
     return (
         <Card
-            title="Users & Roles"
-            subtitle="New users join as viewers. Give “External Lists” or “PDF Forms” access to let someone use only that part, or make them an admin."
+            title={
+                <span className="inline-flex items-center gap-2 flex-wrap">
+                    <span>Users &amp; Roles</span>
+                    {!isLoading && !error && (
+                        <Badge tone="brand" shape="pill" className="tabular-nums">
+                            {users.length} {users.length === 1 ? 'user' : 'users'}
+                        </Badge>
+                    )}
+                </span>
+            }
+            subtitle="New sign-ups start as Viewers. Assign a scoped workspace role or promote team members to Admin."
             icon={ShieldCheck}
             divided
             action={
@@ -109,93 +170,162 @@ export default function UserRolesSection() {
             }
         >
             <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="relative flex-1">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Search by email…"
-                            aria-label="Search users"
-                            className={`${fieldCls} pl-9`}
-                        />
-                    </div>
-                    <div className="flex items-center gap-0.5 p-1 bg-surface-elevated border border-border-subtle rounded-xl" role="tablist" aria-label="Role filter">
-                        {FILTERS.map(f => (
-                            <button
-                                key={f}
-                                type="button"
-                                role="tab"
-                                aria-selected={filter === f}
-                                onClick={() => setFilter(f)}
-                                className={`px-2.5 h-7 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${filter === f ? 'bg-surface text-primary shadow-xs ring-1 ring-border-subtle' : 'text-muted hover:text-primary'}`}
-                            >
-                                {FILTER_LABELS[f]}
-                                <span className="text-xs text-muted tabular-nums">{counts[f]}</span>
-                            </button>
-                        ))}
-                    </div>
+                {/* Role Capabilities Guide */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5" aria-label="Role capabilities overview">
+                    {ROLE_GUIDE.map(({ role, title, description }) => {
+                        const Icon = ROLE_ICONS[role];
+                        return (
+                            <div key={role} className={`${panelCls} p-3 flex flex-col gap-1.5 min-w-0`}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span
+                                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${ROLE_BADGE_CLS[role]}`}
+                                        >
+                                            <Icon size={13} aria-hidden="true" />
+                                        </span>
+                                        <span className="text-xs font-semibold text-primary truncate">{title}</span>
+                                    </div>
+                                    {!isLoading && !error && (
+                                        <span className="text-xs font-bold text-muted tabular-nums shrink-0">
+                                            {counts[role]}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted leading-snug">{description}</p>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Search & Role Filter Bar */}
+                <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+                    <SearchInput
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Search by email…"
+                        aria-label="Search users"
+                        wrapperClassName="flex-1 min-w-0"
+                        className="h-9!"
+                    />
+                    <Segmented<RoleFilter>
+                        options={filterOptions}
+                        value={filter}
+                        onChange={setFilter}
+                        ariaLabel="Role filter"
+                        className="self-start lg:self-auto"
+                    />
                 </div>
 
                 {isLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted py-6 justify-center"><Loader2 size={16} className="animate-spin" /> Loading users…</div>
+                    <SkeletonRows rows={4} />
                 ) : error ? (
-                    <div className={`${calloutCls.danger} text-sm p-3`}>
-                        Couldn't load users: {(error as Error).message}. Make sure migration 58 has been applied.
+                    <div className={`${calloutCls.danger} text-sm p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                        <span>
+                            Couldn't load users: {(error as Error).message}. Make sure migration 58 has been applied.
+                        </span>
+                        <Button size="sm" variant="secondary" onClick={() => refetch()} className="self-start sm:self-center shrink-0">
+                            Try again
+                        </Button>
                     </div>
                 ) : visible.length === 0 ? (
-                    <p className="text-sm text-muted text-center py-6">No users match.</p>
+                    <EmptyState
+                        bare
+                        className="py-8!"
+                        icon={<Users size={20} />}
+                        title="No users match"
+                        description={
+                            hasActiveFilter
+                                ? 'Try a different email search or switch back to all roles.'
+                                : 'No team accounts have signed up yet.'
+                        }
+                        action={
+                            hasActiveFilter ? (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setSearch('');
+                                        setFilter('all');
+                                    }}
+                                >
+                                    Clear filters
+                                </Button>
+                            ) : undefined
+                        }
+                    />
                 ) : (
-                    <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden">
+                    <ul className="rounded-xl border border-border-subtle divide-y divide-border-subtle overflow-hidden bg-surface">
                         {visible.map(u => {
                             const role = normalizeRole(u.role);
                             const RoleIcon = ROLE_ICONS[role];
                             const isMe = u.id === user?.id;
-                            const busy = (promote.isPending && promote.variables === u.id) || (setRole.isPending && setRole.variables?.userId === u.id);
+                            const isPromoting = promote.isPending && promote.variables === u.id;
+                            const busy = isPromoting || (setRole.isPending && setRole.variables?.userId === u.id);
+
                             return (
-                                <li key={u.id} data-testid="app-user-row" className="flex items-center gap-3 px-3.5 py-3 hover:bg-surface-elevated/40 transition-colors">
-                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${ROLE_BADGE_CLS[role]}`}>
-                                        <RoleIcon size={15} />
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-[13px] font-semibold text-primary truncate">
-                                            {u.email}
-                                            {isMe && <span className="ml-1.5 text-xs font-bold text-muted">(you)</span>}
-                                        </p>
-                                        <p className="text-xs text-muted">
-                                            Joined {formatDisplayDate(u.created_at)}
-                                            {u.last_sign_in_at ? ` · last sign-in ${formatDisplayDate(u.last_sign_in_at)}` : ' · never signed in'}
-                                        </p>
-                                    </div>
-                                    {role === 'admin' ? (
-                                        <span className={`px-2 h-5 inline-flex items-center rounded-md text-xs font-semibold border ${ROLE_BADGE_CLS.admin}`}>
-                                            {ROLE_LABELS.admin}
+                                <li
+                                    key={u.id}
+                                    data-testid="app-user-row"
+                                    className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 px-3.5 py-3 hover:bg-surface-elevated/40 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <span
+                                            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${ROLE_BADGE_CLS[role]}`}
+                                        >
+                                            <RoleIcon size={15} aria-hidden="true" />
                                         </span>
-                                    ) : (
-                                        <select
-                                            value={role}
-                                            onChange={e => setRole.mutate({ userId: u.id, role: e.target.value as AppRole })}
-                                            disabled={busy}
-                                            aria-label={`Role for ${u.email}`}
-                                            className="h-8 px-2 bg-surface border border-border-subtle rounded-lg text-xs font-semibold text-primary cursor-pointer focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
-                                        >
-                                            <option value="viewer">{ROLE_LABELS.viewer}</option>
-                                            <option value="outreach">{ROLE_LABELS.outreach}</option>
-                                            <option value="forms">{ROLE_LABELS.forms}</option>
-                                        </select>
-                                    )}
-                                    {role !== 'admin' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setConfirmUser(u)}
-                                            disabled={promote.isPending || setRole.isPending}
-                                            className="h-8 px-2.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/15 inline-flex items-center gap-1.5 disabled:opacity-50 transition-colors"
-                                        >
-                                            {promote.isPending && promote.variables === u.id ? <Loader2 size={13} className="animate-spin" /> : <ArrowUpCircle size={13} />}
-                                            Make admin
-                                        </button>
-                                    )}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[13px] font-semibold text-primary truncate">
+                                                {u.email}
+                                                {isMe && (
+                                                    <span className="ml-1.5 text-xs font-bold text-muted">(you)</span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-muted truncate">
+                                                Joined {formatDisplayDate(u.created_at)}
+                                                {u.last_sign_in_at
+                                                    ? ` · last sign-in ${formatDisplayDate(u.last_sign_in_at)}`
+                                                    : ' · never signed in'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center flex-wrap gap-2 pl-11 sm:pl-0 shrink-0">
+                                        {role === 'admin' ? (
+                                            <span
+                                                className={`px-2.5 h-6 inline-flex items-center gap-1 rounded-md text-xs font-semibold border ${ROLE_BADGE_CLS.admin}`}
+                                            >
+                                                <ShieldCheck size={12} aria-hidden="true" />
+                                                {ROLE_LABELS.admin}
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <select
+                                                    value={role}
+                                                    onChange={e =>
+                                                        setRole.mutate({ userId: u.id, role: e.target.value as AppRole })
+                                                    }
+                                                    disabled={busy}
+                                                    aria-label={`Role for ${u.email}`}
+                                                    className="h-8 px-2.5 bg-surface border border-border-subtle rounded-lg text-xs font-semibold text-primary cursor-pointer focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:opacity-60"
+                                                >
+                                                    <option value="viewer">{ROLE_LABELS.viewer}</option>
+                                                    <option value="outreach">{ROLE_LABELS.outreach}</option>
+                                                    <option value="forms">{ROLE_LABELS.forms}</option>
+                                                </select>
+                                                <Button
+                                                    variant="brand-soft"
+                                                    size="sm"
+                                                    loading={isPromoting}
+                                                    disabled={promote.isPending || setRole.isPending}
+                                                    onClick={() => setConfirmUser(u)}
+                                                >
+                                                    {!isPromoting && <ArrowUpCircle size={13} />}
+                                                    Make admin
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
                                 </li>
                             );
                         })}
@@ -203,20 +333,29 @@ export default function UserRolesSection() {
                 )}
 
                 <p className="text-xs text-muted flex items-start gap-1.5">
-                    <Info size={12} className="mt-0.5 shrink-0" />
-                    Viewers also get External Lists. “External Lists” users see only Outcomes → External lists: they can create and delete lists, import, add and export people, and change their status. Promotion to admin is one-way — admins can't be changed back here. Role changes apply after the user signs in again (or within about an hour).
+                    <Info size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>
+                        Promotion to Admin is one-way and cannot be reversed from inside the app. Role changes take effect the next time the user signs in, or within about an hour.
+                    </span>
                 </p>
             </div>
 
             <ConfirmDialog
                 open={!!confirmUser}
                 title="Make this user an admin?"
-                message={confirmUser ? `${confirmUser.email} will get full admin access. This can't be undone from the app.` : ''}
+                message={
+                    confirmUser
+                        ? `${confirmUser.email} will get full admin access. This can't be undone from the app.`
+                        : ''
+                }
                 confirmLabel="Make admin"
                 variant="warning"
                 onConfirm={() => {
                     if (!confirmUser) return;
-                    return promote.mutateAsync(confirmUser.id).catch(() => undefined).finally(() => setConfirmUser(null));
+                    return promote
+                        .mutateAsync(confirmUser.id)
+                        .catch(() => undefined)
+                        .finally(() => setConfirmUser(null));
                 }}
                 onCancel={() => setConfirmUser(null)}
             />

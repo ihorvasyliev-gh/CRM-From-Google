@@ -43,6 +43,30 @@ export interface AppConfig {
     emailStyle: EmailTextStyle;
 }
 
+export const EMAIL_CONFIG_KEYS = [
+    'htmlEmailTemplate',
+    'htmlEmailTemplateStandard',
+    'emailSubjectFormat',
+    'reminderEmailTemplate',
+    'reminderEmailSubjectFormat',
+    'reminderTomorrowEmailTemplate',
+    'reminderTomorrowEmailSubjectFormat',
+    'statusEmailTemplate',
+    'statusEmailSubjectFormat',
+    'outreachEmailTemplate',
+    'outreachEmailSubjectFormat',
+    'includeLogosInEmails',
+    'emailStyle',
+] as const satisfies readonly (keyof AppConfig)[];
+
+export type EmailConfigKey = (typeof EMAIL_CONFIG_KEYS)[number];
+
+export interface SaveConfigResult {
+    config: AppConfig;
+    synced: boolean;
+    error?: string;
+}
+
 const STORAGE_KEY = 'crm_app_config';
 
 const DEFAULT_EXCEL_COLUMNS: ExcelColumn[] = [
@@ -195,30 +219,116 @@ function migrateSavedConfig(saved: Partial<AppConfig>): Partial<AppConfig> {
 /** The stored string last read and its migrated JSON: the migrations run once per change, not on every read. */
 let migratedCache: { raw: string; json: string } | null = null;
 
+type ConfigUpdateListener = (config: AppConfig) => void;
+const configListeners = new Set<ConfigUpdateListener>();
+
+/** Subscribe to external config changes (server hydration on sign-in, clearing on sign-out). */
+export function onConfigUpdated(listener: ConfigUpdateListener): () => void {
+    configListeners.add(listener);
+    return () => {
+        configListeners.delete(listener);
+    };
+}
+
+function notifyConfigUpdated(): void {
+    if (configListeners.size === 0) return;
+    for (const listener of configListeners) {
+        try {
+            listener(getConfig());
+        } catch (err) {
+            console.error('Config update listener failed:', err);
+        }
+    }
+}
+
+function defaultConfigCopy(): AppConfig {
+    return {
+        ...DEFAULT_CONFIG,
+        excelColumns: DEFAULT_EXCEL_COLUMNS.map(col => ({ ...col })),
+        emailStyle: { ...DEFAULT_EMAIL_STYLE },
+    };
+}
+
 /** Read the full config, merging saved values over defaults. */
 export function getConfig(): AppConfig {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { ...DEFAULT_CONFIG };
+        if (!raw) return defaultConfigCopy();
         if (migratedCache?.raw !== raw) {
             migratedCache = { raw, json: JSON.stringify(migrateSavedConfig(JSON.parse(raw) as Partial<AppConfig>)) };
         }
         // Parsed per call, so callers never share (and can't change) each other's objects
         const saved = JSON.parse(migratedCache.json) as Partial<AppConfig>;
-        return { ...DEFAULT_CONFIG, ...saved, emailStyle: normalizeEmailStyle(saved.emailStyle) };
+        return { ...defaultConfigCopy(), ...saved, emailStyle: normalizeEmailStyle(saved.emailStyle) };
     } catch {
-        return { ...DEFAULT_CONFIG };
+        return defaultConfigCopy();
     }
 }
 
 /** Replace the locally stored config with the copy saved on the server (on sign-in). */
 export function storeServerConfig(settings: unknown): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    notifyConfigUpdated();
 }
 
 /** Forget the locally stored config (on sign-out), without touching the server copy. */
 export function clearStoredConfig(): void {
     localStorage.removeItem(STORAGE_KEY);
+    migratedCache = null;
+    notifyConfigUpdated();
+}
+
+/**
+ * Persist a partial config update locally and await Supabase sync if a session exists.
+ * Merges over the latest stored config so concurrent updates to other keys (e.g. excelColumns) are preserved.
+ */
+export async function saveConfig(patch: Partial<AppConfig>): Promise<SaveConfigResult> {
+    const current = getConfig();
+    const merged: AppConfig = {
+        ...current,
+        ...patch,
+        emailStyle: normalizeEmailStyle(patch.emailStyle ?? current.emailStyle),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+
+    try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+            console.error('Failed to read auth session for settings sync:', sessionError);
+            return { config: merged, synced: false, error: sessionError.message || 'Failed to read auth session' };
+        }
+        const user = session?.user;
+        if (!user) {
+            return { config: merged, synced: true };
+        }
+        const { error } = await supabase
+            .from('user_settings')
+            .upsert({
+                user_id: user.id,
+                settings: merged,
+                updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id' });
+        if (error) {
+            console.error('Failed to sync settings to Supabase:', error);
+            return { config: merged, synced: false, error: error.message || 'Failed to sync settings' };
+        }
+        return { config: merged, synced: true };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('Failed to sync settings to Supabase:', err);
+        return { config: merged, synced: false, error: message };
+    }
+}
+
+/** Reset only email-related settings back to defaults, preserving non-email keys such as excelColumns. */
+export async function resetEmailConfig(): Promise<SaveConfigResult> {
+    const emailDefaults: Partial<AppConfig> = {};
+    for (const key of EMAIL_CONFIG_KEYS) {
+        const value = DEFAULT_CONFIG[key];
+        (emailDefaults as Record<string, unknown>)[key] =
+            key === 'emailStyle' ? { ...(value as EmailTextStyle) } : value;
+    }
+    return saveConfig(emailDefaults);
 }
 
 /** Persist a partial config update (merges with existing). */
@@ -252,6 +362,7 @@ export function setConfig(patch: Partial<AppConfig>): AppConfig {
 /** Reset config to defaults. */
 export function resetConfig(): AppConfig {
     localStorage.removeItem(STORAGE_KEY);
+    migratedCache = null;
 
     // Async reset in Supabase in background
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -272,5 +383,5 @@ export function resetConfig(): AppConfig {
         }
     });
 
-    return { ...DEFAULT_CONFIG };
+    return defaultConfigCopy();
 }

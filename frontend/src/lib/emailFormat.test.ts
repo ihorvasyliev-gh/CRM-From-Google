@@ -75,6 +75,45 @@ describe('emailFormat', () => {
             expect(out).toContain("font-family:Georgia, 'Times New Roman', serif;");
             // Sizes and colours set on the paragraphs stay
             expect(out).toContain('font-size:16px');
+            expect(out).toContain('line-height:24px');
+            expect(out).toContain('color:#1e293b');
+        });
+
+        it('shifts legacy default template font sizes and recomputes line-height while preserving visual hierarchy', () => {
+            // Default base is 15px; +3px shifts 16->19, 15->18, 14->17, 13->16
+            const larger = { ...DEFAULT_EMAIL_STYLE, fontSize: 18 };
+            const out = inlineEmailStyles(DEFAULT_CONFIG.statusEmailTemplate, larger);
+            expect(out).toContain('font-size:19px;line-height:29px;');
+            expect(out).toContain('font-size:18px;line-height:27px;');
+            expect(out).toContain('font-size:16px;line-height:24px;');
+
+            // Clamps small shifts to >= 10px (delta = -5: 16->11, 15->10, 14->10, 13->10)
+            const smaller = { ...DEFAULT_EMAIL_STYLE, fontSize: 10 };
+            const smallOut = inlineEmailStyles(DEFAULT_CONFIG.statusEmailTemplate, smaller);
+            expect(smallOut).toContain('font-size:11px;line-height:17px;');
+            expect(smallOut).toContain('font-size:10px;line-height:15px;');
+            expect(smallOut).not.toMatch(/font-size:[0-9]px/);
+        });
+
+        it('updates line-height on default templates when only lineHeight changes', () => {
+            const airy = { ...DEFAULT_EMAIL_STYLE, lineHeight: 2 };
+            const out = inlineEmailStyles(DEFAULT_CONFIG.htmlEmailTemplate, airy);
+            expect(out).toContain('font-size:16px;line-height:32px;');
+            expect(out).toContain('font-size:15px;line-height:30px;');
+            expect(out).toContain('font-size:14px;line-height:28px;');
+        });
+
+        it('replaces legacy primary body text colour while keeping muted notes and custom spans intact', () => {
+            const darkText = { ...DEFAULT_EMAIL_STYLE, textColor: '#0f172a' };
+            const html = `${DEFAULT_CONFIG.htmlEmailTemplate}<p style="font-size:16px;line-height:24px;color:rgb(30, 41, 59);font-family:Arial,-apple-system,sans-serif;">RGB <span style="color:#e60000;">alert</span></p>`;
+            const out = inlineEmailStyles(html, darkText);
+            expect(out).toContain('color:#0f172a;');
+            expect(out).not.toContain('color:#1e293b');
+            expect(out).not.toContain('rgb(30, 41, 59)');
+            // Muted secondary/list colours and explicit custom user span stay untouched
+            expect(out).toContain('color:#475569;');
+            expect(out).toContain('color:#64748b;');
+            expect(out).toContain('<span style="color:#e60000;">alert</span>');
         });
     });
 });

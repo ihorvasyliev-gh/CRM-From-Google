@@ -242,7 +242,7 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
                                 <button
                                     key={s.id}
                                     onClick={() => setTargetStudent(s)}
-                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-brand-50/40 border border-transparent hover:border-brand-500/10 transition-all text-left text-sm"
+                                    className="group w-full flex items-center justify-between p-3 rounded-xl hover:bg-brand-50/40 dark:hover:bg-brand-500/10 border border-transparent hover:border-brand-500/10 transition-all text-left text-sm"
                                 >
                                     <div>
                                         <p className="font-semibold text-primary">{s.first_name} {s.last_name}</p>
