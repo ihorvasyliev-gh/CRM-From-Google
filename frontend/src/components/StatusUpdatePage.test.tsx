@@ -20,7 +20,7 @@ describe('StatusUpdatePage', () => {
         vi.clearAllMocks();
     });
 
-    it('asks for start date, place and hours only when the person is working', () => {
+    it('asks for start date, place and type of work only when the person is working', () => {
         render(<StatusUpdatePage />);
         expect(screen.queryByLabelText(/start month/i)).not.toBeInTheDocument();
 
@@ -28,6 +28,9 @@ describe('StatusUpdatePage', () => {
         expect(screen.getByLabelText(/start month/i)).toBeInTheDocument();
         expect(screen.getByLabelText(/where do you work/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^full-time$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^part-time$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^self-employed$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^ce \/ tus$/i })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: /not yet/i }));
         expect(screen.queryByLabelText(/start month/i)).not.toBeInTheDocument();
@@ -42,7 +45,7 @@ describe('StatusUpdatePage', () => {
         // Each missing answer is explained under its own question
         expect(await screen.findByText(/month and year you started/i)).toBeInTheDocument();
         expect(screen.getByText(/where you work/i)).toBeInTheDocument();
-        expect(screen.getByText(/full-time or part-time/i, { selector: 'p' })).toBeInTheDocument();
+        expect(screen.getByText(/choose your type of work/i, { selector: 'p' })).toBeInTheDocument();
         expect(screen.getByLabelText(/start month/i)).toHaveAttribute('aria-invalid', 'true');
         expect(screen.getByLabelText(/start month/i)).toHaveFocus();
         expect(rpc).not.toHaveBeenCalled();
@@ -94,6 +97,41 @@ describe('StatusUpdatePage', () => {
             p_student_id: 's1',
         });
         expect(screen.getByText('March 2024')).toBeInTheDocument();
+        expect(screen.getByText('Type of work')).toBeInTheDocument();
+        expect(screen.getByText('Part-time')).toBeInTheDocument();
+    });
+
+    it.each([
+        ['Self-employed', 'self_employed'],
+        ['CE / TUS', 'ce_tus'],
+    ] as const)('submits %s employment type and displays it in the summary', async (label, value) => {
+        rpc.mockImplementation(async (name: string) => {
+            if (name === 'find_employment_students_by_email') {
+                return { data: [{ student_id: 's1', first_name: 'Anna', last_name: 'Smith' }], error: null };
+            }
+            return { data: { success: true, message: 'ok' }, error: null };
+        });
+
+        render(<StatusUpdatePage />);
+        fillEmail('anna@example.com');
+        fireEvent.click(screen.getByRole('button', { name: /yes, i am/i }));
+        fireEvent.change(screen.getByLabelText(/start month/i), { target: { value: '6' } });
+        fireEvent.change(screen.getByLabelText(/start year/i), { target: { value: '2025' } });
+        fireEvent.change(screen.getByLabelText(/where do you work/i), { target: { value: 'Local community' } });
+        fireEvent.click(screen.getByRole('button', { name: label }));
+        fireEvent.click(screen.getByRole('button', { name: /send my update/i }));
+
+        await waitFor(() => expect(screen.getByText(/thank you, anna/i)).toBeInTheDocument());
+        expect(rpc).toHaveBeenCalledWith('submit_employment_status', {
+            p_email: 'anna@example.com',
+            p_is_working: true,
+            p_started_month: '2025-06',
+            p_field: 'Local community',
+            p_employment_type: value,
+            p_student_id: 's1',
+        });
+        expect(screen.getByText('Type of work')).toBeInTheDocument();
+        expect(screen.getByText(label)).toBeInTheDocument();
     });
 
     it('lets people who share an email pick their name', async () => {

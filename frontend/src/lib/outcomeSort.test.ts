@@ -30,10 +30,34 @@ describe('sortOutcomeRows', () => {
 
         const emp = [
             row('NoData'),
+            row('PrevNotWorking', { tracking_status: 'pending', is_working: false }),
             row('NotWorking', { tracking_status: 'responded', is_working: false }),
+            row('WorkingUnspec', { tracking_status: 'responded', is_working: true, employment_type: null }),
+            row('CeTus', { tracking_status: 'responded', is_working: true, employment_type: 'ce_tus' }),
+            row('SelfEmployed', { tracking_status: 'responded', is_working: true, employment_type: 'self_employed' }),
+            row('PartTime', { tracking_status: 'responded', is_working: true, employment_type: 'part_time' }),
             row('FullTime', { tracking_status: 'responded', is_working: true, employment_type: 'full_time' }),
         ];
-        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'asc' }, r => r))).toEqual(['FullTime', 'NotWorking', 'NoData']);
-        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'desc' }, r => r))).toEqual(['NotWorking', 'FullTime', 'NoData']);
+        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'asc' }, r => r))).toEqual([
+            'FullTime', 'PartTime', 'SelfEmployed', 'CeTus', 'WorkingUnspec', 'NotWorking', 'PrevNotWorking', 'NoData',
+        ]);
+        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'desc' }, r => r))).toEqual([
+            'PrevNotWorking', 'NotWorking', 'WorkingUnspec', 'CeTus', 'SelfEmployed', 'PartTime', 'FullTime', 'NoData',
+        ]);
+    });
+
+    it('treats not_contacted and pending with null is_working as no data last', () => {
+        const emp = [
+            row('NotContacted', { tracking_status: 'not_contacted', is_working: null }),
+            row('PendingNoAnswer', { tracking_status: 'pending', is_working: null }),
+            row('PrevNotWorking', { tracking_status: 'pending', is_working: false }),
+            row('SelfEmployed', { tracking_status: 'responded', is_working: true, employment_type: 'self_employed' }),
+        ];
+        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'asc' }, r => r))).toEqual([
+            'SelfEmployed', 'PrevNotWorking', 'NotContacted', 'PendingNoAnswer',
+        ]);
+        expect(names(sortOutcomeRows(emp, { key: 'employment', dir: 'desc' }, r => r))).toEqual([
+            'PrevNotWorking', 'SelfEmployed', 'NotContacted', 'PendingNoAnswer',
+        ]);
     });
 });

@@ -24,9 +24,13 @@ import {
     publicLabelCls,
     secondaryButtonCls,
 } from './PublicPage';
+import {
+    EMPLOYMENT_TYPES,
+    employmentTypeLabel,
+    type EmploymentType,
+} from '../lib/employmentTypes';
 
 type PageState = 'form' | 'pick' | 'success';
-type EmploymentType = 'full_time' | 'part_time';
 type Field = 'email' | 'working' | 'started' | 'field' | 'hours';
 
 interface StudentMatch {
@@ -107,7 +111,7 @@ export default function StatusUpdatePage() {
             if (!startedMonthValue) found.started = 'Choose the month and year you started working';
             else if (startedMonthValue > thisMonth) found.started = "That month hasn't started yet";
             if (!fieldOfWork.trim()) found.field = 'Tell us where you work (company or sector)';
-            if (!employmentType) found.hours = 'Choose Full-time or Part-time';
+            if (!employmentType) found.hours = 'Choose your type of work';
         }
         return found;
     }
@@ -317,28 +321,22 @@ export default function StatusUpdatePage() {
                                 </div>
 
                                 <fieldset>
-                                    <legend className={publicLabelCls}>Full-time or part-time?</legend>
+                                    <legend className={publicLabelCls}>Type of work</legend>
                                     <div className="grid grid-cols-2 gap-2.5">
-                                        <button
-                                            type="button"
-                                            ref={el => { fieldRefs.current.hours = el; }}
-                                            aria-pressed={employmentType === 'full_time'}
-                                            disabled={isSubmitting}
-                                            onClick={() => { setEmploymentType('full_time'); clearError('hours'); }}
-                                            className={choiceClass(employmentType === 'full_time', 'brand')}
-                                            {...errorProps('hours', 'status-hours')}
-                                        >
-                                            Full-time
-                                        </button>
-                                        <button
-                                            type="button"
-                                            aria-pressed={employmentType === 'part_time'}
-                                            disabled={isSubmitting}
-                                            onClick={() => { setEmploymentType('part_time'); clearError('hours'); }}
-                                            className={choiceClass(employmentType === 'part_time', 'brand')}
-                                        >
-                                            Part-time
-                                        </button>
+                                        {EMPLOYMENT_TYPES.map((opt, idx) => (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                ref={idx === 0 ? el => { fieldRefs.current.hours = el; } : undefined}
+                                                aria-pressed={employmentType === opt.value}
+                                                disabled={isSubmitting}
+                                                onClick={() => { setEmploymentType(opt.value); clearError('hours'); }}
+                                                className={choiceClass(employmentType === opt.value, 'brand')}
+                                                {...(idx === 0 ? errorProps('hours', 'status-hours') : {})}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
                                     </div>
                                     <FieldError id="status-hours" message={errors.hours} />
                                 </fieldset>
@@ -430,7 +428,7 @@ export default function StatusUpdatePage() {
                             <>
                                 <SummaryRow label="Started" value={formatStartedMonth(startedMonthValue)} />
                                 <SummaryRow label="Where" value={fieldOfWork.trim()} />
-                                <SummaryRow label="Hours" value={employmentType === 'full_time' ? 'Full-time' : 'Part-time'} />
+                                <SummaryRow label="Type of work" value={employmentTypeLabel(employmentType)} />
                             </>
                         )}
                     </dl>

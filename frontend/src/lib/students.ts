@@ -17,6 +17,21 @@ export async function fetchStudent(id: string): Promise<Student> {
     return data as Student;
 }
 
+/** Looks up the latest CRM student record matching an email address (case-insensitive). */
+export async function fetchStudentByEmail(email: string): Promise<Student | null> {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return null;
+    const escaped = normalized.replace(/[\\%_]/g, '\\$&');
+    const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .ilike('email', escaped)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    if (error) throw error;
+    return (data?.[0] as Student | undefined) ?? null;
+}
+
 /** Adds a student; throws a readable error (e.g. for a duplicate). */
 export async function createStudent(payload: StudentPayload): Promise<Student | null> {
     const { id: _id, ...fields } = payload;

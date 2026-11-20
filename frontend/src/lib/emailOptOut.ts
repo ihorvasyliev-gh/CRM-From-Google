@@ -71,6 +71,19 @@ export async function listEmailOptOuts(): Promise<EmailOptOut[]> {
     return (data ?? []) as EmailOptOut[];
 }
 
+/** Same as listEmailOptOuts, but returns [] before migration 62 is applied (for UI badges). */
+export async function listEmailOptOutsSafe(): Promise<EmailOptOut[]> {
+    const { data, error } = await supabase
+        .from('email_opt_outs')
+        .select('email, note, opted_out_at')
+        .order('opted_out_at', { ascending: false });
+    if (error) {
+        if (isMissingTable(error)) return [];
+        throw error;
+    }
+    return (data ?? []) as EmailOptOut[];
+}
+
 export interface OptOutResult {
     email: string;
     students: number;

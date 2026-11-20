@@ -452,12 +452,14 @@ function OutcomesCard({ insights, note, everyGraduate }: { insights: Insights; n
                     {o.working > 0 && (
                         <div className="mt-4 pt-4 border-t border-border-subtle grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <p className="text-xs font-semibold text-muted mb-2">Hours</p>
+                                <p className="text-xs font-semibold text-muted mb-2">Type of work</p>
                                 <ShareBars
                                     items={[
                                         { name: 'Full-time', count: o.fullTime },
                                         { name: 'Part-time', count: o.partTime },
-                                        { name: 'Not said', count: o.working - o.fullTime - o.partTime },
+                                        { name: 'Self-employed', count: o.selfEmployed },
+                                        { name: 'CE / TUS', count: o.ceTus },
+                                        { name: 'Not said', count: Math.max(0, o.working - o.fullTime - o.partTime - o.selfEmployed - o.ceTus) },
                                     ].filter(s => s.count > 0)}
                                     total={o.working}
                                     color={COMPLETED}

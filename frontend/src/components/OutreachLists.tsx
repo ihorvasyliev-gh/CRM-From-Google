@@ -1,13 +1,14 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Mail, Copy, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
+import { Briefcase, Mail, Loader2, X, Pencil, Upload, Download, Plus, Users, AlertCircle, MailCheck, Clock, Trash2, UserPlus } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
-import { fetchOptedOutEmails, partitionByOptOut } from '../lib/emailOptOut';
-import { TrackingBadge, EmploymentBadge, CallMarkButton, PhoneLink } from './OutcomeBadges';
+import { fetchOptedOutEmails, listEmailOptOutsSafe, normalizeEmail } from '../lib/emailOptOut';
+import { TrackingBadge, EmploymentBadge, CallMarkButton, PhoneLink, EmailStatusBadges } from './OutcomeBadges';
+import OutcomeBulkBar, { type BulkSelectedItem } from './OutcomeBulkBar';
 import { setContactCallMark, callMarkErrorMessage } from '../lib/callMark';
-import { copyOptedInEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
+import { copyEligibleEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail';
 import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
 import { fullName, getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
@@ -23,8 +24,23 @@ import { exportOutreachListToExcel } from '../lib/outreachExport';
 import { useProgressiveList } from '../hooks/useProgressiveList';
 import { SortHeader } from './OutcomeTableSort';
 import { sortOutcomeRows, type OutcomeSort } from '../lib/outcomeSort';
+import {
+    computeOutcomeStats,
+    formatAllSkippedMessage,
+    formatSkippedSummary,
+    isNotWorkingOutcome,
+    isWorkingOutcome,
+    partitionForSurvey,
+} from '../lib/employmentTypes';
+import { matchesOutcomeSearch, toggleOutcomeSelection } from '../lib/outcomeSelection';
+import {
+    OUTCOME_UNDO_MS,
+    restoreOutreachFromPending,
+    snapshotOutreachForPending,
+} from '../lib/outcomeUndo';
 
 type StatusFilter = 'all' | OutreachContact['status'];
+type EmploymentFilter = 'all' | 'working' | 'not_working';
 /** "Called, no answer" mark (only people who haven't responded can carry it) */
 type CallFilter = 'all' | 'called' | 'not_called';
 
@@ -32,6 +48,12 @@ const CALL_FILTERS: { value: CallFilter; label: string }[] = [
     { value: 'all', label: 'All calls' },
     { value: 'not_called', label: 'Not called yet' },
     { value: 'called', label: 'Called, no answer' },
+];
+
+const EMPLOYMENT_FILTERS: { value: EmploymentFilter; label: string }[] = [
+    { value: 'all', label: 'All employment' },
+    { value: 'working', label: 'Working' },
+    { value: 'not_working', label: 'Not working' },
 ];
 
 /** Up to this many lists are shown as tabs; more fall back to a dropdown. */
@@ -44,11 +66,15 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
     { value: 'responded', label: 'Responded' },
 ];
 
+export interface OutreachListsProps {
+    onOpenStudentByEmail?: (email: string) => void;
+}
+
 /**
  * External outreach lists (e.g. Action 11 clients from IRIS): people who may not be
  * in the CRM get the same status survey as graduates, tracked separately.
  */
-export default function OutreachLists() {
+export default function OutreachLists({ onOpenStudentByEmail }: OutreachListsProps = {}) {
     const queryClient = useQueryClient();
     const { data: lists = [], isLoading: listsLoading, error: listsError, refetch: refetchLists } = useQuery({
         queryKey: ['outreach_lists'],
@@ -71,15 +97,26 @@ export default function OutreachLists() {
         enabled: !!listId,
     });
 
+    const { data: optOuts = [] } = useQuery({
+        queryKey: ['email_opt_outs'],
+        queryFn: listEmailOptOutsSafe,
+    });
+    const optedOutSet = useMemo(
+        () => new Set(optOuts.map(o => normalizeEmail(o.email))),
+        [optOuts],
+    );
+
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const lastClickedIdRef = useRef<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [filterStatus, setFilterStatus] = useState<StatusFilter>('all');
+    const [filterEmployment, setFilterEmployment] = useState<EmploymentFilter>('all');
     const [filterCall, setFilterCall] = useState<CallFilter>('all');
     // null: newest added first, as loaded
     const [sort, setSort] = useState<OutcomeSort | null>(null);
     const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
-    const [sending, setSending] = useState(false);
+    const [bulkAction, setBulkAction] = useState<'sending' | 'marking' | null>(null);
     const [exporting, setExporting] = useState(false);
     const [showImport, setShowImport] = useState(false);
     const [showAddContact, setShowAddContact] = useState(false);
@@ -87,13 +124,36 @@ export default function OutreachLists() {
     const [editing, setEditing] = useState<OutreachContact | null>(null);
     const [newListName, setNewListName] = useState<string | null>(null);
 
+    const callsFilterApplicable = filterStatus !== 'responded' && filterEmployment !== 'working';
+
+    // Auto-clear call filter when viewing only responded or working contacts
+    useEffect(() => {
+        if (!callsFilterApplicable && filterCall !== 'all') {
+            setFilterCall('all');
+        }
+    }, [callsFilterApplicable, filterCall]);
+
     // Selection and filters belong to one list
     useEffect(() => {
         setSelectedIds(new Set());
+        lastClickedIdRef.current = null;
         setFilterStatus('all');
+        setFilterEmployment('all');
         setFilterCall('all');
         setSearchQuery('');
     }, [listId]);
+
+    function handleSelectStatus(next: StatusFilter) {
+        setFilterStatus(next);
+        if (next === 'responded') setFilterCall('all');
+        if (next === 'not_contacted' && filterEmployment !== 'all') setFilterEmployment('all');
+    }
+
+    function handleSelectEmployment(next: EmploymentFilter) {
+        setFilterEmployment(next);
+        if (next === 'working') setFilterCall('all');
+        if (next !== 'all' && filterStatus === 'not_contacted') setFilterStatus('all');
+    }
 
     // Stable object so the edit modal doesn't reset its form on every re-render
     const editingPerson = useMemo(() => editing ? { ...editing, tracking_status: editing.status } : null, [editing]);
@@ -105,19 +165,32 @@ export default function OutreachLists() {
     const shownList = useLastPresent(activeList);
     const addContactMount = useDialogMount(showAddContact && !!activeList);
 
-    const existingEmails = useMemo(() => new Set(contacts.map(c => c.email.trim().toLowerCase())), [contacts]);
+    const existingEmails = useMemo(
+        () => new Set(contacts.map(c => normalizeEmail(c.email)).filter(Boolean)),
+        [contacts],
+    );
 
     const filtered = useMemo(() => {
         let result = contacts;
         if (filterStatus !== 'all') result = result.filter(c => c.status === filterStatus);
+        if (filterEmployment === 'working') {
+            result = result.filter(c => isWorkingOutcome({ tracking_status: c.status, is_working: c.is_working }));
+        } else if (filterEmployment === 'not_working') {
+            result = result.filter(c => isNotWorkingOutcome({ tracking_status: c.status, is_working: c.is_working }));
+        }
         // Responded people are left out: there is no one to call back
-        if (filterCall !== 'all') result = result.filter(c => c.status !== 'responded' && !!c.called_no_answer_at === (filterCall === 'called'));
+        if (callsFilterApplicable && filterCall !== 'all') {
+            result = result.filter(c => c.status !== 'responded' && !!c.called_no_answer_at === (filterCall === 'called'));
+        }
         if (debouncedSearchQuery.trim()) {
-            const words = debouncedSearchQuery.toLowerCase().trim().split(/\s+/);
-            result = result.filter(c => {
-                const haystack = `${c.first_name} ${c.last_name} ${c.email} ${c.external_ref || ''} ${c.field_of_work || ''}`.toLowerCase();
-                return words.every(w => haystack.includes(w));
-            });
+            result = result.filter(c => matchesOutcomeSearch({
+                firstName: c.first_name,
+                lastName: c.last_name,
+                email: c.email,
+                phone: c.phone,
+                fieldOfWork: c.field_of_work,
+                extra: [c.external_ref],
+            }, debouncedSearchQuery));
         }
         if (!sort) return result;
         return sortOutcomeRows(result, sort, c => ({
@@ -127,16 +200,33 @@ export default function OutreachLists() {
             sent_at: c.last_invited_at,
             updated_at: c.last_responded_at,
         }));
-    }, [contacts, filterStatus, filterCall, debouncedSearchQuery, sort]);
+    }, [contacts, filterStatus, filterEmployment, callsFilterApplicable, filterCall, debouncedSearchQuery, sort]);
+
+    const orderedIds = useMemo(() => filtered.map(c => c.id), [filtered]);
 
     // Rows render in steps as the table is scrolled (imported lists can be hundreds of contacts)
-    const { visible: visibleContacts, hasMore, sentinelRef } = useProgressiveList(filtered, `${listId}|${filterStatus}|${filterCall}|${debouncedSearchQuery}|${sort?.key}|${sort?.dir}`);
+    const { visible: visibleContacts, hasMore, sentinelRef } = useProgressiveList(
+        filtered,
+        `${listId}|${filterStatus}|${filterEmployment}|${filterCall}|${debouncedSearchQuery}|${sort?.key}|${sort?.dir}`,
+    );
 
-    const statusCounts = useMemo(() => {
-        const counts = { all: contacts.length, not_contacted: 0, pending: 0, responded: 0 };
-        contacts.forEach(c => { counts[c.status]++; });
-        return counts;
-    }, [contacts]);
+    const stats = useMemo(
+        () => computeOutcomeStats(contacts.map(c => ({ tracking_status: c.status, is_working: c.is_working }))),
+        [contacts],
+    );
+
+    const statusCounts: Record<StatusFilter, number> = {
+        all: stats.total,
+        not_contacted: stats.notContacted,
+        pending: stats.pending,
+        responded: stats.responded,
+    };
+
+    const employmentCounts: Record<EmploymentFilter, number> = {
+        all: stats.total,
+        working: stats.working,
+        not_working: stats.notWorking,
+    };
 
     const callCounts = useMemo(() => {
         const counts = { all: 0, called: 0, not_called: 0 };
@@ -147,6 +237,17 @@ export default function OutreachLists() {
         });
         return counts;
     }, [contacts]);
+
+    const selectedBulkItems = useMemo<BulkSelectedItem[]>(
+        () => contacts
+            .filter(c => selectedIds.has(c.id))
+            .map(c => ({
+                id: c.id,
+                name: fullName(c) || c.email || '—',
+                subtitle: fullName(c) ? (c.email || undefined) : undefined,
+            })),
+        [contacts, selectedIds],
+    );
 
     /** Sets or clears "called, no answer"; the list shows it at once and goes back if saving fails. */
     async function toggleCallMark(contact: OutreachContact) {
@@ -166,16 +267,10 @@ export default function OutreachLists() {
         }
     }
 
-    const workingCount = contacts.filter(c => c.status === 'responded' && c.is_working).length;
-    const responseRate = contacts.length > 0 ? Math.round((statusCounts.responded / contacts.length) * 100) : 0;
-
-    function toggleSelect(id: string) {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
+    function toggleSelect(id: string, shiftKey = false) {
+        const anchor = lastClickedIdRef.current;
+        lastClickedIdRef.current = id;
+        setSelectedIds(prev => toggleOutcomeSelection(prev, id, orderedIds, anchor, shiftKey));
     }
 
     function selectAll() {
@@ -219,44 +314,107 @@ export default function OutreachLists() {
         showToast(`List "${name}" deleted`, 'success');
     }
 
-    const handleCopyEmails = () => copyOptedInEmails(contacts.filter(c => selectedIds.has(c.id)).map(c => c.email), showToast);
+    async function handleCopyEmails() {
+        if (selectedIds.size === 0) return;
+        const selectedAll = contacts.filter(c => selectedIds.has(c.id));
+        try {
+            const optedOut = await fetchOptedOutEmails(selectedAll.map(c => c.email));
+            const { allowed, skippedOptedOut, skippedNoEmail } = partitionForSurvey(
+                selectedAll,
+                c => ({ email: c.email, tracking_status: c.status, is_working: c.is_working }),
+                optedOut,
+                { skipWorking: false },
+            );
+            const skippedCounts = {
+                optedOut: skippedOptedOut.length,
+                noEmail: skippedNoEmail.length,
+            };
+            if (allowed.length === 0) {
+                showToast(formatAllSkippedMessage(skippedCounts, 'copied'), 'error');
+                return;
+            }
+            await copyEligibleEmails(allowed.map(c => c.email), showToast, formatSkippedSummary(skippedCounts));
+        } catch (err) {
+            console.error(err);
+            showToast('Could not copy the emails', 'error');
+        }
+    }
 
-    async function handleSendStatusRequest() {
+    async function moveSelectedToPending(openEmail: boolean) {
         if (selectedIds.size === 0 || !listId) return;
-        setSending(true);
+        setBulkAction(openEmail ? 'sending' : 'marking');
         const selectedAll = contacts.filter(c => selectedIds.has(c.id));
 
         try {
-            // Unsubscribed contacts stay on the list but get no survey email
+            // Skip people already working, unsubscribed, or missing an email address
             const optedOut = await fetchOptedOutEmails(selectedAll.map(c => c.email));
-            const { allowed: selected, skipped } = partitionByOptOut(selectedAll, c => c.email, optedOut);
-            if (selected.length === 0) {
-                showToast('Everyone selected has unsubscribed from emails — nothing was sent.', 'error');
+            const { allowed, skippedWorking, skippedOptedOut, skippedNoEmail } = partitionForSurvey(
+                selectedAll,
+                c => ({ email: c.email, tracking_status: c.status, is_working: c.is_working }),
+                optedOut,
+                { skipWorking: true },
+            );
+            const skippedCounts = {
+                working: skippedWorking.length,
+                optedOut: skippedOptedOut.length,
+                noEmail: skippedNoEmail.length,
+            };
+            if (allowed.length === 0) {
+                showToast(formatAllSkippedMessage(skippedCounts, openEmail ? 'sent' : 'updated'), 'error');
                 return;
             }
 
+            const snapshots = snapshotOutreachForPending(allowed);
             const { error: rpcError } = await supabase.rpc('mark_outreach_contacts_pending', {
-                p_ids: selected.map(c => c.id),
+                p_ids: allowed.map(c => c.id),
             });
             if (rpcError) throw rpcError;
 
-            await copySurveyAndOpenMailto({
-                // The link carries the list, so answers are saved to this list only
-                html: buildStatusEmailBodyHtml(`${window.location.origin}/status?list=${listId}`, undefined, 'outreach'),
-                subject: buildStatusEmailSubject(undefined, 'outreach'),
-                emails: selected.map(c => c.email),
-                noun: 'contact',
-                skipped: skipped.length,
-                showToast,
-            });
+            const undoAction = {
+                label: 'Undo',
+                onClick: () => {
+                    void (async () => {
+                        try {
+                            await restoreOutreachFromPending(snapshots);
+                            await refetchContacts();
+                            showToast('Pending status undone', 'success');
+                        } catch (undoErr) {
+                            console.error(undoErr);
+                            showToast('Could not undo pending status.', 'error');
+                        }
+                    })();
+                },
+            };
+            const skippedText = formatSkippedSummary(skippedCounts);
+            const toastOptions = { action: undoAction, duration: OUTCOME_UNDO_MS };
+
+            if (openEmail) {
+                await copySurveyAndOpenMailto({
+                    // The link carries the list, so answers are saved to this list only
+                    html: buildStatusEmailBodyHtml(`${window.location.origin}/status?list=${listId}`, undefined, 'outreach'),
+                    subject: buildStatusEmailSubject(undefined, 'outreach'),
+                    emails: allowed.map(c => c.email),
+                    noun: 'contact',
+                    skippedNoteText: skippedText,
+                    showToast,
+                    toastOptions,
+                });
+            } else {
+                showToast(
+                    `Marked ${allowed.length} contact(s) as pending${skippedText}`,
+                    'success',
+                    toastOptions,
+                );
+            }
 
             await refetchContacts();
             setSelectedIds(new Set());
+            lastClickedIdRef.current = null;
         } catch (err) {
             console.error(err);
-            showToast('Failed to send status requests.', 'error');
+            showToast(openEmail ? 'Failed to send status requests.' : 'Failed to mark contacts as pending.', 'error');
         } finally {
-            setSending(false);
+            setBulkAction(null);
         }
     }
 
@@ -282,8 +440,12 @@ export default function OutreachLists() {
                 started_month: values.started_month,
                 field_of_work: values.field_of_work,
                 employment_type: values.employment_type,
-                ...(values.tracking_status === 'responded' ? { last_responded_at: new Date().toISOString() } : {}),
-                ...(values.tracking_status === 'not_contacted' ? { last_invited_at: null, last_responded_at: null } : {}),
+                ...(values.tracking_status === 'responded'
+                    ? { last_responded_at: new Date().toISOString(), called_no_answer_at: null }
+                    : {}),
+                ...(values.tracking_status === 'not_contacted'
+                    ? { last_invited_at: null, last_responded_at: null }
+                    : {}),
             })
             .eq('id', contact.id);
         if (error) throw error;
@@ -419,10 +581,59 @@ export default function OutreachLists() {
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <StatTile label="Contacts" icon={Users} tone="brand" value={contacts.length} />
-                <StatTile label="Response rate" icon={MailCheck} tone="completed" value={`${responseRate}%`} />
-                <StatTile label="Currently working" icon={Briefcase} tone="success" value={workingCount} />
-                <StatTile label="Pending responses" icon={Clock} tone="warning" value={statusCounts.pending} />
+                <StatTile
+                    label="Contacts"
+                    icon={Users}
+                    tone="brand"
+                    value={stats.total}
+                    hint={stats.notContacted > 0 ? `${stats.notContacted} not contacted` : 'Everyone contacted'}
+                    onClick={() => {
+                        setFilterStatus('all');
+                        setFilterEmployment('all');
+                        setFilterCall('all');
+                    }}
+                />
+                <StatTile
+                    label="Response rate"
+                    icon={MailCheck}
+                    tone="completed"
+                    value={stats.responseRate !== null ? `${stats.responseRate}%` : '—'}
+                    hint={stats.asked > 0 ? `${stats.answered} of ${stats.asked} contacted` : 'No surveys sent yet'}
+                    onClick={() => {
+                        setFilterStatus('responded');
+                        setFilterEmployment('all');
+                        setFilterCall('all');
+                    }}
+                />
+                <StatTile
+                    label="Currently working"
+                    icon={Briefcase}
+                    tone="success"
+                    value={stats.working}
+                    hint={stats.employmentRate !== null ? `${stats.employmentRate}% of answered` : 'No answers yet'}
+                    onClick={() => {
+                        setFilterStatus('all');
+                        setFilterEmployment('working');
+                        setFilterCall('all');
+                    }}
+                />
+                <StatTile
+                    label="Pending responses"
+                    icon={Clock}
+                    tone="warning"
+                    value={stats.pending}
+                    hint={
+                        stats.resentNotWorking > 0
+                            ? `incl. ${stats.resentNotWorking} follow-up${stats.resentNotWorking === 1 ? '' : 's'}`
+                            : stats.notContacted > 0
+                                ? `${stats.notContacted} not contacted`
+                                : undefined
+                    }
+                    onClick={() => {
+                        setFilterStatus('pending');
+                        setFilterEmployment('all');
+                    }}
+                />
             </div>
 
             {/* Toolbar */}
@@ -430,9 +641,9 @@ export default function OutreachLists() {
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <SearchInput
                         wrapperClassName="flex-1 min-w-[200px]"
-                                                value={searchQuery}
+                        value={searchQuery}
                         onChange={setSearchQuery}
-                        placeholder="Name, email, IRIS ID, field…"
+                        placeholder="Name, email, phone, IRIS ID, field…"
                         aria-label="Search contacts"
                     />
                     <span className="text-xs text-muted font-medium">
@@ -442,29 +653,65 @@ export default function OutreachLists() {
                 {contacts.length > 0 && selectedIds.size === 0 && (
                     <p className="text-xs text-muted flex items-center gap-1.5">
                         <Mail size={12} className="shrink-0" />
-                        Tick people in the list to email them the survey. Click “Status” on a row to change it by hand.
+                        Tick people in the list to email them the survey (Shift+click for a range). Click “Status” on a row to change it by hand.
                     </p>
                 )}
-                <div className="flex flex-wrap gap-1">
-                    {STATUS_FILTERS.map(({ value, label }) => (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="flex flex-wrap gap-1" role="group" aria-label="Status filter">
+                        {STATUS_FILTERS.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={filterStatus === value}
+                                onClick={() => handleSelectStatus(value)}
+                                className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                    filterStatus === value
+                                        ? 'bg-brand-500 text-white shadow-xs'
+                                        : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
+                                }`}
+                            >
+                                {label} ({statusCounts[value]})
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1" role="group" aria-label="Employment filter">
+                        {EMPLOYMENT_FILTERS.map(({ value, label }) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={filterEmployment === value}
+                                onClick={() => handleSelectEmployment(value)}
+                                className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
+                                    filterEmployment === value
+                                        ? 'bg-brand-500 text-white shadow-xs'
+                                        : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
+                                }`}
+                            >
+                                {label}{value !== 'all' && ` (${employmentCounts[value]})`}
+                            </button>
+                        ))}
+                    </div>
+                    {(filterStatus !== 'all' || filterEmployment !== 'all' || filterCall !== 'all') && (
                         <button
-                            key={value}
-                            onClick={() => setFilterStatus(value)}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
-                                filterStatus === value
-                                    ? 'bg-brand-500 text-white shadow-xs'
-                                    : 'bg-surface-elevated text-muted hover:text-primary border border-border-subtle'
-                            }`}
+                            type="button"
+                            onClick={() => {
+                                setFilterStatus('all');
+                                setFilterEmployment('all');
+                                setFilterCall('all');
+                            }}
+                            className="text-xs text-muted hover:text-primary flex items-center gap-1 transition-colors"
                         >
-                            {label} ({statusCounts[value]})
+                            <X size={12} /> Clear filters
                         </button>
-                    ))}
+                    )}
                 </div>
-                {callCounts.all > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                {callsFilterApplicable && callCounts.all > 0 && (
+                    <div className="flex flex-wrap gap-1" role="group" aria-label="Calls filter">
                         {CALL_FILTERS.map(({ value, label }) => (
                             <button
                                 key={value}
+                                type="button"
+                                aria-pressed={filterCall === value}
                                 onClick={() => setFilterCall(value)}
                                 className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-all ${
                                     filterCall === value
@@ -536,11 +783,15 @@ export default function OutreachLists() {
                             <tbody>
                                 {visibleContacts.map(contact => {
                                     const isSelected = selectedIds.has(contact.id);
-                                    const initials = `${contact.first_name[0] || contact.email[0] || ''}${contact.last_name[0] || ''}`.toUpperCase();
+                                    const isOptedOut = optedOutSet.has(normalizeEmail(contact.email));
+                                    const initials = `${contact.first_name?.[0] || contact.email?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase();
                                     return (
                                         <tr
                                             key={contact.id}
-                                            onClick={() => toggleSelect(contact.id)}
+                                            onClick={e => {
+                                                if (e.shiftKey) window.getSelection()?.removeAllRanges();
+                                                toggleSelect(contact.id, e.shiftKey);
+                                            }}
                                             className={`border-b border-border-subtle/50 transition-colors cursor-pointer ${
                                                 isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50'
                                             }`}
@@ -549,7 +800,8 @@ export default function OutreachLists() {
                                                 <input
                                                     type="checkbox"
                                                     checked={isSelected}
-                                                    onChange={() => toggleSelect(contact.id)}
+                                                    onChange={e => toggleSelect(contact.id, Boolean((e.nativeEvent as MouseEvent).shiftKey))}
+                                                    aria-label={`Select ${fullName(contact) || contact.email || 'contact'}`}
                                                     className="rounded-sm border-border-strong text-brand-500 focus:ring-brand-500/50 cursor-pointer"
                                                 />
                                             </td>
@@ -559,18 +811,46 @@ export default function OutreachLists() {
                                                         {initials}
                                                     </div>
                                                     <div className="min-w-0 max-w-[calc(100vw-13rem)] sm:max-w-none">
-                                                        <p className="font-semibold text-primary text-[13px] truncate flex items-center gap-1.5">
-                                                            {fullName(contact) || '—'}
+                                                        <div className="font-semibold text-primary text-[13px] flex items-center gap-1.5 min-w-0">
+                                                            <span className="truncate">{fullName(contact) || '—'}</span>
                                                             {contact.in_crm && (
-                                                                <span title="The same email is also a student in the CRM" className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed">In CRM</span>
+                                                                onOpenStudentByEmail ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={e => {
+                                                                            e.stopPropagation();
+                                                                            onOpenStudentByEmail(contact.email);
+                                                                        }}
+                                                                        title="Open student card in CRM"
+                                                                        className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed hover:bg-completed/25 hover:underline transition-colors cursor-pointer shrink-0"
+                                                                    >
+                                                                        In CRM
+                                                                    </button>
+                                                                ) : (
+                                                                    <span
+                                                                        title="The same email is also a student in the CRM"
+                                                                        className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-completed/15 text-status-completed shrink-0"
+                                                                    >
+                                                                        In CRM
+                                                                    </span>
+                                                                )
                                                             )}
-                                                        </p>
-                                                        <p className="text-xs text-muted truncate">{contact.email}</p>
-                                                        <PhoneLink phone={contact.phone} />
+                                                        </div>
+                                                        {contact.email && (
+                                                            <p className="text-xs text-muted truncate">{contact.email}</p>
+                                                        )}
+                                                        {(contact.phone?.trim() || !contact.email?.trim() || isOptedOut) && (
+                                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                                                                <PhoneLink phone={contact.phone} />
+                                                                <EmailStatusBadges email={contact.email} optedOut={isOptedOut} />
+                                                            </div>
+                                                        )}
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={contact.status} />
-                                                            {contact.status === 'responded' && <EmploymentBadge status={contact.status} row={contact} />}
+                                                            {(contact.status === 'responded' || contact.is_working !== null) && (
+                                                                <EmploymentBadge status={contact.status} row={contact} />
+                                                            )}
                                                             <CallMarkButton status={contact.status} calledAt={contact.called_no_answer_at} busy={callBusy.has(contact.id)} onToggle={() => toggleCallMark(contact)} name={fullName(contact) || contact.email} />
                                                         </div>
                                                     </div>
@@ -592,7 +872,7 @@ export default function OutreachLists() {
                                                 <EmploymentBadge status={contact.status} row={contact} />
                                                 {contact.status === 'responded' && contact.is_working && contact.started_month && (
                                                     <p className="text-xs text-muted mt-0.5">
-                                                        Since {formatLocalDate(new Date(contact.started_month + '-01'), { month: 'short', year: 'numeric' }, 'en-GB')}
+                                                        Since {formatLocalDate(new Date(`${contact.started_month}-01T12:00:00`), { month: 'short', year: 'numeric' }, 'en-GB')}
                                                     </p>
                                                 )}
                                             </td>
@@ -625,36 +905,23 @@ export default function OutreachLists() {
             </div>
 
             {/* Bulk Action Bar */}
-            {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border-subtle rounded-2xl shadow-float px-4 py-3 flex flex-wrap justify-center items-center gap-3 animate-slideUpCenter w-[calc(100vw-2rem)] sm:w-auto max-w-[480px] sm:max-w-none">
-                    <span className="text-sm font-bold text-primary">{selectedIds.size} selected</span>
-                    <div className="h-5 w-px bg-border-subtle" />
-                    <button
-                        onClick={handleCopyEmails}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted hover:text-primary bg-surface-elevated hover:bg-background border border-border-subtle rounded-lg transition-all"
-                    >
-                        <Copy size={12} /> Copy Emails
-                    </button>
-                    <button
-                        onClick={handleSendStatusRequest}
-                        disabled={sending}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {sending ? (
-                            <><Loader2 size={12} className="animate-spin" /> Moving...</>
-                        ) : (
-                            <>
-                                <Mail size={12} />
-                                <span className="hidden sm:inline">Send Email & Move to Pending</span>
-                                <span className="inline sm:hidden">Send Email</span>
-                            </>
-                        )}
-                    </button>
-                    <button onClick={() => setSelectedIds(new Set())} className="p-1.5 text-muted hover:text-primary transition-colors">
-                        <X size={14} />
-                    </button>
-                </div>
-            )}
+            <OutcomeBulkBar
+                selectedItems={selectedBulkItems}
+                busy={bulkAction !== null}
+                busyLabel={bulkAction === 'marking' ? 'Marking…' : bulkAction === 'sending' ? 'Moving…' : undefined}
+                onCopyEmails={handleCopyEmails}
+                onMarkPending={() => moveSelectedToPending(false)}
+                onSendSurvey={() => moveSelectedToPending(true)}
+                onDeselect={id => setSelectedIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                })}
+                onClear={() => {
+                    setSelectedIds(new Set());
+                    lastClickedIdRef.current = null;
+                }}
+            />
 
             {editMount.mounted && shownEditing && (
                 <OutcomeEditModal

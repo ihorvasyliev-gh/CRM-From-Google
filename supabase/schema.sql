@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS employment_status (
     is_working        BOOLEAN,
     started_month     TEXT,           -- 'YYYY-MM' format
     field_of_work     TEXT,
-    employment_type   TEXT,           -- 'full_time' or 'part_time'
+    employment_type   TEXT,           -- 'full_time', 'part_time', 'self_employed', 'ce_tus'
     status            TEXT DEFAULT 'pending',  -- 'pending' or 'responded'
     last_invited_at   TIMESTAMPTZ,
     last_responded_at TIMESTAMPTZ,
@@ -648,17 +648,18 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'This email address does not match any of our records. Please use the email you originally registered with.');
     END IF;
 
-    INSERT INTO employment_status (student_id, email, is_working, started_month, field_of_work, employment_type, status, last_responded_at)
-    VALUES (v_student_id, v_student_email, p_is_working, p_started_month, p_field, p_employment_type, 'responded', p_responded_at)
+    INSERT INTO employment_status (student_id, email, is_working, started_month, field_of_work, employment_type, status, last_responded_at, called_no_answer_at)
+    VALUES (v_student_id, v_student_email, p_is_working, p_started_month, p_field, p_employment_type, 'responded', p_responded_at, NULL)
     ON CONFLICT (student_id)
     DO UPDATE SET
-        email             = EXCLUDED.email,
-        is_working        = EXCLUDED.is_working,
-        started_month     = EXCLUDED.started_month,
-        field_of_work     = EXCLUDED.field_of_work,
-        employment_type   = EXCLUDED.employment_type,
-        status            = 'responded',
-        last_responded_at = EXCLUDED.last_responded_at;
+        email               = EXCLUDED.email,
+        is_working          = EXCLUDED.is_working,
+        started_month       = EXCLUDED.started_month,
+        field_of_work       = EXCLUDED.field_of_work,
+        employment_type     = EXCLUDED.employment_type,
+        status              = 'responded',
+        last_responded_at   = EXCLUDED.last_responded_at,
+        called_no_answer_at = NULL;
 
     RETURN jsonb_build_object('success', true, 'message', 'Thank you! Your employment status has been recorded successfully.');
 END;

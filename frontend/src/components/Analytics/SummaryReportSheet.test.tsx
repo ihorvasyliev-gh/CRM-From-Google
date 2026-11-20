@@ -36,7 +36,7 @@ function insights(courses: ReportCourseRow[], months: SummaryReport['months'] = 
         previous: null,
         fates: { total: registrations, completed: 2, confirmed: 1, invited: 0, waiting: registrations - 3, left: 0 },
         queue: { waiting: 9, invited: 2, confirmed: 4, courses: [{ courseId: 'c1', name: 'Course 1', waiting: 9, invited: 2, confirmed: 4 }] },
-        outcomes: { graduates: 7, asked: 6, responded: 4, working: 3, notWorking: 1, fullTime: 2, partTime: 1, fields: [{ name: 'Construction', count: 3 }] },
+        outcomes: { graduates: 7, asked: 6, responded: 4, working: 3, notWorking: 1, fullTime: 2, partTime: 1, selfEmployed: 0, ceTus: 0, fields: [{ name: 'Construction', count: 3 }] },
         people: {
             total: courses.length ? 1234 : 0,
             languages: [{ name: 'English', count: 1000 }, { name: 'Ukrainian', count: 234 }],
@@ -88,13 +88,43 @@ describe('SummaryReportSheet', () => {
         expect(within(second).getByText(/^Of 4 registrations made in the period/)).toBeInTheDocument();
         expect(within(second).getByText('Longest waiting lists today')).toBeInTheDocument();
         expect(within(second).getByText(/were surveyed; 4 \(67%\) answered/)).toBeInTheDocument();
-        expect(within(second).getByRole('img', { name: 'Working hours breakdown' })).toBeInTheDocument();
+        expect(within(second).getByText('Type of work')).toBeInTheDocument();
+        expect(within(second).getByRole('img', { name: 'Type of work breakdown' })).toBeInTheDocument();
         expect(within(second).getByRole('img', { name: 'Age distribution of registrants' })).toBeInTheDocument();
         expect(within(second).getByText('Construction')).toBeInTheDocument();
         expect(within(second).getByText('Full-time')).toBeInTheDocument();
         expect(within(second).getByText('Ukrainian')).toBeInTheDocument();
         expect(within(second).getByText(/How the figures are counted/)).toBeInTheDocument();
         expect(within(second).getByText('Page 2 of 2')).toBeInTheDocument();
+    });
+
+    it('renders Self-employed and CE / TUS slices in the Type of work breakdown', () => {
+        const base = insights([course(1, 4, 2, 1)]);
+        const data: Insights = {
+            ...base,
+            outcomes: {
+                graduates: 10,
+                asked: 10,
+                responded: 8,
+                working: 6,
+                notWorking: 2,
+                fullTime: 2,
+                partTime: 1,
+                selfEmployed: 1,
+                ceTus: 1,
+                fields: [{ name: 'Retail', count: 6 }],
+            },
+        };
+        render(sheet(data, 2));
+
+        const second = screen.getByRole('article', { name: 'Courses report, page 2' });
+        expect(within(second).getByText('Type of work')).toBeInTheDocument();
+        expect(within(second).getByText('Full-time')).toBeInTheDocument();
+        expect(within(second).getByText('Part-time')).toBeInTheDocument();
+        expect(within(second).getByText('Self-employed')).toBeInTheDocument();
+        expect(within(second).getByText('CE / TUS')).toBeInTheDocument();
+        expect(within(second).getByText('Not said')).toBeInTheDocument();
+        expect(within(second).getByText(/1 self-employed and 1 on CE \/ TUS/)).toBeInTheDocument();
     });
 
     it('shows up to 15 courses individually without folding into "Other courses"', () => {
@@ -150,7 +180,7 @@ describe('SummaryReportSheet', () => {
         const base = insights([course(1, 4, 2, 1)]);
         const data: Insights = {
             ...base,
-            outcomes: { graduates: 7, asked: 6, responded: 2, working: 0, notWorking: 2, fullTime: 0, partTime: 0, fields: [] },
+            outcomes: { graduates: 7, asked: 6, responded: 2, working: 0, notWorking: 2, fullTime: 0, partTime: 0, selfEmployed: 0, ceTus: 0, fields: [] },
             people: {
                 ...base.people,
                 ages: [{ name: 'Not known', count: 1234 }],

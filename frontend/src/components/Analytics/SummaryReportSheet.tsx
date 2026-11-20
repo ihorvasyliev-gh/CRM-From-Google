@@ -591,10 +591,12 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
         { label: 'Answered', value: o.responded, of: o.asked, color: 'var(--rs-part-time)', highlight: false },
         { label: 'Working', value: o.working, of: o.asked, color: 'var(--rs-working)', highlight: true },
     ];
-    const hoursSlices = [
+    const workTypeSlices = [
         { name: 'Full-time', count: o.fullTime, color: 'var(--rs-completed)' },
         { name: 'Part-time', count: o.partTime, color: 'var(--rs-part-time)' },
-        { name: 'Not said', count: Math.max(0, o.working - o.fullTime - o.partTime), color: 'var(--rs-axis)' },
+        { name: 'Self-employed', count: o.selfEmployed, color: 'var(--rs-waiting)' },
+        { name: 'CE / TUS', count: o.ceTus, color: 'var(--rs-ce-tus, #7c3aed)' },
+        { name: 'Not said', count: Math.max(0, o.working - o.fullTime - o.partTime - o.selfEmployed - o.ceTus), color: 'var(--rs-axis)' },
     ].filter(s => s.count > 0);
     const fields = compactFields(o.fields, 5);
 
@@ -628,9 +630,9 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
                 </p>
             </PanelCard>
 
-            <PanelCard title="Hours" badge={o.working > 0 ? `${count(o.working)} working` : undefined}>
-                {o.working > 0 && hoursSlices.length > 0 ? (
-                    <HoursDonut slices={hoursSlices} total={o.working} />
+            <PanelCard title="Type of work" badge={o.working > 0 ? `${count(o.working)} working` : undefined}>
+                {o.working > 0 && workTypeSlices.length > 0 ? (
+                    <HoursDonut slices={workTypeSlices} total={o.working} />
                 ) : (
                     <p className="text-[7.8pt] text-(--rs-muted) my-auto text-center py-[4mm]">No working responses yet.</p>
                 )}
@@ -647,7 +649,7 @@ function OutcomesBlock({ insights }: { insights: Insights }) {
     );
 }
 
-// ── Hours SVG Donut Chart ──────────────────────────────────────────
+// ── Type of work SVG Donut Chart ───────────────────────────────────
 
 function HoursDonut({ slices, total }: { slices: { name: string; count: number; color: string }[]; total: number }) {
     const size = 80;
@@ -671,7 +673,7 @@ function HoursDonut({ slices, total }: { slices: { name: string; count: number; 
                 viewBox={`0 0 ${size} ${size}`}
                 className="w-[21mm] h-[21mm] block shrink-0"
                 role="img"
-                aria-label="Working hours breakdown"
+                aria-label="Type of work breakdown"
             >
                 <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--rs-track)" strokeWidth={strokeW} />
                 {arcs.map(arc => (

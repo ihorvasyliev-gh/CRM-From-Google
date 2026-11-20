@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createStudent, deleteStudent, updateStudent } from './students';
+import { createStudent, deleteStudent, fetchStudentByEmail, updateStudent } from './students';
 import { supabase } from './supabase';
 import type { StudentPayload } from './types';
 
@@ -13,8 +13,9 @@ const payload: StudentPayload = {
 /** A query builder whose final call resolves to `result`. */
 function builder(result: unknown) {
     const b: Record<string, ReturnType<typeof vi.fn>> = {};
-    for (const m of ['insert', 'update', 'delete', 'select', 'eq']) b[m] = vi.fn(() => b);
+    for (const m of ['insert', 'update', 'delete', 'select', 'eq', 'ilike', 'order']) b[m] = vi.fn(() => b);
     b.maybeSingle = vi.fn().mockResolvedValue(result);
+    b.limit = vi.fn().mockResolvedValue(result);
     b.eq = vi.fn(() => Object.assign(Promise.resolve(result), b));
     return b;
 }
@@ -41,5 +42,14 @@ describe('students', () => {
         vi.mocked(supabase.from).mockReturnValue(builder({ data: null, error: { code: '42501', message: 'permission denied' } }) as never);
         await expect(createStudent(payload)).rejects.toThrow('permission denied');
         await expect(deleteStudent('s1')).rejects.toMatchObject({ message: 'permission denied' });
+    });
+
+    it('looks up a student by normalized email and escapes underscores', async () => {
+        expect(await fetchStudentByEmail('   ')).toBeNull();
+        const b = builder({ data: [{ id: 's1', email: 'a_b@example.ie' }], error: null });
+        vi.mocked(supabase.from).mockReturnValue(b as never);
+        const found = await fetchStudentByEmail(' A_B@Example.ie ');
+        expect(found).toMatchObject({ id: 's1' });
+        expect(b.ilike).toHaveBeenCalledWith('email', 'a\\_b@example.ie');
     });
 });

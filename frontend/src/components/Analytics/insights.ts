@@ -1,4 +1,5 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import { hasOutcomeAnswer } from '../../lib/employmentTypes';
 import { cleanVariant, type EmploymentStatusRow, type EnrollmentStatus } from '../../lib/types';
 import { daysBetween } from '../../lib/dateUtils';
 import { normalizeCorkAddress } from './analyticsUtils';
@@ -56,6 +57,8 @@ export interface Insights {
         notWorking: number;
         fullTime: number;
         partTime: number;
+        selfEmployed: number;
+        ceTus: number;
         /** Fields of work of those working, most common first */
         fields: Share[];
     };
@@ -273,18 +276,30 @@ export function buildInsights(
     for (const es of employmentStatuses) {
         if (!statusByStudent.has(es.student_id)) statusByStudent.set(es.student_id, es);
     }
-    const outcomes = { graduates: graduateCourses.size, asked: 0, responded: 0, working: 0, notWorking: 0, fullTime: 0, partTime: 0 };
+    const outcomes = {
+        graduates: graduateCourses.size,
+        asked: 0,
+        responded: 0,
+        working: 0,
+        notWorking: 0,
+        fullTime: 0,
+        partTime: 0,
+        selfEmployed: 0,
+        ceTus: 0,
+    };
     const fields: string[] = [];
     for (const person of graduateCourses.keys()) {
         const row = statusByStudent.get(person);
         if (!row || (row.status !== 'pending' && row.status !== 'responded')) continue;
         outcomes.asked++;
-        if (row.status !== 'responded') continue;
+        if (!hasOutcomeAnswer({ tracking_status: row.status, is_working: row.is_working })) continue;
         outcomes.responded++;
         if (row.is_working) {
             outcomes.working++;
             if (row.employment_type === 'full_time') outcomes.fullTime++;
             else if (row.employment_type === 'part_time') outcomes.partTime++;
+            else if (row.employment_type === 'self_employed') outcomes.selfEmployed++;
+            else if (row.employment_type === 'ce_tus') outcomes.ceTus++;
             fields.push(normalizeFieldOfWork(row.field_of_work));
         } else {
             outcomes.notWorking++;

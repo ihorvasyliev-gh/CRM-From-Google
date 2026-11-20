@@ -1,4 +1,5 @@
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
+import { employmentTypeLabel } from '../../lib/employmentTypes';
 import { cleanVariant, fullName, type EmploymentStatusRow } from '../../lib/types';
 import { formatDateDMY } from '../../lib/dateUtils';
 import { darkHeader, downloadXlsx, valueCells, type Row, type XlsxSheet } from '../../lib/excelExport';
@@ -61,6 +62,8 @@ export async function exportAnalyticsExcel({ insights, narrative, enrollments, e
         figure('Working', outcomes.working, `${percent(outcomes.working, outcomes.asked)}% of those surveyed`),
         figure('Full-time', outcomes.fullTime),
         figure('Part-time', outcomes.partTime),
+        figure('Self-employed', outcomes.selfEmployed),
+        figure('CE / TUS', outcomes.ceTus),
         ...shares(outcomes.fields.map(f => ({ ...f, name: `Field: ${f.name}` })), outcomes.working),
         [],
         heading('Who registered'),
@@ -97,15 +100,22 @@ export async function exportAnalyticsExcel({ insights, narrative, enrollments, e
         .filter(e => completedIn(e, period))
         .map(e => {
             const es = statusByStudent.get(e.student_id);
-            const answered = es?.status === 'responded';
+            const answered = es?.status === 'responded' || (es?.is_working !== null && es?.is_working !== undefined);
+            const surveyLabel = es?.status === 'responded'
+                ? 'Answered'
+                : es?.status === 'pending'
+                    ? (answered ? 'Follow-up sent' : 'Sent, no answer')
+                    : answered
+                        ? 'Answered'
+                        : 'Not sent';
             return valueCells([
                 ...person(e),
                 formatDateDMY(completionDay(e)),
-                answered ? 'Answered' : es?.status === 'pending' ? 'Sent, no answer' : 'Not sent',
-                answered ? (es.is_working ? 'Yes' : 'No') : '',
-                answered && es.is_working ? (es.employment_type === 'full_time' ? 'Full-time' : es.employment_type === 'part_time' ? 'Part-time' : '') : '',
-                answered && es.is_working ? es.field_of_work || '' : '',
-                answered && es.is_working ? es.started_month || '' : '',
+                surveyLabel,
+                answered ? (es?.is_working ? 'Yes' : 'No') : '',
+                answered && es?.is_working ? employmentTypeLabel(es.employment_type) : '',
+                answered && es?.is_working ? es.field_of_work || '' : '',
+                answered && es?.is_working ? es.started_month || '' : '',
             ]);
         });
 
@@ -116,6 +126,6 @@ export async function exportAnalyticsExcel({ insights, narrative, enrollments, e
         table('By month', [['Month', 14], ['Registered', 14], ['Completed', 14]],
             summary.months.map(m => valueCells([m.month, m.registered, m.completed]))),
         table('Registered', [...PERSON_COLUMNS, ['Registered on', 16], ['Status today', 14]], registeredRows),
-        table('Completed', [...PERSON_COLUMNS, ['Completed on', 16], ['Survey', 16], ['Working', 10], ['Hours', 12], ['Field of work', 24], ['Started work', 14]], completedRows),
+        table('Completed', [...PERSON_COLUMNS, ['Completed on', 16], ['Survey', 16], ['Working', 10], ['Type of work', 14], ['Field of work', 24], ['Started work', 14]], completedRows),
     ], `Courses report ${period.start} to ${period.end}.xlsx`);
 }

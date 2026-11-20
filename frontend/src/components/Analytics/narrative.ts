@@ -199,6 +199,15 @@ function pipelineSentences(d: Insights): string[] {
     return out;
 }
 
+function employmentSplit(o: Insights['outcomes']): string[] {
+    return [
+        o.fullTime && `${count(o.fullTime)} full-time`,
+        o.partTime && `${count(o.partTime)} part-time`,
+        o.selfEmployed && `${count(o.selfEmployed)} self-employed`,
+        o.ceTus && `${count(o.ceTus)} on CE / TUS`,
+    ].filter(Boolean) as string[];
+}
+
 function outcomeSentences(d: Insights): string[] {
     const o = d.outcomes;
     if (o.graduates === 0) return ['Nobody completed a course in the period, so there are no employment outcomes to report.'];
@@ -220,7 +229,7 @@ function outcomeSentences(d: Insights): string[] {
         `(${percent(o.asked, o.graduates)}%) were sent the employment survey; ${count(o.responded)} (${percent(o.responded, o.asked)}%) answered` +
         `${awaiting > 0 ? ` and ${count(awaiting)} ${awaiting === 1 ? 'has' : 'have'} not replied yet` : ''}.`,
     );
-    const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
+    const split = employmentSplit(o);
     if (o.working > 0) {
         const notWorkingClause = o.notWorking > 0 ? `, while ${count(o.notWorking)} reported not working yet` : '';
         out.push(
@@ -402,7 +411,7 @@ function buildHighlights(d: Insights): ReportHighlights {
     } else if (o.responded === 0) {
         outcomesLead = `${count(o.asked)} of ${plural(o.graduates, 'graduate')} (${percent(o.asked, o.graduates)}%) received the employment survey; none have replied yet.`;
     } else {
-        const split = [o.fullTime && `${count(o.fullTime)} full-time`, o.partTime && `${count(o.partTime)} part-time`].filter(Boolean) as string[];
+        const split = employmentSplit(o);
         const awaiting = o.asked - o.responded;
         outcomesLead =
             `${count(o.asked)} of ${plural(o.graduates, 'graduate')} (${percent(o.asked, o.graduates)}%) were surveyed; ` +

@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
-import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus } from '../lib/types';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
+import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
-import { formatDateLongWithWeekday, todayISO, formatDisplayDate } from '../lib/dateUtils';
+import { formatDateLongWithWeekday, todayISO, formatDisplayDate, formatLocalDate } from '../lib/dateUtils';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
 import { STATUS_CONFIG } from '../lib/statusConfig';
@@ -19,6 +19,19 @@ import { errorMessage } from '../lib/errors';
 import { refreshCachedEnrollments } from '../lib/enrollmentCache';
 import { fetchStudent } from '../lib/students';
 import { applyStudentChange, studentRecordKey } from '../lib/studentCache';
+import { TrackingBadge, EmploymentBadge, CallMarkButton } from './OutcomeBadges';
+import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
+import { setGraduateCallMark, callMarkErrorMessage } from '../lib/callMark';
+import { useDialogMount, useLastPresent } from '../hooks/usePresence';
+import type { GraduateRow } from '../hooks/useOutcomes';
+
+const EMPTY_OUTCOME = { is_working: null, employment_type: null, field_of_work: null };
+
+function formatStartedMonth(value: string): string {
+    const d = new Date(`${value}-01T12:00:00`);
+    if (Number.isNaN(d.getTime())) return value;
+    return formatLocalDate(d, { month: 'short', year: 'numeric' }, 'en-GB');
+}
 
 interface Enrollment {
     id: string;
@@ -264,6 +277,10 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [mergeModalOpen, setMergeModalOpen] = useState(false);
     const [busyEnrollmentId, setBusyEnrollmentId] = useState<string | null>(null);
+    const [callMarkBusy, setCallMarkBusy] = useState(false);
+    const [editingOutcome, setEditingOutcome] = useState<(OutcomeValues & { first_name: string; last_name: string }) | null>(null);
+    const outcomeModalMount = useDialogMount(!!editingOutcome);
+    const shownOutcome = useLastPresent(editingOutcome);
 
     // Keyed under ['enrollments', …] so every global enrollments invalidation (realtime sync,
     // board actions, new enrollment modal) refreshes this drawer automatically.
@@ -282,10 +299,122 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
         staleTime: 10_000,
     });
 
+    // Keyed under ['outcomes_graduates', …] so global realtime sync invalidations of
+    // ['outcomes_graduates'] refresh this card automatically.
+    const outcomeKey = ['outcomes_graduates', 'by_student', student.id] as const;
+    const { data: outcomeRow = null } = useQuery({
+        queryKey: outcomeKey,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('employment_status')
+                .select('*')
+                .eq('student_id', student.id)
+                .order('id');
+            if (error) throw error;
+            return (data?.[0] ?? null) as EmploymentStatusRow | null;
+        },
+        enabled: open,
+        staleTime: 10_000,
+    });
+
+    const trackingStatus: 'not_contacted' | 'pending' | 'responded' = outcomeRow?.status ?? 'not_contacted';
+    const showEmploymentOutcome = enrollments.some(e => e.status === 'completed') || !!outcomeRow;
+
     const setEnrollments = useCallback((updater: (prev: Enrollment[]) => Enrollment[]) => {
         queryClient.setQueryData<Enrollment[]>(enrollmentsKey, (old = []) => updater(old));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [queryClient, student.id]);
+
+    async function handleToggleCallMark() {
+        if (callMarkBusy) return;
+        const prevRow = outcomeRow;
+        const calledAt = outcomeRow?.called_no_answer_at ? null : new Date().toISOString();
+        const grad: GraduateRow = {
+            student_id: student.id,
+            first_name: student.first_name,
+            last_name: student.last_name,
+            email: student.email || '',
+            phone: student.phone || null,
+            courses: [],
+            is_working: outcomeRow?.is_working ?? null,
+            started_month: outcomeRow?.started_month ?? null,
+            field_of_work: outcomeRow?.field_of_work ?? null,
+            employment_type: outcomeRow?.employment_type ?? null,
+            status_updated_at: outcomeRow?.last_responded_at ?? null,
+            tracking_status: trackingStatus,
+            last_sent_at: outcomeRow?.last_invited_at ?? null,
+            called_no_answer_at: outcomeRow?.called_no_answer_at ?? null,
+        };
+        const optimisticRow: EmploymentStatusRow = prevRow
+            ? { ...prevRow, called_no_answer_at: calledAt }
+            : {
+                id: `optimistic-${student.id}`,
+                student_id: student.id,
+                email: student.email || null,
+                is_working: null,
+                started_month: null,
+                field_of_work: null,
+                employment_type: null,
+                status: 'not_contacted',
+                last_invited_at: null,
+                last_responded_at: null,
+                called_no_answer_at: calledAt,
+            };
+        setCallMarkBusy(true);
+        queryClient.setQueryData<EmploymentStatusRow | null>(outcomeKey, optimisticRow);
+        try {
+            await setGraduateCallMark(grad, calledAt);
+            queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
+        } catch (err) {
+            console.error(err);
+            queryClient.setQueryData<EmploymentStatusRow | null>(outcomeKey, prevRow);
+            notify({ message: callMarkErrorMessage(err as { code?: string; message?: string }), type: 'error' });
+        } finally {
+            setCallMarkBusy(false);
+        }
+    }
+
+    async function handleSaveOutcome(values: OutcomeValues) {
+        if (values.tracking_status === 'not_contacted') {
+            if (outcomeRow?.called_no_answer_at) {
+                const { error } = await supabase
+                    .from('employment_status')
+                    .update({
+                        status: 'not_contacted',
+                        is_working: null,
+                        started_month: null,
+                        field_of_work: null,
+                        employment_type: null,
+                        last_invited_at: null,
+                        last_responded_at: null,
+                    })
+                    .eq('student_id', student.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('employment_status')
+                    .delete()
+                    .eq('student_id', student.id);
+                if (error) throw error;
+            }
+            return;
+        }
+
+        const responded = values.tracking_status === 'responded';
+        const { error } = await supabase
+            .from('employment_status')
+            .upsert({
+                student_id: student.id,
+                email: student.email,
+                status: responded ? 'responded' : 'pending',
+                is_working: values.is_working,
+                started_month: values.started_month,
+                field_of_work: values.field_of_work,
+                employment_type: values.employment_type,
+                ...(responded ? { last_responded_at: new Date().toISOString(), called_no_answer_at: null } : {}),
+            }, { onConflict: 'student_id' });
+        if (error) throw error;
+    }
 
     const handleCopyField = (value: string, label: string) => {
         if (!value) return;
@@ -597,6 +726,61 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                         </div>
                     </div>
 
+                    {/* Employment Outcome — shown for graduates or anyone with an outcome record */}
+                    {showEmploymentOutcome && (
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Employment Outcome</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingOutcome({
+                                        first_name: student.first_name,
+                                        last_name: student.last_name,
+                                        tracking_status: trackingStatus,
+                                        is_working: outcomeRow?.is_working ?? null,
+                                        started_month: outcomeRow?.started_month ?? null,
+                                        field_of_work: outcomeRow?.field_of_work ?? null,
+                                        employment_type: outcomeRow?.employment_type ?? null,
+                                    })}
+                                    title="Edit employment outcome"
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 rounded-lg transition-all"
+                                >
+                                    <Pencil size={11} /> Edit
+                                </button>
+                            </div>
+                            <div className="p-3 rounded-xl bg-surface/50 border border-border-subtle space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <TrackingBadge status={trackingStatus} />
+                                    {trackingStatus === 'pending' && outcomeRow?.last_invited_at && (
+                                        <span className="text-xs text-muted">Sent {formatDisplayDate(outcomeRow.last_invited_at)}</span>
+                                    )}
+                                    {trackingStatus === 'responded' && outcomeRow?.last_responded_at && (
+                                        <span className="text-xs text-muted">Updated {formatDisplayDate(outcomeRow.last_responded_at)}</span>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <EmploymentBadge status={trackingStatus} row={outcomeRow ?? EMPTY_OUTCOME} />
+                                    {trackingStatus === 'responded' && outcomeRow?.is_working && outcomeRow?.started_month && (
+                                        <p className="text-xs text-muted">
+                                            Since {formatStartedMonth(outcomeRow.started_month)}
+                                        </p>
+                                    )}
+                                </div>
+                                {trackingStatus !== 'responded' && (
+                                    <div className="pt-0.5">
+                                        <CallMarkButton
+                                            status={trackingStatus}
+                                            calledAt={outcomeRow?.called_no_answer_at}
+                                            busy={callMarkBusy}
+                                            onToggle={handleToggleCallMark}
+                                            name={fullName(student) || student.email || 'Student'}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Enrollments — with clickable course names */}
                     <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Enrollments</h3>
@@ -747,6 +931,20 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                 onClose={() => setMergeModalOpen(false)}
                 onSuccess={onClose}
             />
+            {outcomeModalMount.mounted && shownOutcome && (
+                <OutcomeEditModal
+                    key={outcomeModalMount.key}
+                    isOpen={!!editingOutcome}
+                    person={shownOutcome}
+                    onSave={handleSaveOutcome}
+                    onClose={() => setEditingOutcome(null)}
+                    onSaved={() => {
+                        queryClient.invalidateQueries({ queryKey: ['outcomes_graduates'] });
+                        queryClient.invalidateQueries({ queryKey: ['analytics_employment_statuses_v1'] });
+                        notify({ message: 'Employment status updated', type: 'success' });
+                    }}
+                />
+            )}
         </>
     );
 }

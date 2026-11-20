@@ -8,7 +8,7 @@ import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
 import { fullName, Student, StudentPayload } from './lib/types';
-import { createStudent, fetchStudent } from './lib/students';
+import { createStudent, fetchStudent, fetchStudentByEmail } from './lib/students';
 import MobileBottomNav from './components/MobileBottomNav';
 import MobileFloatingActions from './components/MobileFloatingActions';
 import { canManagePdfForms, getUserRole } from './lib/roles';
@@ -86,7 +86,7 @@ const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
  * their filters, search, drafts and scroll position. Pages that take their start from the
  * navigation (the board's course filter…) or the URL are mounted fresh each time instead.
  */
-const KEPT_PAGES = new Set(['dashboard', 'students', 'analytics', 'documents', 'settings']);
+const KEPT_PAGES = new Set(['dashboard', 'students', 'outcomes', 'analytics', 'documents', 'settings']);
 
 const PAGE_SPINNER = (
     <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
@@ -227,6 +227,25 @@ function App() {
         }
     }, [queryClient]);
 
+    const handleOpenStudentByEmail = useCallback(async (email: string) => {
+        const normalized = email.trim().toLowerCase();
+        if (!normalized) return;
+        const known = queryClient.getQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY)
+            ?.find(e => e.students?.email?.trim().toLowerCase() === normalized)?.students;
+        if (known) {
+            setGlobalStudentDetail(known);
+            return;
+        }
+        try {
+            const found = await fetchStudentByEmail(normalized);
+            if (found) setGlobalStudentDetail(found);
+            else toast.error('Student record not found in CRM');
+        } catch (e) {
+            console.error('Failed to load student details by email', e);
+            toast.error('Could not open student details');
+        }
+    }, [queryClient]);
+
     useGlobalHotkeys(!!user && !isOutreach, {
         tabKeys: isViewer ? VIEWER_TABS.map(t => t.key) : NAV_ITEMS.map(n => n.key),
         canAddStudent: !isViewer,
@@ -296,7 +315,7 @@ function App() {
                     <Route path="/students" element={null} />
                     <Route path="/courses" element={<CourseList />} />
                     <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} initialStatus={navState?.status} />} />
-                    <Route path="/outcomes" element={<OutcomesList />} />
+                    <Route path="/outcomes" element={null} />
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />
                     <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
@@ -593,6 +612,12 @@ function App() {
                                         />
                                     )}
                                     {tab === 'students' && <StudentList onNavigate={navigate} />}
+                                    {tab === 'outcomes' && (
+                                        <OutcomesList
+                                            onOpenStudentDetail={handleOpenStudentDetail}
+                                            onOpenStudentByEmail={handleOpenStudentByEmail}
+                                        />
+                                    )}
                                     {tab === 'analytics' && <Analytics />}
                                     {tab === 'documents' && <DocumentGenerator />}
                                     {tab === 'settings' && <Settings density={density} onDensityChange={setDensity} />}

@@ -156,10 +156,51 @@ describe('buildInsights', () => {
 
     it('reads the survey of the people who completed in the period', () => {
         expect(insights.outcomes).toEqual({
-            graduates: 3, asked: 3, responded: 2, working: 1, notWorking: 1, fullTime: 1, partTime: 0,
+            graduates: 3, asked: 3, responded: 2, working: 1, notWorking: 1, fullTime: 1, partTime: 0, selfEmployed: 0, ceTus: 0,
             fields: [{ name: 'Hospitality', count: 1 }],
         });
         expect(insights.multiCourse).toBe(1);
+    });
+
+    it('counts self_employed, ce_tus, and preserves prior answers on re-sent pending rows', () => {
+        const extraRows = [
+            enrollment('10', 's1', 'safe', '2026-01-10', completed('2026-02-01')),
+            enrollment('11', 's2', 'safe', '2026-01-10', completed('2026-02-01')),
+            enrollment('12', 's3', 'safe', '2026-01-10', completed('2026-02-01')),
+            enrollment('13', 's4', 'safe', '2026-01-10', completed('2026-02-01')),
+            enrollment('14', 's5', 'safe', '2026-01-10', completed('2026-02-01')),
+        ];
+        const extraStatuses = [
+            survey('s1', { status: 'responded', is_working: true, employment_type: 'self_employed', field_of_work: 'Retail' }),
+            survey('s2', { status: 'responded', is_working: true, employment_type: 'ce_tus', field_of_work: 'Education' }),
+            survey('s3', { status: 'responded', is_working: true, employment_type: 'full_time', field_of_work: 'Construction' }),
+            // Previously answered "Not working", then re-sent a follow-up survey (status reset to pending)
+            survey('s4', { status: 'pending', is_working: false }),
+            // Sent survey, never answered
+            survey('s5', { status: 'pending', is_working: null }),
+        ];
+
+        const result = buildInsights(extraRows, extraStatuses, YEAR, { today: TODAY });
+        expect(result.outcomes).toEqual({
+            graduates: 5,
+            asked: 5,
+            responded: 4,
+            working: 3,
+            notWorking: 1,
+            fullTime: 1,
+            partTime: 0,
+            selfEmployed: 1,
+            ceTus: 1,
+            fields: [
+                { name: 'Construction', count: 1 },
+                { name: 'Education', count: 1 },
+                { name: 'Retail', count: 1 },
+            ],
+        });
+
+        const text = buildNarrative(result);
+        expect(text.outcomes[1]).toContain('(1 full-time, 1 self-employed and 1 on CE / TUS)');
+        expect(text.highlights.leads.outcomes).toContain('(1 full-time, 1 self-employed and 1 on CE / TUS)');
     });
 
     it('describes who registered, with what is not known last', () => {

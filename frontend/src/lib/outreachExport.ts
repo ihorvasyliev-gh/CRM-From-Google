@@ -1,5 +1,6 @@
 import type { OutreachContact } from '../hooks/useOutreach';
 import { formatDateDMY, formatLocalDate } from './dateUtils';
+import { employmentTypeLabel, hasOutcomeAnswer } from './employmentTypes';
 import { downloadXlsx, valueCells } from './excelExport';
 
 const STATUS_LABELS: Record<OutreachContact['status'], string> = {
@@ -24,7 +25,7 @@ const COLUMNS = [
     { header: 'Working', width: 10 },
     { header: 'Started', width: 12 },
     { header: 'Where', width: 26 },
-    { header: 'Hours', width: 12 },
+    { header: 'Type of work', width: 14 },
     { header: 'Invited', width: 12 },
     { header: 'Responded', width: 12 },
     { header: 'Called, no answer', width: 16 },
@@ -32,6 +33,7 @@ const COLUMNS = [
 
 /** One spreadsheet row per contact, ready for reporting (e.g. back to IRIS). */
 function outreachExportRow(c: OutreachContact): string[] {
+    const answered = c.status !== 'not_contacted' && hasOutcomeAnswer({ tracking_status: c.status, is_working: c.is_working });
     return [
         c.first_name,
         c.last_name,
@@ -39,10 +41,10 @@ function outreachExportRow(c: OutreachContact): string[] {
         c.phone || '',
         c.external_ref || '',
         STATUS_LABELS[c.status],
-        c.status !== 'responded' || c.is_working === null ? '' : c.is_working ? 'Yes' : 'No',
+        !answered || c.is_working === null ? '' : c.is_working ? 'Yes' : 'No',
         c.is_working ? formatMonth(c.started_month) : '',
         c.is_working ? c.field_of_work || '' : '',
-        !c.is_working ? '' : c.employment_type === 'full_time' ? 'Full-time' : c.employment_type === 'part_time' ? 'Part-time' : '',
+        c.is_working ? employmentTypeLabel(c.employment_type) : '',
         c.last_invited_at ? formatDateDMY(c.last_invited_at) : '',
         c.last_responded_at ? formatDateDMY(c.last_responded_at) : '',
         c.status !== 'responded' && c.called_no_answer_at ? formatDateDMY(c.called_no_answer_at) : '',

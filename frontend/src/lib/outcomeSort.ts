@@ -1,4 +1,6 @@
 // Sorting of the Outcomes tables (CRM graduates and External Lists) by one column.
+import { EMPLOYMENT_TYPES, employmentTypeRank, isResentNotWorking } from './employmentTypes';
+
 export type OutcomeSortKey = 'name' | 'courses' | 'ref' | 'tracking' | 'employment' | 'updated';
 export interface OutcomeSort { key: OutcomeSortKey; dir: 'asc' | 'desc' }
 
@@ -20,10 +22,17 @@ export interface SortFields {
 
 const TRACKING_RANK = { not_contacted: 0, pending: 1, responded: 2 } as const;
 
+// 0..3: Full-time, Part-time, Self-employed, CE / TUS; 4: Working (unspecified);
+// 5: Not working (responded); 6: Previously: Not working (pending follow-up); 7: No data.
+const NOT_WORKING_RANK = EMPLOYMENT_TYPES.length + 1;
+const PREV_NOT_WORKING_RANK = EMPLOYMENT_TYPES.length + 2;
+const NO_DATA_RANK = EMPLOYMENT_TYPES.length + 3;
+
 function employmentRank(r: SortFields): number {
-    if (r.tracking_status !== 'responded' || r.is_working === null) return 4; // No data
-    if (!r.is_working) return 3;
-    return r.employment_type === 'full_time' ? 0 : r.employment_type === 'part_time' ? 1 : 2;
+    if (r.tracking_status === 'not_contacted' || r.is_working === null) return NO_DATA_RANK;
+    if (r.is_working) return employmentTypeRank(r.employment_type);
+    if (isResentNotWorking(r)) return PREV_NOT_WORKING_RANK;
+    return NOT_WORKING_RANK;
 }
 
 const text = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
@@ -64,7 +73,7 @@ export function sortOutcomeRows<T>(rows: T[], sort: OutcomeSort, fields: (row: T
             }
             case 'employment': {
                 const ar = employmentRank(a), br = employmentRank(b);
-                if (ar === 4 || br === 4) return ar === br ? byName(a, b) : ar === 4 ? 1 : -1;
+                if (ar === NO_DATA_RANK || br === NO_DATA_RANK) return ar === br ? byName(a, b) : ar === NO_DATA_RANK ? 1 : -1;
                 return sign * (ar - br) || byName(a, b);
             }
             case 'updated': {

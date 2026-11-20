@@ -4,6 +4,7 @@ import { MonthPicker } from './ui/DatePicker';
 import DialogLayer from './ui/DialogLayer';
 import ConfirmDialog from './ConfirmDialog';
 import { errorMessage } from '../lib/errors';
+import { EMPLOYMENT_TYPES } from '../lib/employmentTypes';
 
 /** Survey answer as stored for a graduate or an outreach list contact. */
 export interface OutcomeValues {
@@ -62,7 +63,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                 tracking_status: trackingStatus,
                 is_working: responded ? isWorking : null,
                 started_month: working ? (startedMonth || null) : null,
-                field_of_work: working ? (fieldOfWork || null) : null,
+                field_of_work: working ? (fieldOfWork.trim() || null) : null,
                 employment_type: working ? (employmentType || null) : null,
             });
 
@@ -92,6 +93,9 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
         }
     }
 
+    const isWorkingSelected = trackingStatus === 'responded' && isWorking === true;
+    const isNotWorkingSelected = trackingStatus === 'responded' && isWorking === false;
+
     return (
         <DialogLayer
             open={isOpen}
@@ -110,9 +114,11 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         Updating records for <span className="font-semibold text-brand-400">{graduate.first_name} {graduate.last_name}</span>
                     </p>
                 </div>
-                <button 
+                <button
+                    type="button"
                     onClick={onClose}
                     disabled={saving}
+                    aria-label="Close"
                     className="text-muted hover:text-primary transition-colors p-2 rounded-xl hover:bg-surface disabled:opacity-50"
                 >
                     <X size={20} />
@@ -130,6 +136,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         <div className="grid grid-cols-3 gap-2">
                             <button
                                 type="button"
+                                aria-pressed={trackingStatus === 'not_contacted'}
                                 onClick={() => setTrackingStatus('not_contacted')}
                                 className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                     trackingStatus === 'not_contacted'
@@ -141,6 +148,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                             </button>
                             <button
                                 type="button"
+                                aria-pressed={trackingStatus === 'pending'}
                                 onClick={() => setTrackingStatus('pending')}
                                 className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                     trackingStatus === 'pending'
@@ -152,6 +160,7 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                             </button>
                             <button
                                 type="button"
+                                aria-pressed={trackingStatus === 'responded'}
                                 onClick={() => setTrackingStatus('responded')}
                                 className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
                                     trackingStatus === 'responded'
@@ -164,94 +173,98 @@ export default function OutcomeEditModal({ isOpen, person: graduate, onClose, on
                         </div>
                     </div>
 
-                    {/* Employment Details if Responded */}
-                    {trackingStatus === 'responded' && (
-                        <div className="space-y-4 pt-4 border-t border-border-subtle animate-fadeIn">
-                            <div>
-                                <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
+                    {/* Working answer — shown immediately so staff can jump straight to Responded in one click */}
+                    <div className="space-y-4 pt-4 border-t border-border-subtle">
+                        <div>
+                            <div className="flex items-baseline justify-between mb-3">
+                                <label className="block text-xs font-semibold text-muted uppercase tracking-wider">
                                     Is the person working?
                                 </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsWorking(true)}
-                                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                            isWorking === true
-                                                ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
-                                                : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                }`}
-                                    >
-                                        Yes
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsWorking(false)}
-                                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                            isWorking === false
-                                                ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-xs'
-                                                : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                }`}
-                                    >
-                                        No
-                                    </button>
+                                {trackingStatus !== 'responded' && (
+                                    <span className="text-[11px] text-muted">Sets status to Responded</span>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    aria-pressed={isWorkingSelected}
+                                    onClick={() => {
+                                        setTrackingStatus('responded');
+                                        setIsWorking(true);
+                                    }}
+                                    className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                        isWorkingSelected
+                                            ? 'bg-brand-500/20 text-brand-400 border-brand-500/40 shadow-xs'
+                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                    }`}
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-pressed={isNotWorkingSelected}
+                                    onClick={() => {
+                                        setTrackingStatus('responded');
+                                        setIsWorking(false);
+                                    }}
+                                    className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                        isNotWorkingSelected
+                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-xs'
+                                            : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                    }`}
+                                >
+                                    No
+                                </button>
+                            </div>
+                        </div>
+
+                        {isWorkingSelected && (
+                            <div className="space-y-4 animate-fadeIn">
+                                <div>
+                                    <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                        Started Month
+                                    </label>
+                                    <MonthPicker label="Started month" value={startedMonth} onChange={setStartedMonth} />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
+                                        Field / Sector
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={fieldOfWork}
+                                        onChange={(e) => setFieldOfWork(e.target.value)}
+                                        placeholder="e.g. IT, Hospitality, Healthcare..."
+                                        className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
+                                        Employment Type
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        {EMPLOYMENT_TYPES.map((opt) => (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                aria-pressed={employmentType === opt.value}
+                                                onClick={() => setEmploymentType(opt.value)}
+                                                className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
+                                                    employmentType === opt.value
+                                                        ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
+                                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle hover:text-primary'
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-
-                            {isWorking === true && (
-                                <div className="space-y-4 animate-fadeIn">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
-                                            Started Month
-                                        </label>
-                                        <MonthPicker label="Started month" value={startedMonth} onChange={setStartedMonth} />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted mb-2 uppercase tracking-wider">
-                                            Field / Sector
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={fieldOfWork}
-                                            onChange={(e) => setFieldOfWork(e.target.value)}
-                                            placeholder="e.g. IT, Hospitality, Healthcare..."
-                                            className="w-full bg-surface text-primary text-sm rounded-xl border border-border-subtle px-4 py-2.5 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all font-medium placeholder:text-muted/40"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-muted mb-3 uppercase tracking-wider">
-                                            Employment Type
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setEmploymentType('full_time')}
-                                                className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                    employmentType === 'full_time'
-                                                        ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
-                                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                                }`}
-                                            >
-                                                Full-time
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setEmploymentType('part_time')}
-                                                className={`py-2 px-4 rounded-xl text-sm font-semibold border transition-all ${
-                                                    employmentType === 'part_time'
-                                                        ? 'bg-completed/15 text-status-completed border-completed/40 shadow-xs'
-                                                        : 'bg-background text-muted border-border-strong hover:border-border-subtle'
-                                                }`}
-                                            >
-                                                Part-time
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     {error && (
                         <div className="bg-danger/10 border border-danger/25 text-status-rejected text-sm px-4 py-3 rounded-xl flex items-center gap-3 animate-fadeIn">

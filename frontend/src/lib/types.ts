@@ -198,7 +198,7 @@ export interface EmploymentStatusRow {
     /** 'YYYY-MM' */
     started_month: string | null;
     field_of_work: string | null;
-    /** 'full_time' | 'part_time' */
+    /** 'full_time' | 'part_time' | 'self_employed' | 'ce_tus' */
     employment_type: string | null;
     /** 'not_contacted' when the row only holds a call mark (no survey sent yet) */
     status: 'not_contacted' | 'pending' | 'responded' | null;
