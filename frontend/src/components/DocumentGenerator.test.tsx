@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PizZip from 'pizzip';
 import DocumentGenerator from './DocumentGenerator';
 import { GlobalToaster } from './Toast';
+import { TooltipProvider } from './ui/Tooltip';
 import { supabase } from '../lib/supabase';
 import { downloadBlob } from '../lib/download';
 
@@ -16,10 +17,29 @@ vi.mock('../lib/supabase', () => ({
 }));
 vi.mock('../lib/download', () => ({ downloadBlob: vi.fn() }));
 
-const student = (id: string, first: string, last: string) => ({ id, first_name: first, last_name: last, email: `${first.toLowerCase()}@example.com`, phone: '0871234567', address: '1 Main St', eircode: 'T12 AB34', dob: null });
+const student = (id: string, first: string, last: string) => ({
+    id,
+    first_name: first,
+    last_name: last,
+    email: `${first.toLowerCase()}@example.com`,
+    phone: '0871234567',
+    address: '1 Main St',
+    eircode: 'T12 AB34',
+    dob: null,
+});
 const enrollment = (id: string, s: ReturnType<typeof student>, extra: Record<string, unknown>) => ({
-    id, course_id: 'c1', status: 'confirmed', course_variant: null, notes: null, created_at: '2026-01-01',
-    confirmed_date: null, invited_date: null, completed_date: null, students: s, courses: { id: 'c1', name: 'Python 101' }, ...extra,
+    id,
+    course_id: 'c1',
+    status: 'confirmed',
+    course_variant: null,
+    notes: null,
+    created_at: '2026-01-01',
+    confirmed_date: null,
+    invited_date: null,
+    completed_date: null,
+    students: s,
+    courses: { id: 'c1', name: 'Python 101' },
+    ...extra,
 });
 
 let tables: Record<string, unknown[]>;
@@ -36,11 +56,25 @@ function resetData() {
             enrollment('e4', student('s4', 'Tom', 'Walsh'), { confirmed_date: '2099-11-05' }),
             enrollment('e5', student('s5', 'Anna', 'Byrne'), { status: 'completed', confirmed_date: '2020-05-01', completed_date: '2020-05-01' }),
         ],
-        document_templates: [{ id: 't1', name: 'Certificate.docx', storage_path: 'template_1.docx', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' }],
+        document_templates: [
+            {
+                id: 't1',
+                name: 'Certificate.docx',
+                storage_path: 'template_1.docx',
+                is_active: true,
+                sort_order: 0,
+                tags: ['fullName', 'Tutor'],
+                created_at: '2026-01-01',
+                updated_at: '2026-01-01',
+            },
+        ],
         attendance_templates: [],
         label_templates: [],
+        sicap_templates: [],
         template_variables: [{ id: 'v1', var_key: 'Tutor', var_value: 'Jane', created_at: '2026-01-01' }],
         document_settings: [{ id: true, excel_columns: null }],
+        document_generations: [],
+        invite_dates: [],
     };
     fail = {};
     calls = [];
@@ -65,7 +99,17 @@ function query(table: string) {
         calls.push({ table, op, payload, eq });
         const err = fail[table];
         if (err) return resolve({ data: null, error: typeof err === 'string' ? { message: err } : err });
-        if (op === 'insert') return resolve({ data: { ...(payload as object), id: 'new', created_at: '2026-09-01', updated_at: '2026-09-01' }, error: null });
+        if (op === 'insert') {
+            return resolve({
+                data: { ...(payload as object), id: 'new', created_at: '2026-09-01', updated_at: '2026-09-01' },
+                error: null,
+            });
+        }
+        if (op === 'update') {
+            const existing = (tables[table] ?? []).find(r => (r as { id?: unknown }).id === eq) as object | undefined;
+            const merged = { ...(existing ?? {}), ...(payload as object) };
+            return resolve({ data: single ? merged : [merged], error: null });
+        }
         if (op !== 'select') return resolve({ data: null, error: null });
         let rows = page === 0 ? tables[table] ?? [] : [];
         if (ids) rows = rows.filter(r => ids!.includes((r as { id: string }).id));
@@ -76,8 +120,14 @@ function query(table: string) {
 
 function docx(text: string): ArrayBuffer {
     const zip = new PizZip();
-    zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
-    zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
+    zip.file(
+        '[Content_Types].xml',
+        '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    );
+    zip.file(
+        'word/document.xml',
+        `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`,
+    );
     return zip.generate({ type: 'arraybuffer' });
 }
 const docxFile = (text: string, name = 'New.docx') => new File([docx(text)], name);
@@ -86,8 +136,22 @@ const storage = { upload: vi.fn(), remove: vi.fn(), download: vi.fn() };
 
 function renderPage() {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    // The app shell's toaster shows the page's messages
-    return render(<QueryClientProvider client={client}><DocumentGenerator /><GlobalToaster /></QueryClientProvider>);
+    return render(
+        <QueryClientProvider client={client}>
+            <TooltipProvider>
+                <DocumentGenerator />
+                <GlobalToaster />
+            </TooltipProvider>
+        </QueryClientProvider>,
+    );
+}
+
+async function openTemplatesTab() {
+    fireEvent.click(await screen.findByRole('tab', { name: /^Templates/ }));
+}
+
+async function openVariablesTab() {
+    fireEvent.click(await screen.findByRole('tab', { name: /^Variables & Excel/ }));
 }
 
 async function chooseCourse(name = /Python 101/) {
@@ -140,23 +204,32 @@ describe('DocumentGenerator', () => {
         expect(await screen.findByText('Ian Roche')).toBeInTheDocument();
     });
 
-    it('switches to people who completed the course', async () => {
+    it('switches to people who completed the course and applies smart defaults', async () => {
+        tables.attendance_templates = [{ id: 'a1', name: 'Att.docx', storage_path: 'att.docx', created_at: '2026-01-01', updated_at: '2026-01-01' }];
         renderPage();
         fireEvent.click(await screen.findByRole('tab', { name: /Completed/ }));
         await chooseCourse();
         expect(screen.getByText('Anna Byrne')).toBeInTheDocument();
         expect(screen.queryByText('Olena Kovalenko')).not.toBeInTheDocument();
+        // Attendance sheet is unticked by default when generating for completed graduates
+        const attCheckbox = screen.getByText('Attendance sheet').closest('label')?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        expect(attCheckbox.checked).toBe(false);
     });
 
-    it('leaves out unticked participants', async () => {
+    it('leaves out unticked participants and allows per-run template toggling', async () => {
         renderPage();
         await chooseCourse();
         fireEvent.click(screen.getByRole('checkbox', { name: 'Include Mary Ahern' }));
         expect(generateButton()).toHaveTextContent('1 student × 1 template');
         expect(screen.getByRole('checkbox', { name: 'Select all participants' })).toHaveProperty('indeterminate', true);
+
+        // Switch studio pane to Archive Tree to see the planned files
+        fireEvent.click(screen.getByRole('tab', { name: /Archive Tree/ }));
+        expect(screen.getByText('Olena_Kovalenko.docx')).toBeInTheDocument();
+        expect(screen.queryByText('Mary_Ahern.docx')).not.toBeInTheDocument();
     });
 
-    it('generates from freshly loaded data and reports who was left out', async () => {
+    it('generates from freshly loaded data, logs the run and reports who was left out', async () => {
         renderPage();
         await chooseCourse();
         // Since the list was loaded: Olena's surname was corrected, Mary moved back to requested
@@ -179,12 +252,13 @@ describe('DocumentGenerator', () => {
 
         expect(await screen.findByText(/Left out 1 whose enrollment changed/)).toHaveTextContent('Mary Ahern');
         expect(storage.download).toHaveBeenCalledWith('template_1.docx');
+        expect(calls.some(c => c.table === 'document_generations' && c.op === 'insert')).toBe(true);
     });
 
     it('leaves out people moved to another course date since the list was loaded', async () => {
         renderPage();
         await chooseCourse();
-        tables.enrollments = tables.enrollments.map(e => (e as { id: string }).id === 'e3' ? { ...(e as object), confirmed_date: '2099-11-05' } : e);
+        tables.enrollments = tables.enrollments.map(e => ((e as { id: string }).id === 'e3' ? { ...(e as object), confirmed_date: '2099-11-05' } : e));
         fireEvent.click(generateButton());
 
         expect(await screen.findByText(/Left out 1 whose enrollment changed/)).toHaveTextContent('Mary Ahern');
@@ -196,6 +270,7 @@ describe('DocumentGenerator', () => {
     it('keeps Excel columns in this browser until the shared settings table exists', async () => {
         fail.document_settings = { message: 'Could not find the table', code: 'PGRST205' };
         renderPage();
+        await openVariablesTab();
         expect(await screen.findByText(/Saved in this browser only/)).toBeInTheDocument();
         expect(screen.queryByText('Could not load the document templates')).not.toBeInTheDocument();
     });
@@ -230,7 +305,8 @@ describe('DocumentGenerator', () => {
 
     it('refuses to store a template with broken placeholders', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
+        await openTemplatesTab();
+        await screen.findAllByText('Certificate.docx');
         fireEvent.change(newTemplateInput(), { target: { files: [docxFile('Hello {firstName')] } });
 
         expect(await screen.findByText(/has a placeholder error: .*unclosed/)).toBeInTheDocument();
@@ -239,7 +315,8 @@ describe('DocumentGenerator', () => {
 
     it('warns about unknown placeholders after upload', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
+        await openTemplatesTab();
+        await screen.findAllByText('Certificate.docx');
         fireEvent.change(newTemplateInput(), { target: { files: [docxFile('{fullName} {Tutor} {Tuter}')] } });
 
         await waitFor(() => expect(storage.upload).toHaveBeenCalled());
@@ -248,11 +325,14 @@ describe('DocumentGenerator', () => {
 
     it('replaces a template file in place and removes the old file', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
+        await openTemplatesTab();
+        await screen.findAllByText('Certificate.docx');
         const replace = screen.getByRole('button', { name: 'Replace Certificate.docx with a new file' });
-        fireEvent.change(replace.parentElement!.querySelector('input[type="file"]')!, { target: { files: [docxFile('{fullName}', 'Certificate v2.docx')] } });
+        fireEvent.change(replace.parentElement!.querySelector('input[type="file"]')!, {
+            target: { files: [docxFile('{fullName}', 'Certificate v2.docx')] },
+        });
 
-        expect(await screen.findByText('Certificate v2.docx')).toBeInTheDocument();
+        expect((await screen.findAllByText('Certificate v2.docx')).length).toBeGreaterThan(0);
         const update = calls.find(c => c.table === 'document_templates' && c.op === 'update');
         expect(update?.eq).toBe('t1');
         expect(update?.payload).toMatchObject({ name: 'Certificate v2.docx', storage_path: expect.stringMatching(/^template_/) });
@@ -261,7 +341,8 @@ describe('DocumentGenerator', () => {
 
     it('removes the uploaded file again when saving the template fails', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
+        await openTemplatesTab();
+        await screen.findAllByText('Certificate.docx');
         fail.document_templates = 'permission denied';
         fireEvent.change(newTemplateInput(), { target: { files: [docxFile('{fullName}')] } });
 
@@ -272,13 +353,15 @@ describe('DocumentGenerator', () => {
 
     it('downloads a stored template', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
+        await openTemplatesTab();
+        await screen.findAllByText('Certificate.docx');
         fireEvent.click(screen.getByRole('button', { name: 'Download Certificate.docx' }));
         await waitFor(() => expect(downloadBlob).toHaveBeenCalledWith(expect.any(Blob), 'Certificate.docx'));
     });
 
     it('saves reordered Excel columns for every admin', async () => {
         renderPage();
+        await openVariablesTab();
         fireEvent.click(await screen.findByRole('button', { name: 'Move Last Name up' }));
         await waitFor(() => expect(calls.some(c => c.table === 'document_settings' && c.op === 'upsert')).toBe(true));
         const saved = calls.find(c => c.op === 'upsert')!.payload as { excel_columns: { header: string }[] };
@@ -286,12 +369,13 @@ describe('DocumentGenerator', () => {
         expect(screen.getByText(/shared by every admin/)).toBeInTheDocument();
     });
 
-    it('reorders Word document templates and updates course preset order', async () => {
+    it('reorders Word document templates via sort_order without clobbering course preset order', async () => {
         tables.document_templates.push({
             id: 't2',
             name: 'SICAP Individual Form.docx',
             storage_path: 'template_2.docx',
             is_active: true,
+            sort_order: 1,
             created_at: '2026-01-02T00:00:00.000Z',
             updated_at: '2026-01-02T00:00:00.000Z',
         });
@@ -300,17 +384,45 @@ describe('DocumentGenerator', () => {
         await chooseCourse();
         expect(screen.getByText(/2 Word templates per student \(course preset\): Certificate\.docx, SICAP Individual Form\.docx/)).toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Move SICAP Individual Form.docx up' }));
+        await openTemplatesTab();
+        fireEvent.click(await screen.findByRole('button', { name: 'Move SICAP Individual Form.docx up' }));
         await waitFor(() => expect(calls.some(c => c.table === 'document_templates' && c.op === 'update')).toBe(true));
+        const tplUpdates = calls.filter(c => c.table === 'document_templates' && c.op === 'update');
+        expect(tplUpdates.map(u => ({ eq: u.eq, payload: u.payload }))).toEqual([
+            { eq: 't2', payload: { sort_order: 0 } },
+            { eq: 't1', payload: { sort_order: 1 } },
+        ]);
+        // Global reorder must NOT overwrite per-course template_ids
+        expect(calls.some(c => c.table === 'courses' && c.op === 'update')).toBe(false);
+    });
+
+    it('edits a course template preset directly from the Templates tab', async () => {
+        tables.document_templates.push({
+            id: 't2',
+            name: 'Welcome Letter.docx',
+            storage_path: 'template_2.docx',
+            is_active: true,
+            sort_order: 1,
+            created_at: '2026-01-02',
+            updated_at: '2026-01-02',
+        });
+        renderPage();
+        await openTemplatesTab();
+        await screen.findByText('Course template presets');
+
+        const presetCheckbox = screen.getByRole('checkbox', { name: /Welcome Letter\.docx/i });
+        fireEvent.click(presetCheckbox);
+        fireEvent.click(screen.getByRole('button', { name: /Save preset/i }));
+
         await waitFor(() => expect(calls.some(c => c.table === 'courses' && c.op === 'update')).toBe(true));
         const courseUpdate = calls.find(c => c.table === 'courses' && c.op === 'update');
-        expect(courseUpdate?.payload).toEqual({ template_ids: ['t2', 't1'] });
+        expect(courseUpdate?.payload).toEqual({ template_ids: ['t2'] });
     });
 
     it('creates a date variable worked out from the course date', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
-        fireEvent.click(screen.getByRole('tab', { name: /Date from course/ }));
+        await openVariablesTab();
+        fireEvent.click(await screen.findByRole('tab', { name: /Date from course/ }));
         fireEvent.change(screen.getByLabelText('Variable Name'), { target: { value: 'expire' } });
         fireEvent.change(screen.getByLabelText('Amount to add'), { target: { value: '4' } });
         fireEvent.change(screen.getByLabelText('Date format'), { target: { value: 'dmy' } });
@@ -318,23 +430,40 @@ describe('DocumentGenerator', () => {
 
         expect(await screen.findByText('Variable {expire} added')).toBeInTheDocument();
         const insert = calls.find(c => c.table === 'template_variables' && c.op === 'insert');
-        expect(insert?.payload).toEqual({ var_key: 'expire', var_value: '', kind: 'date', date_rule: { base: 'courseDate', amount: 4, unit: 'years', format: 'dmy' } });
+        expect(insert?.payload).toEqual({
+            var_key: 'expire',
+            var_value: '',
+            kind: 'date',
+            date_rule: { base: 'courseDate', amount: 4, unit: 'years', format: 'dmy' },
+        });
         expect(screen.getAllByText('Course date + 4 years').length).toBeGreaterThan(0);
     });
 
     it('edits the rule of a date variable and uses it when generating', async () => {
-        tables.template_variables.push({ id: 'v2', var_key: 'expire', var_value: '', kind: 'date', date_rule: { base: 'courseDate', amount: 2, unit: 'years', format: 'long' }, created_at: '2026-01-02' });
+        tables.template_variables.push({
+            id: 'v2',
+            var_key: 'expire',
+            var_value: '',
+            kind: 'date',
+            date_rule: { base: 'courseDate', amount: 2, unit: 'years', format: 'long' },
+            created_at: '2026-01-02',
+        });
         storage.download.mockImplementation(async () => ({ data: new Blob([docx('{fullName} until {expire}')]), error: null }));
         renderPage();
-        const row = (await screen.findAllByText('Course date + 2 years')).map(el => el.closest('li')).find(Boolean)!;
-        fireEvent.click(within(row).getByRole('button', { name: 'Edit value' }));
+        await openVariablesTab();
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit expire' }));
         fireEvent.change(screen.getByLabelText('Amount to add'), { target: { value: '3' } });
         fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(await screen.findByText('Variable {expire} updated')).toBeInTheDocument();
         const update = calls.find(c => c.table === 'template_variables' && c.op === 'update');
-        expect(update?.payload).toEqual({ date_rule: { base: 'courseDate', amount: 3, unit: 'years', format: 'long' } });
+        expect(update?.payload).toEqual({
+            kind: 'date',
+            var_value: '',
+            date_rule: { base: 'courseDate', amount: 3, unit: 'years', format: 'long' },
+        });
 
+        fireEvent.click(screen.getByRole('tab', { name: /^Generate/ }));
         await chooseCourse();
         fireEvent.click(generateButton());
         await waitFor(() => expect(downloadBlob).toHaveBeenCalled());
@@ -345,9 +474,9 @@ describe('DocumentGenerator', () => {
 
     it('rejects custom variable names that cannot be used as a tag', async () => {
         renderPage();
-        await screen.findByText('Certificate.docx');
-        fireEvent.change(screen.getByLabelText('Variable Name'), { target: { value: 'Tutor Name' } });
-        fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0]); // custom variables come before Excel columns
+        await openVariablesTab();
+        fireEvent.change(await screen.findByLabelText('Variable Name'), { target: { value: 'Tutor Name' } });
+        fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0]);
         expect(await screen.findByText(/Use letters, digits and _ only/)).toBeInTheDocument();
     });
 });

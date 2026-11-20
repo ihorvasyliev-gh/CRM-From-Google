@@ -12,7 +12,8 @@ import {
     Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
     Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
     X, CornerDownLeft, Sparkles, Loader2, Receipt,
-    SlidersHorizontal, Mail, Award, GitMerge, MailX, ShieldCheck
+    SlidersHorizontal, Mail, Award, GitMerge, MailX, ShieldCheck,
+    FileArchive, FolderOpen, Braces
 } from 'lucide-react';
 import type { NavigateFn } from '../lib/navigation';
 import { kbdLabel } from '../lib/platform';
@@ -215,6 +216,30 @@ export default function CommandPalette({
                         tab: 'settings?tab=users',
                         icon: <ShieldCheck size={17} />,
                         keywords: ['users', 'roles', 'admin', 'viewer', 'outreach', 'forms', 'access', 'permissions', 'settings'],
+                    },
+                    {
+                        id: 'nav-docs-generate',
+                        title: 'Documents → Generate Studio',
+                        subtitle: 'Generate personalised documents, live .docx preview and ZIP archive',
+                        tab: 'documents?tab=generate',
+                        icon: <FileArchive size={17} />,
+                        keywords: ['documents', 'generate', 'zip', 'docx', 'preview', 'attendance', 'labels', 'sicap', 'studio'],
+                    },
+                    {
+                        id: 'nav-docs-templates',
+                        title: 'Documents → Templates & Presets',
+                        subtitle: 'Word templates, attendance sheet, labels, SICAP form and course presets',
+                        tab: 'documents?tab=templates',
+                        icon: <FolderOpen size={17} />,
+                        keywords: ['templates', 'word', 'docx', 'preset', 'sicap', 'attendance', 'labels', 'documents'],
+                    },
+                    {
+                        id: 'nav-docs-variables',
+                        title: 'Documents → Variables & Excel',
+                        subtitle: 'Custom text/date variables, Participants.xlsx columns and placeholder tags',
+                        tab: 'documents?tab=variables',
+                        icon: <Braces size={17} />,
+                        keywords: ['variables', 'placeholders', 'excel', 'columns', 'participants', 'date', 'documents', 'tags'],
                     },
                 ];
 

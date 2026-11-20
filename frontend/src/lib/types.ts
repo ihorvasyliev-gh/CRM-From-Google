@@ -171,10 +171,26 @@ export function toStudentPayload(form: StudentFormData): StudentPayload {
 export interface DocumentTemplate {
     id: string;
     name: string;
+    /** Optional friendly label shown in UI & ZIP folders (migration 93); falls back to `name`. */
+    display_name?: string | null;
+    /** Optional short note describing when this template is used (migration 93). */
+    description?: string | null;
     storage_path: string;
     is_active: boolean;
+    /** Explicit ordering across document templates (migration 93). */
+    sort_order?: number | null;
+    /** Cached {placeholder} names extracted from the .docx on upload (migration 93). */
+    tags?: string[] | null;
+    /** Uploaded .docx file size in bytes (migration 93). */
+    size_bytes?: number | null;
     created_at: string;
     updated_at: string;
+}
+
+/** Label used for a template in UI and ZIP folders: display_name when set, else filename. */
+export function templateLabel(tpl: Pick<DocumentTemplate, 'name' | 'display_name'>): string {
+    const custom = tpl.display_name?.trim();
+    return custom || tpl.name;
 }
 
 export interface TemplateVariable {
@@ -187,6 +203,26 @@ export interface TemplateVariable {
     /** { base, amount, unit, format } — see DateRule in documentRender.ts */
     date_rule?: unknown;
     created_at: string;
+    updated_at?: string;
+}
+
+/** One recorded document generation run (migration 93, document_generations). */
+export interface DocumentGenerationRecord {
+    id: string;
+    created_at: string;
+    created_by?: string | null;
+    staff_name: string;
+    course_id: string | null;
+    course_name: string;
+    session_date: string | null;
+    status: 'confirmed' | 'completed' | 'mixed';
+    participant_count: number;
+    template_names: string[];
+    extras: string[];
+    file_name: string;
+    total_docs: number;
+    had_problems: boolean;
+    source: 'documents' | 'board';
 }
 
 /** A graduate's answer to the employment survey (employment_status table, one row per student). */

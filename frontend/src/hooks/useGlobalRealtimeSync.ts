@@ -209,6 +209,56 @@ export function useGlobalRealtimeSync() {
                     queueInvalidation(['student_flags']);
                 }
             )
+            // ─── Documents (templates, variables, Excel columns, run history) ─
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'document_templates' },
+                () => {
+                    queueInvalidation(['doc_templates']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'attendance_templates' },
+                () => {
+                    queueInvalidation(['doc_att_template']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'label_templates' },
+                () => {
+                    queueInvalidation(['doc_label_template']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'sicap_templates' },
+                () => {
+                    queueInvalidation(['doc_sicap_template']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'template_variables' },
+                () => {
+                    queueInvalidation(['doc_custom_vars']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'document_settings' },
+                () => {
+                    queueInvalidation(['doc_excel_columns']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'document_generations' },
+                () => {
+                    queueInvalidation(['doc_generations']);
+                }
+            )
             .subscribe((status, err) => {
                 // Ignore late status callbacks from channels we already replaced/removed —
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.

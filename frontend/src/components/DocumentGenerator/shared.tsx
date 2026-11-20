@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, Download, RefreshCw } from 'lucide-react';
 import { IconButton } from '../ui/Button';
 import { copyText } from '../Viewer/viewerUtils';
@@ -43,10 +43,26 @@ export function DownloadButton({ label, onClick }: { label: string; onClick: () 
 
 /** A `{placeholder}` chip that copies itself when clicked. */
 export function PlaceholderButton({ tag, desc, tone = 'brand' }: { tag: string; desc: ReactNode; tone?: 'brand' | 'custom' }) {
+    const [copied, setCopied] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+    }, []);
+
+    async function handleCopy() {
+        const token = `{${tag}}`;
+        const ok = await copyText(token, token);
+        if (!ok) return;
+        setCopied(true);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), 1500);
+    }
+
     return (
         <button
             type="button"
-            onClick={() => copyText(`{${tag}}`, 'Placeholder')}
+            onClick={() => void handleCopy()}
             className="w-full flex items-center gap-2 text-left text-[13px] px-1.5 py-1 -mx-1.5 rounded-lg hover:bg-surface-elevated transition-colors group"
             title={`Copy {${tag}}`}
         >
@@ -54,7 +70,14 @@ export function PlaceholderButton({ tag, desc, tone = 'brand' }: { tag: string; 
                 {`{${tag}}`}
             </code>
             <span className="text-muted truncate flex-1">{desc}</span>
-            <Copy size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+            {copied ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-status-confirmed shrink-0">
+                    <Check size={12} />
+                    Copied!
+                </span>
+            ) : (
+                <Copy size={12} className="text-muted opacity-60 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100 transition-opacity shrink-0" />
+            )}
         </button>
     );
 }

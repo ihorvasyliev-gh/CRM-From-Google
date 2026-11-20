@@ -154,9 +154,8 @@ export default function CourseList() {
         }
     }, [location.state, location.pathname, navigate]);
 
-    // Document templates switched on in settings — the ones a course can pick from
+    // All document templates — active ones can be picked, and switched-off ones already picked remain visible in CourseModal
     const { data: allTemplates = [] } = useQuery({ queryKey: ['doc_templates'], queryFn: fetchDocumentTemplates });
-    const activeTemplates = useMemo(() => allTemplates.filter(t => t.is_active), [allTemplates]);
 
     // Helper to update courses cache optimistically
     const setCourses = useCallback((updater: (prev: Course[]) => Course[]) => {
@@ -176,6 +175,7 @@ export default function CourseList() {
             updateCachedRelations(queryClient, { courses: [{ id: data.id, name: data.name, requires_english: data.requires_english ?? false, max_capacity: maxCapacity }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             // Other lists of courses (documents) and open student cards show the new name too
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
             queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: [...ENROLLMENTS_KEY, 'by_student'] });
             notify({ message: 'Course updated', type: 'success' });
@@ -187,6 +187,8 @@ export default function CourseList() {
             if (error) throw new Error(error.message);
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             notify({ message: 'Course created', type: 'success' });
         }
     }
@@ -225,6 +227,8 @@ export default function CourseList() {
             // Its enrollments were deleted with it
             removeCachedEnrollments(queryClient, e => e.course_id === deleteTarget.id);
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             notify({ message: 'Course deleted', type: 'success' });
         }
@@ -401,7 +405,7 @@ export default function CourseList() {
                     key={courseModalMount.key}
                     open={modalOpen}
                     course={editingCourse}
-                    templates={activeTemplates}
+                    templates={allTemplates}
                     onSave={handleSave}
                     onClose={() => setModalOpen(false)}
                 />

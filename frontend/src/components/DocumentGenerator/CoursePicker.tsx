@@ -19,6 +19,7 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
     const rootRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const listId = useId();
     const selected = courses.find(c => c.id === value);
@@ -28,18 +29,24 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
         return q ? courses.filter(c => c.name.toLowerCase().includes(q)) : courses;
     }, [courses, query]);
 
+    const safeActive = matches.length > 0 ? Math.min(active, matches.length - 1) : 0;
+
     const openList = () => {
         setQuery('');
         setActive(Math.max(0, courses.findIndex(c => c.id === value)));
         setOpen(true);
     };
+    const closeAndFocusTrigger = () => {
+        setOpen(false);
+        triggerRef.current?.focus();
+    };
     const pick = (course: Course | undefined) => {
         if (!course) return;
         onChange(course.id);
-        setOpen(false);
+        closeAndFocusTrigger();
     };
 
-    // Close when focus or a click leaves the picker
+    // Close when a pointer interaction lands outside the picker
     useEffect(() => {
         if (!open) return;
         const onPointer = (e: PointerEvent) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false); };
@@ -48,24 +55,37 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
     }, [open]);
 
     useEffect(() => {
-        listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView?.({ block: 'nearest' });
-    }, [active, open]);
+        listRef.current?.querySelector(`[data-index="${safeActive}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    }, [safeActive, open]);
 
     const onKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(i + 1, matches.length - 1)); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(i + 1, Math.max(0, matches.length - 1))); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(i - 1, 0)); }
-        else if (e.key === 'Enter') { e.preventDefault(); pick(matches[active]); }
-        else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+        else if (e.key === 'Enter') { e.preventDefault(); pick(matches[safeActive]); }
+        else if (e.key === 'Escape') { e.preventDefault(); closeAndFocusTrigger(); }
     };
 
     return (
-        <div ref={rootRef} className="relative z-30">
+        <div
+            ref={rootRef}
+            className="relative z-30"
+            onBlur={e => {
+                if (open && !rootRef.current?.contains(e.relatedTarget as Node | null)) {
+                    setOpen(false);
+                }
+            }}
+        >
             <button
+                ref={triggerRef}
                 type="button"
                 onClick={() => (open ? setOpen(false) : openList())}
-                onKeyDown={e => { if (e.key === 'ArrowDown' && !open) { e.preventDefault(); openList(); } }}
+                onKeyDown={e => {
+                    if (e.key === 'ArrowDown' && !open) { e.preventDefault(); openList(); }
+                    else if (e.key === 'Escape' && open) { e.preventDefault(); setOpen(false); }
+                }}
                 aria-haspopup="listbox"
                 aria-expanded={open}
+                aria-controls={listId}
                 className="w-full flex items-center justify-between gap-3 h-11 px-3.5 bg-surface border border-border-subtle rounded-xl text-sm transition-colors hover:border-border-strong focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
             >
                 <span className="flex items-center gap-2.5 min-w-0">
@@ -78,16 +98,19 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
             </button>
 
             {open && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-surface rounded-xl shadow-float border border-border-subtle p-1 animate-popoverScaleIn origin-top">
+                <div
+                    tabIndex={-1}
+                    className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-surface rounded-xl shadow-float border border-border-subtle p-1 animate-popoverScaleIn origin-top"
+                >
                     <div className="relative mb-1">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                         <input
                             autoFocus
                             role="combobox"
                             aria-label="Search courses"
-                            aria-expanded
+                            aria-expanded={open}
                             aria-controls={listId}
-                            aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
+                            aria-activedescendant={matches[safeActive] ? `${listId}-${safeActive}` : undefined}
                             value={query}
                             onChange={e => { setQuery(e.target.value); setActive(0); }}
                             onKeyDown={onKeyDown}
@@ -110,10 +133,11 @@ export default function CoursePicker({ courses, counts, countLabel, value, onCha
                                     role="option"
                                     aria-selected={isSelected}
                                     onMouseEnter={() => setActive(i)}
+                                    onMouseDown={e => e.preventDefault()}
                                     onClick={() => pick(c)}
                                     className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm cursor-pointer transition-colors ${
                                         isSelected ? 'text-brand-600 dark:text-brand-400 font-medium' : 'text-primary'
-                                    } ${i === active ? 'bg-surface-elevated' : ''}`}
+                                    } ${i === safeActive ? 'bg-surface-elevated' : ''}`}
                                 >
                                     <span className="truncate">{c.name}</span>
                                     <Badge tone={isSelected ? 'brand' : 'neutral'} shape="pill" className="tabular-nums shrink-0">

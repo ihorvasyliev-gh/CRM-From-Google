@@ -1,8 +1,11 @@
-// Document generation: templates and settings in Supabase, and the archive run.
+// Document generation: templates and settings in Supabase, generation history, and the archive run.
 // The rendering itself lives in documentRender.ts and runs in a Web Worker (documentJob.ts).
 import { supabase } from './supabase';
 import { fetchEnrollmentsByIds } from './queries';
-import { cleanVariant, fullName, type DocumentTemplate, type Enrollment, type TemplateVariable } from './types';
+import {
+    cleanVariant, fullName, templateLabel,
+    type DocumentGenerationRecord, type DocumentTemplate, type Enrollment, type TemplateVariable,
+} from './types';
 import { formatDateSpaces, todayISO } from './dateUtils';
 import { getConfig, setConfig, type ExcelColumn } from './appConfig';
 import { downloadBlob } from './download';
@@ -11,13 +14,15 @@ import { styledTable, xlsxBlob } from './excelExport';
 import { runRenderJob } from './documentJob';
 import { courseDateKey, SESSION_COLUMNS, sessionFromRow } from './courseSessions';
 import {
-    abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, parseDateRule,
-    type DateVariable, type DocContext, type EnrollmentWithRelations, type SessionMap, type ExtraFile, type GenerationResult, type TemplateCheck, type TemplateFile, type TemplateKind,
+    abortError, buildPlaceholderData, checkTemplateBuffer, courseDateOf, dateVariableValues, inspectTemplateBuffer, parseDateRule, sortBySurname,
+    type DateVariable, type DocContext, type EnrollmentWithRelations, type ExtraFile, type GenerationResult,
+    type SessionMap, type TemplateCheck, type TemplateFile, type TemplateInspection, type TemplateKind,
 } from './documentRender';
 
 export * from './documentRender';
 
 const BUCKET = 'templates';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 /** Descriptor for a template to be rendered. */
 export interface TemplateDescriptor {
@@ -25,6 +30,24 @@ export interface TemplateDescriptor {
     storagePath: string;
 }
 
+/** Optional metadata persisted when migration 93 columns exist. */
+export interface TemplateUploadMeta {
+    tags?: string[];
+    sizeBytes?: number;
+    sortOrder?: number;
+    displayName?: string | null;
+    description?: string;
+}
+
+// ─── Error helpers ──────────────────────────────────────────
+
+/** PostgREST (PGRST205) or Postgres (42P01): the table does not exist yet, its migration has not run. */
+export const isMissingTable = (error: { code?: string; message?: string } | null | undefined) =>
+    error?.code === 'PGRST205' || error?.code === '42P01';
+
+/** PostgREST (PGRST204) or Postgres (42703): a migration-93 column does not exist yet. */
+export const isMissingColumn = (error: { code?: string; message?: string } | null | undefined) =>
+    error?.code === 'PGRST204' || error?.code === '42703' || /column .* does not exist|could not find the .* column/i.test(error?.message || '');
 
 // ─── Templates ──────────────────────────────────────────────
 
@@ -39,16 +62,26 @@ export const SINGLE_TEMPLATES = {
 export type SingleKind = keyof typeof SINGLE_TEMPLATES;
 
 export async function fetchDocumentTemplates(): Promise<DocumentTemplate[]> {
-    const { data, error } = await supabase.from('document_templates').select('*').order('created_at', { ascending: true });
-    if (error) throw error;
-    return (data || []) as DocumentTemplate[];
+    const ordered = await supabase
+        .from('document_templates')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+    if (!ordered.error) return (ordered.data || []) as DocumentTemplate[];
+    if (!isMissingColumn(ordered.error)) throw ordered.error;
+
+    // Pre-migration 93 fallback: sort_order column does not exist yet
+    const legacy = await supabase.from('document_templates').select('*').order('created_at', { ascending: true });
+    if (legacy.error) throw legacy.error;
+    return (legacy.data || []) as DocumentTemplate[];
 }
 
-/** PostgREST (PGRST205) or Postgres (42P01): the table does not exist yet, its migration has not run. */
-export const isMissingTable = (error: { code?: string } | null | undefined) => error?.code === 'PGRST205' || error?.code === '42P01';
-
 export async function fetchSingleTemplate(kind: SingleKind): Promise<DocumentTemplate | null> {
-    const { data, error } = await supabase.from(SINGLE_TEMPLATES[kind].table).select('*').order('updated_at', { ascending: false }).limit(1);
+    const { data, error } = await supabase
+        .from(SINGLE_TEMPLATES[kind].table)
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(1);
     // Before migration 91 there is no SICAP table: the card says to run it, the rest works as before
     if (error && kind === 'sicap' && isMissingTable(error)) return null;
     if (error) throw error;
@@ -90,18 +123,36 @@ export async function checkTemplate(file: Blob, kind: TemplateKind, customVariab
     return checkTemplateBuffer(await file.arrayBuffer(), kind, customVariables);
 }
 
+/** Full template inspection returning extracted tags, unknown tags and corrupt-file detection. */
+export async function inspectTemplate(file: Blob, kind: TemplateKind, customVariables: Record<string, string> = {}): Promise<TemplateInspection> {
+    return inspectTemplateBuffer(await file.arrayBuffer(), kind, customVariables);
+}
+
+function uniqueStoragePath(prefix: string): string {
+    const uuid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+        : Math.random().toString(36).slice(2, 10);
+    return `${prefix}_${Date.now()}_${uuid}.docx`;
+}
+
 /** Upload a .docx to the templates bucket under a fresh, unique path. */
 async function uploadTemplateFile(file: File, prefix: string): Promise<string> {
-    const storagePath = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.docx`;
-    const { error } = await supabase.storage.from(BUCKET).upload(storagePath, file, { cacheControl: '3600', upsert: false });
+    const storagePath = uniqueStoragePath(prefix);
+    const { error } = await supabase.storage.from(BUCKET).upload(storagePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: DOCX_MIME,
+    });
     if (error) throw error;
     return storagePath;
 }
 
 /** Remove stored files. A failure only leaves an unused file behind, so it is logged, not thrown. */
 async function removeTemplateFiles(paths: string[]): Promise<void> {
-    const { error } = await supabase.storage.from(BUCKET).remove(paths);
-    if (error) console.warn(`Could not remove ${paths.join(', ')} from storage:`, error);
+    const valid = paths.filter(Boolean);
+    if (!valid.length) return;
+    const { error } = await supabase.storage.from(BUCKET).remove(valid);
+    if (error) console.warn(`Could not remove ${valid.join(', ')} from storage:`, error);
 }
 
 /**
@@ -118,14 +169,36 @@ async function withUploadedFile<T>(file: File, prefix: string, save: (storagePat
     }
 }
 
-/** Add a template row (document, attendance or labels) for a new file. */
-export async function createTemplate(table: TemplateTable, file: File, prefix: string): Promise<DocumentTemplate> {
+/** Add a template row (document, attendance, labels, or SICAP) for a new file. */
+export async function createTemplate(
+    table: TemplateTable,
+    file: File,
+    prefix: string,
+    meta: TemplateUploadMeta = {},
+): Promise<DocumentTemplate> {
     return withUploadedFile(file, prefix, async storagePath => {
-        const row: Record<string, unknown> = { name: file.name, storage_path: storagePath };
-        if (table === 'document_templates') row.is_active = true;
-        const { data, error } = await supabase.from(table).insert(row).select().single();
-        if (error) throw error;
-        return data as DocumentTemplate;
+        const legacyRow: Record<string, unknown> = { name: file.name, storage_path: storagePath };
+        if (table === 'document_templates') legacyRow.is_active = true;
+
+        const richRow: Record<string, unknown> = {
+            ...legacyRow,
+            ...(meta.tags ? { tags: meta.tags } : {}),
+            ...(meta.sizeBytes !== undefined ? { size_bytes: meta.sizeBytes } : { size_bytes: file.size }),
+        };
+        if (table === 'document_templates') {
+            if (meta.sortOrder !== undefined) richRow.sort_order = meta.sortOrder;
+            if (meta.displayName !== undefined) richRow.display_name = meta.displayName;
+            if (meta.description !== undefined) richRow.description = meta.description;
+        }
+
+        const first = await supabase.from(table).insert(richRow).select().single();
+        if (!first.error) return first.data as DocumentTemplate;
+        if (!isMissingColumn(first.error)) throw first.error;
+
+        // Pre-migration 93 fallback
+        const fallback = await supabase.from(table).insert(legacyRow).select().single();
+        if (fallback.error) throw fallback.error;
+        return fallback.data as DocumentTemplate;
     });
 }
 
@@ -133,15 +206,66 @@ export async function createTemplate(table: TemplateTable, file: File, prefix: s
  * Point an existing template at a new file. The row keeps its id, so course presets keep
  * working; the old file is removed only after the row points at the new one.
  */
-export async function replaceTemplateFile(table: TemplateTable, current: DocumentTemplate, file: File, prefix: string): Promise<DocumentTemplate> {
+export async function replaceTemplateFile(
+    table: TemplateTable,
+    current: DocumentTemplate,
+    file: File,
+    prefix: string,
+    meta: TemplateUploadMeta = {},
+): Promise<DocumentTemplate> {
     const updated = await withUploadedFile(file, prefix, async storagePath => {
-        const patch = { name: file.name, storage_path: storagePath, updated_at: new Date().toISOString() };
-        const { error } = await supabase.from(table).update(patch).eq('id', current.id);
-        if (error) throw error;
-        return { ...current, ...patch };
+        const now = new Date().toISOString();
+        const legacyPatch: Record<string, unknown> = { name: file.name, storage_path: storagePath, updated_at: now };
+        const richPatch: Record<string, unknown> = {
+            ...legacyPatch,
+            ...(meta.tags ? { tags: meta.tags } : {}),
+            size_bytes: meta.sizeBytes ?? file.size,
+        };
+
+        const runUpdate = async (patch: Record<string, unknown>) =>
+            supabase.from(table).update(patch).eq('id', current.id).select().single();
+
+        let res = await runUpdate(richPatch);
+        if (res.error && isMissingColumn(res.error)) {
+            res = await runUpdate(legacyPatch);
+        }
+        if (res.error) {
+            if (res.error.code === 'PGRST116') {
+                throw new Error('This template was deleted by another admin. Reload the page to refresh.');
+            }
+            throw res.error;
+        }
+        return (res.data as DocumentTemplate | null) ?? ({ ...current, ...legacyPatch } as DocumentTemplate);
     });
     await removeTemplateFiles([current.storage_path]);
     return updated;
+}
+
+/** Rename a Word template or update its description (migration 93). */
+export async function updateTemplateMetadata(
+    id: string,
+    patch: { display_name?: string | null; description?: string },
+): Promise<DocumentTemplate> {
+    const cleanPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.display_name !== undefined) cleanPatch.display_name = patch.display_name?.trim() || null;
+    if (patch.description !== undefined) cleanPatch.description = patch.description.trim();
+
+    const { data, error } = await supabase
+        .from('document_templates')
+        .update(cleanPatch)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) {
+        if (isMissingColumn(error)) {
+            throw new Error('Run migration 93_documents_redesign.sql in Supabase first to rename templates or save descriptions.');
+        }
+        if (error.code === 'PGRST116') {
+            throw new Error('This template no longer exists.');
+        }
+        throw error;
+    }
+    return data as DocumentTemplate;
 }
 
 export async function deleteTemplate(table: TemplateTable, row: DocumentTemplate): Promise<void> {
@@ -151,12 +275,35 @@ export async function deleteTemplate(table: TemplateTable, row: DocumentTemplate
 }
 
 /**
- * Persist a new template order. `fetchDocumentTemplates` sorts by `created_at` ascending, so
- * assigning strictly increasing `created_at` timestamps reorders templates without a schema change.
- * Course presets (`courses.template_ids`) are also reordered to match.
+ * Persist a new global template order.
+ * Uses `sort_order` when migration 93 has run (leaving per-course `courses.template_ids`
+ * custom ordering untouched!), and falls back to strictly increasing `created_at` pre-migration.
  */
 export async function saveTemplateOrder(ordered: DocumentTemplate[]): Promise<DocumentTemplate[]> {
     if (ordered.length < 2) return ordered;
+
+    // Try migration-93 `sort_order` first
+    const probe = ordered[0];
+    const probeRes = await supabase
+        .from('document_templates')
+        .update({ sort_order: 0 })
+        .eq('id', probe.id);
+
+    if (!probeRes.error) {
+        const rest = ordered.slice(1);
+        await Promise.all(rest.map(async (tpl, idx) => {
+            const { error } = await supabase
+                .from('document_templates')
+                .update({ sort_order: idx + 1 })
+                .eq('id', tpl.id);
+            if (error) throw error;
+        }));
+        return ordered.map((tpl, idx) => ({ ...tpl, sort_order: idx }));
+    }
+
+    if (!isMissingColumn(probeRes.error)) throw probeRes.error;
+
+    // Pre-migration 93 fallback: strictly increasing created_at timestamps
     const parsed = ordered.map(t => Date.parse(t.created_at)).filter(Number.isFinite);
     let cursor = parsed.length ? Math.min(...parsed) : Date.now() - ordered.length * 1000;
     const next: DocumentTemplate[] = [];
@@ -177,23 +324,23 @@ export async function saveTemplateOrder(ordered: DocumentTemplate[]): Promise<Do
         const { error } = await supabase.from('document_templates').update({ created_at: u.created_at }).eq('id', u.id);
         if (error) throw error;
     }));
-
-    const rank = new Map(ordered.map((t, i) => [t.id, i]));
-    const { data: courses } = await supabase.from('courses').select('id, template_ids');
-    if (Array.isArray(courses)) {
-        const courseUpdates = (courses as { id: string; template_ids?: string[] | null }[]).flatMap(c => {
-            const ids = c.template_ids;
-            if (!Array.isArray(ids) || ids.length < 2) return [];
-            const sorted = [...ids].sort((a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER));
-            return sorted.some((id, i) => id !== ids[i]) ? [{ id: c.id, template_ids: sorted }] : [];
-        });
-        await Promise.all(courseUpdates.map(u => supabase.from('courses').update({ template_ids: u.template_ids }).eq('id', u.id)));
-    }
     return next;
 }
 
-/** Download a template's bytes. The bucket is private, so this goes through the signed-in session. */
-async function fetchTemplateFile(storagePath: string): Promise<ArrayBuffer> {
+/** Save a course's custom template preset (`courses.template_ids`). */
+export async function saveCourseTemplatePreset(courseId: string, templateIds: string[]): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('courses')
+        .update({ template_ids: templateIds })
+        .eq('id', courseId)
+        .select('template_ids')
+        .single();
+    if (error) throw error;
+    return (data?.template_ids as string[] | null) ?? templateIds;
+}
+
+/** Download a template's raw bytes. The bucket is private, so this goes through the signed-in session. */
+export async function fetchTemplateBuffer(storagePath: string): Promise<ArrayBuffer> {
     const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
     if (error || !data) throw new Error(/not.?found|404/i.test(error?.message || '') ? 'File not found' : (error?.message || 'No data'));
     return data.arrayBuffer();
@@ -201,9 +348,9 @@ async function fetchTemplateFile(storagePath: string): Promise<ArrayBuffer> {
 
 /** Save a stored template to the computer, e.g. to edit it in Word and upload it again. */
 export async function downloadTemplate(tpl: Pick<DocumentTemplate, 'name' | 'storage_path'>): Promise<void> {
-    const buffer = await fetchTemplateFile(tpl.storage_path);
+    const buffer = await fetchTemplateBuffer(tpl.storage_path);
     const name = /\.docx$/i.test(tpl.name) ? tpl.name : `${tpl.name}.docx`;
-    downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), name);
+    downloadBlob(new Blob([buffer], { type: DOCX_MIME }), name);
 }
 
 // ─── Course presets ─────────────────────────────────────────
@@ -322,10 +469,18 @@ export async function fetchExcelColumns(): Promise<{ columns: ExcelColumn[]; sha
 }
 
 export async function saveExcelColumns(columns: ExcelColumn[], shared: boolean): Promise<void> {
-    setConfig({ excelColumns: columns });
-    if (!shared) return;
-    const { error } = await supabase.from('document_settings').upsert({ id: true, excel_columns: columns, updated_at: new Date().toISOString() });
+    if (!shared) {
+        setConfig({ excelColumns: columns });
+        return;
+    }
+    // Persist to shared table first; only mirror locally after DB write succeeds so rollbacks never desync
+    const { error } = await supabase.from('document_settings').upsert({
+        id: true,
+        excel_columns: columns,
+        updated_at: new Date().toISOString(),
+    });
     if (error) throw error;
+    setConfig({ excelColumns: columns });
 }
 
 async function buildParticipantsWorkbook(
@@ -336,12 +491,48 @@ async function buildParticipantsWorkbook(
     today: string,
     context: DocContext,
 ): Promise<ArrayBuffer> {
-    const rows = enrollments.map(enrollment => {
+    const sorted = sortBySurname(enrollments);
+    const rows = sorted.map(enrollment => {
         const data = { ...buildPlaceholderData(enrollment, today, context), ...customVariables, ...dateVariableValues(dateVariables, enrollment, today) };
         return columns.map(col => data[col.placeholder]);
     });
     const sheet = styledTable('Participants', columns.map(col => col.header), rows, { filter: true });
     return (await xlsxBlob([sheet])).arrayBuffer();
+}
+
+// ─── Generation history (migration 93) ──────────────────────
+
+export async function fetchDocumentGenerations(limit = 30): Promise<{ records: DocumentGenerationRecord[]; ready: boolean }> {
+    const { data, error } = await supabase
+        .from('document_generations')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (error) {
+        if (isMissingTable(error)) return { records: [], ready: false };
+        throw error;
+    }
+    return { records: (data || []) as DocumentGenerationRecord[], ready: true };
+}
+
+export type NewGenerationRecord = Omit<DocumentGenerationRecord, 'id' | 'created_at' | 'created_by'>;
+
+export async function recordDocumentGeneration(entry: NewGenerationRecord): Promise<DocumentGenerationRecord | null> {
+    try {
+        const { data, error } = await supabase
+            .from('document_generations')
+            .insert(entry)
+            .select()
+            .single();
+        if (error) {
+            if (isMissingTable(error)) return null;
+            console.warn('Could not log document generation run:', error);
+            return null;
+        }
+        return data as DocumentGenerationRecord;
+    } catch {
+        return null;
+    }
 }
 
 // ─── Context: course date schedules, signed-in staff member ─
@@ -384,6 +575,8 @@ export async function fetchDocContext(people: EnrollmentWithRelations[]): Promis
 
 // ─── Archive ────────────────────────────────────────────────
 
+export type GenerationPhase = 'refreshing' | 'downloading' | 'rendering' | 'packing';
+
 export interface ArchiveOptions {
     enrollments: EnrollmentWithRelations[];
     templates: TemplateDescriptor[];
@@ -400,6 +593,8 @@ export interface ArchiveOptions {
     combined?: boolean;
     /** Called after every generated file. */
     onProgress?: (done: number, total: number) => void;
+    /** Called when moving between pipeline phases. */
+    onPhase?: (phase: GenerationPhase) => void;
     /** Abort to cancel the run; it then rejects with an AbortError. */
     signal?: AbortSignal;
     /** Override template download (tests). */
@@ -410,11 +605,14 @@ export interface ArchiveOptions {
 export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ blob: Blob; result: GenerationResult }> {
     const {
         templates, attendanceTemplatePath, labelTemplatePath, sicapTemplatePath, excelColumns = [], combined = false,
-        customVariables = {}, dateVariables = [], onProgress, signal, fetchTemplate = fetchTemplateFile, today = todayISO(), context = {},
+        customVariables = {}, dateVariables = [], onProgress, onPhase, signal,
+        fetchTemplate = fetchTemplateBuffer, today = todayISO(), context = {},
     } = options;
-    const people = options.enrollments.filter(e => e.students);
+    if (signal?.aborted) throw abortError();
+    const people = sortBySurname(options.enrollments.filter(e => e.students));
     const hasPeople = people.length > 0;
 
+    onPhase?.('downloading');
     // Download every template (and build the Excel list) up front, in parallel
     const download = (name: string, path: string): Promise<TemplateFile> => fetchTemplate(path).then(
         buffer => ({ name, buffer }),
@@ -433,9 +631,16 @@ export async function buildDocumentsArchive(options: ArchiveOptions): Promise<{ 
     ]);
     if (signal?.aborted) throw abortError();
 
+    onPhase?.('rendering');
     const { zip, result } = await runRenderJob(
         { enrollments: people, templates: docFiles, attendance, labels, sicap, extraFiles: excel ? [excel] : [], customVariables, dateVariables, combined, today, context },
-        { onProgress, signal },
+        {
+            onProgress: (done, total) => {
+                onProgress?.(done, total);
+                if (total > 0 && done >= total) onPhase?.('packing');
+            },
+            signal,
+        },
     );
     return { blob: new Blob([zip], { type: 'application/zip' }), result };
 }
@@ -450,59 +655,126 @@ export async function generateDocumentsArchive(archiveName: string, options: Arc
 export interface SelectionOptions {
     /** Also add one combined file per student with all their templates, for printing. */
     combined?: boolean;
+    /** Optional subset of Word template IDs to include (undefined = course preset / all active). */
+    templateIds?: string[];
+    includeAttendance?: boolean;
+    includeLabels?: boolean;
+    includeSicap?: boolean;
+    includeExcel?: boolean;
     signal?: AbortSignal;
     onProgress?: (done: number, total: number) => void;
+    onPhase?: (phase: GenerationPhase) => void;
 }
 
 /**
  * Documents for a hand-picked selection (the enrollment board): re-reads the people,
- * then uses the course preset (when they are all on one course), the attendance and label
+ * then uses the course preset (or explicit `templateIds` overrides), the attendance/label/SICAP
  * templates, the shared Excel columns and the custom variables, and downloads the archive.
  */
 export async function generateSelectionArchive(
     selected: EnrollmentWithRelations[],
-    { combined = false, signal, onProgress }: SelectionOptions = {},
-): Promise<{ fileName: string; result: GenerationResult }> {
+    {
+        combined = false,
+        templateIds,
+        includeAttendance = true,
+        includeLabels = true,
+        includeSicap = true,
+        includeExcel = true,
+        signal,
+        onProgress,
+        onPhase,
+    }: SelectionOptions = {},
+): Promise<{ fileName: string; result: GenerationResult; skippedIds: string[]; staffName: string; people: EnrollmentWithRelations[] }> {
+    onPhase?.('refreshing');
     const { people, skipped } = await refreshParticipants(selected);
+    if (signal?.aborted) throw abortError();
     if (!people.length) throw new Error('The selected enrollments no longer exist.');
+
+    const keptIds = new Set(people.map(p => p.id));
+    const skippedIds = selected.filter(e => !keptIds.has(e.id)).map(e => e.id);
+
     const courseIds = [...new Set(people.map(e => e.course_id))];
     const [templates, attTemplate, lblTemplate, sicapTemplate, vars, excel, context, course] = await Promise.all([
         fetchDocumentTemplates(),
-        fetchSingleTemplate('attendance'),
-        fetchSingleTemplate('labels'),
-        fetchSingleTemplate('sicap'),
+        includeAttendance ? fetchSingleTemplate('attendance') : Promise.resolve(null),
+        includeLabels ? fetchSingleTemplate('labels') : Promise.resolve(null),
+        includeSicap ? fetchSingleTemplate('sicap') : Promise.resolve(null),
         fetchTemplateVariables(),
-        fetchExcelColumns(),
+        includeExcel ? fetchExcelColumns() : Promise.resolve({ columns: [] as ExcelColumn[], shared: true }),
         fetchDocContext(people),
-        // A course preset only applies when the whole selection is one course
-        courseIds.length === 1
+        // A course preset only applies when the whole selection is one course and no explicit override was given
+        templateIds === undefined && courseIds.length === 1
             ? supabase.from('courses').select('template_ids').eq('id', courseIds[0]).maybeSingle().then(({ data, error }) => {
                 if (error) throw error;
                 return data as { template_ids?: string[] | null } | null;
             })
             : null,
     ]);
-    const wordTemplates = templatesForCourse(templates, course?.template_ids);
-    if (!wordTemplates.length && !attTemplate && !lblTemplate && !sicapTemplate && !excel.columns.length) {
+    if (signal?.aborted) throw abortError();
+
+    let wordTemplates: DocumentTemplate[];
+    let presetOff = false;
+    if (templateIds !== undefined) {
+        const byId = new Map(templates.map(t => [t.id, t]));
+        wordTemplates = templateIds.map(id => byId.get(id)).filter((t): t is DocumentTemplate => !!t);
+    } else {
+        const preset = coursePreset(templates, course?.template_ids);
+        wordTemplates = preset.templates;
+        presetOff = preset.state === 'preset-off';
+    }
+
+    const activeExcelColumns = includeExcel ? excel.columns : [];
+    if (!wordTemplates.length && !attTemplate && !lblTemplate && !sicapTemplate && !activeExcelColumns.length) {
+        if (presetOff) {
+            throw new Error('Every Word template picked for this course is switched off, and no other outputs are enabled.');
+        }
         throw new Error('No active template found. Please upload and activate at least one template.');
     }
 
     const fileName = archiveFileName(people);
     const result = await generateDocumentsArchive(fileName, {
         enrollments: people,
-        templates: wordTemplates.map(t => ({ name: t.name, storagePath: t.storage_path })),
-        attendanceTemplatePath: attTemplate?.storage_path,
-        labelTemplatePath: lblTemplate?.storage_path,
-        sicapTemplatePath: sicapTemplate?.storage_path,
+        templates: wordTemplates.map(t => ({ name: templateLabel(t), storagePath: t.storage_path })),
+        attendanceTemplatePath: includeAttendance ? attTemplate?.storage_path : null,
+        labelTemplatePath: includeLabels ? lblTemplate?.storage_path : null,
+        sicapTemplatePath: includeSicap ? sicapTemplate?.storage_path : null,
         context,
         ...variablesForArchive(vars),
-        excelColumns: excel.columns,
+        excelColumns: activeExcelColumns,
         combined,
         signal,
         onProgress,
+        onPhase,
     });
     result.skipped = skipped;
-    return { fileName, result };
+
+    // Best-effort log to document_generations (migration 93)
+    const downloaded = result.totalDocs > 0 || result.extras.some(x => x.ok);
+    if (downloaded) {
+        const statuses = new Set(people.map(p => p.status));
+        const runStatus: DocumentGenerationRecord['status'] =
+            statuses.size === 1 && statuses.has('completed') ? 'completed'
+                : statuses.size === 1 && statuses.has('confirmed') ? 'confirmed'
+                    : 'mixed';
+        const dates = [...new Set(people.map(e => courseDateOf(e)?.slice(0, 10)).filter((d): d is string => !!d))];
+        const distinctCourses = [...new Set(people.map(e => e.courses?.name || '').filter(Boolean))];
+        void recordDocumentGeneration({
+            staff_name: context.staffName ?? '',
+            course_id: courseIds.length === 1 ? courseIds[0] : null,
+            course_name: distinctCourses.join(', ') || 'Multiple courses',
+            session_date: dates.length === 1 ? dates[0] : null,
+            status: runStatus,
+            participant_count: people.length,
+            template_names: wordTemplates.map(t => templateLabel(t)),
+            extras: result.extras.filter(x => x.ok).map(x => x.label),
+            file_name: fileName,
+            total_docs: result.totalDocs,
+            had_problems: result.failedTemplates.length > 0 || result.failedDocs.length > 0 || result.extras.some(x => !x.ok),
+            source: 'board',
+        });
+    }
+
+    return { fileName, result, skippedIds, staffName: context.staffName ?? '', people };
 }
 
 /** One toast summarising a generation run: what was made, and everything that went wrong. */
@@ -515,8 +787,13 @@ export function summarizeGeneration(result: GenerationResult): { message: string
     }
     for (const x of result.extras) if (!x.ok) problems.push(`${x.label}: ${x.error}`);
 
-    const made = [`${result.totalDocs} document(s) from ${result.successTemplates.length}/${result.totalTemplates} template(s)`];
+    const made: string[] = [];
+    if (result.totalTemplates > 0 || result.totalDocs > 0) {
+        made.push(`${result.totalDocs} document(s) from ${result.successTemplates.length}/${result.totalTemplates} template(s)`);
+    }
     for (const x of result.extras) if (x.ok) made.push(x.files > 1 ? `${x.label} (${x.files} pages)` : x.label);
+    if (!made.length) made.push('0 documents');
+
     const unknown = result.unknownTags.map(u => `${u.template}: ${u.tags.map(t => `{${t}}`).join(', ')}`);
     const skipped = result.skipped.length ? ` Left out ${result.skipped.length} whose enrollment changed: ${result.skipped.join(', ')}.` : '';
 

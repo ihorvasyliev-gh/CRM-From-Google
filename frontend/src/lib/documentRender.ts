@@ -152,10 +152,13 @@ export const SICAP_PLACEHOLDER_CATEGORIES: PlaceholderCategory[] = [
     },
 ];
 
+const RESERVED_VARIABLE_KEYS = new Set([SHEET_LOOP, SICAP_PAGE_LOOP, '__people', '__last']);
+
 /** Custom variable names must work as a docxtemplater tag: `{Tutor}`, `{venue_name}`. */
 export function validateVariableKey(key: string): string | null {
     if (!key) return 'Variable name is required';
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return 'Use letters, digits and _ only, starting with a letter (e.g. Tutor, venue_name)';
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key)) return 'Use letters, digits and _ only, starting with a letter (e.g. Tutor, venue_name)';
+    if (RESERVED_VARIABLE_KEYS.has(key)) return `{${key}} is reserved for document loops — choose another name`;
     return null;
 }
 
@@ -565,7 +568,13 @@ export async function fillTemplateForAll(template: ArrayBuffer, people: Record<s
 /** Pages of a sheet (attendance) rendered into one file, a page break between them. */
 function renderPagesInOneFile(libs: DocxLibs, template: ArrayBuffer, pages: Record<string, unknown>[], missing: Set<string>): ArrayBuffer {
     const doc = createDoc(libs, toCombinedTemplate(libs, template), missing, [libs.fixDocPrCorruption]);
-    return renderDoc(doc, { __people: pages.map((page, i) => ({ ...page, __last: i === pages.length - 1 })) });
+    // Word headers and footers live outside {#__people} and resolve against the root object;
+    // providing pages[0] at the root keeps {courseTitle}, {courseDate}, {venue}, {staffName},
+    // {pages} and custom variables working on multi-page sheets instead of printing blank.
+    return renderDoc(doc, {
+        ...(pages[0] ?? {}),
+        __people: pages.map((page, i) => ({ ...page, __last: i === pages.length - 1 })),
+    });
 }
 
 export type TemplateKind = 'document' | 'attendance' | 'labels' | 'sicap';
@@ -575,6 +584,53 @@ export interface TemplateCheck {
     error?: string;
     /** Tags with no matching placeholder or custom variable — they would print blank. */
     unknownTags: string[];
+}
+
+export interface TemplateInspection extends TemplateCheck {
+    /** True when the file itself is not a valid .docx/ZIP archive (vs placeholder syntax error). */
+    corrupt?: boolean;
+    /** All {placeholder} names found in the template (including inside loops and headers/footers). */
+    tags: string[];
+}
+
+const SHEET_COMMON_KEYS = new Set(SHEET_PLACEHOLDER_CATEGORIES[0].items.map(i => i.key));
+const SHEET_ROW_KEY_SET = new Set<string>(['n', ...SHEET_ROW_FIELDS.map(f => f.key)]);
+const SICAP_COMMON_KEYS = new Set(SICAP_PLACEHOLDER_CATEGORIES[0].items.map(i => i.key));
+
+/**
+ * Compute which extracted `{tags}` from a template are unknown for `kind`, given the current
+ * custom variable keys. Pure & synchronous so the UI can show live tag health without downloading `.docx` files.
+ */
+export function unknownTagsForKind(
+    tags: readonly string[],
+    kind: TemplateKind,
+    customVarKeys: Iterable<string> = [],
+): string[] {
+    const custom = new Set(customVarKeys);
+    const maxSlots = kind === 'attendance' ? ATTENDANCE_SLOTS : kind === 'labels' ? LABEL_SLOTS : kind === 'sicap' ? SICAP_SLOTS : 0;
+    const isNumberedSlot = (tag: string): boolean => {
+        if (!maxSlots) return false;
+        const m = /^([A-Za-z]+)(\d+)$/.exec(tag);
+        if (!m) return false;
+        const num = Number(m[2]);
+        if (num < 1 || num > maxSlots) return false;
+        return SHEET_ROW_FIELDS.some(f => f.key === m[1]);
+    };
+
+    const unknown: string[] = [];
+    for (const tag of tags) {
+        if (!tag || RESERVED_VARIABLE_KEYS.has(tag)) continue;
+        if (custom.has(tag)) continue;
+        if (kind === 'document') {
+            if (PLACEHOLDER_KEYS.has(tag)) continue;
+        } else if (kind === 'sicap') {
+            if (SICAP_COMMON_KEYS.has(tag) || SHEET_COMMON_KEYS.has(tag) || SHEET_ROW_KEY_SET.has(tag) || isNumberedSlot(tag)) continue;
+        } else {
+            if (SHEET_COMMON_KEYS.has(tag) || SHEET_ROW_KEY_SET.has(tag) || isNumberedSlot(tag)) continue;
+        }
+        unknown.push(tag);
+    }
+    return [...new Set(unknown)].sort();
 }
 
 /** A made-up participant, so a dry run also renders the inside of {#students} loops. */
@@ -588,11 +644,15 @@ function sampleParticipant(): EnrollmentWithRelations {
     };
 }
 
-/** Dry-run a template against sample data, so problems surface at upload rather than at generation. */
-export async function checkTemplateBuffer(template: ArrayBuffer, kind: TemplateKind, customVariables: Record<string, string> = {}): Promise<TemplateCheck> {
+/** Full template inspection: checks syntax, detects corrupt files, extracts all tags and unknown tags. */
+export async function inspectTemplateBuffer(template: ArrayBuffer, kind: TemplateKind, customVariables: Record<string, string> = {}): Promise<TemplateInspection> {
     const libs = await loadDocxLibs();
     const missing = new Set<string>();
+    const allTags = new Set<string>();
     try {
+        // Pass 1: discover every tag used in body, loops, headers and footers
+        createDoc(libs, template, allTags).render({ [SHEET_LOOP]: [{}], [SICAP_PAGE_LOOP]: [{}] });
+        // Pass 2: render against realistic sample data for this template kind to detect unknown tags
         const sample: Record<string, unknown> = kind === 'document'
             ? Object.fromEntries([...PLACEHOLDER_KEYS].map(k => [k, 'x']))
             : kind === 'sicap'
@@ -600,9 +660,23 @@ export async function checkTemplateBuffer(template: ArrayBuffer, kind: TemplateK
                 : buildSheetPages([sampleParticipant()], kind === 'attendance' ? ATTENDANCE_SLOTS : LABEL_SLOTS)[0];
         renderDoc(createDoc(libs, template, missing), { ...sample, ...customVariables });
     } catch (err) {
-        return { error: describeDocxError(err), unknownTags: [] };
+        const message = describeDocxError(err);
+        const corrupt = /end of central directory|corrupted zip|not a zip|no body/i.test(message);
+        return {
+            error: corrupt ? 'This file is not a valid Word (.docx) document' : message,
+            corrupt,
+            tags: [],
+            unknownTags: [],
+        };
     }
-    return { unknownTags: [...missing].sort() };
+    const tags = [...allTags].filter(t => t && !RESERVED_VARIABLE_KEYS.has(t));
+    return { tags, unknownTags: [...missing].sort() };
+}
+
+/** Dry-run a template against sample data, so problems surface at upload rather than at generation. */
+export async function checkTemplateBuffer(template: ArrayBuffer, kind: TemplateKind, customVariables: Record<string, string> = {}): Promise<TemplateCheck> {
+    const { error, unknownTags } = await inspectTemplateBuffer(template, kind, customVariables);
+    return error !== undefined ? { error, unknownTags } : { unknownTags };
 }
 
 // ─── Archive ────────────────────────────────────────────────
@@ -613,7 +687,8 @@ export function safeFileName(name: string, fallback = 'Unknown'): string {
         .normalize('NFC')
         .replace(/[^\p{L}\p{M}\p{N}_.\-\s']/gu, '')
         .trim()
-        .replace(/\s+/g, '_');
+        .replace(/\s+/g, '_')
+        .replace(/^\.+|\.+$/g, '');
     return cleaned || fallback;
 }
 
@@ -685,19 +760,28 @@ function splitDocumentXml(xml: string): ParsedDocXml {
     };
 }
 
-/** Ensure a section-break `<w:sectPr>` starts on a new page rather than continuing inline. */
+/** Ensure a section-break `<w:sectPr>` starts on a new page rather than continuing inline, respecting CT_SectPr order. */
 function toNextPageSectPr(sectPr: string): string {
     if (/^<w:sectPr\s*\/>$/.test(sectPr)) return '<w:sectPr><w:type w:val="nextPage"/></w:sectPr>';
     if (/<w:type\b[^>]*\/>/.test(sectPr)) {
         return sectPr.replace(/<w:type\b[^>]*\/>/g, '<w:type w:val="nextPage"/>');
     }
+    // ECMA-376 CT_SectPr requires headerReference/footerReference to precede <w:type>
+    const refRe = /<w:(?:headerReference|footerReference)\b[^>]*(?:\/>|>[\s\S]*?<\/w:(?:headerReference|footerReference)>)/g;
+    let insertAfter = -1;
+    for (const m of sectPr.matchAll(refRe)) {
+        if (m.index !== undefined) insertAfter = m.index + m[0].length;
+    }
+    if (insertAfter > 0) {
+        return `${sectPr.slice(0, insertAfter)}<w:type w:val="nextPage"/>${sectPr.slice(insertAfter)}`;
+    }
     return sectPr.replace(/^<w:sectPr(\b[^>]*)>/, '<w:sectPr$1><w:type w:val="nextPage"/>');
 }
 
-/** Normalize a zip path like `word/../media/img.png` to `media/img.png`. */
-function resolveWordTarget(target: string): string {
+/** Normalize a target relative to `baseDir` (e.g. `word/` or `word/charts/`) into a zip path. */
+function resolveTargetFrom(baseDir: string, target: string): string {
     if (target.startsWith('/')) return target.slice(1);
-    const parts = `word/${target}`.split('/');
+    const parts = `${baseDir}${target}`.split('/');
     const out: string[] = [];
     for (const p of parts) {
         if (!p || p === '.') continue;
@@ -705,6 +789,20 @@ function resolveWordTarget(target: string): string {
         else out.push(p);
     }
     return out.join('/');
+}
+
+/** Normalize a zip path like `word/../media/img.png` to `media/img.png`. */
+function resolveWordTarget(target: string): string {
+    return resolveTargetFrom('word/', target);
+}
+
+/** Relative target from `baseDir` (trailing slash or empty) to a zip path. */
+function toRelativeTarget(baseDir: string, zipPath: string): string {
+    const fromParts = baseDir.split('/').filter(Boolean);
+    const toParts = zipPath.split('/').filter(Boolean);
+    let common = 0;
+    while (common < fromParts.length && common < toParts.length && fromParts[common] === toParts[common]) common++;
+    return [...Array(fromParts.length - common).fill('..'), ...toParts.slice(common)].join('/');
 }
 
 /** Add prefix to the filename part of a path: `word/media/image1.png` -> `word/media/d1_image1.png`. */
@@ -880,15 +978,21 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
                     let subRelsText = subRelsFile.asText();
                     for (const srm of subRelsText.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
                         const sAttrs = srm[1];
-                        const sTarget = /\bTarget="([^"]+)"/.exec(sAttrs)?.[1];
-                        const sMode = /\bTargetMode="([^"]+)"/.exec(sAttrs)?.[1];
-                        if (!sTarget || sMode === 'External') continue;
-                        const oldSubTargetPath = resolveWordTarget(sTarget);
+                        const sTarget = /\bTarget=(?:"([^"]+)"|'([^']+)')/.exec(sAttrs);
+                        const sTargetVal = sTarget?.[1] ?? sTarget?.[2];
+                        const sMode = /\bTargetMode=(?:"([^"]+)"|'([^']+)')/.exec(sAttrs);
+                        const sModeVal = sMode?.[1] ?? sMode?.[2];
+                        if (!sTargetVal || sModeVal === 'External') continue;
+                        const oldSubTargetPath = resolveTargetFrom(oldDir, sTargetVal);
                         const subTargetEntry = otherZip.file(oldSubTargetPath);
                         if (subTargetEntry) {
                             const newSubTargetPath = prefixPathFile(oldSubTargetPath, prefix);
                             baseZip.file(newSubTargetPath, subTargetEntry.asArrayBuffer());
-                            subRelsText = subRelsText.replace(`Target="${sTarget}"`, `Target="${toWordTarget(newSubTargetPath)}"`);
+                            const escaped = sTargetVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            subRelsText = subRelsText.replace(
+                                new RegExp(`(\\bTarget=)(["'])${escaped}\\2`, 'g'),
+                                `$1$2${toRelativeTarget(oldDir, newSubTargetPath)}$2`,
+                            );
                             if (otherTypesXml && baseTypesXml) {
                                 const subOvRe = new RegExp(`<Override\\b[^>]*\\bPartName="/?${oldSubTargetPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*\\bContentType="([^"]+)"`, 'i');
                                 const subOvMatch = subOvRe.exec(otherTypesXml);
@@ -1000,14 +1104,26 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
                 return s;
             };
 
-            // Isolate every internal <w:sectPr> inside p.content as well as the trailing p.sectPr
-            const content = p.content.replace(/<w:sectPr\b(?:[^>]*\/>|[\s\S]*?<\/w:sectPr>)/g, m => isolateSect(m));
-            const sect = isolateSect(p.sectPr);
+            // Isolate every internal <w:sectPr> inside p.content as well as the trailing p.sectPr.
+            // In OOXML, <w:type w:val="nextPage"/> governs how THAT section begins relative to the preceding section,
+            // so templates after the first get `nextPage` on their own starting section (first internal sectPr or trailing sectPr).
+            let markedFirstSection = false;
+            const content = p.content.replace(/<w:sectPr\b(?:[^>]*\/>|[\s\S]*?<\/w:sectPr>)/g, m => {
+                const isolated = isolateSect(m);
+                if (i > 0 && !markedFirstSection) {
+                    markedFirstSection = true;
+                    return toNextPageSectPr(isolated);
+                }
+                return isolated;
+            });
+            let sect = isolateSect(p.sectPr);
+            if (i > 0 && !markedFirstSection) {
+                sect = toNextPageSectPr(sect);
+            }
 
             if (i < parsed.length - 1) {
-                const nextSect = toNextPageSectPr(sect);
                 // Minimal zero-height section-break paragraph so it never overflows a full page onto an extra blank page
-                chunks.push(`${content}<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>${nextSect}</w:pPr></w:p>`);
+                chunks.push(`${content}<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/><w:szCs w:val="2"/></w:rPr>${sect}</w:pPr></w:p>`);
             } else {
                 chunks.push(`${content}${sect}`);
             }
@@ -1015,9 +1131,16 @@ export function mergeStudentDocs(libs: DocxLibs, buffers: ArrayBuffer[]): ArrayB
         mergedBody = chunks.join('');
     }
 
-    // 5. Ensure every drawing object and content control has a unique id across the merged document
+    // 5. Ensure every drawing object and content control has a unique id across the merged document (body + headers/footers)
     let nextDocPrId = 1;
-    mergedBody = mergedBody.replace(/<(wp:docPr|pic:cNvPr)\b([^>]*?)\bid="\d+"/g, (_m, tag: string, before: string) => `<${tag}${before}id="${nextDocPrId++}"`);
+    const dedupDocPr = (xml: string) =>
+        xml.replace(/<(wp:docPr|pic:cNvPr)\b([^>]*?)\bid="\d+"/g, (_m, tag: string, before: string) => `<${tag}${before}id="${nextDocPrId++}"`);
+    mergedBody = dedupDocPr(mergedBody);
+    for (const part of baseZip.file(/^word\/(?:d\d+_)?(?:header|footer)\d*\.xml$/)) {
+        const xml = part.asText();
+        const deduped = dedupDocPr(xml);
+        if (deduped !== xml) baseZip.file(part.name, deduped);
+    }
     let nextSdtId = 1000;
     mergedBody = mergedBody.replace(/<w:sdtPr>([\s\S]*?)<\/w:sdtPr>/g, (_m, inner: string) => `<w:sdtPr>${inner.replace(/<w:id\b[^>]*\bw:val="\d+"/g, () => `<w:id w:val="${nextSdtId++}"`)}</w:sdtPr>`);
 
@@ -1146,6 +1269,15 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
     };
     if (signal?.aborted) throw abortError();
 
+    const usedFolders = new Set<string>(combinedCount > 0 ? [COMBINED_FOLDER.toLowerCase()] : []);
+    const uniqueFolder = (rawName: string): string => {
+        const base = safeFileName(rawName.replace(/\.docx$/i, ''), 'Template');
+        let candidate = base;
+        for (let n = 2; usedFolders.has(candidate.toLowerCase()); n++) candidate = `${base}_${n}`;
+        usedFolders.add(candidate.toLowerCase());
+        return `${candidate}/`;
+    };
+
     // ── One document per student per template ──
     for (const tpl of templates) {
         const skip = async (message: string) => {
@@ -1163,10 +1295,9 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
             continue;
         }
 
-        const base = safeFileName(tpl.name.replace(/\.docx$/i, ''), 'Template');
         // Archive layout: one folder per template with a file per person, the combined per-student
         // files in Combined/; group files (attendance sheet, labels, SICAP form, Participants.xlsx) sit at the top
-        const folder = `${base}/`;
+        const folder = uniqueFolder(tpl.name);
         const missing = new Set<string>();
         let templateOk = true;
 
@@ -1326,3 +1457,325 @@ export async function renderArchive(input: RenderInput, hooks: RenderHooks = {})
     // (PizZip's default) — no point compressing twice.
     return { zip: zip.generate({ type: 'arraybuffer' }), result };
 }
+
+// ─── Archive tree planning & single-file Live Preview ───────
+
+export interface PlannedFolder {
+    name: string;
+    kind: 'template' | 'combined';
+    files: string[];
+}
+
+export interface PlannedTopFile {
+    name: string;
+    kind: 'attendance' | 'labels' | 'sicap' | 'excel';
+    note?: string;
+}
+
+export interface PlannedArchiveTree {
+    folders: PlannedFolder[];
+    topFiles: PlannedTopFile[];
+    totalFiles: number;
+}
+
+/** Predict the exact folders and files a ZIP generation run will produce (pure & synchronous). */
+export function planArchivePaths(options: {
+    enrollments: EnrollmentWithRelations[];
+    templateNames: string[];
+    combined: boolean;
+    includeAttendance: boolean;
+    includeLabels: boolean;
+    includeSicap: boolean;
+    includeExcel: boolean;
+    excelColumnCount?: number;
+    context?: DocContext;
+}): PlannedArchiveTree {
+    const people = sortBySurname(options.enrollments.filter(e => e.students));
+    const hasPeople = people.length > 0;
+    const combinedOn = options.combined && hasPeople && options.templateNames.length > 0;
+    const usedFolders = new Set<string>(combinedOn ? [COMBINED_FOLDER.toLowerCase()] : []);
+    const usedPaths = new Set<string>();
+
+    const folders: PlannedFolder[] = [];
+    for (const rawName of options.templateNames) {
+        const base = safeFileName(rawName.replace(/\.docx$/i, ''), 'Template');
+        let folderName = base;
+        for (let n = 2; usedFolders.has(folderName.toLowerCase()); n++) folderName = `${base}_${n}`;
+        usedFolders.add(folderName.toLowerCase());
+        const files: string[] = [];
+        for (const e of people) {
+            const s = e.students!;
+            const file = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
+            const full = uniquePath(usedPaths, `${folderName}/${file}`);
+            files.push(full.slice(folderName.length + 1));
+        }
+        folders.push({ name: folderName, kind: 'template', files });
+    }
+
+    if (combinedOn) {
+        const files: string[] = [];
+        for (const e of people) {
+            const s = e.students!;
+            const file = `${safeFileName(s.first_name || '')}_${safeFileName(s.last_name || '')}.docx`;
+            const full = uniquePath(usedPaths, `${COMBINED_FOLDER}/${file}`);
+            files.push(full.slice(COMBINED_FOLDER.length + 1));
+        }
+        folders.push({ name: COMBINED_FOLDER, kind: 'combined', files });
+    }
+
+    const topFiles: PlannedTopFile[] = [];
+    if (hasPeople && options.includeAttendance) {
+        const pages = Math.max(1, Math.ceil(people.length / ATTENDANCE_SLOTS));
+        topFiles.push({
+            name: uniquePath(usedPaths, 'Attendance_Sheet.docx'),
+            kind: 'attendance',
+            note: pages > 1 ? `${pages} pages in 1 file` : undefined,
+        });
+    }
+    if (hasPeople && options.includeLabels) {
+        const pages = Math.max(1, Math.ceil(people.length / LABEL_SLOTS));
+        for (let i = 0; i < pages; i++) {
+            const suffix = pages > 1 ? `_${i + 1}_of_${pages}` : '';
+            topFiles.push({
+                name: uniquePath(usedPaths, `Address_Labels${suffix}.docx`),
+                kind: 'labels',
+            });
+        }
+    }
+    if (hasPeople && options.includeSicap) {
+        const groups = groupByCourseRun(people);
+        for (const group of groups) {
+            const run = courseRun(group, options.context?.sessions);
+            const course = group[0].courses?.name || 'Course';
+            const name = groups.length === 1
+                ? 'SICAP_Course_Form.docx'
+                : `SICAP_${safeFileName(course, 'Course')}_${run.last ? formatDateDMY(run.last).replace(/\//g, '-') : 'no_date'}.docx`;
+            const pages = Math.max(1, Math.ceil(group.length / SICAP_SLOTS));
+            topFiles.push({
+                name: uniquePath(usedPaths, name),
+                kind: 'sicap',
+                note: pages > 1 ? `${pages} participant pages` : undefined,
+            });
+        }
+    }
+    if (hasPeople && options.includeExcel) {
+        topFiles.push({
+            name: uniquePath(usedPaths, 'Participants.xlsx'),
+            kind: 'excel',
+            note: options.excelColumnCount ? `${options.excelColumnCount} column${options.excelColumnCount !== 1 ? 's' : ''}` : undefined,
+        });
+    }
+
+    const totalFiles = folders.reduce((sum, f) => sum + f.files.length, 0) + topFiles.length;
+    return { folders, topFiles, totalFiles };
+}
+
+/** Realistic sample participant for previewing templates when no real student is selected. */
+export function makeSampleEnrollment(courseName = 'Manual Handling'): EnrollmentWithRelations {
+    const today = todayISO();
+    return {
+        id: 'preview-sample',
+        student_id: 'preview-sample-student',
+        course_id: 'preview-sample-course',
+        status: 'confirmed',
+        course_variant: 'English',
+        notes: null,
+        confirmed_date: today,
+        confirmed_at: today,
+        invited_date: today,
+        invited_at: today,
+        completed_date: null,
+        completed_at: null,
+        is_priority: false,
+        response_days: null,
+        created_at: today,
+        updated_at: today,
+        students: {
+            id: 'preview-sample-student',
+            first_name: 'Olena',
+            last_name: 'Kovalenko',
+            email: 'olena.kovalenko@example.com',
+            phone: '087 123 4567',
+            address: '12 Patrick Street, Cork',
+            eircode: 'T12 AB34',
+            dob: '1992-05-14',
+        } as Student,
+        courses: {
+            id: 'preview-sample-course',
+            name: courseName,
+            created_at: today,
+        },
+    };
+}
+
+export interface SinglePreviewResult {
+    buffer: ArrayBuffer;
+    fileName: string;
+    unknownTags: string[];
+    blankFields: string[];
+    tagCount: number;
+}
+
+export type SinglePreviewInput =
+    | {
+        kind: 'word';
+        templateName: string;
+        buffer: ArrayBuffer;
+        enrollment: EnrollmentWithRelations;
+        context?: DocContext;
+        customVariables?: Record<string, string>;
+        dateVariables?: DateVariable[];
+        today?: string;
+    }
+    | {
+        kind: 'combined';
+        templates: { name: string; buffer: ArrayBuffer }[];
+        enrollment: EnrollmentWithRelations;
+        context?: DocContext;
+        customVariables?: Record<string, string>;
+        dateVariables?: DateVariable[];
+        today?: string;
+    }
+    | {
+        kind: 'attendance' | 'labels' | 'sicap';
+        buffer: ArrayBuffer;
+        enrollments: EnrollmentWithRelations[];
+        context?: DocContext;
+        customVariables?: Record<string, string>;
+        dateVariables?: DateVariable[];
+        today?: string;
+    };
+
+/**
+ * Render one `.docx` on the fly for in-browser Live Preview and single-file download,
+ * returning both the bytes and tag diagnostics (unknown tags vs known fields currently blank).
+ */
+export async function renderSinglePreview(input: SinglePreviewInput): Promise<SinglePreviewResult> {
+    const libs = await loadDocxLibs();
+    const today = input.today ?? todayISO();
+    const context = input.context ?? {};
+    const customVariables = input.customVariables ?? {};
+    const dateVariables = input.dateVariables ?? [];
+
+    const collectTags = (buf: ArrayBuffer): string[] => {
+        const discovered = new Set<string>();
+        try {
+            createDoc(libs, buf, discovered).render({ [SHEET_LOOP]: [{}], [SICAP_PAGE_LOOP]: [{}] });
+        } catch {
+            // rendering below will surface any syntax error
+        }
+        return [...discovered].filter(t => t && !RESERVED_VARIABLE_KEYS.has(t));
+    };
+
+    const blankKeysFor = (tags: string[], data: Record<string, unknown>, missing: Set<string>): string[] => {
+        const blanks: string[] = [];
+        for (const tag of tags) {
+            if (missing.has(tag)) continue;
+            // Skip numbered participant slots (e.g. fullName12) which are expected to be blank for small groups
+            if (/^[A-Za-z]+\d+$/.test(tag)) continue;
+            const val = data[tag];
+            if (typeof val === 'string' && val.trim() === '') blanks.push(tag);
+        }
+        return [...new Set(blanks)].sort();
+    };
+
+    if (input.kind === 'word') {
+        const s = input.enrollment.students;
+        const data = {
+            ...buildPlaceholderData(input.enrollment, today, context),
+            ...customVariables,
+            ...dateVariableValues(dateVariables, input.enrollment, today),
+        };
+        const tags = collectTags(input.buffer);
+        const missing = new Set<string>();
+        const buffer = renderDoc(createDoc(libs, input.buffer, missing), data);
+        const base = safeFileName(input.templateName.replace(/\.docx$/i, ''), 'Document');
+        const person = `${safeFileName(s?.first_name || '')}_${safeFileName(s?.last_name || '')}`;
+        return {
+            buffer,
+            fileName: `${base}_${person}.docx`,
+            unknownTags: [...missing].sort(),
+            blankFields: blankKeysFor(tags, data, missing),
+            tagCount: tags.length,
+        };
+    }
+
+    if (input.kind === 'combined') {
+        const s = input.enrollment.students;
+        const data = {
+            ...buildPlaceholderData(input.enrollment, today, context),
+            ...customVariables,
+            ...dateVariableValues(dateVariables, input.enrollment, today),
+        };
+        const missing = new Set<string>();
+        const allTags = new Set<string>();
+        const rendered: ArrayBuffer[] = [];
+        for (const tpl of input.templates) {
+            for (const t of collectTags(tpl.buffer)) allTags.add(t);
+            rendered.push(renderDoc(createDoc(libs, tpl.buffer, missing), data));
+        }
+        const buffer = mergeStudentDocs(libs, rendered);
+        const person = `${safeFileName(s?.first_name || '')}_${safeFileName(s?.last_name || '')}`;
+        const tagList = [...allTags];
+        return {
+            buffer,
+            fileName: `Combined_${person}.docx`,
+            unknownTags: [...missing].sort(),
+            blankFields: blankKeysFor(tagList, data, missing),
+            tagCount: tagList.length,
+        };
+    }
+
+    // Attendance / Labels / SICAP
+    const people = sortBySurname(input.enrollments.filter(e => e.students));
+    const personDates = (e: EnrollmentWithRelations) => dateVariableValues(dateVariables, e, today);
+    const sheetDates = sheetDateValues(dateVariables, people, today);
+    const tags = collectTags(input.buffer);
+    const missing = new Set<string>();
+
+    if (input.kind === 'sicap') {
+        const text = createDoc(libs, input.buffer).getFullText();
+        const usesPageLoop = text.includes(`{#${SICAP_PAGE_LOOP}}`);
+        const usesRowLoop = text.includes(`{#${SHEET_LOOP}}`);
+        const extra = { ...customVariables, ...sheetDates };
+        let buffer: ArrayBuffer;
+        let sampleData: Record<string, unknown>;
+        if (usesPageLoop) {
+            sampleData = { ...buildSicapData(people, today, context, personDates), ...extra };
+            buffer = renderDoc(createDoc(libs, input.buffer, missing, [libs.fixDocPrCorruption]), sampleData);
+        } else if (usesRowLoop) {
+            sampleData = { ...buildSheetPages(people, null, today, personDates, context)[0], ...extra };
+            buffer = renderDoc(createDoc(libs, input.buffer, missing), sampleData);
+        } else {
+            const pages = buildSheetPages(people, SICAP_SLOTS, today, personDates, context).map(p => ({ ...p, ...extra }));
+            sampleData = pages[0] ?? extra;
+            buffer = pages.length > 1 ? renderPagesInOneFile(libs, input.buffer, pages, missing) : renderDoc(createDoc(libs, input.buffer, missing), sampleData);
+        }
+        return {
+            buffer,
+            fileName: 'SICAP_Course_Form.docx',
+            unknownTags: [...missing].sort(),
+            blankFields: blankKeysFor(tags, sampleData, missing),
+            tagCount: tags.length,
+        };
+    }
+
+    const slots = input.kind === 'attendance' ? ATTENDANCE_SLOTS : LABEL_SLOTS;
+    const usesLoop = createDoc(libs, input.buffer).getFullText().includes(`{#${SHEET_LOOP}}`);
+    const pages = buildSheetPages(people, usesLoop ? null : slots, today, personDates, context).map(p => ({
+        ...p,
+        ...customVariables,
+        ...sheetDates,
+    }));
+    const buffer = pages.length > 1
+        ? renderPagesInOneFile(libs, input.buffer, pages, missing)
+        : renderDoc(createDoc(libs, input.buffer, missing), pages[0]);
+    return {
+        buffer,
+        fileName: input.kind === 'attendance' ? 'Attendance_Sheet.docx' : 'Address_Labels.docx',
+        unknownTags: [...missing].sort(),
+        blankFields: blankKeysFor(tags, pages[0] ?? {}, missing),
+        tagCount: tags.length,
+    };
+}
+

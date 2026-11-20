@@ -31,17 +31,27 @@ export default function GenerationReport({ result, fileName, onDismiss }: { resu
                         {downloaded && <p className="text-muted break-all">{fileName}</p>}
                     </div>
 
-                    <ul className="space-y-0.5 text-primary">
-                        <li>{result.totalDocs} document{result.totalDocs !== 1 ? 's' : ''} from {result.successTemplates.length}/{result.totalTemplates} Word template{result.totalTemplates !== 1 ? 's' : ''}</li>
-                        {madeExtras.map(x => <li key={x.label}>{x.label}{x.files > 1 ? ` (${x.files} pages)` : ''}</li>)}
-                    </ul>
+                    {(result.totalTemplates > 0 || result.totalDocs > 0 || madeExtras.length > 0) && (
+                        <ul className="space-y-0.5 text-primary">
+                            {(result.totalTemplates > 0 || result.totalDocs > 0) && (
+                                <li>
+                                    {result.totalDocs} document{result.totalDocs !== 1 ? 's' : ''} from {result.successTemplates.length}/{result.totalTemplates} Word template{result.totalTemplates !== 1 ? 's' : ''}
+                                </li>
+                            )}
+                            {madeExtras.map((x, i) => (
+                                <li key={`${x.label}-${i}`}>
+                                    {x.label}{x.files > 1 ? ` (${x.files} pages)` : ''}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
 
                     {hasProblems && (
                         <div>
                             <p className="font-semibold text-status-rejected mb-1">Problems</p>
                             <ul className="space-y-1 list-disc pl-4">
-                                {result.failedTemplates.map(f => <li key={f.name}><strong>{f.name}</strong>: {f.error}</li>)}
-                                {failedExtras.map(x => <li key={x.label}><strong>{x.label}</strong>: {x.error}</li>)}
+                                {result.failedTemplates.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong>: {f.error}</li>)}
+                                {failedExtras.map((x, i) => <li key={`${x.label}-${i}`}><strong>{x.label}</strong>: {x.error}</li>)}
                                 {failures.map((d, i) => <li key={`${d.template}-${d.student}-${i}`}><strong>{d.student}</strong> ({d.template}): {d.error}</li>)}
                             </ul>
                             {result.failedDocs.length > SHOWN_FAILURES && (
@@ -56,8 +66,8 @@ export default function GenerationReport({ result, fileName, onDismiss }: { resu
                         <div>
                             <p className="font-semibold text-status-requested mb-1">Printed blank — unknown placeholders</p>
                             <ul className="space-y-0.5 list-disc pl-4">
-                                {result.unknownTags.map(u => (
-                                    <li key={u.template}>
+                                {result.unknownTags.map((u, i) => (
+                                    <li key={`${u.template}-${i}`}>
                                         <strong>{u.template}</strong>: {u.tags.map(t => <code key={t} className="font-mono mr-1">{`{${t}}`}</code>)}
                                     </li>
                                 ))}

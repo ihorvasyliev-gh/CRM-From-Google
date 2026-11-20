@@ -13,7 +13,7 @@ import {
     buildPlaceholderData, templatesForCourse, coursePreset, buildSheetPages, buildDocumentsArchive, checkTemplate,
     safeFileName, describeDocxError, summarizeGeneration, validateVariableKey, groupSessions, defaultSessionKey,
     archiveFileName, isAbortError, addToDate, dateRuleIso, describeDateRule, parseDateRule, variablesForArchive, PLACEHOLDER_KEYS,
-    courseRun, SICAP_PAGE_LOOP, staffNameOf,
+    courseRun, SICAP_PAGE_LOOP, staffNameOf, planArchivePaths, renderSinglePreview, unknownTagsForKind,
 } from './documentUtils';
 import type { DateRule, EnrollmentWithRelations } from './documentUtils';
 
@@ -900,5 +900,70 @@ describe('staffNameOf', () => {
         expect(staffNameOf({ user_metadata: { name: 'Ann' } })).toBe('Ann');
         expect(staffNameOf({ user_metadata: {} })).toBe('');
         expect(staffNameOf(null)).toBe('');
+    });
+});
+
+describe('multi-page sheet header placeholders & folder collision protection', () => {
+    it('fills header and footer placeholders on multi-page attendance sheets (>34 people) without flagging them as unknown', async () => {
+        const zip = new PizZip(makeDocx('{firstName1}'));
+        zip.file(
+            'word/header1.xml',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>{courseTitle} ({pages}p) — {staffName}</w:t></w:r></w:p></w:hdr>',
+        );
+        zip.file(
+            '[Content_Types].xml',
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/></Types>',
+        );
+        zip.file(
+            'word/_rels/document.xml.rels',
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/></Relationships>',
+        );
+        const attBuffer = zip.generate({ type: 'arraybuffer' });
+
+        const people = Array.from({ length: 36 }, (_, i) => person(String(i), `P${i}`, `S${String(i).padStart(2, '0')}`));
+        const { blob, result } = await buildDocumentsArchive({
+            enrollments: people,
+            templates: [],
+            attendanceTemplatePath: 'att',
+            context: { staffName: 'Jane Doe' },
+            fetchTemplate: files({ att: attBuffer }),
+        });
+
+        expect(result.unknownTags).toEqual([]);
+        const attZip = new PizZip(await (await readArchiveFile(blob, 'Attendance_Sheet.docx')).arrayBuffer());
+        expect(attZip.file('word/header1.xml')!.asText()).toContain('Python 101 (2p) — Jane Doe');
+    });
+
+    it('deduplicates template folder names and avoids colliding with Combined/', () => {
+        const tree = planArchivePaths({
+            enrollments: [person('1', 'Mary', 'Ahern')],
+            templateNames: ['Combined.docx', 'Form.docx', 'Form.docx'],
+            combined: true,
+            includeAttendance: true,
+            includeLabels: false,
+            includeSicap: true,
+            includeExcel: true,
+            excelColumnCount: 4,
+        });
+        expect(tree.folders.map(f => f.name)).toEqual(['Combined_2', 'Form', 'Form_2', 'Combined']);
+        expect(tree.topFiles.map(f => f.name)).toEqual(['Attendance_Sheet.docx', 'SICAP_Course_Form.docx', 'Participants.xlsx']);
+    });
+
+    it('detects unknown tags per template kind and renders single previews with diagnostics', async () => {
+        expect(unknownTagsForKind(['fullName', 'Tutor', 'MysteryTag'], 'document', ['Tutor'])).toEqual(['MysteryTag']);
+        expect(unknownTagsForKind(['fullName1', 'fullName34', 'fullName35'], 'attendance', [])).toEqual(['fullName35']);
+        expect(validateVariableKey('_leading')).toBeTruthy();
+        expect(validateVariableKey('students')).toBeTruthy();
+        expect(validateVariableKey('participantPages')).toBeTruthy();
+
+        const preview = await renderSinglePreview({
+            kind: 'word',
+            templateName: 'Letter.docx',
+            buffer: makeDocx('Hi {fullName} ({unknownOne}) — notes: {enrollmentNotes}'),
+            enrollment: { ...person('1', 'Mary', 'Ahern'), notes: '' },
+        });
+        expect(preview.fileName).toBe('Letter_Mary_Ahern.docx');
+        expect(preview.unknownTags).toEqual(['unknownOne']);
+        expect(preview.blankFields).toContain('enrollmentNotes');
     });
 });

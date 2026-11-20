@@ -1,35 +1,115 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileArchive, Tag, Users, Variable } from 'lucide-react';
+import { useInRouterContext, useNavigate, useSearchParams } from 'react-router-dom';
+import { Braces, FileArchive, FolderOpen, Tag, Users, Variable } from 'lucide-react';
 import { fetchCourses } from '../lib/queries';
 import { useEnrollmentList } from '../hooks/useEnrollments';
 import { showToast } from '../lib/toast';
 import ConfirmDialog from './ConfirmDialog';
 import StatTile from './ui/StatTile';
+import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
 import { ErrorState } from './ui/States';
-import GeneratePanel from './DocumentGenerator/GeneratePanel';
-import PlaceholderReference from './DocumentGenerator/PlaceholderReference';
-import { WordTemplatesCard, SingleTemplateCard } from './DocumentGenerator/TemplateCards';
-import { CustomVariablesCard, ExcelColumnsCard } from './DocumentGenerator/SettingsCards';
+import GenerateTab from './DocumentGenerator/GenerateTab';
+import TemplatesTab from './DocumentGenerator/TemplatesTab';
+import VariablesExcelTab from './DocumentGenerator/VariablesExcelTab';
+import TemplatePreviewModal from './DocumentGenerator/TemplatePreviewModal';
 import { useDocumentSetup } from './DocumentGenerator/useDocumentSetup';
-import type { ConfirmDelete } from './DocumentGenerator/helpers';
+import {
+    isDocumentsTabKey,
+    type ConfirmDelete,
+    type DocumentsTabKey,
+    type PreviewModalTarget,
+} from './DocumentGenerator/types';
+
+/** Syncs `?tab=` search param with state when rendered inside React Router. */
+function RouterTabSync({
+    activeTab,
+    onTabFromUrl,
+    registerNavigate,
+}: {
+    activeTab: DocumentsTabKey;
+    onTabFromUrl: (tab: DocumentsTabKey) => void;
+    registerNavigate: (fn: (tab: DocumentsTabKey, path?: string) => void) => void;
+}) {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const urlTab = searchParams.get('tab');
+
+    useEffect(() => {
+        if (isDocumentsTabKey(urlTab) && urlTab !== activeTab) {
+            onTabFromUrl(urlTab);
+        }
+    }, [urlTab, activeTab, onTabFromUrl]);
+
+    useEffect(() => {
+        registerNavigate((nextTab, customPath) => {
+            if (customPath) {
+                navigate(customPath);
+                return;
+            }
+            setSearchParams(
+                prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set('tab', nextTab);
+                    return next;
+                },
+                { replace: true },
+            );
+        });
+    }, [navigate, registerNavigate, setSearchParams]);
+
+    return null;
+}
 
 export default function DocumentGenerator() {
-    const { data: courses = [], isLoading: coursesLoading } = useQuery({
+    const inRouter = useInRouterContext();
+    const [activeTab, setActiveTab] = useState<DocumentsTabKey>('generate');
+    const [focusCourseId, setFocusCourseId] = useState<string | undefined>(undefined);
+    const [previewModal, setPreviewModal] = useState<PreviewModalTarget | null>(null);
+    const [routerNav, setRouterNav] = useState<((tab: DocumentsTabKey, path?: string) => void) | null>(null);
+
+    const registerNavigate = useCallback((fn: (tab: DocumentsTabKey, path?: string) => void) => {
+        setRouterNav(() => fn);
+    }, []);
+
+    const handleNavigateTab = useCallback(
+        (nextTab: DocumentsTabKey, courseId?: string) => {
+            setActiveTab(nextTab);
+            if (courseId !== undefined) setFocusCourseId(courseId);
+            routerNav?.(nextTab);
+        },
+        [routerNav],
+    );
+
+    const handleOpenSettingsGeneral = useCallback(() => {
+        routerNav?.('generate', '/settings?tab=general');
+    }, [routerNav]);
+
+    const {
+        data: courses = [],
+        isLoading: coursesLoading,
+        error: coursesError,
+        refetch: refetchCourses,
+    } = useQuery({
         queryKey: ['doc_courses'],
         staleTime: 0, // pick up template presets just edited on the Courses tab
         queryFn: fetchCourses,
     });
+
     // Reuse the global enrollments cache (same key as useEnrollments / Dashboard; kept fresh by realtime sync).
     // Generation re-reads the chosen people anyway, so documents never use stale data.
-    // (Certificates need older completed courses too: it waits for the whole list.)
-    const { data: enrollments = [], complete: enrollmentsComplete } = useEnrollmentList();
-    const enrollmentsLoading = !enrollmentsComplete;
+    const {
+        data: enrollments = [],
+        complete: enrollmentsComplete,
+        error: enrollmentsError,
+        refetch: refetchEnrollments,
+    } = useEnrollmentList();
+    const enrollmentsLoading = !enrollmentsComplete && !enrollmentsError;
     const setup = useDocumentSetup();
 
     const [pendingDelete, setPendingDelete] = useState<Parameters<ConfirmDelete>[0] | null>(null);
 
-    if (coursesLoading || enrollmentsLoading || setup.loading) {
+    if (coursesLoading || setup.loading) {
         return (
             <div className="flex items-center justify-center py-20">
                 <div className="w-8 h-8 rounded-full border-2 border-brand-500/20 border-t-brand-500 animate-spin" />
@@ -39,77 +119,167 @@ export default function DocumentGenerator() {
 
     const { templates, attTemplate, labelTemplate, sicapTemplate, customVars, excelColumns } = setup;
     const activeCount = templates.filter(t => t.is_active).length;
-    const cardProps = { setup, showToast, confirmDelete: setPendingDelete };
+    const configuredSingles = Number(!!attTemplate) + Number(!!labelTemplate) + Number(!!sicapTemplate);
+    const readyCoursesCount = new Set(enrollments.filter(e => e.status === 'confirmed').map(e => e.course_id)).size;
+    const topError = setup.error ?? coursesError ?? null;
+
+    const tabs: UnderlineTab<DocumentsTabKey>[] = [
+        {
+            value: 'generate',
+            label: 'Generate',
+            icon: FileArchive,
+            count: readyCoursesCount,
+        },
+        {
+            value: 'templates',
+            label: 'Templates',
+            icon: FolderOpen,
+            count: activeCount + configuredSingles,
+            countTone: activeCount === 0 ? 'warning' : 'brand',
+            dot: activeCount === 0 ? 'bg-warning' : undefined,
+            dotLabel: activeCount === 0 ? 'No active Word templates' : undefined,
+        },
+        {
+            value: 'variables',
+            label: 'Variables & Excel',
+            icon: Braces,
+            count: customVars.length + excelColumns.length,
+        },
+    ];
 
     return (
-        <div className="pb-8 space-y-5">
+        <div className="flex-1 flex flex-col gap-5 sm:gap-6 pb-12 w-full max-w-[1600px] mx-auto">
+            {inRouter && (
+                <RouterTabSync
+                    activeTab={activeTab}
+                    onTabFromUrl={setActiveTab}
+                    registerNavigate={registerNavigate}
+                />
+            )}
+
             <ConfirmDialog
                 open={!!pendingDelete}
                 title={pendingDelete?.title || ''}
                 message={pendingDelete?.message || ''}
+                confirmLabel={pendingDelete?.confirmLabel}
                 onConfirm={async () => {
                     if (!pendingDelete) return;
-                    await pendingDelete.run();
-                    setPendingDelete(null);
+                    try {
+                        await pendingDelete.run();
+                    } finally {
+                        setPendingDelete(null);
+                    }
                 }}
                 onCancel={() => setPendingDelete(null)}
             />
 
-            {setup.error && <ErrorState title="Could not load the document templates" error={setup.error} onRetry={setup.retry} />}
+            <TemplatePreviewModal
+                preview={previewModal}
+                onClose={() => setPreviewModal(null)}
+                setup={setup}
+                showToast={showToast}
+            />
 
-            {/* Readiness overview */}
+            {Boolean(topError) && (
+                <ErrorState
+                    title="Could not load the document templates"
+                    error={topError}
+                    onRetry={() => {
+                        setup.retry();
+                        if (coursesError) void refetchCourses();
+                    }}
+                />
+            )}
+
+            {/* Clickable readiness overview */}
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <StatTile
                     label="Active templates"
                     icon={FileArchive}
                     tone="completed"
-                    accent={false}
-                    value={<>{activeCount}<span className="text-sm font-semibold text-muted"> / {templates.length}</span></>}
-                    hint={activeCount ? 'Used for every student' : 'Upload a .docx to start'}
+                    onClick={() => handleNavigateTab('templates')}
+                    value={
+                        <>
+                            {activeCount}
+                            <span className="text-sm font-semibold text-muted"> / {templates.length}</span>
+                        </>
+                    }
+                    hint={activeCount ? 'Manage templates & presets' : 'Upload a .docx to start'}
                     hintTone={activeCount ? 'muted' : 'alert'}
                 />
                 <StatTile
                     label="Ready courses"
                     icon={Users}
                     tone="success"
-                    accent={false}
-                    value={new Set(enrollments.filter(e => e.status === 'confirmed').map(e => e.course_id)).size}
+                    onClick={() => handleNavigateTab('generate')}
+                    value={readyCoursesCount}
                     hint="With confirmed participants"
                 />
                 <StatTile
                     label="Sheets & SICAP form"
                     icon={Tag}
                     tone="info"
-                    accent={false}
-                    value={<>{Number(!!attTemplate) + Number(!!labelTemplate) + Number(!!sicapTemplate)}<span className="text-sm font-semibold text-muted"> / 3</span></>}
-                    hint={attTemplate && labelTemplate && sicapTemplate ? 'All templates set' : 'Attendance, labels, SICAP form'}
+                    onClick={() => handleNavigateTab('templates')}
+                    value={
+                        <>
+                            {configuredSingles}
+                            <span className="text-sm font-semibold text-muted"> / 3</span>
+                        </>
+                    }
+                    hint={configuredSingles === 3 ? 'All templates set' : 'Attendance, labels, SICAP form'}
                 />
                 <StatTile
                     label="Custom variables"
                     icon={Variable}
                     tone="brand"
-                    accent={false}
+                    onClick={() => handleNavigateTab('variables')}
                     value={customVars.length}
                     hint={`${excelColumns.length} Excel column${excelColumns.length !== 1 ? 's' : ''}`}
                 />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] gap-5 items-start">
-                {/* ═══ Left: generate flow ═══ */}
-                <div className="space-y-5 min-w-0">
-                    <GeneratePanel courses={courses} enrollments={enrollments} setup={setup} showToast={showToast} />
-                    <PlaceholderReference customVars={customVars} />
-                </div>
+            {/* Top-level workspace navigation */}
+            <UnderlineTabs<DocumentsTabKey>
+                ariaLabel="Documents sections"
+                tabs={tabs}
+                value={activeTab}
+                onChange={tab => handleNavigateTab(tab)}
+            />
 
-                {/* ═══ Right: templates & setup ═══ */}
-                <div className="space-y-5 min-w-0">
-                    <WordTemplatesCard {...cardProps} />
-                    <SingleTemplateCard kind="attendance" {...cardProps} />
-                    <SingleTemplateCard kind="labels" {...cardProps} />
-                    <SingleTemplateCard kind="sicap" {...cardProps} />
-                    <CustomVariablesCard {...cardProps} />
-                    <ExcelColumnsCard setup={setup} showToast={showToast} />
-                </div>
+            {/* Tab panels */}
+            <div key={activeTab} className="animate-fadeIn">
+                {activeTab === 'generate' && (
+                    <GenerateTab
+                        courses={courses}
+                        enrollments={enrollments}
+                        enrollmentsLoading={enrollmentsLoading}
+                        enrollmentsError={enrollmentsError}
+                        onRetryEnrollments={() => void refetchEnrollments()}
+                        setup={setup}
+                        showToast={showToast}
+                        onNavigateTab={handleNavigateTab}
+                        onOpenPreviewModal={setPreviewModal}
+                        onOpenSettingsGeneral={inRouter ? handleOpenSettingsGeneral : undefined}
+                    />
+                )}
+                {activeTab === 'templates' && (
+                    <TemplatesTab
+                        courses={courses}
+                        setup={setup}
+                        showToast={showToast}
+                        confirmDelete={setPendingDelete}
+                        onPreview={setPreviewModal}
+                        initialCourseId={focusCourseId}
+                    />
+                )}
+                {activeTab === 'variables' && (
+                    <VariablesExcelTab
+                        setup={setup}
+                        showToast={showToast}
+                        confirmDelete={setPendingDelete}
+                        onOpenSettingsGeneral={inRouter ? handleOpenSettingsGeneral : undefined}
+                    />
+                )}
             </div>
         </div>
     );
