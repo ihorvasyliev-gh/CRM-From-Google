@@ -102,7 +102,7 @@ const mockEnrollments: EnrollmentRow[] = [
         response_days: 7,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        students: null,
+        students: { id: 'st-1', first_name: 'One', last_name: 'Student', email: 'one@example.com' } as EnrollmentRow['students'],
         courses: null
     },
     // 2. Expired invite for 2026-08-26 (invited 10 days ago, 7 days limit) -> should NOT count as pending
@@ -123,7 +123,7 @@ const mockEnrollments: EnrollmentRow[] = [
         response_days: 7,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        students: null,
+        students: { id: 'st-2', first_name: 'Two', last_name: 'Student', email: 'two@example.com' } as EnrollmentRow['students'],
         courses: null
     },
     // 3. Confirmed student for 2026-08-26
@@ -144,7 +144,7 @@ const mockEnrollments: EnrollmentRow[] = [
         response_days: 7,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        students: null,
+        students: { id: 'st-3', first_name: 'Three', last_name: 'Student', email: 'three@example.com' } as EnrollmentRow['students'],
         courses: null
     },
     // 4. Confirmed student for 2026-08-26 (confirmed_date null, but invited_date 2026-08-26)
@@ -165,7 +165,7 @@ const mockEnrollments: EnrollmentRow[] = [
         response_days: 7,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        students: null,
+        students: { id: 'st-4', first_name: 'Four', last_name: 'Student', email: 'four@example.com' } as EnrollmentRow['students'],
         courses: null
     },
     // 5. Active pending invite for another course c-2 on 2026-08-26 -> should be ignored when course is c-1
@@ -744,5 +744,78 @@ describe('useInviteFlow keeps confirmations made while the dialog is open', () =
 
         expect(result.current.inviteDateTarget).toBeNull();
         expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/one course/), 'error');
+    });
+
+    it('skips students without an email in Invite & Email and reports them in the toast', async () => {
+        const noEmailRow: EnrollmentRow = {
+            ...mockEnrollments[0],
+            id: 'en-no-email',
+            status: 'requested',
+            students: { id: 'st-ne', first_name: 'No', last_name: 'Email', email: '' } as EnrollmentRow['students'],
+        };
+        const withEmailRow: EnrollmentRow = {
+            ...mockEnrollments[0],
+            id: 'en-has-email',
+            status: 'requested',
+            students: { id: 'st-he', first_name: 'Has', last_name: 'Email', email: 'has@example.com' } as EnrollmentRow['students'],
+        };
+        const showToast = vi.fn();
+        const write = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true });
+        vi.stubGlobal('ClipboardItem', class { constructor(public items: unknown) {} });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const { result } = renderHook(() => useInviteFlow({
+            enrollments: [noEmailRow, withEmailRow],
+            setEnrollments: vi.fn(),
+            clearSelection: vi.fn(),
+            showToast,
+        }), { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> });
+
+        await act(async () => {
+            result.current.openInviteModal(['en-no-email', 'en-has-email'], true);
+        });
+        await act(async () => {
+            await result.current.handleInviteAndEmail();
+        });
+        vi.unstubAllGlobals();
+
+        expect(write).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('1 without email skipped'), 'success');
+    });
+
+    it('pre-fills existing upcoming invited date(s) when re-inviting and copies a short confirm link', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-01T09:00:00'));
+        supabaseMocks.inviteDateRows = [{ invite_date: '2026-09-10' }, { invite_date: '2026-09-24' }];
+        const upcomingInvited: EnrollmentRow = {
+            ...mockEnrollments[0],
+            id: 'en-reinvite',
+            status: 'invited',
+            invited_date: '2026-09-24',
+            invited_dates: null,
+        };
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const showToast = vi.fn();
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const { result } = renderHook(() => useInviteFlow({
+            enrollments: [upcomingInvited],
+            setEnrollments: vi.fn(),
+            clearSelection: vi.fn(),
+            showToast,
+        }), { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> });
+
+        await act(async () => {
+            result.current.openInviteModal(['en-reinvite'], false);
+        });
+        // Kept the existing upcoming invited date instead of snapping to the earlier 2026-09-10
+        expect(result.current.inviteDate).toBe('2026-09-24');
+
+        await act(async () => {
+            await result.current.handleCopyConfirmLink();
+        });
+        expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/c/token-xyz'));
+        expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/Confirmation link copied/), 'success');
+        vi.useRealTimers();
     });
 });

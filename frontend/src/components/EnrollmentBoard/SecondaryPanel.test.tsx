@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import SecondaryPanel from './SecondaryPanel';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
@@ -53,5 +53,61 @@ describe('SecondaryPanel', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Copy Rejected emails' }));
         expect(props.onCopyEmails).toHaveBeenCalledWith(props.byStatus.rejected, 'Rejected');
+    });
+
+    it('supports bulk selection with Restore and Delete plus inline note editing', async () => {
+        const onRestoreMany = vi.fn();
+        const onDeleteMany = vi.fn();
+        const onUpdateNote = vi.fn().mockResolvedValue(true);
+        const byStatus = {
+            withdrawn: [row('w1', 'withdrawn', 'Anna'), row('w2', 'withdrawn', 'Brian')],
+            rejected: [row('r1', 'rejected', 'Ciara')],
+        };
+        render(
+            <SecondaryPanel
+                open
+                onClose={vi.fn()}
+                byStatus={byStatus}
+                onRestore={vi.fn()}
+                onDelete={vi.fn()}
+                onShowDetail={vi.fn()}
+                onCopyEmails={vi.fn()}
+                onUpdateNote={onUpdateNote}
+                onRestoreMany={onRestoreMany}
+                onDeleteMany={onDeleteMany}
+            />
+        );
+
+        // Select all in Withdrawn and restore them together
+        fireEvent.click(screen.getByRole('button', { name: 'Select all Withdrawn' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Restore (2)' }));
+        expect(onRestoreMany).toHaveBeenCalledWith(byStatus.withdrawn);
+
+        // Inline edit Anna's note
+        fireEvent.click(screen.getByText('Moved abroad'));
+        const textarea = screen.getByPlaceholderText('Add note…');
+        fireEvent.change(textarea, { target: { value: 'Returning in January' } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+        });
+        expect(onUpdateNote).toHaveBeenCalledWith('w1', 'Returning in January');
+    });
+
+    it('paginates long lists with a Show more button', () => {
+        const manyWithdrawn = Array.from({ length: 30 }, (_, i) => row(`w-${i}`, 'withdrawn', `Person${i}`));
+        render(
+            <SecondaryPanel
+                open
+                onClose={vi.fn()}
+                byStatus={{ withdrawn: manyWithdrawn, rejected: [] }}
+                onRestore={vi.fn()}
+                onDelete={vi.fn()}
+                onShowDetail={vi.fn()}
+                onCopyEmails={vi.fn()}
+            />
+        );
+        expect(screen.queryByText('Person29 Doe')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Show 5 more \(5 remaining\)/ }));
+        expect(screen.getByText('Person29 Doe')).toBeInTheDocument();
     });
 });

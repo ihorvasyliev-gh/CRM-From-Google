@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Copy, Clock, Send, BellRing, Loader2, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal, LogOut } from 'lucide-react';
+import { Copy, Clock, Send, BellRing, Loader2, CheckCircle, GraduationCap, Ban, FileArchive, Trash2, X, MoreHorizontal, LogOut, Calendar, Star, Phone } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import Menu, { type MenuItem } from '../ui/Menu';
 import { fittingActions } from './bulkActions';
-import type { EnrollmentStatus } from '../../lib/types';
+import { getCoursePill, type EnrollmentStatus } from '../../lib/types';
+import { STATUS_CONFIG } from '../../lib/statusConfig';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 
 const actionCls = 'inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white leading-none whitespace-nowrap transition-colors shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -13,8 +14,12 @@ interface BulkActionBarProps {
     selectedEnrollments: EnrollmentRow[];
     /** A bulk change is being saved: the actions wait, so it can't be sent twice */
     busy?: boolean;
+    /** A reminder email draft is being prepared */
+    reminding?: boolean;
     handleCopySelectedEmails: () => void;
+    handleCopySelectedPhones?: () => void;
     bulkUpdateStatus: (status: EnrollmentStatus) => void;
+    bulkSetPriority?: (priority: boolean) => void;
     /** Opens the document generation dialog for the selection. */
     handleGenerateDocuments: () => void;
     sendReminder: () => void;
@@ -27,8 +32,11 @@ export default function BulkActionBar({
     selectedCount,
     selectedEnrollments,
     busy = false,
+    reminding = false,
     handleCopySelectedEmails,
+    handleCopySelectedPhones,
     bulkUpdateStatus,
+    bulkSetPriority,
     handleGenerateDocuments,
     sendReminder,
     setBulkDeleteOpen,
@@ -41,7 +49,13 @@ export default function BulkActionBar({
     if (selectedCount === 0) return null;
 
     const fits = fittingActions(new Set(selectedEnrollments.map(e => e.status)));
+    const hasUnstarred = selectedEnrollments.some(e => !e.is_priority);
+    const hasStarred = selectedEnrollments.some(e => e.is_priority);
+
     const moreItems: MenuItem[] = [
+        ...(handleCopySelectedPhones ? [{ label: 'Copy phones', icon: <Phone size={14} />, onSelect: handleCopySelectedPhones }] : []),
+        ...(bulkSetPriority && hasUnstarred ? [{ label: 'Mark as priority', icon: <Star size={14} />, onSelect: () => bulkSetPriority(true) }] : []),
+        ...(bulkSetPriority && hasStarred ? [{ label: 'Remove priority', icon: <Star size={14} />, onSelect: () => bulkSetPriority(false) }] : []),
         ...(fits.backToRequested ? [{ label: 'Back to requested', icon: <Clock size={14} />, onSelect: () => bulkUpdateStatus('requested') }] : []),
         ...(fits.withdraw ? [{ label: 'Withdraw', icon: <LogOut size={14} />, onSelect: () => bulkUpdateStatus('withdrawn') }] : []),
         ...(fits.reject ? [{ label: 'Reject…', icon: <Ban size={14} />, onSelect: () => setConfirmRejectOpen(true), tone: 'danger' as const }] : []),
@@ -51,9 +65,9 @@ export default function BulkActionBar({
     return (
         <>
         <div className="fixed bottom-[max(calc(env(safe-area-inset-bottom)+4.25rem),4.25rem)] lg:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 animate-slideUpCenter">
-            
+
             {showList && (
-                <div className="bg-surface border border-border-subtle rounded-xl shadow-float w-72 max-h-64 flex flex-col overflow-hidden animate-slideUp">
+                <div className="bg-surface border border-border-subtle rounded-xl shadow-float w-80 max-h-72 flex flex-col overflow-hidden animate-slideUp">
                     <div className="px-4 py-3 border-b border-border-subtle flex justify-between items-center bg-surface">
                         <span className="text-xs font-bold text-primary uppercase tracking-wider">Selected Students ({selectedCount})</span>
                         <button type="button" onClick={() => setShowList(false)} aria-label="Close the list" className="text-muted hover:text-primary transition-colors">
@@ -61,22 +75,33 @@ export default function BulkActionBar({
                         </button>
                     </div>
                     <div className="overflow-y-auto p-1.5 flex-1 space-y-0.5 min-h-0">
-                        {selectedEnrollments.map((e: EnrollmentRow) => (
-                            <div key={e.id} className="flex items-center justify-between px-3 py-2 hover:bg-surface rounded-lg group transition-colors">
-                                <span className="text-[13px] font-semibold text-primary truncate pr-2">
-                                    {e.students?.first_name} {e.students?.last_name}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => toggleSelect(e.id)}
-                                    className="text-muted sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 hover:text-red-500 hover:bg-danger/10 transition-all p-1 rounded-md"
-                                    aria-label={`Deselect ${e.students?.first_name ?? ''} ${e.students?.last_name ?? ''}`.trim()}
-                                    title="Deselect"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        ))}
+                        {selectedEnrollments.map((e: EnrollmentRow) => {
+                            const stCfg = STATUS_CONFIG[e.status];
+                            return (
+                                <div key={e.id} className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-surface-elevated rounded-lg group transition-colors">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[13px] font-semibold text-primary truncate">
+                                            {e.students?.first_name} {e.students?.last_name}
+                                        </p>
+                                        <p className="text-[11px] text-muted truncate flex items-center gap-1.5">
+                                            <span>{getCoursePill(e)}</span>
+                                            {stCfg && (
+                                                <span className={`font-semibold ${stCfg.color}`}>· {stCfg.label}</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleSelect(e.id)}
+                                        className="text-muted sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 hover:text-red-500 hover:bg-danger/10 transition-all p-1 rounded-md shrink-0"
+                                        aria-label={`Deselect ${e.students?.first_name ?? ''} ${e.students?.last_name ?? ''}`.trim()}
+                                        title="Deselect"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -111,13 +136,18 @@ export default function BulkActionBar({
                     </button>
                 )}
                 {fits.remind && (
-                    <button type="button" onClick={sendReminder} title="Send a reminder to the confirmed ones" className={`${actionCls} bg-sky-500 hover:bg-sky-600`}>
-                        <BellRing size={14} /> Remind
+                    <button type="button" disabled={busy || reminding} onClick={sendReminder} title="Send a reminder to the confirmed ones" className={`${actionCls} bg-sky-500 hover:bg-sky-600`}>
+                        {reminding ? <Loader2 size={14} className="animate-spin" /> : <BellRing size={14} />} Remind
                     </button>
                 )}
                 {fits.confirm && (
                     <button type="button" disabled={busy} onClick={() => bulkUpdateStatus('confirmed')} className={`${actionCls} bg-emerald-500 hover:bg-emerald-600`}>
                         <CheckCircle size={14} /> Confirm
+                    </button>
+                )}
+                {fits.reschedule && (
+                    <button type="button" disabled={busy} onClick={() => bulkUpdateStatus('confirmed')} title="Change course date for selected confirmed enrollments" className={`${actionCls} bg-emerald-600 hover:bg-emerald-700`}>
+                        <Calendar size={14} /> Change date
                     </button>
                 )}
                 {fits.complete && (

@@ -31,6 +31,7 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
     // Days whose own time is shown (a day with its own time is always shown)
     const [ownTimeOpen, setOwnTimeOpen] = useState<Set<string>>(new Set());
     const [weeks, setWeeks] = useState(8);
+    const [weeksText, setWeeksText] = useState('8');
 
     const setDays = (next: SessionDay[]) => {
         const byDate = new Map<string, SessionDay>();
@@ -192,9 +193,20 @@ export default function SessionScheduleEditor({ session, onChange, title, locati
                             aria-label="Number of weeks"
                             min={2}
                             max={52}
-                            value={weeks}
-                            onChange={e => setWeeks(Math.min(52, Math.max(2, parseInt(e.target.value) || 2)))}
-                            className="w-14 px-2 py-1.5 border border-border-subtle rounded-lg text-xs bg-surface text-center"
+                            value={weeksText}
+                            onChange={e => {
+                                const raw = e.target.value;
+                                setWeeksText(raw);
+                                const parsed = parseInt(raw, 10);
+                                if (!Number.isNaN(parsed) && parsed >= 2 && parsed <= 52) setWeeks(parsed);
+                            }}
+                            onBlur={() => {
+                                const parsed = parseInt(weeksText, 10);
+                                const clamped = Number.isNaN(parsed) ? 8 : Math.min(52, Math.max(2, parsed));
+                                setWeeks(clamped);
+                                setWeeksText(String(clamped));
+                            }}
+                            className="w-14 px-2 py-1.5 border border-border-subtle rounded-lg text-xs bg-surface text-center tabular-nums"
                         />
                         <button
                             type="button"

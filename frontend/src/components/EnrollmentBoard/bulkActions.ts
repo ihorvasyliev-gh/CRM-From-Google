@@ -10,6 +10,7 @@ export function fittingActions(statuses: ReadonlySet<EnrollmentStatus>) {
         invite: !only('confirmed', 'completed'),
         remind: statuses.has('confirmed'),
         confirm: !only('confirmed', 'completed'),
+        reschedule: statuses.size === 1 && statuses.has('confirmed'),
         complete: !only('completed'),
         backToRequested: !only('requested'),
         withdraw: !only('withdrawn'),

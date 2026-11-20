@@ -55,6 +55,8 @@ export function matchesSearch(
         notes?: string | null;
         eircode?: string | null;
         address?: string | null;
+        course?: string | null;
+        variant?: string | null;
     },
     query: string
 ): boolean {
@@ -69,6 +71,8 @@ export function matchesSearch(
     const email = (fields.email || '').toLowerCase();
     const notes = (fields.notes || '').toLowerCase();
     const address = (fields.address || '').toLowerCase();
+    const course = (fields.course || '').toLowerCase();
+    const variant = (fields.variant || '').toLowerCase();
     const eircodeClean = (fields.eircode || '').toUpperCase().replace(/\s+/g, '');
 
     // Every word in the query must match at least one field
@@ -79,6 +83,8 @@ export function matchesSearch(
         if (email.includes(word)) return true;
         if (notes.includes(word)) return true;
         if (address.includes(word)) return true;
+        if (course.includes(word)) return true;
+        if (variant.includes(word)) return true;
         if (isPhoneMatch(fields.phone, word)) return true;
         
         const wordClean = word.toUpperCase().replace(/\s+/g, '');

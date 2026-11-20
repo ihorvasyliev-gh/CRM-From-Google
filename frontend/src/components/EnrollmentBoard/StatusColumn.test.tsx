@@ -98,3 +98,89 @@ describe('StatusColumn: a changed row', () => {
         expect(screen.queryByText('085 123 4567')).not.toBeInTheDocument();
     });
 });
+
+describe('StatusColumn: date groups, Top N, and collapse rail', () => {
+    const baseProps = {
+        selectedIds: new Set<string>(),
+        selectAllInList: vi.fn(),
+        handleCopyEmails: vi.fn(),
+        toggleSelect: vi.fn(),
+        togglePriority: vi.fn(),
+        openEditNote: vi.fn(),
+        queuePositions: new Map<string, number>(),
+        queueDetails: new Map<string, string>(),
+        flagsByStudentId: new Map(),
+        completedCoursesByStudentId: new Map(),
+        onFlagClick: vi.fn(),
+        emptyFlags: [],
+        emptyCompletedCourses: [],
+        sessions: new Map(),
+        filters: {},
+    };
+
+    it('renders date group headers in Confirmed and selects a whole cohort on click', () => {
+        const selectAllInList = vi.fn();
+        const items = [
+            { ...row(1), status: 'confirmed', confirmed_date: '2026-12-01' } as EnrollmentRow,
+            { ...row(2), status: 'confirmed', confirmed_date: '2026-12-01' } as EnrollmentRow,
+            { ...row(3), status: 'confirmed', confirmed_date: '2026-12-08' } as EnrollmentRow,
+        ];
+        render(
+            <TooltipProvider>
+                <DndContext>
+                    <StatusColumn {...baseProps} status="confirmed" items={items} selectAllInList={selectAllInList} />
+                </DndContext>
+            </TooltipProvider>
+        );
+
+        expect(screen.getByTestId('date-group-date:2026-12-01')).toBeInTheDocument();
+        expect(screen.getByTestId('date-group-date:2026-12-08')).toBeInTheDocument();
+
+        const selectBtns = screen.getAllByRole('button', { name: /^Select all \d+ in/ });
+        fireEvent.click(selectBtns[0]);
+        expect(selectAllInList).toHaveBeenCalledWith([items[0], items[1]]);
+    });
+
+    it('selects Top N from Requested queue while skipping unsubscribed & no-email rows by default', () => {
+        const onSelectTopN = vi.fn();
+        const items = [1, 2, 3, 4].map(n => ({
+            ...row(n),
+            students: { id: `s-${n}`, first_name: `S${n}`, last_name: 'T', email: n === 1 ? '' : `s${n}@example.com`, phone: null },
+        } as unknown as EnrollmentRow));
+        render(
+            <TooltipProvider>
+                <DndContext>
+                    <StatusColumn
+                        {...baseProps}
+                        status="requested"
+                        items={items}
+                        onSelectTopN={onSelectTopN}
+                        optedOutEmails={new Set(['s2@example.com'])}
+                    />
+                </DndContext>
+            </TooltipProvider>
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Select top N in queue' }));
+        fireEvent.change(screen.getByLabelText('Custom number of students'), { target: { value: '2' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Pick' }));
+
+        // Skips e-1 (no email) and e-2 (unsubscribed), picks e-3 & e-4
+        expect(onSelectTopN).toHaveBeenCalledWith(['e-3', 'e-4']);
+    });
+
+    it('renders a compact vertical rail when collapsed and expands on click', () => {
+        const onToggleCollapse = vi.fn();
+        render(
+            <TooltipProvider>
+                <DndContext>
+                    <StatusColumn {...baseProps} status="completed" items={[row(1), row(2)]} collapsed canCollapse onToggleCollapse={onToggleCollapse} />
+                </DndContext>
+            </TooltipProvider>
+        );
+
+        const expandBtn = screen.getByRole('button', { name: 'Expand Completed column (2)' });
+        fireEvent.click(expandBtn);
+        expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+    });
+});

@@ -131,6 +131,10 @@ async function copyHtmlAndOpenDraft(
     window.location.href = `mailto:?bcc=${bcc}&subject=${encodeURIComponent(subject)}`;
 }
 
+function noEmailNote(count: number): string {
+    return count > 0 ? ` · ${count} without email skipped` : '';
+}
+
 /**
  * Attendance reminder for confirmed people (one course + date): copies the email and opens
  * a BCC draft. Status stays unchanged. Returns false if nothing was sent.
@@ -153,17 +157,29 @@ export async function sendReminderEmail(
         return false;
     }
 
+    const withEmail = confirmed.filter(e => !!e.students?.email?.trim());
+    const missingEmailCount = confirmed.length - withEmail.length;
+    if (withEmail.length === 0) {
+        showToast('None of the confirmed people have an email address — no reminder sent.', 'error');
+        return false;
+    }
+
     let optedOut: Set<string>;
     try {
-        optedOut = await fetchOptedOutEmails(confirmed.map(e => e.students?.email));
+        optedOut = await fetchOptedOutEmails(withEmail.map(e => e.students?.email));
     } catch (err) {
         console.error('Failed to check the unsubscribe list:', err);
         showToast('Could not check the unsubscribe list. Please try again.', 'error');
         return false;
     }
-    const { allowed, skipped } = partitionByOptOut(confirmed, e => e.students?.email, optedOut);
+    const { allowed, skipped } = partitionByOptOut(withEmail, e => e.students?.email, optedOut);
     if (allowed.length === 0) {
-        showToast('Everyone selected has unsubscribed from emails — no reminder sent.', 'error');
+        showToast(
+            missingEmailCount > 0
+                ? 'Everyone selected has unsubscribed or has no email — no reminder sent.'
+                : 'Everyone selected has unsubscribed from emails — no reminder sent.',
+            'error',
+        );
         return false;
     }
 
@@ -177,11 +193,33 @@ export async function sendReminderEmail(
 
     const notConfirmed = selected.length - confirmed.length;
     const note = skippedNote(skipped.length)
+        + noEmailNote(missingEmailCount)
         + (notConfirmed ? ` · ${notConfirmed} not confirmed skipped` : '')
         + (kind === 'reminder_tomorrow' ? ' · course is tomorrow — day-before text used' : '');
     const subjectDate = session ? subjectDateLabel([session]) : date ? formatDateLong(date) : '';
     await copyHtmlAndOpenDraft(htmlBody, allowed.map(e => e.students?.email), buildEmailSubject(courseName, subjectDate, undefined, kind), note, showToast);
     return true;
+}
+
+/**
+ * Extracts a shared upcoming invited date (or multi-date list) when re-inviting people who are
+ * already invited to a future course date, so the modal starts from their current date instead of
+ * jumping to another cohort.
+ */
+function sharedUpcomingInviteDates(chosen: readonly EnrollmentRow[], today: string): string[] | null {
+    if (chosen.length === 0 || !chosen.every(e => e.status === 'invited')) return null;
+    const dateLists = chosen.map(e => {
+        const list = e.invited_dates && e.invited_dates.length > 1
+            ? normalizeDateList(e.invited_dates.map(d => d.split('T')[0]))
+            : e.invited_date
+                ? [e.invited_date.split('T')[0]]
+                : [];
+        return list.filter(d => d >= today);
+    });
+    if (dateLists.some(l => l.length === 0)) return null;
+    const firstKey = dateLists[0].join(',');
+    if (dateLists.every(l => l.join(',') === firstKey)) return dateLists[0];
+    return null;
 }
 
 export function useInviteFlow({
@@ -206,14 +244,19 @@ export function useInviteFlow({
     const [sessionDefaults, setSessionDefaults] = useState<SessionDefaults>(NO_DEFAULTS);
     // False until migration 79 adds the schedule columns
     const [scheduleSupported, setScheduleSupported] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [reminding, setReminding] = useState(false);
+    const [copyingLink, setCopyingLink] = useState(false);
 
-    /** The course's upcoming dates; the next one is preselected unless a date was picked meanwhile. */
-    function showSavedDates(upcoming: string[]) {
+    /** The course's upcoming dates; the next one is preselected unless a date was preset or picked meanwhile. */
+    function showSavedDates(upcoming: string[], keepPreset = false) {
         setSavedInviteDates(upcoming);
-        if (upcoming.length) setInviteDate(prev => (prev === todayISO() ? upcoming[0] : prev));
+        if (!keepPreset && upcoming.length) {
+            setInviteDate(prev => (prev === todayISO() ? upcoming[0] : prev));
+        }
     }
 
-    async function fetchCourseDates(courseId: string) {
+    async function fetchCourseDates(courseId: string, keepPreset = false) {
         setTargetCourseId(courseId);
         const today = todayISO();
         const { data, error } = await supabase
@@ -230,12 +273,12 @@ export function useInviteFlow({
                 .eq('course_id', courseId)
                 .gte('invite_date', today)
                 .order('invite_date', { ascending: true });
-            showSavedDates(plain ? plain.map((d: { invite_date: string }) => d.invite_date) : []);
+            showSavedDates(plain ? plain.map((d: { invite_date: string }) => d.invite_date) : [], keepPreset);
             return;
         }
         setScheduleSupported(true);
         const sessions = (data || []).map(sessionFromRow).filter((s): s is CourseSession => !!s);
-        showSavedDates(sessions.map(s => s.date).filter(d => d >= today));
+        showSavedDates(sessions.map(s => s.date).filter(d => d >= today), keepPreset);
         setSavedSessions(Object.fromEntries(sessions.map(s => [s.date, s])));
         // The course's latest date with a time or place sets the defaults for a new date
         const latest = [...sessions].reverse().find(s => s.start_time || s.end_time || s.location);
@@ -252,17 +295,29 @@ export function useInviteFlow({
         // The board asks before re-inviting people who have a place; anyone else who
         // confirms while this dialog is open keeps their place (see inviteMutation)
         const placedIds = chosen.filter(e => PLACED_STATUSES.includes(e.status)).map(e => e.id);
+        const today = todayISO();
+        const preset = sharedUpcomingInviteDates(chosen, today);
         setInviteDateTarget({ ids, bulk, placedIds, people: chosen });
-        setInviteDate(todayISO());
-        setMultiDate(false);
-        setInviteDates([]);
-        setResponseDays(7);
+        if (preset && preset.length > 1) {
+            setMultiDate(true);
+            setInviteDates(preset);
+            setInviteDate(preset[0]);
+        } else if (preset && preset.length === 1) {
+            setMultiDate(false);
+            setInviteDates([]);
+            setInviteDate(preset[0]);
+        } else {
+            setMultiDate(false);
+            setInviteDates([]);
+            setInviteDate(today);
+        }
+        setResponseDays(chosen.length === 1 && chosen[0].response_days ? chosen[0].response_days : 7);
         setSavedSessions({});
         setSessionDrafts({});
         setSessionDefaults(NO_DEFAULTS);
         const first = enrollments.find(e => ids.includes(e.id));
         if (first && first.course_id) {
-            fetchCourseDates(first.course_id);
+            fetchCourseDates(first.course_id, !!preset);
         } else {
             setTargetCourseId(null);
             setSavedInviteDates([]);
@@ -374,21 +429,23 @@ export function useInviteFlow({
         void refreshCachedEnrollments(queryClient, before.map(e => e.id));
     }
 
+    async function persistInviteDates(courseId: string | undefined, dates: string[], sessions: CourseSession[]) {
+        if (!courseId) return;
+        const plainRows = normalizeDateList(dates).map(d => ({ course_id: courseId, invite_date: d }));
+        const { error: sessionError } = sessions.length > 0
+            ? await supabase.from('invite_dates').upsert(sessions.map(s => sessionToRow(courseId, s)), { onConflict: 'course_id,invite_date' })
+            : await supabase.from('invite_dates').upsert(plainRows, { onConflict: 'course_id,invite_date' });
+        if (sessionError && sessions.length > 0) {
+            console.error('Saving the course date schedule failed:', sessionError);
+            await supabase.from('invite_dates').upsert(plainRows, { onConflict: 'course_id,invite_date' });
+            showToast('Time & place were not saved (is migration 79 applied?)', 'error');
+        }
+    }
+
     const inviteMutation = useMutation({
         mutationFn: async ({ ids, placedIds, dates, days, sessions }: { ids: string[], placedIds: string[], dates: string[], days: number, sessions: CourseSession[] }) => {
             const first = enrollments.find(e => ids.includes(e.id));
-            if (first && first.course_id) {
-                const courseId = first.course_id;
-                const plainRows = normalizeDateList(dates).map(d => ({ course_id: courseId, invite_date: d }));
-                const { error: sessionError } = sessions.length > 0
-                    ? await supabase.from('invite_dates').upsert(sessions.map(s => sessionToRow(courseId, s)), { onConflict: 'course_id,invite_date' })
-                    : await supabase.from('invite_dates').upsert(plainRows, { onConflict: 'course_id,invite_date' });
-                if (sessionError && sessions.length > 0) {
-                    console.error('Saving the course date schedule failed:', sessionError);
-                    await supabase.from('invite_dates').upsert(plainRows, { onConflict: 'course_id,invite_date' });
-                    showToast('Time & place were not saved (is migration 79 applied?)', 'error');
-                }
-            }
+            await persistInviteDates(first?.course_id, dates, sessions);
 
             const updatePayload = buildInvitePayload(dates, days);
 
@@ -447,72 +504,132 @@ export function useInviteFlow({
     });
 
     async function handleInviteWithDate() {
-        if (!inviteDateTarget || !canInvite) return;
+        if (!inviteDateTarget || !canInvite || submitting) return;
         const { ids, placedIds } = inviteDateTarget;
-        inviteMutation.mutate({ ids, placedIds, dates: selectedDates, days: responseDays, sessions: selectedSessions });
-        setInviteDateTarget(null);
+        setSubmitting(true);
+        try {
+            inviteMutation.mutate({ ids, placedIds, dates: selectedDates, days: responseDays, sessions: selectedSessions });
+            setInviteDateTarget(null);
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     async function handleInviteAndEmail() {
-        if (!inviteDateTarget || !canInvite) return;
-        const targetEnrollments = enrollments.filter(e => inviteDateTarget.ids.includes(e.id));
-
-        // People who unsubscribed stay in the CRM but are neither invited nor emailed
-        let optedOut: Set<string>;
+        if (!inviteDateTarget || !canInvite || submitting) return;
+        setSubmitting(true);
         try {
-            optedOut = await fetchOptedOutEmails(targetEnrollments.map(e => e.students?.email));
-        } catch (err) {
-            console.error('Failed to check the unsubscribe list:', err);
-            showToast('Could not check the unsubscribe list. Please try again.', 'error');
-            return;
-        }
-        const { allowed: selectedEnrollments, skipped } = partitionByOptOut(targetEnrollments, e => e.students?.email, optedOut);
-        if (selectedEnrollments.length === 0) {
-            showToast('Everyone selected has unsubscribed from emails — nobody was invited.', 'error');
-            return;
-        }
-        const ids = selectedEnrollments.map(e => e.id);
-        const dates = normalizeDateList(selectedDates);
+            const targetEnrollments = enrollments.filter(e => inviteDateTarget.ids.includes(e.id));
+            // Skip people without an email address (matching Outcomes: use Just Invite + Copy confirm link for WhatsApp/phone)
+            const withEmail = targetEnrollments.filter(e => !!e.students?.email?.trim());
+            const missingEmailCount = targetEnrollments.length - withEmail.length;
+            if (withEmail.length === 0) {
+                showToast('None of the selected students have an email — use Just Invite and contact by phone or WhatsApp.', 'error');
+                return;
+            }
 
-        const first = selectedEnrollments[0];
-        const courseName = first ? getCoursePill(first) : 'Course';
-        const sessions = selectedSessions.length > 0 ? selectedSessions : dates.map(emptySession);
-        const dateFormatted = subjectDateLabel(sessions);
+            // People who unsubscribed stay in the CRM but are neither invited nor emailed
+            let optedOut: Set<string>;
+            try {
+                optedOut = await fetchOptedOutEmails(withEmail.map(e => e.students?.email));
+            } catch (err) {
+                console.error('Failed to check the unsubscribe list:', err);
+                showToast('Could not check the unsubscribe list. Please try again.', 'error');
+                return;
+            }
+            const { allowed: selectedEnrollments, skipped } = partitionByOptOut(withEmail, e => e.students?.email, optedOut);
+            if (selectedEnrollments.length === 0) {
+                showToast(
+                    missingEmailCount > 0
+                        ? 'Everyone selected has unsubscribed or has no email — nobody was invited.'
+                        : 'Everyone selected has unsubscribed from emails — nobody was invited.',
+                    'error',
+                );
+                return;
+            }
+            const ids = selectedEnrollments.map(e => e.id);
+            const dates = normalizeDateList(selectedDates);
 
-        const confirmLink = await createConfirmLink(first?.course_id, dates);
-        if (!confirmLink) {
-            showToast('Could not create the multi-date confirmation link. Is migration 59 applied?', 'error');
-            return;
-        }
-        const courseInfo = await fetchCourseInfo(first?.course_id);
+            const first = selectedEnrollments[0];
+            const courseName = first ? getCoursePill(first) : 'Course';
+            const sessions = selectedSessions.length > 0 ? selectedSessions : dates.map(emptySession);
+            const dateFormatted = subjectDateLabel(sessions);
 
-        // Await the database update so mailto navigation doesn't abort the HTTP request
-        let invited: string[];
-        try {
-            ({ ids: invited } = await inviteMutation.mutateAsync({ ids, placedIds: inviteDateTarget.placedIds, dates, days: responseDays, sessions: selectedSessions }));
-        } catch (err) {
-            console.error('Failed to complete invite mutation:', err);
-            return;
-        }
-        // Whoever confirmed while the dialog was open needs no invitation
-        const recipients = selectedEnrollments.filter(e => invited.includes(e.id));
-        if (recipients.length === 0) {
+            const confirmLink = await createConfirmLink(first?.course_id, dates);
+            if (!confirmLink) {
+                showToast('Could not create the multi-date confirmation link. Is migration 59 applied?', 'error');
+                return;
+            }
+            const courseInfo = await fetchCourseInfo(first?.course_id);
+
+            // Await the database update so mailto navigation doesn't abort the HTTP request
+            let invited: string[];
+            try {
+                ({ ids: invited } = await inviteMutation.mutateAsync({ ids, placedIds: inviteDateTarget.placedIds, dates, days: responseDays, sessions: selectedSessions }));
+            } catch (err) {
+                console.error('Failed to complete invite mutation:', err);
+                return;
+            }
+            // Whoever confirmed while the dialog was open needs no invitation
+            const recipients = selectedEnrollments.filter(e => invited.includes(e.id));
+            if (recipients.length === 0) {
+                setInviteDateTarget(null);
+                return;
+            }
+            const keptNote = recipients.length < selectedEnrollments.length
+                ? ` · ${selectedEnrollments.length - recipients.length} confirmed meanwhile, not emailed`
+                : '';
+
+            const requiresEnglish = Boolean(first?.courses?.requires_english);
+            const htmlBody = buildEmailBodyHtml(courseName, dates.map(formatDateLongWithWeekday), confirmLink, undefined, responseDays, requiresEnglish, 'invite', courseInfo, sessions);
+            await copyHtmlAndOpenDraft(
+                htmlBody,
+                recipients.map(e => e.students?.email),
+                buildEmailSubject(courseName, dateFormatted),
+                skippedNote(skipped.length) + noEmailNote(missingEmailCount) + keptNote,
+                showToast,
+            );
             setInviteDateTarget(null);
-            return;
+        } finally {
+            setSubmitting(false);
         }
-        const keptNote = recipients.length < selectedEnrollments.length
-            ? ` · ${selectedEnrollments.length - recipients.length} confirmed meanwhile, not emailed`
-            : '';
+    }
 
-        const requiresEnglish = Boolean(first?.courses?.requires_english);
-        const htmlBody = buildEmailBodyHtml(courseName, dates.map(formatDateLongWithWeekday), confirmLink, undefined, responseDays, requiresEnglish, 'invite', courseInfo, sessions);
-        await copyHtmlAndOpenDraft(htmlBody, recipients.map(e => e.students?.email), buildEmailSubject(courseName, dateFormatted), skippedNote(skipped.length) + keptNote, showToast);
-        setInviteDateTarget(null);
+    /** Creates a short confirmation link for the chosen date(s) and copies it (handy for WhatsApp/SMS). */
+    async function handleCopyConfirmLink(): Promise<boolean> {
+        if (!inviteDateTarget || !canInvite || copyingLink) return false;
+        setCopyingLink(true);
+        try {
+            const dates = normalizeDateList(selectedDates);
+            const courseId = targetCourseId ?? inviteDateTarget.people[0]?.course_id;
+            await persistInviteDates(courseId, dates, selectedSessions);
+            const confirmLink = await createConfirmLink(courseId, dates);
+            if (!confirmLink) {
+                showToast('Could not create the confirmation link.', 'error');
+                return false;
+            }
+            await navigator.clipboard.writeText(confirmLink);
+            queryClient.invalidateQueries({ queryKey: COURSE_SESSIONS_QUERY_KEY });
+            showToast('Confirmation link copied! Paste it in WhatsApp or SMS.', 'success');
+            return true;
+        } catch (err) {
+            console.error('Failed to copy confirmation link:', err);
+            showToast('Could not copy confirmation link.', 'error');
+            return false;
+        } finally {
+            setCopyingLink(false);
+        }
     }
 
     /** Remind the selected confirmed people that their course is coming up. */
     async function handleSendReminder(ids: string[]) {
-        if (await sendReminderEmail(enrollments.filter(e => ids.includes(e.id)), showToast)) clearSelection();
+        if (reminding) return;
+        setReminding(true);
+        try {
+            if (await sendReminderEmail(enrollments.filter(e => ids.includes(e.id)), showToast)) clearSelection();
+        } finally {
+            setReminding(false);
+        }
     }
 
     return {
@@ -526,6 +643,9 @@ export function useInviteFlow({
         toggleInviteDate,
         selectedDates,
         canInvite,
+        submitting,
+        reminding,
+        copyingLink,
         scheduleSupported,
         scheduleError,
         sessionFor,
@@ -541,6 +661,7 @@ export function useInviteFlow({
         openInviteModal,
         handleInviteWithDate,
         handleInviteAndEmail,
+        handleCopyConfirmLink,
         handleSendReminder
     };
 }

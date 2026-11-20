@@ -908,7 +908,6 @@ textarea:focus-visible {
 }
 
 .density-compact .enrollment-card .card-info {
-    margin-top: 0.2rem !important;
     font-size: 0.625rem !important; /* 10px */
     row-gap: 0.15rem !important;
     column-gap: 0.35rem !important;

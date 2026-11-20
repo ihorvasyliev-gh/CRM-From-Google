@@ -239,6 +239,64 @@ describe('FilterBar Component - Date Filter', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Expired\s*3/ }));
         expect(mockSetInviteFilter).toHaveBeenCalledWith('all');
     });
+
+    it('shows the desktop expired alert pill in Row 1 and toggles expired filter in one click', () => {
+        render(<FilterBar {...defaultProps} inviteCounts={{ expired: 4, soon: 1 }} />);
+        const pill = screen.getByRole('button', { name: 'Filter expired invitations (4)' });
+        fireEvent.click(pill);
+        expect(mockSetInviteFilter).toHaveBeenCalledWith('expired');
+    });
+
+    it('renders Past indicator and confirmed/max capacity on date chips and active counts on courses', () => {
+        render(
+            <FilterBar
+                {...defaultProps}
+                courseActiveCounts={new Map([['course-1', 19]])}
+                availableCourseDates={[
+                    { date: '2026-08-18', count: 6, confirmed: 6, invited: 0, isPast: true, maxCapacity: 12 },
+                    { date: '2026-08-26', count: 14, confirmed: 13, invited: 1, isPast: false, maxCapacity: 12 },
+                ]}
+            />
+        );
+        const pastChip = screen.getByText(/18\s+Aug/i).closest('button');
+        expect(pastChip).toHaveTextContent('Past');
+        expect(pastChip).toHaveTextContent('6/12');
+
+        const overChip = screen.getByText(/26\s+Aug/i).closest('button');
+        expect(overChip).toHaveTextContent('13/12');
+
+        const courseRow = screen.getByRole('group', { name: 'Course' });
+        expect(within(courseRow).getByText('19')).toBeInTheDocument();
+    });
+
+    it('exposes Priority, Flagged, Has note, and Email status quick filters in the Filters modal', () => {
+        const setPriorityOnly = vi.fn();
+        const setFlagFilter = vi.fn();
+        const setEmailFilter = vi.fn();
+        render(
+            <FilterBar
+                {...defaultProps}
+                priorityOnly={false}
+                setPriorityOnly={setPriorityOnly}
+                flagFilter="all"
+                setFlagFilter={setFlagFilter}
+                emailFilter="all"
+                setEmailFilter={setEmailFilter}
+                attributeCounts={{ priority: 2, flagged: 3, pendingApproval: 0, hasNote: 5, unreachableEmail: 1 }}
+            />
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Open filters/i }));
+        const dialog = screen.getByRole('dialog', { name: 'Filters' });
+
+        fireEvent.click(within(dialog).getByRole('button', { name: /Priority\s*2/ }));
+        expect(setPriorityOnly).toHaveBeenCalledWith(true);
+
+        fireEvent.click(within(dialog).getByRole('button', { name: /Hide flagged/ }));
+        expect(setFlagFilter).toHaveBeenCalledWith('unflagged');
+
+        fireEvent.click(within(dialog).getByRole('button', { name: /No email \/ unsub/ }));
+        expect(setEmailFilter).toHaveBeenCalledWith('unreachable');
+    });
 });
 
 describe('FilterBar search', () => {

@@ -1,5 +1,5 @@
 import { Children, isValidElement, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Archive, ChevronLeft, ChevronRight, Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, Search, X, UserPlus, Globe, SlidersHorizontal, ArrowDownUp, Calendar, GraduationCap, Timer, Star, AlertTriangle, Clock, Pencil, MailX } from 'lucide-react';
 import { formatDayDateShort, formatShortDate } from '../../lib/dateUtils';
 import DateCalendarPicker from './DateCalendarPicker';
 import { useIsSmallScreen } from '../../hooks/useScreenSize';
@@ -9,8 +9,15 @@ import Modal from '../ui/Modal';
 import { buttonCls } from '../ui/buttonStyles';
 import type { InviteFilter } from '../../lib/inviteDeadline';
 import { SORT_HINT, type SortOrder } from './boardSort';
+import type { CourseDateChip, EmailStatusFilter, FlagFilter } from './boardFilters';
 
-
+export interface AttributeFilterCounts {
+    priority: number;
+    flagged: number;
+    pendingApproval: number;
+    hasNote: number;
+    unreachableEmail: number;
+}
 
 interface FilterBarProps {
     enrollments: EnrollmentRow[];
@@ -24,13 +31,15 @@ interface FilterBarProps {
     selectedCourse: string;
     setSelectedCourse: (c: string) => void;
     uniqueCourses: { id: string, name: string }[];
+    /** Active pipeline counts (requested + invited + confirmed) per course_id */
+    courseActiveCounts?: ReadonlyMap<string, number>;
     selectedVariant: string;
     setSelectedVariant: (v: string) => void;
     uniqueVariants: string[];
     selectedCourseDate: string;
     setSelectedCourseDate: (d: string) => void;
-    /** `confirmed` / `invited` — breakdown of `count` by status (multi-date invites count on every offered date) */
-    availableCourseDates: { date: string, count: number, confirmed?: number, invited?: number }[];
+    /** `confirmed` / `invited` / `isPast` / `maxCapacity` — breakdown of `count` by status */
+    availableCourseDates: CourseDateChip[];
     /** People across all chips; lower than the chip sum when multi-date invites appear on several dates */
     courseDatesTotal?: number;
     dateFrom: string;
@@ -46,6 +55,18 @@ interface FilterBarProps {
     inviteFilter: InviteFilter;
     setInviteFilter: (f: InviteFilter) => void;
     inviteCounts: { expired: number; soon: number };
+    /** Extra attribute filters (shown in the Filters sheet + as removable chips in the toolbar) */
+    priorityOnly?: boolean;
+    setPriorityOnly?: (v: boolean) => void;
+    flagFilter?: FlagFilter;
+    setFlagFilter?: (v: FlagFilter) => void;
+    pendingApprovalOnly?: boolean;
+    setPendingApprovalOnly?: (v: boolean) => void;
+    hasNoteOnly?: boolean;
+    setHasNoteOnly?: (v: boolean) => void;
+    emailFilter?: EmailStatusFilter;
+    setEmailFilter?: (v: EmailStatusFilter) => void;
+    attributeCounts?: AttributeFilterCounts;
     /** Withdrawn + rejected enrollments left by the filters; their dialog opens from the bar */
     secondaryCount?: number;
     onOpenSecondary?: () => void;
@@ -138,16 +159,24 @@ function ChipScroller({ label, className = '', children }: { label: string; clas
     );
 }
 
-function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, children }: {
+function Chip({ active, tone = 'brand', count, countTone, onClick, size = 'sm', title, children }: {
     active: boolean;
     title?: string;
     tone?: ChipTone;
-    count?: number;
+    count?: number | string;
+    countTone?: 'default' | 'full' | 'over';
     onClick: () => void;
     /** `lg` — finger-sized chips for the mobile sheet */
     size?: 'sm' | 'lg';
     children: ReactNode;
 }) {
+    const badgeCls = active
+        ? 'bg-white/20 text-white'
+        : countTone === 'over'
+            ? 'bg-red-500/15 text-status-rejected font-bold'
+            : countTone === 'full'
+                ? 'bg-amber-500/15 text-status-requested font-bold'
+                : 'bg-background text-muted';
     return (
         <button
             type="button"
@@ -160,7 +189,7 @@ function Chip({ active, tone = 'brand', count, onClick, size = 'sm', title, chil
         >
             {children}
             {count !== undefined && (
-                <span className={`text-xs px-1.5 rounded-full font-mono ${active ? 'bg-white/20 text-white' : 'bg-background text-muted'}`}>
+                <span className={`text-xs px-1.5 rounded-full font-mono ${badgeCls}`}>
                     {count}
                 </span>
             )}
@@ -223,6 +252,7 @@ function SearchField({ value, onChange }: { value: string; onChange: (q: string)
                 autoComplete="off"
                 enterKeyHint="search"
                 placeholder="Name, email or phone…"
+                title="Search by name, email, phone, course, language, notes or eircode"
                 onKeyDown={e => {
                     if (e.key === 'Escape' && text) {
                         e.preventDefault();
@@ -265,6 +295,7 @@ export default function FilterBar({
     selectedCourse,
     setSelectedCourse,
     uniqueCourses,
+    courseActiveCounts,
     selectedVariant,
     setSelectedVariant,
     uniqueVariants,
@@ -285,6 +316,17 @@ export default function FilterBar({
     inviteFilter,
     setInviteFilter,
     inviteCounts,
+    priorityOnly = false,
+    setPriorityOnly,
+    flagFilter = 'all',
+    setFlagFilter,
+    pendingApprovalOnly = false,
+    setPendingApprovalOnly,
+    hasNoteOnly = false,
+    setHasNoteOnly,
+    emailFilter = 'all',
+    setEmailFilter,
+    attributeCounts,
     secondaryCount = 0,
     onOpenSecondary,
 }: FilterBarProps) {
@@ -298,6 +340,7 @@ export default function FilterBar({
     // Language chips only help when there is something to choose between (or one is already picked)
     const showLanguages = selectedCourse !== 'all' && (uniqueVariants.length > 1 || selectedVariant !== 'all');
     const datesTotal = courseDatesTotal ?? availableCourseDates.reduce((sum, d) => sum + d.count, 0);
+    const hasAttributeControls = !!(setPriorityOnly || setFlagFilter || setPendingApprovalOnly || setHasNoteOnly || setEmailFilter);
 
     const selectCourse = (id: string) => {
         setSelectedCourse(id === selectedCourse ? 'all' : id);
@@ -314,6 +357,11 @@ export default function FilterBar({
         clearCreatedRange();
         clearCourseRange();
         setInviteFilter('all');
+        setPriorityOnly?.(false);
+        setFlagFilter?.('all');
+        setPendingApprovalOnly?.(false);
+        setHasNoteOnly?.(false);
+        setEmailFilter?.('all');
     };
 
     const activeFilters: { id: string; label: string; value: string; onRemove: () => void }[] = [];
@@ -345,11 +393,39 @@ export default function FilterBar({
             onRemove: () => setInviteFilter('all'),
         });
     }
+    if (priorityOnly && setPriorityOnly) {
+        activeFilters.push({ id: 'priority', label: 'Priority', value: 'Starred', onRemove: () => setPriorityOnly(false) });
+    }
+    if (flagFilter !== 'all' && setFlagFilter) {
+        activeFilters.push({
+            id: 'flags',
+            label: 'Flags',
+            value: flagFilter === 'flagged' ? 'Flagged only' : 'Hide flagged',
+            onRemove: () => setFlagFilter('all'),
+        });
+    }
+    if (pendingApprovalOnly && setPendingApprovalOnly) {
+        activeFilters.push({ id: 'approval', label: 'Approval', value: 'Pending', onRemove: () => setPendingApprovalOnly(false) });
+    }
+    if (hasNoteOnly && setHasNoteOnly) {
+        activeFilters.push({ id: 'notes', label: 'Notes', value: 'Has note', onRemove: () => setHasNoteOnly(false) });
+    }
+    if (emailFilter !== 'all' && setEmailFilter) {
+        activeFilters.push({
+            id: 'email',
+            label: 'Email',
+            value: emailFilter === 'unreachable' ? 'No email / unsub' : 'Can email',
+            onRemove: () => setEmailFilter('all'),
+        });
+    }
     // Desktop: the course has its own chip row, and with a course chosen its languages and dates stay
     // in view as chips (the usual next step); the rest of the filters set in the sheet show in the toolbar
     const showDrillDown = selectedCourse !== 'all' && (showLanguages || availableCourseDates.length > 0);
+    const showToolbarExpired = inviteCounts.expired > 0 || inviteFilter === 'expired';
     const desktopFilters = activeFilters.filter(f =>
-        f.id !== 'course' && !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')));
+        f.id !== 'course' &&
+        !(showDrillDown && (f.id === 'variant' || f.id === 'courseDate')) &&
+        !(showToolbarExpired && f.id === 'invites' && inviteFilter === 'expired'));
     // What the Filters button holds: on a phone the course too
     const sheetFilterCount = isSmallScreen ? activeFilters.length : activeFilters.filter(f => f.id !== 'course').length;
 
@@ -422,6 +498,12 @@ export default function FilterBar({
                 onClick={() => setInviteFilter(inviteFilter === 'soon' ? 'all' : 'soon')}>
                 Due in 48h
             </Chip>
+            {(inviteCounts.expired > 0 && inviteCounts.soon > 0 || inviteFilter === 'attention') && (
+                <Chip tone="amber" size={size} active={inviteFilter === 'attention'} count={inviteCounts.expired + inviteCounts.soon}
+                    onClick={() => setInviteFilter(inviteFilter === 'attention' ? 'all' : 'attention')}>
+                    All needing attention
+                </Chip>
+            )}
         </>
     );
 
@@ -430,19 +512,33 @@ export default function FilterBar({
             <Chip tone="emerald" size={size} active={selectedCourseDate === 'all'} count={datesTotal} onClick={() => setSelectedCourseDate('all')}>
                 All dates
             </Chip>
-            {availableCourseDates.map(({ date, count, confirmed, invited }) => (
-                <Chip
-                    key={date}
-                    tone="emerald"
-                    size={size}
-                    active={selectedCourseDate === date}
-                    count={count}
-                    title={invited ? `${confirmed ?? 0} confirmed · ${invited} invited, not answered yet` : undefined}
-                    onClick={() => setSelectedCourseDate(selectedCourseDate === date ? 'all' : date)}
-                >
-                    {formatDayDateShort(date)}
-                </Chip>
-            ))}
+            {availableCourseDates.map(({ date, count, confirmed = 0, invited = 0, isPast, maxCapacity }) => {
+                const badgeText = maxCapacity != null ? `${confirmed}/${maxCapacity}` : count;
+                const countTone = maxCapacity != null
+                    ? (confirmed > maxCapacity ? 'over' : confirmed === maxCapacity ? 'full' : 'default')
+                    : 'default';
+                const tooltipParts: string[] = [];
+                if (isPast) tooltipParts.push('Past date with active enrollments');
+                if (maxCapacity != null) tooltipParts.push(`${confirmed}/${maxCapacity} confirmed`);
+                else if (confirmed > 0 || invited > 0) tooltipParts.push(`${confirmed} confirmed`);
+                if (invited > 0) tooltipParts.push(`${invited} invited, not answered yet`);
+                const tooltip = tooltipParts.length > 0 ? tooltipParts.join(' · ') : undefined;
+                return (
+                    <Chip
+                        key={date}
+                        tone={isPast ? 'amber' : 'emerald'}
+                        size={size}
+                        active={selectedCourseDate === date}
+                        count={badgeText}
+                        countTone={countTone}
+                        title={tooltip}
+                        onClick={() => setSelectedCourseDate(selectedCourseDate === date ? 'all' : date)}
+                    >
+                        {isPast && <span className="text-[10px] font-bold uppercase opacity-80">Past</span>}
+                        {formatDayDateShort(date)}
+                    </Chip>
+                );
+            })}
         </>
     );
 
@@ -483,6 +579,25 @@ export default function FilterBar({
                         {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                 </label>
+
+                {/* Desktop quick alert pill when invitations have expired */}
+                {showToolbarExpired && (
+                    <button
+                        type="button"
+                        aria-pressed={inviteFilter === 'expired'}
+                        aria-label={`Filter expired invitations (${inviteCounts.expired})`}
+                        onClick={() => setInviteFilter(inviteFilter === 'expired' ? 'all' : 'expired')}
+                        className={`hidden md:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-xl border text-xs font-semibold transition-all active:scale-95 shrink-0 whitespace-nowrap ${
+                            inviteFilter === 'expired'
+                                ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                                : 'bg-red-500/10 text-status-rejected border-red-500/30 hover:bg-red-500/20'
+                        }`}
+                    >
+                        <Timer size={13} />
+                        <span className="font-mono">{inviteCounts.expired}</span>
+                        <span className="hidden xl:inline">expired</span>
+                    </button>
+                )}
 
                 {/* Desktop: the filters set in the sheet, removable in one click */}
                 {desktopFilters.length > 0 && (
@@ -553,15 +668,26 @@ export default function FilterBar({
             {uniqueCourses.length > 0 && (
                 <ChipScroller label="Course" className="hidden md:flex">
                     <Chip active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
-                    {uniqueCourses.map(c => (
-                        <Chip key={c.id} active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
-                    ))}
+                    {uniqueCourses.map(c => {
+                        const activeCount = courseActiveCounts?.get(c.id);
+                        return (
+                            <Chip
+                                key={c.id}
+                                active={selectedCourse === c.id}
+                                count={activeCount && activeCount > 0 ? activeCount : undefined}
+                                title={activeCount ? `${c.name} — ${activeCount} active in pipeline` : c.name}
+                                onClick={() => selectCourse(c.id)}
+                            >
+                                {c.name}
+                            </Chip>
+                        );
+                    })}
                 </ChipScroller>
             )}
 
-            {/* Desktop row 3, with a course chosen: its languages and upcoming dates, one line */}
+            {/* Desktop row 3, with a course chosen: its languages and course dates, one scrollable line with arrows */}
             {showDrillDown && (
-                <div className="hidden md:flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                <ChipScroller label="Course options" className="hidden md:flex">
                     {showLanguages && (
                         <>
                             <GroupLabel icon={<Globe size={12} />} className="mr-0.5">Language</GroupLabel>
@@ -575,7 +701,7 @@ export default function FilterBar({
                             {renderDateChips('sm')}
                         </>
                     )}
-                </div>
+                </ChipScroller>
             )}
 
             {/* The filter sheet: a bottom sheet on a phone, a dialog on a larger screen */}
@@ -605,9 +731,20 @@ export default function FilterBar({
                     <GroupLabel icon={<GraduationCap size={12} />}>Course</GroupLabel>
                     <div className="flex flex-wrap gap-1.5">
                         <Chip size="lg" active={selectedCourse === 'all'} onClick={() => selectCourse('all')}>All courses</Chip>
-                        {uniqueCourses.map(c => (
-                            <Chip key={c.id} size="lg" active={selectedCourse === c.id} onClick={() => selectCourse(c.id)}>{c.name}</Chip>
-                        ))}
+                        {uniqueCourses.map(c => {
+                            const activeCount = courseActiveCounts?.get(c.id);
+                            return (
+                                <Chip
+                                    key={c.id}
+                                    size="lg"
+                                    active={selectedCourse === c.id}
+                                    count={activeCount && activeCount > 0 ? activeCount : undefined}
+                                    onClick={() => selectCourse(c.id)}
+                                >
+                                    {c.name}
+                                </Chip>
+                            );
+                        })}
                     </div>
                 </section>
 
@@ -615,6 +752,89 @@ export default function FilterBar({
                     <section className="space-y-2">
                         <GroupLabel icon={<Timer size={12} />} className="text-status-rejected">Invites</GroupLabel>
                         <div className="flex flex-wrap gap-1.5">{renderInviteChips('lg')}</div>
+                    </section>
+                )}
+
+                {hasAttributeControls && (
+                    <section className="space-y-2">
+                        <GroupLabel icon={<SlidersHorizontal size={12} />}>Quick filters</GroupLabel>
+                        <div className="flex flex-wrap gap-1.5">
+                            {setPriorityOnly && (
+                                <Chip
+                                    tone="amber"
+                                    size="lg"
+                                    active={priorityOnly}
+                                    count={attributeCounts?.priority}
+                                    onClick={() => setPriorityOnly(!priorityOnly)}
+                                >
+                                    <Star size={12} /> Priority
+                                </Chip>
+                            )}
+                            {setFlagFilter && (
+                                <>
+                                    <Chip
+                                        tone="red"
+                                        size="lg"
+                                        active={flagFilter === 'flagged'}
+                                        count={attributeCounts?.flagged}
+                                        onClick={() => setFlagFilter(flagFilter === 'flagged' ? 'all' : 'flagged')}
+                                    >
+                                        <AlertTriangle size={12} /> Flagged
+                                    </Chip>
+                                    <Chip
+                                        tone="brand"
+                                        size="lg"
+                                        active={flagFilter === 'unflagged'}
+                                        onClick={() => setFlagFilter(flagFilter === 'unflagged' ? 'all' : 'unflagged')}
+                                    >
+                                        Hide flagged
+                                    </Chip>
+                                </>
+                            )}
+                            {setPendingApprovalOnly && ((attributeCounts?.pendingApproval ?? 0) > 0 || pendingApprovalOnly) && (
+                                <Chip
+                                    tone="amber"
+                                    size="lg"
+                                    active={pendingApprovalOnly}
+                                    count={attributeCounts?.pendingApproval}
+                                    onClick={() => setPendingApprovalOnly(!pendingApprovalOnly)}
+                                >
+                                    <Clock size={12} /> Pending approval
+                                </Chip>
+                            )}
+                            {setHasNoteOnly && (
+                                <Chip
+                                    tone="brand"
+                                    size="lg"
+                                    active={hasNoteOnly}
+                                    count={attributeCounts?.hasNote}
+                                    onClick={() => setHasNoteOnly(!hasNoteOnly)}
+                                >
+                                    <Pencil size={12} /> Has note
+                                </Chip>
+                            )}
+                            {setEmailFilter && (
+                                <>
+                                    <Chip
+                                        tone="red"
+                                        size="lg"
+                                        active={emailFilter === 'unreachable'}
+                                        count={attributeCounts?.unreachableEmail}
+                                        onClick={() => setEmailFilter(emailFilter === 'unreachable' ? 'all' : 'unreachable')}
+                                    >
+                                        <MailX size={12} /> No email / unsub
+                                    </Chip>
+                                    <Chip
+                                        tone="emerald"
+                                        size="lg"
+                                        active={emailFilter === 'emailable'}
+                                        onClick={() => setEmailFilter(emailFilter === 'emailable' ? 'all' : 'emailable')}
+                                    >
+                                        Can email
+                                    </Chip>
+                                </>
+                            )}
+                        </div>
                     </section>
                 )}
 

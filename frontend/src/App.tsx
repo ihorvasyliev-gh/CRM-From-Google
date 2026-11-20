@@ -314,7 +314,16 @@ function App() {
                     <Route path="/dashboard" element={null} />
                     <Route path="/students" element={null} />
                     <Route path="/courses" element={<CourseList />} />
-                    <Route path="/enrollments" element={<EnrollmentBoard initialCourseFilter={navState?.courseId} initialCourseDate={navState?.courseDate} initialInviteFilter={navState?.inviteFilter} initialStatus={navState?.status} />} />
+                    <Route path="/enrollments" element={
+                        <EnrollmentBoard
+                            initialCourseFilter={navState?.courseId}
+                            initialCourseDate={navState?.courseDate}
+                            initialInviteFilter={navState?.inviteFilter}
+                            initialStatus={navState?.status}
+                            onOpenApprovals={() => setApprovalsModalOpen(true)}
+                            onNavigate={navigate}
+                        />
+                    } />
                     <Route path="/outcomes" element={null} />
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />

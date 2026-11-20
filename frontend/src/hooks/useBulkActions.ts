@@ -9,6 +9,7 @@ import { undoStatusChange, UNDO_TOAST_MS } from '../lib/statusUndo';
 import { cancelListReload, restoreCachedRows } from '../lib/enrollmentCache';
 import { todayISO } from '../lib/dateUtils';
 import { fetchOptedOutEmails, partitionByOptOut, skippedNote } from '../lib/emailOptOut';
+import { formatPhoneDisplay } from '../lib/contactUtils';
 
 
 function collectEmails(enrollments: EnrollmentRow[]): string {
@@ -16,6 +17,21 @@ function collectEmails(enrollments: EnrollmentRow[]): string {
         .map(e => e.students?.email)
         .filter((email): email is string => !!email && email.trim() !== '');
     return [...new Set(emails)].join('; ');
+}
+
+function collectPhones(enrollments: EnrollmentRow[]): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const e of enrollments) {
+        const raw = e.students?.phone?.trim();
+        if (!raw) continue;
+        const formatted = formatPhoneDisplay(raw);
+        if (!seen.has(formatted)) {
+            seen.add(formatted);
+            result.push(formatted);
+        }
+    }
+    return result;
 }
 
 interface UseBulkActionsProps {
@@ -77,6 +93,11 @@ export function useBulkActions({
         });
     }, []);
 
+    /** Replaces the selection with these exact ids (Top-N picker in a queue). */
+    const replaceSelection = useCallback((ids: string[]) => {
+        setSelectedIds(new Set(ids));
+    }, []);
+
     const selectAllInList = useCallback((items: EnrollmentRow[]) => {
         setSelectedIds(prev => {
             const allSelected = items.every(i => prev.has(i.id));
@@ -92,18 +113,19 @@ export function useBulkActions({
     }, []);
 
     const { mutate: mutateBulkStatus, isPending: statusPending } = useMutation({
-        mutationFn: ({ newStatus, confirmedDate }: { newStatus: EnrollmentStatus, confirmedDate?: string }) => {
-            const chosen = enrollments.filter(e => selectedIds.has(e.id));
+        mutationFn: ({ newStatus, confirmedDate, explicitIds }: { newStatus: EnrollmentStatus, confirmedDate?: string, explicitIds?: string[] }) => {
+            const idSet = explicitIds ? new Set(explicitIds) : selectedIds;
+            const chosen = enrollments.filter(e => idSet.has(e.id));
             return changeEnrollmentStatus(enrollments, chosen, newStatus, { confirmedDate });
         },
-        onSuccess: ({ updated, removed, removeFailed, undo: undoData }, { newStatus }) => {
+        onSuccess: ({ updated, removed, removeFailed, undo: undoData }, { newStatus, explicitIds }) => {
             const saved = new Map(updated.map(snap => [snap.id, snap]));
             const removedIds = new Set(removed.map(e => e.id));
             setEnrollments(prev => prev
                 .filter(e => !removedIds.has(e.id))
                 .map(e => saved.has(e.id) ? { ...e, ...saved.get(e.id)! } : e)
             );
-            setSelectedIds(new Set());
+            if (!explicitIds) setSelectedIds(new Set());
 
             const undo = () => undoStatusChange({
                 queryClient, setEnrollments, undo: undoData, removedRows: removed, showToast,
@@ -130,6 +152,33 @@ export function useBulkActions({
         }
     });
 
+    const { mutate: mutateBulkPriority, isPending: priorityPending } = useMutation({
+        mutationFn: async ({ ids, priority }: { ids: string[]; priority: boolean }) => {
+            const { error } = await supabase.from('enrollments').update({ is_priority: priority }).in('id', ids);
+            if (error) throw error;
+            return { ids, priority };
+        },
+        onMutate: async ({ ids, priority }) => {
+            cancelListReload(queryClient);
+            const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
+            const idSet = new Set(ids);
+            setEnrollments(prev => prev.map(e => idSet.has(e.id) ? { ...e, is_priority: priority } : e));
+            return { previousEnrollments, ids };
+        },
+        onSuccess: ({ ids, priority }) => {
+            setSelectedIds(new Set());
+            showToast(priority ? `${ids.length} enrollment(s) marked as priority` : `Removed priority from ${ids.length} enrollment(s)`, 'success');
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.previousEnrollments) {
+                restoreCachedRows(queryClient, context.previousEnrollments, context.ids);
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+            }
+            showToast('Failed to update priority', 'error');
+        },
+    });
+
     const busyRef = useRef(false);
 
     const bulkUpdateStatus = useCallback(async (newStatus: EnrollmentStatus, confirmedDate?: string) => {
@@ -151,7 +200,7 @@ export function useBulkActions({
             }
             const firstId = ids[0];
             const first = enrollments.find(e => e.id === firstId);
-            const defaultDate = first?.invited_date || todayISO();
+            const defaultDate = first?.confirmed_date || first?.invited_date || todayISO();
             if (first) {
                 openConfirmModal(ids, defaultDate, first.course_id);
             }
@@ -161,22 +210,34 @@ export function useBulkActions({
         mutateBulkStatus({ newStatus, confirmedDate });
     }, [selectedIds, enrollments, openInviteModal, openConfirmModal, mutateBulkStatus, showToast]);
 
+    /** Restores an explicit list of enrollments (e.g. selected rows in SecondaryPanel) to Requested, with Undo. */
+    const bulkRestoreIds = useCallback((ids: string[]) => {
+        if (ids.length === 0 || busyRef.current) return;
+        mutateBulkStatus({ newStatus: 'requested', explicitIds: ids });
+    }, [mutateBulkStatus]);
+
+    const bulkSetPriority = useCallback((priority: boolean) => {
+        if (selectedIds.size === 0 || busyRef.current) return;
+        mutateBulkPriority({ ids: Array.from(selectedIds), priority });
+    }, [selectedIds, mutateBulkPriority]);
+
     const { mutate: mutateBulkDelete, isPending: deletePending } = useMutation({
-        mutationFn: async () => {
-            const ids = Array.from(selectedIds);
+        mutationFn: async (explicitIds?: string[]) => {
+            const ids = explicitIds ?? Array.from(selectedIds);
             const { error } = await supabase.from('enrollments').delete().in('id', ids);
             if (error) throw error;
-            return ids;
+            return { ids, explicit: !!explicitIds };
         },
-        onMutate: async () => {
+        onMutate: async (explicitIds?: string[]) => {
             cancelListReload(queryClient);
             const previousEnrollments = queryClient.getQueryData<EnrollmentRow[]>(['enrollments']);
-            const ids = Array.from(selectedIds);
-            setEnrollments(prev => prev.filter(e => !ids.includes(e.id)));
+            const ids = explicitIds ?? Array.from(selectedIds);
+            const idSet = new Set(ids);
+            setEnrollments(prev => prev.filter(e => !idSet.has(e.id)));
             return { previousEnrollments, ids };
         },
-        onSuccess: (ids) => {
-            setSelectedIds(new Set());
+        onSuccess: ({ ids, explicit }) => {
+            if (!explicit) setSelectedIds(new Set());
             showToast(`${ids.length} enrollment(s) deleted`, 'success');
         },
         onError: (_err, _variables, context) => {
@@ -189,13 +250,18 @@ export function useBulkActions({
         }
     });
 
-    const busy = statusPending || deletePending;
+    const busy = statusPending || deletePending || priorityPending;
     useEffect(() => { busyRef.current = busy; }, [busy]);
 
     const handleBulkDelete = useCallback(async () => {
         if (selectedIds.size === 0 || busyRef.current) return;
-        mutateBulkDelete();
+        mutateBulkDelete(undefined);
     }, [selectedIds, mutateBulkDelete]);
+
+    const bulkDeleteIds = useCallback((ids: string[]) => {
+        if (ids.length === 0 || busyRef.current) return;
+        mutateBulkDelete(ids);
+    }, [mutateBulkDelete]);
 
     const handleCopyEmails = useCallback(async (items: EnrollmentRow[], label: string) => {
         let skipped: number;
@@ -226,19 +292,40 @@ export function useBulkActions({
         await handleCopyEmails(selected, `${selected.length}`);
     }, [selectedIds, handleCopyEmails]);
 
+    const handleCopySelectedPhones = useCallback(async (filteredEnrollments: EnrollmentRow[]) => {
+        const selected = filteredEnrollments.filter(e => selectedIds.has(e.id));
+        const phones = collectPhones(selected);
+        if (phones.length === 0) {
+            showToast('No phone numbers to copy', 'error');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(phones.join('\n'));
+            showToast(`${phones.length} phone number${phones.length === 1 ? '' : 's'} copied!`, 'success');
+        } catch (err) {
+            console.error('Clipboard copy failed:', err);
+            showToast('Failed to copy phone numbers', 'error');
+        }
+    }, [selectedIds, showToast]);
+
     return {
         selectedIds,
-        /** A bulk status change or delete is being saved */
+        /** A bulk status change, priority change or delete is being saved */
         busy,
         toggleSelect,
         deselect,
         selectMany,
+        replaceSelection,
         keepOnly,
         selectAllInList,
         clearSelection,
         bulkUpdateStatus,
+        bulkSetPriority,
+        bulkRestoreIds,
+        bulkDeleteIds,
         handleBulkDelete,
         handleCopyEmails,
-        handleCopySelectedEmails
+        handleCopySelectedEmails,
+        handleCopySelectedPhones,
     };
 }

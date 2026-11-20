@@ -1,4 +1,5 @@
-import { Send, Mail, X, Plus, CalendarRange, CalendarClock, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Send, Mail, X, Plus, CalendarRange, CalendarClock, AlertCircle, AlertTriangle, Link2, Check, Loader2 } from 'lucide-react';
 import { formatDayDateShort, todayISO, formatDisplayDate } from '../../lib/dateUtils';
 import { DateInput } from '../ui/DatePicker';
 import type { InviteFlow } from '../../hooks/useInviteFlow';
@@ -6,24 +7,85 @@ import SessionScheduleEditor from './SessionScheduleEditor';
 import DialogLayer from '../ui/DialogLayer';
 import { useLastPresent } from '../../hooks/usePresence';
 import { describePeople } from './dialogPeople';
+import { normalizeEmail } from '../../lib/emailOptOut';
+import { fullName } from '../../lib/types';
 
 interface InviteDateModalProps {
     inviteFlow: InviteFlow;
+    optedOutEmails?: ReadonlySet<string>;
 }
+
+const RESPONSE_DAY_PRESETS = [3, 5, 7, 14] as const;
+const EMPTY_OPTED_OUT: ReadonlySet<string> = new Set();
 
 /**
  * Invite dialog: one date or several (the student picks), the time, place and days of each
- * date, response days, invite with or without the email.
+ * date, response days, recipient & capacity pre-checks, copy link for WhatsApp, and invite with or without email.
  */
-export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
+export default function InviteDateModal({ inviteFlow, optedOutEmails = EMPTY_OPTED_OUT }: InviteDateModalProps) {
     // While it animates out, the dialog keeps showing the invitation it was for
     const target = useLastPresent(inviteFlow.inviteDateTarget);
+    const [daysText, setDaysText] = useState(String(inviteFlow.responseDays));
+    const [linkCopied, setLinkCopied] = useState(false);
+
+    useEffect(() => {
+        setDaysText(String(inviteFlow.responseDays));
+    }, [inviteFlow.responseDays]);
+
+    useEffect(() => {
+        if (!linkCopied) return;
+        const timer = setTimeout(() => setLinkCopied(false), 2000);
+        return () => clearTimeout(timer);
+    }, [linkCopied]);
+
     if (!target) return null;
+
     const who = describePeople(target.people);
+    const people = target.people;
+    const noEmailPeople = people.filter(e => !e.students?.email?.trim());
+    const unsubPeople = people.filter(e => {
+        const em = normalizeEmail(e.students?.email);
+        return !!em && optedOutEmails.has(em);
+    });
+    const emailableCount = people.length - noEmailPeople.length - unsubPeople.length;
+
+    // Live capacity warnings per selected date
+    const capacityWarnings = inviteFlow.targetMaxCapacity != null
+        ? inviteFlow.selectedDates.map(d => {
+            const stats = inviteFlow.getDateStats(d);
+            // Exclude people already counted as confirmed or active pending on this date
+            const adding = people.filter(e => {
+                const confD = e.confirmed_date?.split('T')[0];
+                if (e.status === 'confirmed' && confD === d) return false;
+                if (e.status === 'invited') {
+                    const offered = e.invited_dates?.length ? e.invited_dates.map(x => x.split('T')[0]) : (e.invited_date ? [e.invited_date.split('T')[0]] : []);
+                    const days = e.response_days ?? 7;
+                    const expired = e.invited_at ? new Date(e.invited_at).getTime() + days * 86400000 < Date.now() : false;
+                    if (!expired && offered.includes(d)) return false;
+                }
+                return true;
+            }).length;
+            const projected = stats.confirmed + stats.pending + adding;
+            return { date: d, confirmed: stats.confirmed, pending: stats.pending, adding, projected, max: inviteFlow.targetMaxCapacity! };
+        }).filter(w => w.projected > w.max)
+        : [];
+
+    const namePreview = (list: typeof people) =>
+        list.length <= 2 ? list.map(e => fullName(e.students) || 'Student').join(', ') : `${list.length} people`;
+
+    const onCopyLink = async () => {
+        if (await inviteFlow.handleCopyConfirmLink()) {
+            setLinkCopied(true);
+        }
+    };
+
+    const busy = inviteFlow.submitting;
+
     return (
         <DialogLayer
             open={!!inviteFlow.inviteDateTarget}
             onClose={() => inviteFlow.setInviteDateTarget(null)}
+            dismissible={!busy}
             label="Invite to Course"
             className="z-60 flex items-center justify-center"
             panelClassName="bg-surface rounded-2xl shadow-float border border-border-subtle w-full max-w-lg mx-4 max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden"
@@ -47,6 +109,28 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                         </p>
                     </div>
                 </div>
+
+                {/* Recipient pre-check warning (unsubscribed / missing email) */}
+                {(unsubPeople.length > 0 || noEmailPeople.length > 0) && (
+                    <div role="status" className="mb-4 px-3 py-2.5 rounded-xl bg-warning/10 border border-warning/30 text-xs text-status-requested space-y-1">
+                        <div className="flex items-start gap-2 font-semibold">
+                            <AlertTriangle size={14} className="shrink-0 mt-px" />
+                            <div>
+                                {unsubPeople.length > 0 && (
+                                    <p>Unsubscribed ({unsubPeople.length}): {namePreview(unsubPeople)}</p>
+                                )}
+                                {noEmailPeople.length > 0 && (
+                                    <p>No email ({noEmailPeople.length}): {namePreview(noEmailPeople)}</p>
+                                )}
+                            </div>
+                        </div>
+                        <p className="text-[11px] opacity-85 pl-5">
+                            {emailableCount > 0
+                                ? `“Invite & Email” will skip them and email ${emailableCount}. Use “Just Invite” + “Copy confirm link” for phone/WhatsApp.`
+                                : 'Nobody here can receive email — use “Just Invite” and copy the confirmation link for WhatsApp/SMS.'}
+                        </p>
+                    </div>
+                )}
 
                 <label className="flex items-start gap-3 mb-4 p-3 rounded-xl border border-border-subtle bg-surface cursor-pointer select-none hover:border-blue-300 transition-colors">
                     <input
@@ -197,6 +281,20 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                     </div>
                 )}
 
+                {/* Capacity warning when confirmed + pending + newly invited exceeds course limit */}
+                {capacityWarnings.length > 0 && (
+                    <div role="alert" className="mt-3 px-3 py-2 rounded-xl bg-warning/10 border border-warning/30 text-xs font-medium text-status-requested space-y-1">
+                        {capacityWarnings.map(w => (
+                            <p key={w.date} className="flex items-start gap-2">
+                                <AlertTriangle size={14} className="shrink-0 mt-px" />
+                                <span>
+                                    {formatDayDateShort(w.date)} may exceed capacity: {w.confirmed} confirmed + {w.pending} pending + {w.adding} new = <strong>{w.projected}</strong> for {w.max} places.
+                                </span>
+                            </p>
+                        ))}
+                    </div>
+                )}
+
                 {inviteFlow.scheduleSupported ? inviteFlow.selectedDates.length > 0 && (
                     <div className="mt-4">
                         <div className="flex items-center gap-1.5 text-sm font-medium text-primary mb-1.5">
@@ -220,21 +318,51 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                 )}
 
                 <div className="mt-4">
-                    <label className="block text-sm font-medium text-primary mb-1.5">
+                    <label htmlFor="response-days" className="block text-sm font-medium text-primary mb-1.5">
                         Response Deadline
                     </label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                         <input
                             type="number"
                             id="response-days"
                             name="responseDays"
-                            value={inviteFlow.responseDays}
+                            value={daysText}
                             min={1}
                             max={90}
-                            onChange={e => inviteFlow.setResponseDays(Math.max(1, parseInt(e.target.value) || 7))}
-                            className="w-24 px-4 py-3 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface text-center"
+                            onChange={e => {
+                                const raw = e.target.value;
+                                setDaysText(raw);
+                                const parsed = parseInt(raw, 10);
+                                if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 90) {
+                                    inviteFlow.setResponseDays(parsed);
+                                }
+                            }}
+                            onBlur={() => {
+                                const parsed = parseInt(daysText, 10);
+                                const clamped = Number.isNaN(parsed) ? 7 : Math.min(90, Math.max(1, parsed));
+                                inviteFlow.setResponseDays(clamped);
+                                setDaysText(String(clamped));
+                            }}
+                            className="w-20 px-3 py-2 border border-border-subtle rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-surface text-center tabular-nums"
                         />
-                        <span className="text-sm text-muted">days to confirm</span>
+                        <span className="text-sm text-muted">days</span>
+                        <div className="flex items-center gap-1 ml-auto">
+                            {RESPONSE_DAY_PRESETS.map(d => (
+                                <button
+                                    key={d}
+                                    type="button"
+                                    onClick={() => inviteFlow.setResponseDays(d)}
+                                    aria-pressed={inviteFlow.responseDays === d}
+                                    className={`px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                                        inviteFlow.responseDays === d
+                                            ? 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-surface-elevated text-muted border-border-subtle hover:text-primary hover:border-blue-400'
+                                    }`}
+                                >
+                                    {d}d
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     <p className="text-xs text-muted mt-1.5 opacity-70">
                         The participant will see this deadline in the invitation email
@@ -248,30 +376,53 @@ export default function InviteDateModal({ inviteFlow }: InviteDateModalProps) {
                 )}
             </div>
 
-            <div className="flex gap-3 px-6 py-4 border-t border-border-subtle">
-                <button
-                    type="button"
-                    onClick={() => inviteFlow.setInviteDateTarget(null)}
-                    className="px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all"
-                >
-                    Cancel
-                </button>
-                <button
-                    type="button"
-                    onClick={inviteFlow.handleInviteWithDate}
-                    disabled={!inviteFlow.canInvite}
-                    className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl transition-all shadow-xs"
-                >
-                    <Send size={14} /> Just Invite
-                </button>
-                <button
-                    type="button"
-                    onClick={inviteFlow.handleInviteAndEmail}
-                    disabled={!inviteFlow.canInvite}
-                    className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-xs"
-                >
-                    <Mail size={14} /> Invite & Email
-                </button>
+            <div className="px-6 py-4 border-t border-border-subtle space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                    <button
+                        type="button"
+                        onClick={onCopyLink}
+                        disabled={!inviteFlow.canInvite || inviteFlow.copyingLink || busy}
+                        className="disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/25 rounded-lg transition-colors cursor-pointer"
+                        title="Generate & copy short confirmation link for WhatsApp or SMS"
+                    >
+                        {inviteFlow.copyingLink ? (
+                            <Loader2 size={13} className="animate-spin" />
+                        ) : linkCopied ? (
+                            <Check size={13} />
+                        ) : (
+                            <Link2 size={13} />
+                        )}
+                        {linkCopied ? 'Link copied!' : 'Copy confirm link'}
+                    </button>
+                    <span className="text-[11px] text-muted hidden sm:inline">For WhatsApp or SMS</span>
+                </div>
+
+                <div className="flex gap-2.5">
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => inviteFlow.setInviteDateTarget(null)}
+                        className="px-4 py-2.5 text-sm font-medium text-muted hover:text-primary bg-surface-elevated hover:bg-surface border border-border-subtle rounded-xl transition-all disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={inviteFlow.handleInviteWithDate}
+                        disabled={!inviteFlow.canInvite || busy}
+                        className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl transition-all shadow-xs"
+                    >
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Just Invite
+                    </button>
+                    <button
+                        type="button"
+                        onClick={inviteFlow.handleInviteAndEmail}
+                        disabled={!inviteFlow.canInvite || busy || emailableCount === 0}
+                        className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-xl transition-all shadow-xs"
+                    >
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} Invite & Email
+                    </button>
+                </div>
             </div>
         </DialogLayer>
     );

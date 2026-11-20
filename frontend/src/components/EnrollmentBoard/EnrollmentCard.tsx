@@ -1,6 +1,6 @@
 import { useMemo, memo, useState, useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Star, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, Mail, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal } from 'lucide-react';
+import { Check, Star, Pencil, Send, CheckCircle, GraduationCap, AlertTriangle, AlertCircle, Mail, MailX, Phone, Award, Info, Clock, MapPin, MessageSquare, ArrowRightLeft, X, MoreHorizontal, Calendar } from 'lucide-react';
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
 import { getCoursePill, type EnrollmentStatus, type StudentFlag } from '../../lib/types';
@@ -39,6 +39,10 @@ interface EnrollmentCardProps {
     isOverlay?: boolean;
     onShowDetail?: (enrollment: EnrollmentRow) => void;
     onMoveStatus?: (id: string, currentStatus: string, targetStatus: EnrollmentStatus) => void;
+    /** True when the student's email is in the email_opt_outs table */
+    emailOptedOut?: boolean;
+    /** Opens the Pending Approvals dialog when clicking a card's completion-requested pill */
+    onOpenApprovals?: () => void;
     /** Time, place and days of the course date the student is invited to / confirmed for */
     session?: CourseSession | null;
     /** Drop in when it appears (default); read once, when the card mounts */
@@ -78,7 +82,7 @@ const iconBtn = `${iconBtnBase} text-muted hover:text-brand-500 hover:bg-surface
 const contactBtn = 'hit-area w-6 @max-2xs:w-5 h-6 -my-1 inline-flex items-center justify-center rounded-md transition-colors shrink-0';
 // Left out of the contact row when the card is narrow (the four-column board), so the phone number fits
 const narrowHidden = '@max-2xs:hidden';
-/** A computer with a mouse (not a phone or a tablet): a click on a phone number copies it there */
+/** A computer with a mouse (not a phone or a tablet): a click on a phone or email copies it there */
 function hasMouse(): boolean {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
     return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -109,6 +113,8 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     isOverlay,
     onShowDetail,
     onMoveStatus,
+    emailOptedOut = false,
+    onOpenApprovals,
     session,
     dropIn = true,
     isMobile,
@@ -123,16 +129,25 @@ const EnrollmentCardBody = function EnrollmentCardBody({
     const [playDropIn] = useState(dropIn);
     const [showCompleted, setShowCompleted] = useState(false);
     const [showQuickMove, setShowQuickMove] = useState(false);
-    // The phone number shows "Copied" for a moment after a click on a computer
+    // The phone / email shows "Copied" for a moment after a click on a computer
     const [phoneCopied, setPhoneCopied] = useState(false);
+    const [emailCopied, setEmailCopied] = useState(false);
     useEffect(() => {
         if (!phoneCopied) return;
         const timer = setTimeout(() => setPhoneCopied(false), 1500);
         return () => clearTimeout(timer);
     }, [phoneCopied]);
-    const copiesPhone = !isMobile && hasMouse();
+    useEffect(() => {
+        if (!emailCopied) return;
+        const timer = setTimeout(() => setEmailCopied(false), 1500);
+        return () => clearTimeout(timer);
+    }, [emailCopied]);
+    const copiesContact = !isMobile && hasMouse();
     const copyPhone = (number: string) => {
         navigator.clipboard?.writeText(number).then(() => setPhoneCopied(true)).catch(() => { /* the number stays on the card to copy by hand */ });
+    };
+    const copyEmail = (email: string) => {
+        navigator.clipboard?.writeText(email).then(() => setEmailCopied(true)).catch(() => { /* email stays in tooltip */ });
     };
     const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; isAbove?: boolean } | null>(null);
     const [noteDraft, setNoteDraft] = useState('');
@@ -365,20 +380,26 @@ const EnrollmentCardBody = function EnrollmentCardBody({
         </CustomTooltip>
     );
 
-    // The usual next step, one tap away on a phone (both open their dialog first)
+    // The usual next step, one click/tap away (Invite and Confirm open their dialog first)
     const nextStep = status === 'requested'
-        ? { label: 'Invite…', icon: <Send size={14} />, target: 'invited' as const }
+        ? { label: 'Invite…', shortLabel: 'Invite', icon: <Send size={14} />, smallIcon: <Send size={13} />, target: 'invited' as const, tone: 'hover:text-status-invited hover:bg-info/10' }
         : status === 'invited'
-            ? { label: 'Confirm…', icon: <CheckCircle size={14} />, target: 'confirmed' as const }
-            : null;
+            ? { label: 'Confirm…', shortLabel: 'Confirm', icon: <CheckCircle size={14} />, smallIcon: <CheckCircle size={13} />, target: 'confirmed' as const, tone: 'hover:text-status-confirmed hover:bg-success/10' }
+            : status === 'confirmed'
+                ? { label: 'Complete', shortLabel: 'Complete', icon: <GraduationCap size={14} />, smallIcon: <GraduationCap size={13} />, target: 'completed' as const, tone: 'hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-500/10' }
+                : null;
     const touchMenuItems: MenuItem[] = [
         ...(onMoveStatus && nextStep ? [{ label: nextStep.label, icon: nextStep.icon, onSelect: () => onMoveStatus(enrollment.id, status, nextStep.target) }] : []),
+        ...(onMoveStatus && status === 'confirmed' ? [{ label: 'Change date…', icon: <Calendar size={14} />, onSelect: () => onMoveStatus(enrollment.id, 'confirmed', 'confirmed') }] : []),
         ...(onMoveStatus && inviteDeadline?.isExpired ? [{ label: 'Invite again', icon: <Send size={14} />, onSelect: () => onMoveStatus(enrollment.id, status, 'invited') }] : []),
+        ...(onMoveStatus && status === 'invited' && !inviteDeadline?.isExpired ? [{ label: 'Change invite date…', icon: <Calendar size={14} />, onSelect: () => onMoveStatus(enrollment.id, 'invited', 'invited') }] : []),
         ...(onMoveStatus ? [{ label: 'Move to…', icon: <ArrowRightLeft size={14} />, onSelect: () => openQuickMove(moreMenuRef.current) }] : []),
         { label: enrollment.notes ? 'Edit note' : 'Add note', icon: <Pencil size={14} />, onSelect: startEditNote },
         { label: 'Student details', icon: <Info size={14} />, onSelect: () => onShowDetail?.(enrollment) },
         { label: flagCount > 0 ? `Student flags (${flagCount})` : 'Flag student', icon: <AlertTriangle size={14} />, onSelect: () => onFlagClick?.(enrollment) },
     ];
+
+    const hasEmail = Boolean(enrollment.students?.email?.trim());
 
     return (
         <div
@@ -478,52 +499,72 @@ const EnrollmentCardBody = function EnrollmentCardBody({
             {/* A size container: in the narrow four-column layout the contact row drops its decorations
                 (@max-2xs) so the phone number fits */}
             <div className="flex-1 min-w-0 @container">
-                {/* Row 1: Name & actions (the invitation timer sits under the avatar, so the name keeps the row) */}
+                {/* Row 1: Name & actions (clicking the name opens student details; avatar/card body selects) */}
                 <div className="flex items-center gap-1 min-w-0">
-                    <p className="card-title min-w-0 flex-1 font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
-                        {fullName}
-                    </p>
+                    <div className="min-w-0 flex-1 flex items-center">
+                        {onShowDetail && !isOverlay ? (
+                            <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); onShowDetail(enrollment); }}
+                                onPointerDown={e => e.stopPropagation()}
+                                onTouchStart={e => e.stopPropagation()}
+                                title={`${fullName} — open student details`}
+                                className="card-title min-w-0 max-w-full text-left font-bold text-primary text-[13px] md:text-sm leading-tight truncate hover:text-brand-600 dark:hover:text-brand-400 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500 rounded-xs cursor-pointer"
+                            >
+                                {fullName}
+                            </button>
+                        ) : (
+                            <p className="card-title min-w-0 max-w-full font-bold text-primary text-[13px] md:text-sm leading-tight truncate" title={fullName}>
+                                {fullName}
+                            </p>
+                        )}
+                    </div>
 
                     <div className="card-actions-col flex items-center shrink-0 -my-1.5 lg:-my-1 -mr-1">
-                        {/* Secondary actions on desktop: a small toolbar over the card's top-right corner
-                            on hover, so they don't take the name's space. Touch screens have the menu below. */}
-                        <div className="hidden lg:flex items-center absolute top-1 right-1 z-10 p-0.5 rounded-lg bg-surface border border-border-subtle shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
-                            {!enrollment.notes && (
-                                <CustomTooltip content="Add note">
-                                    <button aria-label="Add Note" onClick={handleStartEditNote} className={iconBtn}>
-                                        <Pencil size={13} />
-                                    </button>
-                                </CustomTooltip>
-                            )}
+                        {/* Desktop hover actions: soft gradient mask over top-right corner so long names fade gently */}
+                        <div className="hidden lg:flex items-center absolute top-0.5 right-0.5 z-10 pl-6 pr-0.5 py-0.5 rounded-r-xl bg-linear-to-l from-surface from-75% to-transparent opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
+                            <div className="flex items-center p-0.5 rounded-lg bg-surface/95 backdrop-blur-xs border border-border-subtle/80 shadow-xs">
+                                {onMoveStatus && nextStep && (
+                                    <CustomTooltip content={nextStep.label}>
+                                        <button
+                                            type="button"
+                                            aria-label={nextStep.label}
+                                            onClick={e => { e.stopPropagation(); onMoveStatus(enrollment.id, status, nextStep.target); }}
+                                            onPointerDown={e => e.stopPropagation()}
+                                            className={`${iconBtnBase} text-muted ${nextStep.tone}`}
+                                        >
+                                            {nextStep.smallIcon}
+                                        </button>
+                                    </CustomTooltip>
+                                )}
 
-                            {onMoveStatus && (
-                                <CustomTooltip content="Move status">
-                                    <button
-                                        ref={quickMoveBtnRef}
-                                        aria-label="Move status"
-                                        onClick={handleOpenQuickMove}
-                                        className={showQuickMove
-                                            ? `${iconBtnBase} text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10`
-                                            : iconBtn}
-                                    >
-                                        <ArrowRightLeft size={13} />
-                                    </button>
-                                </CustomTooltip>
-                            )}
+                                {!enrollment.notes && (
+                                    <CustomTooltip content="Add note">
+                                        <button aria-label="Add Note" onClick={handleStartEditNote} className={iconBtn}>
+                                            <Pencil size={13} />
+                                        </button>
+                                    </CustomTooltip>
+                                )}
 
-                            <CustomTooltip content="View student details">
-                                <button
-                                    aria-label="View Student Details"
-                                    onClick={e => { e.stopPropagation(); onShowDetail?.(enrollment); }}
-                                    className={iconBtn}
-                                >
-                                    <Info size={13} />
-                                </button>
-                            </CustomTooltip>
+                                {onMoveStatus && (
+                                    <CustomTooltip content={status === 'confirmed' ? 'Move status or change date' : 'Move status'}>
+                                        <button
+                                            ref={quickMoveBtnRef}
+                                            aria-label="Move status"
+                                            onClick={handleOpenQuickMove}
+                                            className={showQuickMove
+                                                ? `${iconBtnBase} text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10`
+                                                : iconBtn}
+                                        >
+                                            <ArrowRightLeft size={13} />
+                                        </button>
+                                    </CustomTooltip>
+                                )}
 
-                            {/* In the toolbar it covers the indicators below */}
-                            {flagButton('')}
-                            {starButton('')}
+                                {/* In the toolbar it covers the indicators below */}
+                                {flagButton('')}
+                                {starButton('')}
+                            </div>
                         </div>
 
                         {/* Set flags and priority stay visible (hidden under the desktop toolbar on hover);
@@ -546,8 +587,8 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     </div>
                 </div>
 
-                {/* Row 2: Course (coloured text) & completed-courses badge */}
-                <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
+                {/* Row 2: Course (coloured text), schedule, completed-courses & email warning badges */}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
                     {/* Up to two lines: a long course name still shows its language */}
                     <span
                         title={getCoursePill(enrollment)}
@@ -573,6 +614,22 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             {completedCourses.length}
                         </button>
                     )}
+                    {!hasEmail && (
+                        <span
+                            className="card-pill inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-warning/15 text-status-requested text-[10px] leading-none font-bold shrink-0"
+                            title="No email address on file — skipped by email actions"
+                        >
+                            <AlertCircle size={10} className="shrink-0" /> No email
+                        </span>
+                    )}
+                    {hasEmail && emailOptedOut && (
+                        <span
+                            className="card-pill inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-danger/10 text-status-rejected text-[10px] leading-none font-bold shrink-0"
+                            title="Unsubscribed from emails — skipped automatically"
+                        >
+                            <MailX size={10} className="shrink-0" /> Unsub
+                        </span>
+                    )}
                 </div>
 
                 {/* Row 3: Contacts & date; in a narrow card the date wraps under the phone rather than cutting it off */}
@@ -588,7 +645,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         onClick={e => {
                                             e.stopPropagation();
                                             // A computer has nothing to call with: the number is copied instead
-                                            if (copiesPhone) {
+                                            if (copiesContact) {
                                                 e.preventDefault();
                                                 copyPhone(formatPhoneDisplay(enrollment.students!.phone!));
                                             }
@@ -596,7 +653,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                         onPointerDown={e => e.stopPropagation()}
                                         onTouchStart={e => e.stopPropagation()}
                                         className={`flex items-center gap-1 min-w-0 h-6 -my-1 font-medium tabular-nums hover:underline transition-colors mr-1 @max-2xs:mr-0 ${phoneCopied ? 'text-status-confirmed' : 'text-primary hover:text-blue-600 dark:hover:text-blue-400'}`}
-                                        title={copiesPhone ? 'Click to copy the number' : 'Click to call'}
+                                        title={copiesContact ? 'Click to copy the number' : 'Click to call'}
                                     >
                                         <Phone size={11} className={`shrink-0 text-primary/50 ${narrowHidden}`} />
                                         <span className="truncate" aria-live="polite">{phoneCopied ? 'Copied' : formatPhoneDisplay(enrollment.students.phone)}</span>
@@ -628,16 +685,22 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                     })()}
 
                     {enrollment.students?.email && (
-                        <CustomTooltip content={enrollment.students.email}>
+                        <CustomTooltip content={emailCopied ? 'Copied!' : copiesContact ? `${enrollment.students.email} (click to copy)` : enrollment.students.email}>
                             <a
                                 href={`mailto:${enrollment.students.email}`}
-                                onClick={e => e.stopPropagation()}
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    if (copiesContact) {
+                                        e.preventDefault();
+                                        copyEmail(enrollment.students!.email!);
+                                    }
+                                }}
                                 onPointerDown={e => e.stopPropagation()}
                                 onTouchStart={e => e.stopPropagation()}
-                                className={`${contactBtn} text-primary/60 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-surface-elevated`}
-                                aria-label={`Send email to ${enrollment.students.email}`}
+                                className={`${contactBtn} ${emailCopied ? 'text-status-confirmed bg-success/10' : 'text-primary/60 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-surface-elevated'}`}
+                                aria-label={copiesContact ? `Copy email ${enrollment.students.email}` : `Send email to ${enrollment.students.email}`}
                             >
-                                <Mail size={13} />
+                                {emailCopied ? <Check size={13} strokeWidth={2.5} /> : <Mail size={13} />}
                             </a>
                         </CustomTooltip>
                     )}
@@ -707,15 +770,32 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                 </div>
             )}
 
-            {/* Pending Completion Approval Highlight */}
+            {/* Pending Completion Approval Highlight (clickable to open Pending Approvals modal) */}
             {enrollment.completion_request_status === 'pending' && (
-                <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs">
-                    <Clock size={11} className="shrink-0" />
-                    <span className="truncate">
-                        Completion requested for <strong>{formatDisplayDate(enrollment.pending_completion_date)}</strong>
-                        {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
-                    </span>
-                </div>
+                onOpenApprovals && !isOverlay ? (
+                    <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); onOpenApprovals(); }}
+                        onPointerDown={e => e.stopPropagation()}
+                        onTouchStart={e => e.stopPropagation()}
+                        title="Review pending completion approvals"
+                        className="mt-1.5 w-full flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs transition-colors text-left cursor-pointer"
+                    >
+                        <Clock size={11} className="shrink-0" />
+                        <span className="truncate">
+                            Completion requested for <strong>{formatDisplayDate(enrollment.pending_completion_date)}</strong>
+                            {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
+                        </span>
+                    </button>
+                ) : (
+                    <div className="mt-1.5 flex items-center gap-1.5 px-1.5 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-status-requested text-xs font-semibold animate-pulse shadow-2xs">
+                        <Clock size={11} className="shrink-0" />
+                        <span className="truncate">
+                            Completion requested for <strong>{formatDisplayDate(enrollment.pending_completion_date)}</strong>
+                            {enrollment.completion_requested_by ? ` (${enrollment.completion_requested_by})` : ''}
+                        </span>
+                    </div>
+                )
             )}
 
             </div>
@@ -744,7 +824,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                             {completedCourses.map(c => (
-                                <div key={c.id} className="flex items-center gap-2.5 bg-surface p-3 rounded-xl border border-border-subtle shadow-xs">
+                                <div key={c.id} className="flex items-center gap-2.5 bg-surface-elevated/60 p-3 rounded-xl border border-border-subtle shadow-xs">
                                     <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                                     <span className="text-[13px] font-bold text-primary">{c.name}</span>
                                 </div>
@@ -789,7 +869,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             </div>
                             <button
                                 onClick={() => setShowQuickMove(false)}
-                                className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-surface transition-colors"
+                                className="p-1.5 rounded-full text-muted hover:text-primary hover:bg-surface-elevated transition-colors"
                                 aria-label="Close"
                             >
                                 <X size={16} />
@@ -798,6 +878,24 @@ const EnrollmentCardBody = function EnrollmentCardBody({
 
                         {/* Status Option Buttons */}
                         <div className="py-1 space-y-2 overflow-y-auto flex-1">
+                            {(status === 'confirmed' || status === 'invited') && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowQuickMove(false);
+                                        onMoveStatus?.(enrollment.id, status, status);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-700 dark:text-brand-300 text-sm font-semibold transition-all active:scale-[0.98] text-left cursor-pointer min-h-[48px]"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="p-1.5 rounded-lg bg-white/20 dark:bg-black/20 shrink-0">
+                                            <Calendar size={14} />
+                                        </span>
+                                        <span>{status === 'confirmed' ? 'Change course date…' : 'Re-invite / change date…'}</span>
+                                    </div>
+                                    <span className="text-xs font-normal opacity-70">Reschedule</span>
+                                </button>
+                            )}
                             {MOVE_TARGETS.map(st => {
                                 if (st === status) return null;
                                 const stCfg = STATUS_CONFIG[st];
@@ -828,7 +926,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                         <button
                             type="button"
                             onClick={() => setShowQuickMove(false)}
-                            className="w-full py-3 text-sm font-bold text-muted hover:text-primary bg-surface border border-border-strong rounded-xl transition-all active:scale-[0.98] mt-2"
+                            className="w-full py-3 text-sm font-bold text-muted hover:text-primary bg-surface hover:bg-surface-elevated border border-border-strong rounded-xl transition-all active:scale-[0.98] mt-2"
                         >
                             Cancel
                         </button>
@@ -864,6 +962,19 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                             </button>
                         </div>
                         <div className="py-1 space-y-0.5 overflow-y-auto">
+                            {(status === 'confirmed' || status === 'invited') && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowQuickMove(false);
+                                        onMoveStatus?.(enrollment.id, status, status);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors text-left cursor-pointer border-b border-border-subtle/70 mb-1 pb-2"
+                                >
+                                    <Calendar size={13} className="shrink-0" />
+                                    <span>{status === 'confirmed' ? 'Change date…' : 'Re-invite / date…'}</span>
+                                </button>
+                            )}
                             {MOVE_TARGETS.map(st => {
                                 if (st === status) return null;
                                 const stCfg = STATUS_CONFIG[st];
@@ -876,7 +987,7 @@ const EnrollmentCardBody = function EnrollmentCardBody({
                                             setShowQuickMove(false);
                                             onMoveStatus?.(enrollment.id, status, st);
                                         }}
-                                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface active:bg-brand-50/10 transition-colors text-left cursor-pointer"
+                                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-surface-elevated active:bg-brand-500/10 transition-colors text-left cursor-pointer"
                                     >
                                         <span className={`${stCfg.color} flex items-center`}>{stCfg.icon}</span>
                                         <span>{stCfg.label}</span>
@@ -910,6 +1021,8 @@ const sameCardData = (prev: EnrollmentCardProps, next: EnrollmentCardProps) =>
     prev.queueDetail === next.queueDetail &&
     prev.isOverlay === next.isOverlay &&
     prev.onUpdateNote === next.onUpdateNote &&
+    prev.emailOptedOut === next.emailOptedOut &&
+    prev.onOpenApprovals === next.onOpenApprovals &&
     prev.session === next.session &&
     (prev.studentFlags?.length || 0) === (next.studentFlags?.length || 0) &&
     (prev.completedCourses?.length || 0) === (next.completedCourses?.length || 0);

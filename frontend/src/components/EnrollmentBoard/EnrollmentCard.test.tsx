@@ -405,4 +405,60 @@ describe('EnrollmentCard Component', () => {
 
         expect(mockToggleSelect).not.toHaveBeenCalled();
     });
+
+    it('opens student details when clicking the student name without selecting the card', () => {
+        render(<EnrollmentCard {...defaultProps} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'John Doe' }));
+        expect(mockOnShowDetail).toHaveBeenCalledWith(sampleEnrollment);
+        expect(mockToggleSelect).not.toHaveBeenCalled();
+    });
+
+    it('shows Unsub and No email badges and copies email on desktop click', async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        const realMatchMedia = window.matchMedia;
+        window.matchMedia = ((query: string) => query.includes('pointer: fine')
+            ? { ...realMatchMedia(query), matches: true }
+            : realMatchMedia(query)) as typeof window.matchMedia;
+        onTestFinished(() => { window.matchMedia = realMatchMedia; });
+
+        const { rerender } = render(<EnrollmentCard {...defaultProps} emailOptedOut />);
+        expect(screen.getByText('Unsub')).toBeInTheDocument();
+
+        const emailBtn = screen.getByLabelText('Copy email john.doe@example.com');
+        await act(async () => { fireEvent.click(emailBtn); });
+        expect(writeText).toHaveBeenCalledWith('john.doe@example.com');
+        expect(mockToggleSelect).not.toHaveBeenCalled();
+
+        rerender(
+            <EnrollmentCard
+                {...defaultProps}
+                enrollment={{ ...sampleEnrollment, students: { ...sampleEnrollment.students!, email: '' } }}
+            />
+        );
+        expect(screen.getByText('No email')).toBeInTheDocument();
+    });
+
+    it('makes the pending completion banner clickable and offers Change date on confirmed cards', () => {
+        const onOpenApprovals = vi.fn();
+        const confirmed = {
+            ...sampleEnrollment,
+            status: 'confirmed' as const,
+            confirmed_date: '2026-11-27',
+            completion_request_status: 'pending' as const,
+            pending_completion_date: '2026-11-27',
+            completion_requested_by: 'trainer@example.com',
+        };
+        render(<EnrollmentCard {...defaultProps} status="confirmed" enrollment={confirmed} onOpenApprovals={onOpenApprovals} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Completion requested/i }));
+        expect(onOpenApprovals).toHaveBeenCalledTimes(1);
+        expect(mockToggleSelect).not.toHaveBeenCalled();
+
+        // Reschedule option in Move to Status dropdown
+        fireEvent.click(screen.getByLabelText('Move status'));
+        fireEvent.click(screen.getByText('Change date…'));
+        expect(mockOnMoveStatus).toHaveBeenCalledWith('enrollment-1', 'confirmed', 'confirmed');
+    });
 });

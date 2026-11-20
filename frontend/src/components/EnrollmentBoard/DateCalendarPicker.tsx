@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { EnrollmentRow } from '../../hooks/useEnrollments';
+import { courseDatesOf } from '../../lib/courseDates';
 
 const POPOVER_WIDTH = 288;
 /** Gap between the field and the calendar, and the least room kept to the window's edges */
@@ -40,7 +41,7 @@ export default function DateCalendarPicker({
     // Parse current value
     const selectedDate = useMemo(() => {
         if (!value) return null;
-        const d = new Date(value);
+        const d = new Date(value.includes('T') ? value : `${value}T12:00:00`);
         return isNaN(d.getTime()) ? null : d;
     }, [value]);
 
@@ -131,10 +132,17 @@ export default function DateCalendarPicker({
             if (selectedCourse !== 'all' && e.course_id !== selectedCourse) {
                 return;
             }
-            const dateVal = dateField === 'confirmed_date' ? (e.confirmed_date || e.invited_date || e.completed_date) : e.created_at;
-            if (!dateVal) return;
-            // Parse to local date key: YYYY-MM-DD
-            const d = new Date(dateVal);
+            if (dateField === 'confirmed_date') {
+                // Course dates are date-only YYYY-MM-DD (including multi-date invites): use directly so negative UTC offsets never shift the day
+                for (const key of courseDatesOf(e)) {
+                    counts[key] = (counts[key] || 0) + 1;
+                }
+                return;
+            }
+            if (!e.created_at) return;
+            // Parse timestamp to local date key: YYYY-MM-DD
+            const d = new Date(e.created_at);
+            if (isNaN(d.getTime())) return;
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             counts[key] = (counts[key] || 0) + 1;
         });

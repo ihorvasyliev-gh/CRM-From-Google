@@ -94,4 +94,27 @@ describe('EnrollmentModal — languages of a course', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Not added: this student is already enrolled in this course');
         expect(onSave).not.toHaveBeenCalled();
     });
+
+    it('lets you pick a course date for Confirmed/Invited, pick language via chips, and mark Priority', async () => {
+        const { insert, onSave } = setup([
+            { ...enrollment('other', 'Ukrainian', 'completed'), student_id: 'st-other' },
+        ]);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Ukrainian' })).toBeInTheDocument());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ukrainian' }));
+        fireEvent.change(screen.getByLabelText('Initial Status'), { target: { value: 'confirmed' } });
+        fireEvent.click(screen.getByRole('button', { name: /Priority/ }));
+
+        // Date picker is visible for Confirmed status
+        expect(screen.getByText('Confirmed course date')).toBeInTheDocument();
+
+        fireEvent.click(enrollButton());
+        await waitFor(() => expect(onSave).toHaveBeenCalled());
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            course_variant: 'Ukrainian',
+            status: 'confirmed',
+            is_priority: true,
+            confirmed_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        }));
+    });
 });
