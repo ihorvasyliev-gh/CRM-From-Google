@@ -259,6 +259,14 @@ export function useGlobalRealtimeSync() {
                     queueInvalidation(['doc_generations']);
                 }
             )
+            // ─── Cheque requisitions (admin history, statuses & supplier memory) ─
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'cheque_requisitions' },
+                () => {
+                    queueInvalidation(['cheque_requisitions']);
+                }
+            )
             .subscribe((status, err) => {
                 // Ignore late status callbacks from channels we already replaced/removed —
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.

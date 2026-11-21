@@ -38,6 +38,15 @@ export type ChecklistItem = 'taxClearance' | 'poAndSicap' | 'description' | 'app
 /** Text fields of the form that can carry a note ("check this", "from last time") */
 export type FieldKey = Exclude<keyof ChequeReqForm, 'quoteBy' | 'checklist' | 'approvalEmailAttached'>;
 
+/** Editable invoice metadata fields that can also be picked directly off the invoice */
+export type MetaFieldKey = 'invoiceNumber' | 'invoiceDate' | 'dueDate' | 'netAmount';
+
+/** Any form or invoice-metadata field that supports interactive picking & source highlighting */
+export type PickFieldKey = FieldKey | MetaFieldKey;
+
+/** Workflow status stored on admin requisitions (not printed on the SICAP Word form) */
+export type ChequeReqStatus = 'draft' | 'ready' | 'paid';
+
 export const EMPTY_FORM: ChequeReqForm = {
     actionNumber: '',
     nonSicapFunding: '',
@@ -80,6 +89,9 @@ export interface FieldFlag {
 
 export type FieldFlags = Partial<Record<FieldKey, FieldFlag>>;
 
+/** Preserved highlight regions on the invoice, kept even after a field's orange/red flag is accepted */
+export type FieldSources = Partial<Record<PickFieldKey, Rect[]>>;
+
 /** A value read from the invoice, with where it was and whether its label was clear */
 export interface Found<T = string> {
     value: T;
@@ -110,11 +122,27 @@ export interface SupplierFacts {
     bic?: string;
 }
 
+export interface ExtractedAmountChip {
+    value: number;
+    label?: string;
+    source?: Rect[];
+}
+
+export interface ExtractedDateChip {
+    iso: string;
+    label?: string;
+    source?: Rect[];
+}
+
 export interface InvoiceFacts {
     /** Whether any text could be read from the file */
     hasText: boolean;
     /** Read off a picture (a scan or a photo): a letter or digit may have been misread */
     scanned?: boolean;
+    /** Number of pages read by OCR when a scanned PDF was truncated */
+    ocrPagesRead?: number;
+    /** Total pages in the source PDF */
+    totalPages?: number;
     invoiceNumber?: Found;
     /** YYYY-MM-DD */
     invoiceDate?: Found;
@@ -135,6 +163,9 @@ export interface InvoiceFacts {
     /** "Attention: …" — who ordered it */
     attention?: string;
     mentionsSicap: boolean;
+    /** Quick-fill candidates collected from the invoice for one-click insertion */
+    candidateAmounts?: ExtractedAmountChip[];
+    candidateDates?: ExtractedDateChip[];
 }
 
 /** What is kept about a requisition besides the form: for history, duplicates and suppliers */
@@ -158,6 +189,10 @@ export interface ChequeReqMeta {
     fileName: string;
     /** Where values were picked on the invoice by hand: read there on this supplier's next invoice */
     places: Partial<Record<PlaceField, InvoicePlace>>;
+    /** CRM-only tracking fields (mirrored in columns when migration 95 is applied; never printed) */
+    status?: ChequeReqStatus;
+    chequeNumber?: string;
+    notes?: string;
 }
 
 /** Values that change from invoice to invoice, read again where they were picked last time */
@@ -193,7 +228,7 @@ export const EMPTY_META: ChequeReqMeta = {
     places: {},
 };
 
-/** A requisition kept in the history (table cheque_requisitions, migration 88) */
+/** A requisition kept in the history (table cheque_requisitions, migrations 88 & 95) */
 export interface SavedChequeReq {
     id: string;
     supplier_name: string;
@@ -203,6 +238,10 @@ export interface SavedChequeReq {
     net_amount: number | null;
     form: ChequeReqForm;
     meta: ChequeReqMeta;
+    status?: ChequeReqStatus;
+    cheque_number?: string;
+    notes?: string;
+    created_by?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -210,4 +249,37 @@ export interface SavedChequeReq {
 export interface Check {
     level: 'warning' | 'info' | 'ok';
     text: string;
+    /** Optional target saved requisition id (e.g. duplicate invoice link) */
+    relatedId?: string;
 }
+
+/** Aggregated supplier view for the Suppliers & €5,000 threshold tab */
+export interface SupplierSummary {
+    /** Stable unique React key even when two distinct suppliers share a display name */
+    key: string;
+    name: string;
+    vat: string;
+    iban: string;
+    email: string;
+    phone: string;
+    totalNet: number;
+    totalGross: number;
+    count: number;
+    /** ok (< €4,000), approaching (€4,000–€4,999.99), exceeded (>= €5,000) */
+    tier: 'ok' | 'approaching' | 'exceeded';
+    latest: SavedChequeReq;
+    learnedPlaces: PlaceField[];
+    requisitionIds: string[];
+}
+
+/** Live measurement of how the description maps onto the Word form's two ruled lines */
+export interface DescriptionFit {
+    line1: string;
+    line2: string;
+    /** 0..100+ percentage of line 1 capacity (212pt beside the Checklist box) */
+    line1Pct: number;
+    /** 0..100+ percentage of line 2 capacity (~390pt full width) */
+    line2Pct: number;
+    overflowsLine2: boolean;
+}
+

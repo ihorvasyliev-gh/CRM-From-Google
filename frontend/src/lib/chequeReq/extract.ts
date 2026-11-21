@@ -6,7 +6,7 @@
 
 import type { Phrase, Rect } from '../pdfForms/types';
 import { collapseSpaces, domainWord, EMAIL_RE, findAmounts, findDateRange, findDates, IBAN_RE, parseDate, PHONE_RE, referenceToken, squash, WEBSITE_RE } from './parse';
-import type { Found, InvoiceFacts, InvoiceItem, SupplierFacts } from './types';
+import type { ExtractedAmountChip, ExtractedDateChip, Found, InvoiceFacts, InvoiceItem, SupplierFacts } from './types';
 
 /** The customer side of an invoice: this partnership. Blocks mentioning it are never the supplier. */
 export const OUR_ORGANISATION = /cork\s*city\s*partnership|heron\s*house|\bsicap\b|\bccp\b/i;
@@ -36,6 +36,21 @@ export function toLines(phrases: Phrase[]): TextLine[] {
         line.h = Math.max(...line.phrases.map(p => p.h));
     }
     return lines;
+}
+
+/** Readable plain text of an invoice, line by line (blank line between pages), for copying or searching */
+export function rawInvoiceText(phrases: Phrase[]): string {
+    const lines = toLines(phrases);
+    const out: string[] = [];
+    let prevPage: number | null = null;
+    for (const line of lines) {
+        const text = collapseSpaces(line.text);
+        if (!text) continue;
+        if (prevPage !== null && line.page !== prevPage) out.push('');
+        out.push(text);
+        prevPage = line.page;
+    }
+    return out.join('\n');
 }
 
 export function rectOf(p: Phrase): Rect {
@@ -125,7 +140,9 @@ const PO_NUMBER = /\b(?:p\.?\s?o\.?(?!\s*box)\s*(?:number|no\.?|num|#|ref(?:eren
 
 const TOTAL_STRONG = /\b(?:amount|balance|total)\s*(?:due|payable|owing|outstanding)\b|\bgrand\s*total\b|\binvoice\s*total\b|\bgross\s*(?:amount|total)\b|^\s*total\s*(?:eur|€|amount|incl\.?(?:uding)?\s*vat|\(eur\)|\(€\))/i;
 const TOTAL_WEAK = /^\s*total\b(?!\s*(?:vat|tax|net|ex|excl|before|hours|qty|quantity|units|discount))/i;
-const SUBTOTAL = /^\s*(?:sub[\s-]?total|net(?:\s*(?:total|amount|value))?|total\s*(?:net|excl\.?|exclusive|ex\.?|before)|amount\s*(?:excl|ex)\.?|goods(?:\s*total)?)\b/i;
+/** Weak fallback total labels found on till dockets and payment receipts when no standard total is present */
+const RECEIPT_TOTAL = /\b(?:total\s*(?:eur|€)|amount\s*paid|card\s*sale)\b|^\s*(?:visa(?:\s*(?:debit|credit|card))?|mastercard(?:\s*(?:debit|credit|card))?|cash(?:\s*(?:paid|tendered))?)\b/i;
+const SUBTOTAL = /^\s*(?:sub[\s-]?total|net(?:\s*(?:total|amount|value))?|(?:excl\.?|ex\.?)\s*vat|total\s*(?:net|(?:excl\.?|exclusive|ex\.?)(?:\s*vat)?|before)|amount\s*(?:excl|ex)\.?(?:\s*vat)?|goods(?:\s*total)?)\b/i;
 const VAT = /^\s*(?:total\s+)?(?:vat|tax)\b(?!\s*(?:no|number|reg|registration|id|on\s+sales|rate\s*$))/i;
 const ANY_TOTAL = new RegExp(`${SUBTOTAL.source}|${TOTAL_STRONG.source}|${TOTAL_WEAK.source}`, 'i');
 
@@ -319,7 +336,8 @@ function withoutPo(text: string): string {
 function looseItems(lines: TextLine[]): { items: InvoiceItem[]; itemLines: Set<TextLine> } {
     const items: InvoiceItem[] = [];
     const itemLines = new Set<TextLine>();
-    const end = lines.findIndex(l => l.phrases.some(p => TOTAL_STRONG.test(p.text) || TOTAL_WEAK.test(p.text) || SUBTOTAL.test(p.text)));
+    const standardEnd = lines.findIndex(l => l.phrases.some(p => TOTAL_STRONG.test(p.text) || TOTAL_WEAK.test(p.text) || SUBTOTAL.test(p.text)));
+    const end = standardEnd >= 0 ? standardEnd : lines.findIndex(l => l.phrases.some(p => RECEIPT_TOTAL.test(p.text)));
     let start = -1;
     let described = false;
     for (let i = 0; i < (end < 0 ? 0 : end); i++) {
@@ -859,6 +877,107 @@ function amountBeside(lines: TextLine[], label: RegExp, skip: Set<TextLine>): Ca
 
 // ─── All together ──────────────────────────────────────────────
 
+/** Browser-print chrome (Gmail/Outlook headers & footers, page counters) that would otherwise hijack supplier or date */
+const PRINT_CHROME_LINE = /^(?:(?:\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?\s+)?(?:gmail|mail)\s*[-–—]\s+|page\s+\d+\s+of\s+\d+\s*$|printed\s+(?:on|at)\b)/i;
+const MAIL_URL_RE = /https?:\/\/(?:mail\.google\.com|outlook\.(?:office|office365|live)\.com)\/\S*/i;
+const PAGE_FRACTION_LINE = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/;
+const EMAIL_FROM_LINE = /^\s*from\s*:\s*.*<[^@\s<>]+@[^@\s<>]+>/i;
+const EMAIL_TO_ANGLE_LINE = /^\s*to\s*:\s*.*<[^@\s<>]+@[^@\s<>]+>/i;
+const EMAIL_SENT_LINE = /^\s*sent\s*:\s*(?:(?:mon|tue|wed|thu|fri|sat|sun)\w*,?\s+)?(?:\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i;
+const EMAIL_HEADER_LINE = /^\s*(?:sent|subject|cc|bcc|reply-to)\s*:\s*\S/i;
+const PRINT_TIMESTAMP_LINE = /^\s*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4},?\s+\d{1,2}:\d{2}(?:\s*[ap]m)?\s*$/i;
+
+function filterPrintChrome(rawLines: TextLine[]): TextLine[] {
+    const hasEmailContext = rawLines.some(l => {
+        const t = l.text.trim();
+        return (
+            /^(?:\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?:,?\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)?\s+)?(?:gmail|mail)\s*[-–—]\s+/i.test(t) ||
+            MAIL_URL_RE.test(t) ||
+            EMAIL_FROM_LINE.test(t) ||
+            EMAIL_SENT_LINE.test(t)
+        );
+    });
+    return rawLines.filter(line => {
+        const t = line.text.trim();
+        if (PRINT_CHROME_LINE.test(t) || MAIL_URL_RE.test(t)) return false;
+        const frac = PAGE_FRACTION_LINE.exec(t);
+        if (frac) {
+            const a = Number(frac[1]);
+            const b = Number(frac[2]);
+            if (a >= 1 && b >= 1 && a <= b && b <= 50) return false;
+        }
+        if (EMAIL_FROM_LINE.test(t) || EMAIL_TO_ANGLE_LINE.test(t) || EMAIL_SENT_LINE.test(t)) return false;
+        if (hasEmailContext && (EMAIL_HEADER_LINE.test(t) || PRINT_TIMESTAMP_LINE.test(t))) return false;
+        if (/^\s*subject\s*:\s*\S/i.test(t) && (hasEmailContext || /\b(?:fwd?|re|invoice|receipt|statement|quote)\b/i.test(t))) return false;
+        return true;
+    });
+}
+
+function collectCandidateAmounts(facts: InvoiceFacts, lines: TextLine[]): ExtractedAmountChip[] {
+    const chips: ExtractedAmountChip[] = [];
+    const seen = new Set<number>();
+    const push = (value: number, label: string, source?: Rect[]) => {
+        if (!Number.isFinite(value) || value <= 0) return;
+        const cents = Math.round(value * 100);
+        if (seen.has(cents)) return;
+        seen.add(cents);
+        chips.push({ value, label, ...(source?.length ? { source } : {}) });
+    };
+    if (facts.total) push(facts.total.value, 'Total', facts.total.source);
+    if (facts.subtotal) push(facts.subtotal.value, 'Subtotal', facts.subtotal.source);
+    if (facts.vat) push(facts.vat.value, 'VAT', facts.vat.source);
+    for (const item of facts.items) {
+        if (item.amount === undefined) continue;
+        const desc = collapseSpaces(item.description);
+        const label = desc ? (desc.length > 32 ? `${desc.slice(0, 31).trimEnd()}…` : desc) : 'Line item';
+        push(item.amount, label, item.source);
+    }
+    if (chips.length === 0) {
+        for (const line of lines) {
+            for (const p of line.phrases) {
+                for (const a of findAmounts(p.text)) {
+                    push(a.value, 'Amount', [rectOf(p)]);
+                    if (chips.length >= 6) return chips;
+                }
+            }
+        }
+    }
+    return chips;
+}
+
+function collectCandidateDates(facts: InvoiceFacts, lines: TextLine[], serviceSource?: Rect[]): ExtractedDateChip[] {
+    const dateRects = new Map<string, Rect[]>();
+    for (const line of lines) {
+        for (const p of line.phrases) {
+            for (const d of findDates(p.text)) {
+                if (!dateRects.has(d.iso)) dateRects.set(d.iso, [rectOf(p)]);
+            }
+        }
+    }
+    const chips: ExtractedDateChip[] = [];
+    const seen = new Set<string>();
+    const push = (iso: string, label: string, source?: Rect[]) => {
+        if (!iso || seen.has(iso)) return;
+        seen.add(iso);
+        const rect = source?.length ? source : dateRects.get(iso);
+        chips.push({ iso, label, ...(rect?.length ? { source: rect } : {}) });
+    };
+    if (facts.invoiceDate) push(facts.invoiceDate.value, 'Invoice date', facts.invoiceDate.source);
+    if (facts.dueDate) push(facts.dueDate.value, 'Due date', facts.dueDate.source);
+    if (facts.serviceDates) {
+        if (facts.serviceDates.days?.length) {
+            for (const day of facts.serviceDates.days) push(day, 'Service date', dateRects.get(day) ?? serviceSource);
+        } else {
+            push(facts.serviceDates.start, facts.serviceDates.end ? 'Service start' : 'Service date', dateRects.get(facts.serviceDates.start) ?? serviceSource);
+            if (facts.serviceDates.end) push(facts.serviceDates.end, 'Service end', dateRects.get(facts.serviceDates.end) ?? serviceSource);
+        }
+    }
+    for (const [iso, rect] of dateRects) {
+        push(iso, 'Date', rect);
+    }
+    return chips;
+}
+
 /** A date standing alone near the top ("INVOICE" / "1/10/2026"): most likely the invoice date */
 function loneDate(lines: TextLine[], dueDate: string | undefined): Found | undefined {
     const stop = lines.findIndex(l => l.phrases.some(p => ANY_TOTAL.test(p.text)) || l.phrases.some(p => HEADER_DESC.test(p.text) && l.phrases.length > 1));
@@ -873,7 +992,7 @@ function loneDate(lines: TextLine[], dueDate: string | undefined): Found | undef
 }
 
 export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
-    const lines = toLines(phrases);
+    const lines = filterPrintChrome(toLines(phrases));
     const allText = lines.map(l => l.text).join('\n');
     const facts: InvoiceFacts = { hasText: allText.replace(/\s/g, '').length > 20, supplier: {}, items: [], people: [], mentionsSicap: /\bsicap\b/i.test(allText) };
     if (!facts.hasText) return facts;
@@ -931,16 +1050,20 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     const vat = best(amountBeside(lines, VAT, itemLines));
     if (subtotal) facts.subtotal = subtotal;
     if (vat) facts.vat = vat;
-    const total = strong && strong.value > 0 ? strong : weak ?? strong;
+    const strongPos = strong && strong.value > 0 ? strong : undefined;
+    const weakPos = weak && weak.value > 0 ? weak : undefined;
+    const receipt = !strongPos && !weakPos ? best(amountBeside(lines, RECEIPT_TOTAL, itemLines).filter(c => c.value > 0)) : undefined;
+    const total = strongPos ?? weakPos ?? receipt ?? strong ?? weak;
     if (total) {
         // Sure when two things agree: two total labels, subtotal + VAT, or the lines
         // ("TOTAL Amount: EUR 2400" is one label, though both kinds read it)
         const itemSum = facts.items.reduce((s, i) => s + (i.amount ?? 0), 0);
         const samePlace = (a: Found<number>, b: Found<number>) => JSON.stringify(a.source?.[0]) === JSON.stringify(b.source?.[0]);
         const agree =
-            (strong && weak && !samePlace(strong, weak) && Math.abs(strong.value - weak.value) < 0.005) ||
-            (subtotal && Math.abs(subtotal.value + (vat?.value ?? 0) - total.value) < 0.005) ||
-            (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined) && Math.abs(itemSum + (vat?.value ?? 0) - total.value) < 0.005);
+            !receipt &&
+            ((strong && weak && !samePlace(strong, weak) && Math.abs(strong.value - weak.value) < 0.005) ||
+                (subtotal && Math.abs(subtotal.value + (vat?.value ?? 0) - total.value) < 0.005) ||
+                (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined) && Math.abs(itemSum + (vat?.value ?? 0) - total.value) < 0.005));
         facts.total = { ...total, sure: !!agree };
     } else if (facts.items.length > 0 && facts.items.every(i => i.amount !== undefined)) {
         const sum = Math.round(facts.items.reduce((s, i) => s + (i.amount ?? 0), 0) * 100) / 100;
@@ -950,6 +1073,7 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
     facts.supplier = readSupplier(lines, allText, table.items.length ? table.itemLines : new Set());
 
     facts.people = numberedPeople(facts.items.flatMap(i => i.details));
+    let serviceSource: Rect[] | undefined;
     for (const item of facts.items) {
         const texts = [item.description, ...item.details];
         const range = texts.map(t => findDateRange(t)).find(Boolean);
@@ -957,11 +1081,15 @@ export function extractInvoice(phrases: Phrase[]): InvoiceFacts {
             // Separate days ("26/08/26", "27/08/26", "28/08/26"), each its own course
             const days = [...new Set(texts.flatMap(t => findDates(t).map(d => d.iso)))].sort();
             facts.serviceDates = !range.end && days.length > 1 ? { start: days[0], days } : range;
+            serviceSource = item.source;
             break;
         }
     }
 
-    const attention = phrases.map(p => /\b(?:attention|attn|fao|for the attention of)\b\.?\s*:?\s*(.+)$/i.exec(p.text)?.[1]).find(Boolean);
+    const attention = lines.flatMap(l => l.phrases).map(p => /\b(?:attention|attn|fao|for the attention of)\b\.?\s*:?\s*(.+)$/i.exec(p.text)?.[1]).find(Boolean);
     if (attention) facts.attention = collapseSpaces(attention).replace(/[,.]$/, '');
+
+    facts.candidateAmounts = collectCandidateAmounts(facts, lines);
+    facts.candidateDates = collectCandidateDates(facts, lines, serviceSource);
     return facts;
 }

@@ -86,7 +86,7 @@ const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
  * their filters, search, drafts and scroll position. Pages that take their start from the
  * navigation (the board's course filter…) or the URL are mounted fresh each time instead.
  */
-const KEPT_PAGES = new Set(['dashboard', 'students', 'outcomes', 'analytics', 'documents', 'settings']);
+const KEPT_PAGES = new Set(['dashboard', 'students', 'outcomes', 'analytics', 'documents', 'settings', 'cheque-reqs']);
 
 const PAGE_SPINNER = (
     <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
@@ -328,7 +328,7 @@ function App() {
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />
                     <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
-                    <Route path="/cheque-reqs" element={<ChequeRequisitions />} />
+                    <Route path="/cheque-reqs" element={null} />
                     <Route path="/settings" element={null} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </>
@@ -629,6 +629,7 @@ function App() {
                                     )}
                                     {tab === 'analytics' && <Analytics />}
                                     {tab === 'documents' && <DocumentGenerator />}
+                                    {tab === 'cheque-reqs' && <ChequeRequisitions />}
                                     {tab === 'settings' && (
                                         <Settings
                                             darkMode={darkMode}

@@ -1,7 +1,7 @@
-import { useMemo, useState, type PointerEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type PointerEvent } from 'react';
 import { rectStyle } from '../PdfForms/pdfHooks';
 import { rectOf } from '../../lib/chequeReq/extract';
-import { unlevelRect } from '../../lib/chequeReq/ocr';
+import { unlevelRect, type Rotation } from '../../lib/chequeReq/ocr';
 import { covers, pickedOf, type Picked } from '../../lib/chequeReq/pick';
 import type { Phrase, Rect } from '../../lib/pdfForms/types';
 
@@ -14,6 +14,10 @@ export interface PickMode {
     picked: Picked;
     onPick: (picked: Picked) => void;
     onDone: () => void;
+    /** Optional handler to undo the last picked item in multi-pick mode */
+    onUndo?: () => void;
+    /** Optional explicit count of picked items */
+    count?: number;
 }
 
 interface Props {
@@ -26,19 +30,30 @@ interface Props {
     /** CSS pixels per unit */
     scale: number;
     pick: PickMode;
+    /** Clockwise rotation applied to the page when its phrases were read */
+    rotation?: Rotation;
+}
+
+interface ShownPhrase {
+    phrase: Phrase;
+    rect: Rect;
 }
 
 /** A click that moves less than this (CSS pixels) is not a box being drawn */
 const DRAG = 5;
 
 /**
- * Over a page while a value is picked: the text under the pointer is outlined, a click takes
- * it, a box drawn round some text takes all of it (shift adds to what was picked).
+ * Over a page while a value is picked: the text under the pointer is outlined with a crisp
+ * preview tooltip, a click takes it, a box drawn round some text takes all of it (shift adds
+ * to what was picked).
  */
 export default function PickLayer({ phrases, page, size, angle, scale, pick }: Props) {
     // Where each phrase shows on the page (a levelled scan's back at its angle)
-    const shown = useMemo(() => phrases.filter(p => p.page === page).map(p => ({ phrase: p, rect: unlevelRect(rectOf(p), angle, size) })), [phrases, page, angle, size]);
-    const [hover, setHover] = useState<Rect | null>(null);
+    const shown = useMemo<ShownPhrase[]>(
+        () => phrases.filter(p => p.page === page).map(p => ({ phrase: p, rect: unlevelRect(rectOf(p), angle, size) })),
+        [phrases, page, angle, size],
+    );
+    const [hover, setHover] = useState<ShownPhrase | null>(null);
     const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 
     const at = (e: PointerEvent<HTMLDivElement>) => {
@@ -69,7 +84,7 @@ export default function PickLayer({ phrases, page, size, angle, scale, pick }: P
     const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
         const p = at(e);
         if (drag) setDrag({ ...drag, x1: p.x, y1: p.y });
-        else setHover(hit(p.x, p.y)?.rect ?? null);
+        else setHover(hit(p.x, p.y) ?? null);
     };
     const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
         if (!drag) return;
@@ -85,7 +100,50 @@ export default function PickLayer({ phrases, page, size, angle, scale, pick }: P
         }
     };
 
-    const box = drag && { page, x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w: Math.abs(drag.x1 - drag.x0), h: Math.abs(drag.y1 - drag.y0) };
+    const pickedIndex = useMemo(() => {
+        const map = new Map<Phrase, number>();
+        pick.picked.phrases.forEach((phrase, idx) => map.set(phrase, idx + 1));
+        return map;
+    }, [pick.picked.phrases]);
+
+    const box = useMemo(
+        () =>
+            drag
+                ? {
+                    page,
+                    x: Math.min(drag.x0, drag.x1),
+                    y: Math.min(drag.y0, drag.y1),
+                    w: Math.abs(drag.x1 - drag.x0),
+                    h: Math.abs(drag.y1 - drag.y0),
+                }
+                : null,
+        [drag, page],
+    );
+    const draggingBox = Boolean(drag && (Math.abs(drag.x1 - drag.x0) * scale > DRAG || Math.abs(drag.y1 - drag.y0) * scale > DRAG));
+
+    const dragHits = useMemo(
+        () => (draggingBox && box ? shown.filter(s => covers(box, s.rect) && !pickedIndex.has(s.phrase)) : []),
+        [draggingBox, box, shown, pickedIndex],
+    );
+
+    const tooltipStyle: CSSProperties | undefined = useMemo(() => {
+        if (!hover || drag) return undefined;
+        const topPx = (size.h - hover.rect.y - hover.rect.h) * scale;
+        const bottomPx = (size.h - hover.rect.y) * scale;
+        const leftPx = hover.rect.x * scale;
+        const rightPx = (hover.rect.x + hover.rect.w) * scale;
+        const pageWidthPx = size.w * scale;
+        const placeAbove = topPx >= 28;
+        const alignRight = pageWidthPx > 200 && leftPx > pageWidthPx - 180;
+        return {
+            top: placeAbove ? topPx - 6 : bottomPx + 6,
+            transform: placeAbove ? 'translateY(-100%)' : undefined,
+            ...(alignRight
+                ? { right: Math.max(4, pageWidthPx - rightPx) }
+                : { left: Math.max(4, leftPx) }),
+        };
+    }, [hover, drag, scale, size.h, size.w]);
+
     return (
         <div
             data-testid={`pick-page-${page}`}
@@ -96,11 +154,63 @@ export default function PickLayer({ phrases, page, size, angle, scale, pick }: P
             onPointerCancel={() => setDrag(null)}
             onPointerLeave={() => setHover(null)}
         >
-            {shown.filter(s => pick.picked.phrases.includes(s.phrase)).map((s, k) => (
-                <div key={k} className="absolute rounded-xs ring-2 ring-brand-500 bg-brand-500/20 pointer-events-none" style={rectStyle(s.rect, scale, size.h)} />
+            {/* Picked phrase highlights (with subtle 1, 2, 3 order badges in multi-pick mode) */}
+            {shown.map((s, k) => {
+                const order = pickedIndex.get(s.phrase);
+                if (!order) return null;
+                return (
+                    <div
+                        key={k}
+                        className="absolute rounded-xs ring-2 ring-brand-500 bg-brand-500/20 pointer-events-none"
+                        style={rectStyle(s.rect, scale, size.h)}
+                    >
+                        {pick.multi && (
+                            <span
+                                aria-hidden="true"
+                                className="absolute -top-2 -left-2 min-w-4 h-4 px-1 rounded-full bg-brand-600 text-white text-[10px] font-bold leading-4 text-center shadow-xs ring-1 ring-white/90 tabular-nums"
+                            >
+                                {order}
+                            </span>
+                        )}
+                    </div>
+                );
+            })}
+
+            {/* Live highlight for phrases inside an active drag selection box */}
+            {dragHits.map((s, k) => (
+                <div
+                    key={`drag-${k}`}
+                    className="absolute rounded-xs ring-1 ring-brand-500/70 bg-brand-500/15 pointer-events-none"
+                    style={rectStyle(s.rect, scale, size.h)}
+                />
             ))}
-            {hover && !drag && <div className="absolute rounded-xs ring-2 ring-brand-500/60 bg-brand-500/10 pointer-events-none" style={rectStyle(hover, scale, size.h)} />}
-            {box && <div className="absolute border-2 border-dashed border-brand-500 bg-brand-500/10 pointer-events-none" style={rectStyle(box, scale, size.h)} />}
+
+            {/* Hover outline + floating miniature preview tooltip */}
+            {hover && !drag && (
+                <>
+                    <div
+                        className="absolute rounded-xs ring-2 ring-brand-500/80 bg-brand-500/12 pointer-events-none transition-all duration-75"
+                        style={rectStyle(hover.rect, scale, size.h)}
+                    />
+                    {tooltipStyle && (
+                        <div
+                            aria-hidden="true"
+                            className="absolute z-20 max-w-[220px] truncate rounded-md bg-neutral-900/95 dark:bg-neutral-100/95 text-white dark:text-neutral-900 px-2 py-0.5 text-[11px] font-medium shadow-float pointer-events-none whitespace-nowrap"
+                            style={tooltipStyle}
+                        >
+                            {hover.phrase.text}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Drag-box marquee */}
+            {box && (
+                <div
+                    className="absolute border-2 border-dashed border-brand-500 bg-brand-500/10 rounded-xs pointer-events-none"
+                    style={rectStyle(box, scale, size.h)}
+                />
+            )}
         </div>
     );
 }

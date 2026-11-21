@@ -5,11 +5,29 @@
 import { bigramSimilarity } from '../pdfForms/text';
 import type { Phrase } from '../pdfForms/types';
 import { collapseSpaces, domainWord, dottedDate, findDates, formatAmount, parseAmount, phoneKey, slashDate, squash } from './parse';
-import { readPlaces } from './pick';
-import { EMPTY_FORM, EMPTY_META, type ChequeReqForm, type ChequeReqMeta, type Check, type FieldFlags, type FieldKey, type InvoiceFacts, type SavedChequeReq } from './types';
+import { isPlaceField, readPlaces } from './pick';
+import {
+    EMPTY_FORM,
+    EMPTY_META,
+    type ChecklistItem,
+    type ChequeReqForm,
+    type ChequeReqMeta,
+    type ChequeReqStatus,
+    type Check,
+    type FieldFlags,
+    type FieldKey,
+    type FieldSources,
+    type InvoiceFacts,
+    type PlaceField,
+    type QuoteMethod,
+    type SavedChequeReq,
+    type SupplierSummary,
+} from './types';
 
 /** Payments to one supplier in a year from which three quotations are needed (excl. VAT) */
 export const THREE_QUOTES_FROM = 5000;
+/** 80% of the €5,000 threshold: flag suppliers approaching the 3-quotes limit */
+export const APPROACHING_QUOTES_FROM = 4000;
 
 /** Remembered between requisitions on this computer (works before migration 88 too) */
 export interface ChequeReqDefaults {
@@ -17,6 +35,9 @@ export interface ChequeReqDefaults {
     requestedBy: string;
     /** The last description with its item and date as {item} and {date} */
     descriptionPattern: string;
+    approvedBy?: string;
+    /** Coordinator-configured description templates for quick insertion */
+    descriptionPresets?: string[];
 }
 
 export const EMPTY_DEFAULTS: ChequeReqDefaults = { actionNumber: '', requestedBy: '', descriptionPattern: '' };
@@ -29,24 +50,54 @@ export function readDefaults(key = DEFAULTS_KEY): ChequeReqDefaults {
     try {
         const stored = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<ChequeReqDefaults> | null;
         if (!stored || typeof stored !== 'object') return { ...EMPTY_DEFAULTS };
+        const approvedBy = typeof stored.approvedBy === 'string' ? stored.approvedBy.trim() : '';
+        const descriptionPresets = Array.isArray(stored.descriptionPresets)
+            ? stored.descriptionPresets.filter((p): p is string => typeof p === 'string' && p.trim().length > 0).map(p => p.trim())
+            : [];
         return {
             actionNumber: typeof stored.actionNumber === 'string' ? stored.actionNumber : '',
             requestedBy: typeof stored.requestedBy === 'string' ? stored.requestedBy : '',
             // Wording kept before it had to be short and general is not carried on
             descriptionPattern: typeof stored.descriptionPattern === 'string' && generalWording(stored.descriptionPattern) ? stored.descriptionPattern : '',
+            ...(approvedBy ? { approvedBy } : {}),
+            ...(descriptionPresets.length ? { descriptionPresets } : {}),
         };
     } catch {
         return { ...EMPTY_DEFAULTS };
     }
 }
 
+/** Save explicit coordinator defaults and description presets from the Defaults modal */
+export function saveDefaults(defaults: ChequeReqDefaults, key = DEFAULTS_KEY): void {
+    const approvedBy = typeof defaults.approvedBy === 'string' ? defaults.approvedBy.trim() : '';
+    const descriptionPresets = Array.isArray(defaults.descriptionPresets)
+        ? [...new Set(defaults.descriptionPresets.map(p => p.trim()).filter(Boolean))]
+        : [];
+    const trimmedPattern = defaults.descriptionPattern.trim();
+    const cleaned: ChequeReqDefaults = {
+        actionNumber: defaults.actionNumber.trim(),
+        requestedBy: defaults.requestedBy.trim(),
+        descriptionPattern: trimmedPattern && generalWording(trimmedPattern) ? trimmedPattern : '',
+        ...(approvedBy ? { approvedBy } : {}),
+        ...(descriptionPresets.length ? { descriptionPresets } : {}),
+    };
+    try {
+        localStorage.setItem(key, JSON.stringify(cleaned));
+    } catch {
+        // storage unavailable
+    }
+}
+
 /** After a download: this requisition's action number, name and description wording start the next one */
 export function rememberDefaults(form: ChequeReqForm, meta: ChequeReqMeta, key = DEFAULTS_KEY): void {
     const previous = readDefaults(key);
+    const approvedBy = form.approvedBy.trim() || previous.approvedBy || '';
     const next: ChequeReqDefaults = {
         actionNumber: form.actionNumber.trim() || previous.actionNumber,
         requestedBy: form.requestedBy.trim() || previous.requestedBy,
         descriptionPattern: descriptionPattern(form.description, meta.item, meta.serviceDate) ?? previous.descriptionPattern,
+        ...(approvedBy ? { approvedBy } : {}),
+        ...(previous.descriptionPresets?.length ? { descriptionPresets: previous.descriptionPresets } : {}),
     };
     try {
         localStorage.setItem(key, JSON.stringify(next));
@@ -191,6 +242,8 @@ export interface Draft {
     form: ChequeReqForm;
     flags: FieldFlags;
     meta: ChequeReqMeta;
+    /** Preserved highlight regions on the invoice, kept even after flags are accepted */
+    sources?: FieldSources;
     /** The requisition this supplier's details were taken from */
     previous?: SavedChequeReq;
 }
@@ -314,6 +367,9 @@ export function draftFromInvoice({ facts, history, defaults, fileName, phrases, 
         form.requestedBy = facts.attention;
         flags.requestedBy = { level: 'check', note: `“Attention: ${facts.attention}” on the invoice` };
     }
+    if (defaults.approvedBy) {
+        form.approvedBy = defaults.approvedBy;
+    }
 
     // Quote details: the supplier's contact from last time, else the invoice's
     if (previous) {
@@ -345,7 +401,21 @@ export function draftFromInvoice({ facts, history, defaults, fileName, phrases, 
             if (flag?.level === 'found') flags[key] = { ...flag, level: 'check', note: `${flag.note} (read from a scan: check it against the invoice)` };
         }
     }
-    return { form, flags, meta, previous };
+
+    // Preserve highlight regions for every flagged field and invoice metadata field even after flags are accepted
+    const sources: FieldSources = {};
+    for (const key of Object.keys(flags) as FieldKey[]) {
+        const src = flags[key]?.source;
+        if (src?.length) sources[key] = src;
+    }
+    if (form.amountQuoted && flags.amount?.source?.length) sources.amountQuoted = flags.amount.source;
+    if (facts.invoiceNumber?.source?.length) sources.invoiceNumber = facts.invoiceNumber.source;
+    if (facts.invoiceDate?.source?.length) sources.invoiceDate = facts.invoiceDate.source;
+    if (facts.dueDate?.source?.length) sources.dueDate = facts.dueDate.source;
+    const netSource = facts.subtotal?.source ?? facts.total?.source;
+    if (netSource?.length) sources.netAmount = netSource;
+
+    return { form, flags, meta, sources, previous };
 }
 
 // ─── Checks ────────────────────────────────────────────────────
@@ -420,7 +490,11 @@ export function historyChecks(form: ChequeReqForm, meta: ChequeReqMeta, history:
     const invoice = squash(meta.invoiceNumber);
     const twin = invoice ? others.find(r => squash(r.invoice_number ?? '') === invoice) : undefined;
     if (twin) {
-        checks.push({ level: 'warning', text: `You already made a requisition for ${twin.invoice_number} from this supplier (${slashDate(twin.created_at.slice(0, 10))}).` });
+        checks.push({
+            level: 'warning',
+            text: `You already made a requisition for ${twin.invoice_number} from this supplier (${slashDate(twin.created_at.slice(0, 10))}).`,
+            relatedId: twin.id,
+        });
     }
 
     const net = netOfPayment(parseAmount(form.amount), meta.netAmount);
@@ -436,4 +510,263 @@ export function historyChecks(form: ChequeReqForm, meta: ChequeReqMeta, history:
         checks.push({ level: 'info', text: `This supplier in ${year}: ${euro(total)} excl. VAT with this invoice (${sameYear.length} earlier requisition${sameYear.length === 1 ? '' : 's'}). A single quotation is enough below ${euro(THREE_QUOTES_FROM)}.` });
     }
     return checks;
+}
+
+// ─── Workflow metadata & supplier roll-ups ─────────────────────
+
+export function getReqStatus(r: SavedChequeReq): ChequeReqStatus {
+    return r.status ?? r.meta?.status ?? 'ready';
+}
+
+export function getReqChequeNumber(r: SavedChequeReq): string {
+    return r.cheque_number || r.meta?.chequeNumber || '';
+}
+
+export function getReqNotes(r: SavedChequeReq): string {
+    return r.notes || r.meta?.notes || '';
+}
+
+function supplierConflict(a: SupplierIds, b: SupplierIds): boolean {
+    const vat = (v: string) => squash(v).replace(/^ie/, '');
+    if (a.vat && b.vat && vat(a.vat) !== vat(b.vat)) return true;
+    if (a.iban && b.iban && squash(a.iban) !== squash(b.iban)) return true;
+    return false;
+}
+
+const PLACE_ORDER: PlaceField[] = ['poNumber', 'amount', 'description'];
+
+/**
+ * Group saved requisitions by supplier (with transitive check against group members) and
+ * total their net (excl. VAT) and gross spend against the €5,000 3-quotes threshold.
+ */
+export function suppliersSummary(rows: SavedChequeReq[], year: string | 'all'): SupplierSummary[] {
+    const filtered = year === 'all'
+        ? [...rows]
+        : rows.filter(r => (r.invoice_date || r.created_at).slice(0, 4) === year);
+    filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+    interface Group {
+        rows: SavedChequeReq[];
+        ids: SupplierIds[];
+    }
+    const groups: Group[] = [];
+    for (const row of filtered) {
+        const rowIds = idsOfSaved(row);
+        const matching: Group[] = [];
+        for (const group of groups) {
+            if (group.ids.some(m => supplierConflict(rowIds, m))) continue;
+            if (group.ids.some(m => sameSupplier(rowIds, m))) matching.push(group);
+        }
+        if (matching.length === 0) {
+            groups.push({ rows: [row], ids: [rowIds] });
+        } else {
+            const target = matching[0];
+            target.rows.push(row);
+            target.ids.push(rowIds);
+            for (let i = 1; i < matching.length; i++) {
+                const other = matching[i];
+                const hasConflict = target.ids.some(a => other.ids.some(b => supplierConflict(a, b)));
+                if (hasConflict) continue;
+                target.rows.push(...other.rows);
+                target.ids.push(...other.ids);
+                groups.splice(groups.indexOf(other), 1);
+            }
+        }
+    }
+
+    const summaries: SupplierSummary[] = groups.map(group => {
+        group.rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+        const latest = group.rows[0];
+        const orderedIds = group.rows.map(idsOfSaved);
+        const totalNet = Math.round(group.rows.reduce((sum, r) => sum + (netOfPayment(r.amount, r.net_amount) ?? 0), 0) * 100) / 100;
+        const totalGross = Math.round(group.rows.reduce((sum, r) => sum + (r.amount ?? parseAmount(r.form.amount) ?? 0), 0) * 100) / 100;
+        const tier: SupplierSummary['tier'] =
+            totalNet >= THREE_QUOTES_FROM ? 'exceeded' : totalNet >= APPROACHING_QUOTES_FROM ? 'approaching' : 'ok';
+        const learnedSet = new Set<PlaceField>();
+        for (const r of group.rows) {
+            for (const [k, place] of Object.entries(r.meta?.places ?? {})) {
+                if (isPlaceField(k as FieldKey) && typeof place?.rect?.x === 'number') learnedSet.add(k as PlaceField);
+            }
+        }
+        return {
+            key: latest.id,
+            name: latest.supplier_name || latest.form.payeeName || 'Unnamed supplier',
+            vat: orderedIds.find(id => id.vat)?.vat ?? '',
+            iban: orderedIds.find(id => id.iban)?.iban ?? '',
+            email: orderedIds.find(id => id.email)?.email ?? '',
+            phone: orderedIds.find(id => id.phone)?.phone ?? '',
+            totalNet,
+            totalGross,
+            count: group.rows.length,
+            tier,
+            latest,
+            learnedPlaces: PLACE_ORDER.filter(p => learnedSet.has(p)),
+            requisitionIds: group.rows.map(r => r.id),
+        };
+    });
+
+    return summaries.sort((a, b) => b.totalNet - a.totalNet || b.totalGross - a.totalGross || a.name.localeCompare(b.name));
+}
+
+/** Start a fresh requisition prefilled from a known supplier's latest requisition */
+export function draftFromSupplier(supplierRow: SavedChequeReq, defaults: ChequeReqDefaults): Draft {
+    const form: ChequeReqForm = structuredClone(EMPTY_FORM);
+    const flags: FieldFlags = {};
+    const prev = supplierRow.form;
+    const prevMeta = supplierRow.meta ?? EMPTY_META;
+    const fromLast = `As on ${sinceLabel(supplierRow)}`;
+
+    form.payeeName = prev.payeeName || supplierRow.supplier_name || '';
+    form.payeeAddress = prev.payeeAddress || '';
+    if (form.payeeName) flags.payeeName = { level: 'memory', note: fromLast };
+    if (form.payeeAddress) flags.payeeAddress = { level: 'memory', note: fromLast };
+
+    const action = prev.actionNumber || defaults.actionNumber;
+    form.actionNumber = action;
+    flags.actionNumber = action
+        ? { level: prev.actionNumber ? 'memory' : 'check', note: prev.actionNumber ? fromLast : 'As on your last requisition' }
+        : { level: 'missing', note: 'Which SICAP action pays for this?' };
+
+    if (prev.nonSicapFunding) {
+        form.nonSicapFunding = prev.nonSicapFunding;
+        flags.nonSicapFunding = { level: 'memory', note: fromLast };
+    }
+
+    if (defaults.requestedBy) form.requestedBy = defaults.requestedBy;
+    if (defaults.approvedBy) form.approvedBy = defaults.approvedBy;
+
+    form.quoteBy = { ...prev.quoteBy };
+    form.shopName = prev.shopName;
+    form.quotePhone = prev.quotePhone;
+    form.quoteEmail = prev.quoteEmail;
+    form.quoteContact = prev.quoteContact;
+    form.quoteWebsite = prev.quoteWebsite;
+    for (const key of ['shopName', 'quotePhone', 'quoteEmail', 'quoteContact', 'quoteWebsite'] as const) {
+        if (prev[key]) flags[key] = { level: 'memory', note: fromLast };
+    }
+
+    const meta: ChequeReqMeta = {
+        ...EMPTY_META,
+        supplierVat: prevMeta.supplierVat ?? '',
+        supplierIban: prevMeta.supplierIban ?? '',
+        supplierDomain: prevMeta.supplierDomain || domainWord(prevMeta.supplierEmail || prev.quoteEmail || prev.quoteWebsite || '') || '',
+        supplierEmail: prevMeta.supplierEmail || prev.quoteEmail || '',
+        supplierPhone: prevMeta.supplierPhone || prev.quotePhone || '',
+        places: prevMeta.places ? structuredClone(prevMeta.places) : {},
+    };
+
+    return { form, flags, meta, sources: {}, previous: supplierRow };
+}
+
+/**
+ * Reset supplier & quote fields back to what the invoice itself extracted, clearing any
+ * mismatched supplier memory (payee details, quote details, and learned invoice places).
+ */
+export function invoiceOnlyOverride(
+    facts: InvoiceFacts,
+    form: ChequeReqForm,
+    meta: ChequeReqMeta,
+): { form: ChequeReqForm; flags: FieldFlags; meta: ChequeReqMeta } {
+    const s = facts.supplier;
+    const nextForm: ChequeReqForm = {
+        ...form,
+        payeeName: s.name?.value ?? '',
+        payeeAddress: s.address?.value ?? '',
+        quoteBy: { ...EMPTY_FORM.quoteBy },
+        shopName: '',
+        quotePhone: s.phone ?? '',
+        quoteEmail: s.email ?? '',
+        quoteContact: '',
+        quoteWebsite: '',
+    };
+    const flags: FieldFlags = {};
+    if (s.name) {
+        flags.payeeName = s.name.sure
+            ? { level: 'found', note: /payable/i.test(s.name.from ?? '') ? `The invoice says: “${s.name.from}”` : 'From the invoice', source: s.name.source }
+            : { level: 'check', note: 'Best guess from the invoice: check the spelling and that this is who gets paid', source: s.name.source };
+    } else {
+        flags.payeeName = { level: 'missing', note: 'Couldn’t tell who sent the invoice' };
+    }
+    if (s.address) {
+        flags.payeeAddress = s.address.sure
+            ? { level: 'found', note: 'From the invoice', source: s.address.source }
+            : { level: 'check', note: 'Best guess from the invoice', source: s.address.source };
+    } else {
+        flags.payeeAddress = { level: 'missing', note: 'No address found on the invoice' };
+    }
+    if (s.phone) flags.quotePhone = { level: 'check', note: 'The phone number on the invoice: is it who gave the quote?' };
+    if (s.email) flags.quoteEmail = { level: 'check', note: 'The email on the invoice: is it who gave the quote?' };
+    if (facts.scanned) {
+        for (const key of Object.keys(flags) as FieldKey[]) {
+            const flag = flags[key];
+            if (flag?.level === 'found') flags[key] = { ...flag, level: 'check', note: `${flag.note} (read from a scan: check it against the invoice)` };
+        }
+    }
+    const nextMeta: ChequeReqMeta = {
+        ...meta,
+        supplierVat: s.vatNumber ?? '',
+        supplierIban: s.iban ?? '',
+        supplierDomain: domainWord(s.email ?? s.website ?? '') ?? '',
+        supplierEmail: s.email ?? '',
+        supplierPhone: s.phone ?? '',
+        places: {},
+    };
+    return { form: nextForm, flags, meta: nextMeta };
+}
+
+/** Evidence-based readiness hints for the 5 SICAP checklist items */
+export function suggestedChecklist(
+    form: ChequeReqForm,
+    facts: InvoiceFacts,
+): Record<ChecklistItem, { ready: boolean; reason: string }> {
+    const hasPo = Boolean(form.poNumber.trim() || facts.poNumber?.value);
+    const hasSicap = facts.mentionsSicap;
+    const poAndSicap = hasPo && hasSicap
+        ? { ready: true, reason: 'PO number and “SICAP” are both present on the invoice.' }
+        : !hasPo && !hasSicap
+            ? { ready: false, reason: 'PO number and “SICAP” were not found on the invoice.' }
+            : !hasPo
+                ? { ready: false, reason: 'PO number is missing.' }
+                : { ready: false, reason: '“SICAP” was not found on the invoice.' };
+
+    const descTrimmed = form.description.trim();
+    const description = descTrimmed.length >= 3
+        ? { ready: true, reason: 'Description of goods/services is filled in.' }
+        : { ready: false, reason: 'Add a description of the goods or services.' };
+
+    const approvedBy = form.approvedBy.trim();
+    const approval = approvedBy && form.approvalEmailAttached
+        ? { ready: true, reason: `Approved by ${approvedBy} and approval email attached.` }
+        : approvedBy
+            ? { ready: true, reason: `Approved by ${approvedBy}.` }
+            : form.approvalEmailAttached
+                ? { ready: true, reason: 'Approval email attached is ticked.' }
+                : { ready: false, reason: 'Enter who approved this or tick “Approval email attached”.' };
+
+    const quotePairs: [QuoteMethod, string][] = [
+        ['shop', form.shopName],
+        ['telephone', form.quotePhone],
+        ['email', form.quoteEmail],
+        ['meeting', form.quoteContact],
+        ['online', form.quoteWebsite],
+    ];
+    const tickedQuotes = quotePairs.filter(([m]) => form.quoteBy[m]);
+    const hasQuoteDetail = tickedQuotes.some(([, value]) => value.trim().length > 0);
+    const hasQuoteAmount = parseAmount(form.amountQuoted) !== null;
+    const quoteDetails = hasQuoteAmount && hasQuoteDetail
+        ? { ready: true, reason: 'Quote amount, method, and contact details are filled in.' }
+        : !hasQuoteAmount
+            ? { ready: false, reason: 'Amount quoted is missing.' }
+            : tickedQuotes.length === 0
+                ? { ready: false, reason: 'Tick how the quote was obtained and enter the contact detail.' }
+                : { ready: false, reason: 'Fill in the contact detail for the ticked quote method.' };
+
+    const taxClearance = {
+        ready: false,
+        reason: facts.supplier.vatNumber
+            ? `Verify Tax Clearance (TCAN) or Tax Declaration Form manually (VAT ${facts.supplier.vatNumber} on invoice).`
+            : 'Verify Tax Clearance (TCAN) or Tax Declaration Form manually.',
+    };
+
+    return { poAndSicap, description, approval, quoteDetails, taxClearance };
 }

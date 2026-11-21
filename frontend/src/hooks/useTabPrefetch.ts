@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchAllEnrollments } from './useEnrollments';
 import { fetchGraduatesFn } from './useOutcomes';
+import { CHEQUE_REQ_KEY, fetchChequeReqHistory } from './useChequeRequisitions';
 import { fetchCourses, fetchDashboardStats, fetchEmploymentStatuses, fetchStudentsPage } from '../lib/queries';
 
 // Hover prefetch per tab: its data, plus its chunk (idle prewarm skips heavy chunks on slow connections)
@@ -15,7 +16,7 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('../components/Analytics') },
     settings: { chunk: () => import('../components/Settings') },
     'pdf-forms': { chunk: () => import('../components/PdfForms') },
-    'cheque-reqs': { chunk: () => import('../components/ChequeRequisitions') },
+    'cheque-reqs': { queries: [{ queryKey: [...CHEQUE_REQ_KEY], queryFn: fetchChequeReqHistory }], chunk: () => import('../components/ChequeRequisitions') },
 };
 
 type IdleWindow = Window & {

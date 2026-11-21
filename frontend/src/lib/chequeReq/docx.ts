@@ -6,7 +6,7 @@
 import templateUrl from '../../assets/templates/sicap-cheque-requisition.docx?url';
 import { loadDocxLibs } from '../documentRender';
 import { formatAmount, parseAmount, slashDate } from './parse';
-import type { ChequeReqForm, ChequeReqMeta } from './types';
+import type { ChequeReqForm, ChequeReqMeta, DescriptionFit } from './types';
 
 const CHECKED = '☒';
 const UNCHECKED = '☐';
@@ -17,6 +17,8 @@ const UNCHECKED = '☐';
  * 215pt, less a little so Word never wraps a last word under the label.
  */
 const DESCRIPTION_FIRST_LINE = 212;
+/** Approx usable width (pt) of the description's second ruled line (full width across the page) */
+export const DESCRIPTION_SECOND_LINE = 395;
 /** A blank payee name or address line, to fill in by hand: about as wide as the room beside the checklist */
 const BLANK_LINE = '_'.repeat(44);
 
@@ -67,6 +69,20 @@ export function descriptionLines(text: string, maxWidth = DESCRIPTION_FIRST_LINE
     const [first = '', ...rest] = text.split(/\s*\n\s*/).filter(Boolean);
     const [line1, overflow] = splitFirstLine(first, maxWidth);
     return [line1, [overflow, ...rest].filter(Boolean).join(', ')];
+}
+
+/** Measure how `text` fills the Word form's two description lines and whether line 2 overflows */
+export function descriptionFit(text: string): DescriptionFit {
+    const [line1, line2] = descriptionLines(text);
+    const w1 = textWidth(line1);
+    const w2 = textWidth(line2);
+    return {
+        line1,
+        line2,
+        line1Pct: Math.round((w1 / DESCRIPTION_FIRST_LINE) * 100),
+        line2Pct: Math.round((w2 / DESCRIPTION_SECOND_LINE) * 100),
+        overflowsLine2: w2 > DESCRIPTION_SECOND_LINE,
+    };
 }
 
 function money(value: string): string {
@@ -123,8 +139,9 @@ export function syncCheckboxes(xml: string): string {
     );
 }
 
-/** Fill the template (its bytes) with the form */
-export async function renderChequeReqDocx(template: ArrayBuffer, form: ChequeReqForm): Promise<Blob> {
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+async function fillChequeReqZip(template: ArrayBuffer, form: ChequeReqForm) {
     const { PizZip, Docxtemplater } = await loadDocxLibs();
     const doc = new Docxtemplater(new PizZip(template), {
         paragraphLoop: true,
@@ -136,7 +153,13 @@ export async function renderChequeReqDocx(template: ArrayBuffer, form: ChequeReq
     doc.render(templateData(form));
     const zip = doc.getZip();
     zip.file('word/document.xml', syncCheckboxes(zip.file('word/document.xml')!.asText()));
-    return zip.generate({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    return zip;
+}
+
+/** Fill the template (its bytes) with the form */
+export async function renderChequeReqDocx(template: ArrayBuffer, form: ChequeReqForm): Promise<Blob> {
+    const zip = await fillChequeReqZip(template, form);
+    return zip.generate({ type: 'blob', compression: 'DEFLATE', mimeType: DOCX_MIME });
 }
 
 let templatePromise: Promise<ArrayBuffer> | null = null;
@@ -154,13 +177,28 @@ function loadTemplate(): Promise<ArrayBuffer> {
     return templatePromise;
 }
 
+/** Fill the SICAP template and return the rendered .docx as raw bytes (for preview, PDF or batch ZIP) */
+export async function renderChequeReqBytes(form: ChequeReqForm): Promise<ArrayBuffer> {
+    const zip = await fillChequeReqZip(await loadTemplate(), form);
+    return zip.generate({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+
 export async function renderChequeReq(form: ChequeReqForm): Promise<Blob> {
-    return renderChequeReqDocx(await loadTemplate(), form);
+    return new Blob([await renderChequeReqBytes(form)], { type: DOCX_MIME });
+}
+
+function chequeReqFileBase(meta: Pick<ChequeReqMeta, 'invoiceNumber'>, form: Pick<ChequeReqForm, 'payeeName'>): string {
+    const invoice = meta.invoiceNumber.trim();
+    const name = invoice ? `SICAP Invoice ${invoice}` : `SICAP Cheque Requisition ${form.payeeName.trim()}`.trim();
+    return name.replace(/[\\/:*?"<>|]+/g, '-');
 }
 
 /** "SICAP Invoice INV-0064.docx", as the team names them */
 export function chequeReqFileName(meta: Pick<ChequeReqMeta, 'invoiceNumber'>, form: Pick<ChequeReqForm, 'payeeName'>): string {
-    const invoice = meta.invoiceNumber.trim();
-    const name = invoice ? `SICAP Invoice ${invoice}` : `SICAP Cheque Requisition ${form.payeeName.trim()}`.trim();
-    return `${name.replace(/[\\/:*?"<>|]+/g, '-')}.docx`;
+    return `${chequeReqFileBase(meta, form)}.docx`;
+}
+
+/** "SICAP Invoice INV-0064.pdf" */
+export function chequeReqPdfFileName(meta: Pick<ChequeReqMeta, 'invoiceNumber'>, form: Pick<ChequeReqForm, 'payeeName'>): string {
+    return `${chequeReqFileBase(meta, form)}.pdf`;
 }

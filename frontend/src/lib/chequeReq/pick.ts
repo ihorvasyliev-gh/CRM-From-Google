@@ -6,14 +6,24 @@
 
 import type { Phrase, Rect } from '../pdfForms/types';
 import { joinAddress, rectOf, toLines } from './extract';
-import { collapseSpaces, EMAIL_RE, findAmounts, findDates, formatAmount, parseAmount, PHONE_RE, squash, WEBSITE_RE } from './parse';
-import type { ChequeReqMeta, FieldKey, InvoicePlace, PlaceField } from './types';
+import { collapseSpaces, EMAIL_RE, findAmounts, findDates, formatAmount, parseAmount, parseDate, PHONE_RE, referenceToken, squash, WEBSITE_RE } from './parse';
+import type { ChequeReqMeta, FieldKey, InvoicePlace, MetaFieldKey, PickFieldKey, PlaceField } from './types';
 
 /** Fields that can be picked on the invoice */
 export const PICKABLE: ReadonlySet<FieldKey> = new Set<FieldKey>([
     'poNumber', 'amount', 'payeeName', 'payeeAddress', 'description',
+    'requestedDate', 'approvedDate', 'quoteDate',
     'amountQuoted', 'shopName', 'quotePhone', 'quoteEmail', 'quoteContact', 'quoteWebsite',
 ]);
+
+/** Editable invoice metadata fields that can also be picked directly off the invoice */
+export const META_PICKABLE: ReadonlySet<MetaFieldKey> = new Set<MetaFieldKey>([
+    'invoiceNumber', 'invoiceDate', 'dueDate', 'netAmount',
+]);
+
+export function isMetaField(key: PickFieldKey): key is MetaFieldKey {
+    return (META_PICKABLE as ReadonlySet<string>).has(key);
+}
 
 /** Fields made of several pieces of text (the lines of an address): each click adds one, until done */
 export const MULTI_PICK: ReadonlySet<FieldKey> = new Set<FieldKey>(['payeeAddress', 'description']);
@@ -21,8 +31,8 @@ export const MULTI_PICK: ReadonlySet<FieldKey> = new Set<FieldKey>(['payeeAddres
 /** Fields whose place is remembered for the supplier's next invoice */
 const PLACE_FIELDS: ReadonlySet<FieldKey> = new Set<PlaceField>(['poNumber', 'amount', 'description']);
 
-export function isPlaceField(key: FieldKey): key is PlaceField {
-    return PLACE_FIELDS.has(key);
+export function isPlaceField(key: PickFieldKey): key is PlaceField {
+    return (PLACE_FIELDS as ReadonlySet<string>).has(key);
 }
 
 /** What was picked: its text, and the phrases it is on the invoice (fewer, for some Word text) */
@@ -45,6 +55,11 @@ export function pickedOf(phrases: Phrase[]): Picked {
 
 // ─── The value of a field ──────────────────────────────────────
 
+/** Word as laid out on screen keeps zero-width spaces in its text */
+function cleanPickedParts(texts: string[]): string[] {
+    return texts.map(t => collapseSpaces(t.replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''))).filter(Boolean);
+}
+
 /** "PO Number: 9300", "Booked by Ann PO 6794" → the number */
 function poValue(text: string): string {
     const m = /\b(?:p\.?\s?o\b\.?|purchase\s+order|order)(?:\s*(?:no\b\.?|number|num\b|#|ref(?:erence)?))?\s*[:#.-]?\s*([A-Z0-9][A-Z0-9/-]*)/i.exec(text);
@@ -53,13 +68,27 @@ function poValue(text: string): string {
     return (colon >= 0 ? text.slice(colon + 1) : text).trim();
 }
 
+/** "Invoice No: INV-0101", "INVOICE 8657", "INV-0101" → the reference token */
+function invoiceNumberValue(text: string): string {
+    const stripped = text
+        .replace(/^(?:tax\s+)?(?:(?:invoice|inv|bill)\.?\s*(?:number|no\.?|num|#|ref(?:erence)?\s*(?:no\.?)?)|invoice\b)\s*[:#.-]?\s*/i, '')
+        .trim();
+    const fromStripped = referenceToken(stripped);
+    if (fromStripped) return fromStripped;
+    const colon = text.lastIndexOf(':');
+    if (colon >= 0) {
+        const afterColon = text.slice(colon + 1).trim();
+        return referenceToken(afterColon) ?? afterColon;
+    }
+    return referenceToken(text) ?? stripped;
+}
+
 /** A label picked with its value: "Payable to: Acme Ltd", "Tel: 021 400 0000" */
 const LEADING_LABEL = /^(?:payable\s+to|pay(?:ee)?|from|supplier|name|contact|shop|web(?:site)?|e-?mail|tel(?:ephone)?|phone|mob(?:ile)?)\s*[:.-]\s*/i;
 
 /** What goes in the field from the text picked on the invoice */
 export function pickedValue(key: FieldKey, texts: string[]): string {
-    // Word as laid out on screen keeps zero-width spaces in its text
-    const parts = texts.map(t => collapseSpaces(t.replace(/[\u200B-\u200D\u2060\uFEFF]/g, ''))).filter(Boolean);
+    const parts = cleanPickedParts(texts);
     const all = parts.join(' ');
     switch (key) {
         case 'amount':
@@ -68,6 +97,10 @@ export function pickedValue(key: FieldKey, texts: string[]): string {
             const value = amounts.length ? amounts[amounts.length - 1].value : parseAmount(all);
             return value === null ? all : formatAmount(value);
         }
+        case 'requestedDate':
+        case 'approvedDate':
+        case 'quoteDate':
+            return parseDate(all) ?? '';
         case 'poNumber':
             return poValue(all);
         case 'quoteEmail':
@@ -82,6 +115,22 @@ export function pickedValue(key: FieldKey, texts: string[]): string {
             return all;
         default:
             return all.replace(LEADING_LABEL, '').replace(/[,;]$/, '');
+    }
+}
+
+/** What goes into an invoice metadata field from text picked on the invoice */
+export function pickedMetaValue(key: MetaFieldKey, texts: string[]): string | number | null {
+    const all = cleanPickedParts(texts).join(' ');
+    switch (key) {
+        case 'invoiceNumber':
+            return invoiceNumberValue(all);
+        case 'invoiceDate':
+        case 'dueDate':
+            return parseDate(all) ?? '';
+        case 'netAmount': {
+            const amounts = findAmounts(all);
+            return amounts.length ? amounts[amounts.length - 1].value : parseAmount(all);
+        }
     }
 }
 

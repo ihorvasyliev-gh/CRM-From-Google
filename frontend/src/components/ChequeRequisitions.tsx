@@ -1,80 +1,537 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Download, FilePlus2, FileText, Link2, Receipt, Trash2 } from 'lucide-react';
-import Card, { SectionHeader } from './ui/Card';
-import { Button, IconButton } from './ui/Button';
-import Badge from './ui/Badge';
-import FileDropzone from './ui/FileDropzone';
-import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
-import { calloutCls, tableCls, tableWrapCls, tbodyCls, tdCls, thCls, theadCls, trCls } from './ui/styles';
+import { useInRouterContext, useSearchParams } from 'react-router-dom';
+import {
+    AlertTriangle,
+    ArrowRight,
+    Building2,
+    ChevronDown,
+    ClipboardPaste,
+    Download,
+    Eye,
+    FileCheck2,
+    FileEdit,
+    FilePlus2,
+    FileText,
+    History,
+    Link2,
+    Loader2,
+    Receipt,
+    Search,
+    SlidersHorizontal,
+    UploadCloud,
+    X,
+} from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import Badge, { type BadgeTone } from './ui/Badge';
+import { Button, IconButton } from './ui/Button';
+import Card from './ui/Card';
+import FileDropzone from './ui/FileDropzone';
+import StatTile from './ui/StatTile';
+import { EmptyState, ErrorState, SkeletonRows } from './ui/States';
+import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
+import { calloutCls, panelCls } from './ui/styles';
+import DefaultsModal from './ChequeRequisitions/DefaultsModal';
 import ChequeReqEditor, { type EditorSession } from './ChequeRequisitions/Editor';
-import { blankSession, closeInvoice, invoicePageSizes, NO_FACTS, useOpenInvoice } from './ChequeRequisitions/useOpenInvoice';
-import { toast } from '../lib/toast';
+import HistoryTab from './ChequeRequisitions/HistoryTab';
+import SuppliersTab from './ChequeRequisitions/SuppliersTab';
+import {
+    blankSession,
+    closeInvoice,
+    invoicePageSizes,
+    NO_FACTS,
+    supplierSession,
+    useOpenInvoice,
+    type OpenedInvoice,
+    type ReadProgress,
+} from './ChequeRequisitions/useOpenInvoice';
+import { useAuth } from '../contexts/AuthContext';
+import {
+    CHEQUE_REQ_KEY,
+    fetchChequeReqHistory,
+    useChequeReqHistory,
+    useDeleteChequeReq,
+    useResetSupplierMemory,
+    useSaveChequeReq,
+    useUpdateChequeReqStatus,
+    type ChequeReqHistory,
+} from '../hooks/useChequeRequisitions';
+import { formatDisplayDate, todayISO } from '../lib/dateUtils';
+import { staffNameOf } from '../lib/documentUtils';
 import { downloadBlob } from '../lib/download';
-import { todayISO, formatDisplayDate } from '../lib/dateUtils';
-import { useChequeReqHistory, useDeleteChequeReq, useSaveChequeReq, CHEQUE_REQ_KEY, fetchChequeReqHistory, type ChequeReqHistory } from '../hooks/useChequeRequisitions';
-import { useFormUserName } from '../hooks/usePdfForms';
-import { draftFromInvoice, idsOfSaved, netOfPayment, readDefaults, sameSupplier, THREE_QUOTES_FROM, type ChequeReqDefaults } from '../lib/chequeReq/draft';
+import { toast } from '../lib/toast';
 import { chequeReqFileName, renderChequeReq } from '../lib/chequeReq/docx';
-import { formatAmount } from '../lib/chequeReq/parse';
+import {
+    draftFromInvoice,
+    getReqChequeNumber,
+    getReqNotes,
+    getReqStatus,
+    idsOfSaved,
+    readDefaults,
+    sameSupplier,
+    suppliersSummary,
+    type ChequeReqDefaults,
+} from '../lib/chequeReq/draft';
+import { formatAmount, parseAmount } from '../lib/chequeReq/parse';
 import { INVOICE_ACCEPT } from '../lib/chequeReq/read';
-import type { SavedChequeReq } from '../lib/chequeReq/types';
+import { EMPTY_FORM, type ChequeReqStatus, type SavedChequeReq, type SupplierSummary } from '../lib/chequeReq/types';
 
-/** This year's payments per supplier (excl. VAT), largest first: the €5,000 single-quote limit */
-function yearTotals(rows: SavedChequeReq[], year: string) {
-    const groups: { name: string; total: number; count: number; sample: SavedChequeReq }[] = [];
-    for (const r of rows) {
-        if ((r.invoice_date ?? r.created_at).slice(0, 4) !== year) continue;
-        const ids = idsOfSaved(r);
-        const group = groups.find(g => sameSupplier(ids, idsOfSaved(g.sample)));
-        const value = netOfPayment(r.amount, r.net_amount) ?? 0;
-        if (group) {
-            group.total += value;
-            group.count += 1;
-        } else {
-            groups.push({ name: r.supplier_name || 'Unknown supplier', total: value, count: 1, sample: r });
+type ChequeTabKey = 'new' | 'history' | 'suppliers';
+
+function isChequeTabKey(value: string | null): value is ChequeTabKey {
+    return value === 'new' || value === 'history' || value === 'suppliers';
+}
+
+const RECENT_STATUS: Record<ChequeReqStatus, { label: string; tone: BadgeTone }> = {
+    draft: { label: 'Draft', tone: 'warning' },
+    ready: { label: 'Ready', tone: 'info' },
+    paid: { label: 'Paid', tone: 'success' },
+};
+
+function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+function clipboardFiles(data: DataTransfer | null): File[] {
+    if (!data) return [];
+    if (data.files && data.files.length > 0) return Array.from(data.files);
+    const files: File[] = [];
+    for (const item of Array.from(data.items ?? [])) {
+        if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) files.push(file);
         }
     }
-    return groups.sort((a, b) => b.total - a.total);
+    return files;
+}
+
+/** Syncs `?tab=` search param with state when rendered inside React Router. */
+function RouterTabSync({
+    activeTab,
+    onTabFromUrl,
+    registerNavigate,
+}: {
+    activeTab: ChequeTabKey;
+    onTabFromUrl: (tab: ChequeTabKey) => void;
+    registerNavigate: (fn: (tab: ChequeTabKey) => void) => void;
+}) {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlTab = searchParams.get('tab');
+
+    useEffect(() => {
+        if (isChequeTabKey(urlTab) && urlTab !== activeTab) {
+            onTabFromUrl(urlTab);
+        }
+    }, [urlTab, activeTab, onTabFromUrl]);
+
+    useEffect(() => {
+        registerNavigate(nextTab => {
+            setSearchParams(
+                prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set('tab', nextTab);
+                    return next;
+                },
+                { replace: true },
+            );
+        });
+    }, [registerNavigate, setSearchParams]);
+
+    return null;
+}
+
+function ReadingProgressBanner({
+    reading,
+    progress,
+    onCancel,
+}: {
+    reading: string | null;
+    progress: ReadProgress | null;
+    onCancel: () => void;
+}) {
+    if (!reading && !progress) return null;
+    const label = progress?.label || reading || 'Reading invoice…';
+    const pct = typeof progress?.progress === 'number' ? Math.max(0, Math.min(100, Math.round(progress.progress * (progress.progress <= 1 ? 100 : 1)))) : null;
+    const fileMeta =
+        progress?.fileCount && progress.fileCount > 1 && progress.fileIndex !== undefined
+            ? `File ${progress.fileIndex + 1} of ${progress.fileCount}`
+            : null;
+
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            className="rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
+        >
+            <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="inline-flex items-center gap-2 font-semibold text-primary min-w-0">
+                        <Loader2 size={14} className="animate-spin text-brand-500 shrink-0" />
+                        <span className="truncate">{label}</span>
+                    </span>
+                    <span className="text-muted tabular-nums shrink-0">
+                        {[fileMeta, pct !== null ? `${pct}%` : null].filter(Boolean).join(' · ')}
+                    </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-surface-elevated overflow-hidden">
+                    {pct !== null ? (
+                        <div
+                            className="h-full rounded-full bg-brand-500 transition-all duration-200"
+                            style={{ width: `${Math.max(4, pct)}%` }}
+                        />
+                    ) : (
+                        <div className="h-full w-1/3 rounded-full bg-brand-500/75 animate-pulse" />
+                    )}
+                </div>
+            </div>
+            {progress?.canCancel !== false && (
+                <Button variant="secondary" size="sm" onClick={onCancel} className="shrink-0 self-start sm:self-center">
+                    <X size={13} />
+                    Cancel
+                </Button>
+            )}
+        </div>
+    );
+}
+
+function KnownSupplierPicker({
+    suppliers,
+    disabled,
+    onPick,
+}: {
+    suppliers: SupplierSummary[];
+    disabled?: boolean;
+    onPick: (latestRow: SavedChequeReq) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const rootRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const focusTimer = setTimeout(() => inputRef.current?.focus(), 0);
+        const onPointerDown = (e: PointerEvent) => {
+            if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown);
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            clearTimeout(focusTimer);
+            document.removeEventListener('pointerdown', onPointerDown);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+    }, [open]);
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return suppliers.slice(0, 12);
+        return suppliers
+            .filter(s => [s.name, s.vat, s.email, s.phone].join(' ').toLowerCase().includes(q))
+            .slice(0, 20);
+    }, [suppliers, query]);
+
+    if (suppliers.length === 0) return null;
+
+    return (
+        <div ref={rootRef} className="relative">
+            <Button
+                variant="secondary"
+                size="sm"
+                disabled={disabled}
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                onClick={() => {
+                    setOpen(prev => !prev);
+                    setQuery('');
+                }}
+            >
+                <Building2 size={14} />
+                Start from known supplier
+                <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            </Button>
+
+            {open && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-72 sm:w-80 rounded-xl bg-surface border border-border-subtle shadow-float p-2 animate-popoverScaleIn origin-top-left">
+                    <div className="relative mb-1.5">
+                        <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            placeholder="Filter suppliers…"
+                            aria-label="Filter known suppliers"
+                            className="w-full h-8 pl-8 pr-2.5 rounded-lg bg-surface-elevated border border-border-subtle text-xs text-primary placeholder:text-muted/70 focus:outline-hidden focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                        />
+                    </div>
+                    <div role="listbox" aria-label="Known suppliers" className="max-h-60 overflow-y-auto divide-y divide-border-subtle/50">
+                        {filtered.length === 0 ? (
+                            <p className="py-4 text-center text-xs text-muted">No matching suppliers</p>
+                        ) : (
+                            filtered.map(s => (
+                                <button
+                                    key={s.key}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={false}
+                                    onClick={() => {
+                                        setOpen(false);
+                                        onPick(s.latest);
+                                    }}
+                                    className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left hover:bg-surface-elevated transition-colors cursor-pointer"
+                                >
+                                    <div className="min-w-0">
+                                        <span className="block text-xs font-semibold text-primary truncate">{s.name}</span>
+                                        {(s.vat || s.email) && (
+                                            <span className="block text-[11px] text-muted truncate">
+                                                {s.vat ? `VAT ${s.vat}` : s.email}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-[11px] text-muted tabular-nums shrink-0">
+                                        {s.count} req{s.count === 1 ? '' : 's'}
+                                    </span>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
 /**
- * Cheque requisitions (admins): drop a supplier invoice, check the SICAP cheque requisition
- * filled in from it, download it as Word. The invoice is read in the browser.
+ * Cheque requisitions (admins): drop one or more supplier invoices, inspect highlights and live
+ * SICAP preview, track history statuses, and monitor the €5,000 annual supplier limit.
+ * Invoice files are read locally in the browser and never uploaded.
  */
 export default function ChequeRequisitions() {
+    const inRouter = useInRouterContext();
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const staffName = useMemo(() => staffNameOf(user), [user]);
+
     const { data: history, isLoading, error, refetch } = useChequeReqHistory();
-    const remove = useDeleteChequeReq();
     const save = useSaveChequeReq();
-    const userName = useFormUserName();
-    const [session, setSession] = useState<EditorSession | null>(null);
+    const remove = useDeleteChequeReq();
+    const updateStatus = useUpdateChequeReqStatus();
+    const resetMemory = useResetSupplierMemory();
+
+    const [activeTab, setActiveTab] = useState<ChequeTabKey>('new');
+    const [routerNav, setRouterNav] = useState<((tab: ChequeTabKey) => void) | null>(null);
+    const [supplierFilter, setSupplierFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState<ChequeReqStatus | 'all'>('all');
+
+    const [queue, setQueue] = useState<EditorSession[] | null>(null);
+    const queueRef = useRef<EditorSession[] | null>(null);
+
+    const [defaultsOpen, setDefaultsOpen] = useState(false);
+    const [storedDefaults, setStoredDefaults] = useState<ChequeReqDefaults>(() => readDefaults());
     const [confirmDelete, setConfirmDelete] = useState<SavedChequeReq | null>(null);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+    // Safe cleanup of any loaded PDF/image invoice resources on unmount
+    useEffect(() => {
+        return () => {
+            queueRef.current?.forEach(s => closeInvoice(s.invoice));
+            queueRef.current = null;
+        };
+    }, []);
+
+    const registerNavigate = useCallback((fn: (tab: ChequeTabKey) => void) => {
+        setRouterNav(() => fn);
+    }, []);
+
+    const handleNavigateTab = useCallback(
+        (nextTab: ChequeTabKey) => {
+            setActiveTab(nextTab);
+            routerNav?.(nextTab);
+        },
+        [routerNav],
+    );
+
     const rows = useMemo(() => history?.rows ?? [], [history]);
     const year = todayISO().slice(0, 4);
-    const totals = useMemo(() => yearTotals(rows, year), [rows, year]);
 
-    const defaultsFor = (hist: ChequeReqHistory | undefined): ChequeReqDefaults => {
-        const stored = readDefaults();
-        const last = hist?.rows[0]?.form;
+    const kpis = useMemo(() => {
+        const yearRows = rows.filter(r => (r.invoice_date || r.created_at).slice(0, 4) === year);
+        const yearGross = Math.round(yearRows.reduce((sum, r) => sum + (r.amount ?? parseAmount(r.form.amount) ?? 0), 0) * 100) / 100;
+        const yearSuppliers = suppliersSummary(rows, year);
+        const exceededCount = yearSuppliers.filter(s => s.tier === 'exceeded').length;
+        const approachingCount = yearSuppliers.filter(s => s.tier === 'approaching').length;
+        const draftsCount = rows.filter(r => getReqStatus(r) === 'draft').length;
+        const allSuppliers = suppliersSummary(rows, 'all');
+        const learnedSuppliersCount = allSuppliers.filter(s => s.learnedPlaces.length > 0).length;
         return {
-            actionNumber: stored.actionNumber || last?.actionNumber || '',
-            requestedBy: stored.requestedBy || last?.requestedBy || (userName.includes('@') ? '' : userName),
-            descriptionPattern: stored.descriptionPattern,
+            yearCount: yearRows.length,
+            yearGross,
+            exceededCount,
+            approachingCount,
+            flaggedSuppliersCount: exceededCount + approachingCount,
+            draftsCount,
+            allSuppliers,
+            learnedSuppliersCount,
         };
-    };
+    }, [rows, year]);
 
-    const { reading, open: openInvoice } = useOpenInvoice(async (invoice, facts, fileName) => {
-        // Earlier requisitions first: they hold this supplier's details from last time
-        const hist = await queryClient.fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 }).catch(() => undefined);
-        const draft = draftFromInvoice({ facts, history: hist?.rows ?? [], defaults: defaultsFor(hist), fileName, phrases: invoice.phrases, pageSizes: invoicePageSizes(invoice) });
-        setSession({ key: crypto.randomUUID(), invoice, facts, draft });
-    });
+    const recentRows = useMemo(() => rows.slice(0, 5), [rows]);
 
-    const startBlank = () => setSession(blankSession(defaultsFor(history)));
+    // Never inherit another coordinator's requestedBy from shared DB history
+    const defaultsFor = useCallback(
+        (hist: ChequeReqHistory | undefined, base?: ChequeReqDefaults): ChequeReqDefaults => {
+            const stored = base ?? readDefaults();
+            const lastAction = hist?.rows[0]?.form.actionNumber || '';
+            return {
+                actionNumber: stored.actionNumber || lastAction,
+                requestedBy: stored.requestedBy || staffName,
+                descriptionPattern: stored.descriptionPattern,
+                ...(stored.approvedBy ? { approvedBy: stored.approvedBy } : {}),
+                ...(stored.descriptionPresets?.length ? { descriptionPresets: stored.descriptionPresets } : {}),
+            };
+        },
+        [staffName],
+    );
 
-    // The same page without signing in (main.tsx): nothing made there is kept, nothing from here is shown
+    const editorDefaults = useMemo(() => defaultsFor(history, storedDefaults), [defaultsFor, history, storedDefaults]);
+
+    const replaceQueue = useCallback((next: EditorSession[] | null) => {
+        queueRef.current?.forEach(s => closeInvoice(s.invoice));
+        queueRef.current = next;
+        setQueue(next);
+    }, []);
+
+    const handleInvoicesRead = useCallback(
+        async (items: OpenedInvoice[]) => {
+            if (items.length === 0) return;
+            // Fetch latest history first so supplier details & learned zones are fresh
+            const hist = await queryClient
+                .fetchQuery({ queryKey: CHEQUE_REQ_KEY, queryFn: fetchChequeReqHistory, staleTime: 30_000 })
+                .catch(() => history);
+            const defaults = defaultsFor(hist);
+            const sessions: EditorSession[] = items.map(({ invoice, facts, fileName }) => ({
+                key: crypto.randomUUID(),
+                invoice,
+                facts,
+                draft: draftFromInvoice({
+                    facts,
+                    history: hist?.rows ?? [],
+                    defaults,
+                    fileName,
+                    phrases: invoice.phrases,
+                    pageSizes: invoicePageSizes(invoice),
+                }),
+                status: 'draft',
+            }));
+            replaceQueue(sessions);
+        },
+        [queryClient, history, defaultsFor, replaceQueue],
+    );
+
+    const { reading, progress, open: openInvoice, openFiles, cancel } = useOpenInvoice(handleInvoicesRead);
+
+    // Global Ctrl+V clipboard screenshot/file paste when on the New tab with no modal open
+    useEffect(() => {
+        if (queue || activeTab !== 'new' || defaultsOpen || confirmDelete) return;
+        const onPaste = (e: ClipboardEvent) => {
+            if (isEditableTarget(e.target)) return;
+            const files = clipboardFiles(e.clipboardData);
+            if (files.length === 0) return;
+            e.preventDefault();
+            void openFiles(files);
+        };
+        window.addEventListener('paste', onPaste);
+        return () => window.removeEventListener('paste', onPaste);
+    }, [queue, activeTab, defaultsOpen, confirmDelete, openFiles]);
+
+    const startBlank = useCallback(() => {
+        replaceQueue([blankSession(defaultsFor(history))]);
+    }, [replaceQueue, defaultsFor, history]);
+
+    const startForSupplier = useCallback(
+        (latestRow: SavedChequeReq) => {
+            replaceQueue([supplierSession(latestRow, defaultsFor(history))]);
+        },
+        [replaceQueue, defaultsFor, history],
+    );
+
+    const openSaved = useCallback(
+        (row: SavedChequeReq) => {
+            replaceQueue([
+                {
+                    key: row.id,
+                    invoice: null,
+                    facts: NO_FACTS,
+                    draft: {
+                        form: structuredClone(row.form),
+                        flags: {},
+                        meta: structuredClone(row.meta),
+                    },
+                    savedId: row.id,
+                    status: getReqStatus(row),
+                    chequeNumber: getReqChequeNumber(row),
+                    notes: getReqNotes(row),
+                },
+            ]);
+        },
+        [replaceQueue],
+    );
+
+    const openSavedById = useCallback(
+        (id: string) => {
+            const found = rows.find(r => r.id === id);
+            if (found) {
+                openSaved(found);
+            } else {
+                toast.error('Could not find that saved requisition');
+            }
+        },
+        [rows, openSaved],
+    );
+
+    const duplicateSaved = useCallback(
+        (row: SavedChequeReq) => {
+            const defaults = defaultsFor(history);
+            const nextForm = structuredClone(row.form);
+            nextForm.requestedDate = '';
+            nextForm.approvedDate = '';
+            nextForm.checklist = { ...EMPTY_FORM.checklist };
+            if (defaults.requestedBy) nextForm.requestedBy = defaults.requestedBy;
+
+            const nextMeta = structuredClone(row.meta);
+            nextMeta.invoiceNumber = '';
+            nextMeta.invoiceDate = '';
+            nextMeta.dueDate = '';
+            nextMeta.fileName = '';
+            nextMeta.status = 'draft';
+            nextMeta.chequeNumber = '';
+            nextMeta.notes = '';
+
+            replaceQueue([
+                {
+                    key: crypto.randomUUID(),
+                    invoice: null,
+                    facts: NO_FACTS,
+                    draft: { form: nextForm, flags: {}, meta: nextMeta, previous: row },
+                    status: 'draft',
+                },
+            ]);
+            toast.info('Duplicated as a new draft — update the invoice details before saving.');
+        },
+        [defaultsFor, history, replaceQueue],
+    );
+
+    const closeSession = useCallback(() => {
+        replaceQueue(null);
+        setStoredDefaults(readDefaults());
+    }, [replaceQueue]);
+
     const copyPublicLink = async () => {
         const link = `${window.location.origin}/cheque`;
         try {
@@ -85,132 +542,422 @@ export default function ChequeRequisitions() {
         }
     };
 
-    const openSaved = (r: SavedChequeReq) => {
-        setSession({ key: r.id, invoice: null, facts: NO_FACTS, draft: { form: r.form, flags: {}, meta: r.meta }, savedId: r.id });
-    };
-
-    const downloadSaved = async (r: SavedChequeReq) => {
+    const downloadRecentDocx = async (row: SavedChequeReq) => {
+        setDownloadingId(row.id);
         try {
-            downloadBlob(await renderChequeReq(r.form), chequeReqFileName(r.meta, r.form));
+            downloadBlob(await renderChequeReq(row.form), chequeReqFileName(row.meta, row.form));
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Could not make the document');
+        } finally {
+            setDownloadingId(prev => (prev === row.id ? null : prev));
         }
     };
 
-    const closeSession = () => {
-        closeInvoice(session?.invoice ?? null);
-        setSession(null);
+    const handleUpdateStatus = async (row: SavedChequeReq, status: ChequeReqStatus) => {
+        try {
+            await updateStatus.mutateAsync({ id: row.id, status, meta: row.meta });
+            toast.success(`Marked as ${RECENT_STATUS[status].label}`);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Could not update status');
+        }
     };
 
-    if (session) {
-        return (
-            <ChequeReqEditor
-                key={session.key}
-                session={session}
-                history={rows}
-                historyAvailable={history?.available ?? false}
-                keep={input => save.mutateAsync(input)}
-                onBack={closeSession}
-            />
-        );
-    }
+    const handleResetMemory = async (supplier: SupplierSummary) => {
+        const latestIds = idsOfSaved(supplier.latest);
+        const matchingIds = new Set<string>(supplier.requisitionIds);
+        for (const r of rows) {
+            if (sameSupplier(idsOfSaved(r), latestIds)) matchingIds.add(r.id);
+        }
+        try {
+            await resetMemory.mutateAsync({ ids: Array.from(matchingIds) });
+            toast.success(`Cleared learned invoice zones for ${supplier.name}`);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Could not reset learned zones');
+            throw err;
+        }
+    };
+
+    const tabs: UnderlineTab<ChequeTabKey>[] = [
+        {
+            value: 'new',
+            label: 'New / Queue',
+            icon: UploadCloud,
+        },
+        {
+            value: 'history',
+            label: 'History',
+            icon: History,
+            count: rows.length,
+        },
+        {
+            value: 'suppliers',
+            label: 'Suppliers & €5k',
+            icon: Building2,
+            count: kpis.allSuppliers.length,
+            countTone: kpis.exceededCount > 0 ? 'warning' : 'default',
+            dot: kpis.exceededCount > 0 ? 'bg-warning' : undefined,
+            dotLabel:
+                kpis.exceededCount > 0
+                    ? `${kpis.exceededCount} supplier${kpis.exceededCount === 1 ? '' : 's'} at or above €5,000`
+                    : undefined,
+        },
+    ];
 
     return (
-        <div className="space-y-5">
-            <SectionHeader
-                icon={Receipt}
-                title="Cheque requisitions"
-                description="Drop a supplier invoice: the SICAP cheque requisition is filled in from it for you to check, edit and download."
-                actions={
-                    <>
-                        <Button variant="ghost" onClick={copyPublicLink} title="A link to this page without signing in, to share: it saves nothing and shows nothing from the CRM">
-                            <Link2 size={15} /> Copy the public link
-                        </Button>
-                        <Button onClick={startBlank}>
-                            <FilePlus2 size={15} /> Blank requisition
-                        </Button>
-                    </>
-                }
-            />
+        <>
+            {queue ? (
+                <ChequeReqEditor
+                    key={queue[0].key}
+                    session={queue[0]}
+                    initialSessions={queue}
+                    history={rows}
+                    historyAvailable={history?.available ?? false}
+                    keep={input => save.mutateAsync(input)}
+                    defaults={editorDefaults}
+                    onOpenSaved={openSavedById}
+                    onOpenDefaults={() => setDefaultsOpen(true)}
+                    onBack={closeSession}
+                />
+            ) : (
+                <div className="max-w-[1600px] mx-auto flex-1 flex flex-col gap-5 sm:gap-6 pb-12 w-full">
+                    {inRouter && (
+                        <RouterTabSync
+                            activeTab={activeTab}
+                            onTabFromUrl={setActiveTab}
+                            registerNavigate={registerNavigate}
+                        />
+                    )}
 
-            <FileDropzone
-                accept={INVOICE_ACCEPT}
-                onChange={openInvoice}
-                uploading={!!reading}
-                uploadingTitle={reading}
-                icon={<FileText size={18} />}
-                title="Make a requisition: click here to choose the invoice, or drag it onto this box"
-                hint="PDF or Word file, a scan or a photo of a paper invoice. The invoice is read on this computer and never uploaded."
-                className="py-10"
-            />
-
-            {history && !history.available && (
-                <p className={`${calloutCls.info} text-sm p-3`}>
-                    Requisitions are made and downloaded, but not kept yet: run migration <b>88_cheque_requisitions.sql</b> in Supabase to keep a history, remember each supplier’s details and warn about the €5,000 limit.
-                </p>
-            )}
-
-            {totals.length > 0 && (
-                <Card title={`Suppliers in ${year}`} icon={AlertTriangle} tone={totals.some(t => t.total >= THREE_QUOTES_FROM) ? 'warning' : 'brand'} subtitle={`Excl. VAT. From €${formatAmount(THREE_QUOTES_FROM)} a year to one supplier, three quotations are needed.`}>
-                    <ul className="flex flex-wrap gap-2">
-                        {totals.map(t => (
-                            <li key={t.name}>
-                                <Badge tone={t.total >= THREE_QUOTES_FROM ? 'warning' : 'neutral'} title={`${t.count} requisition${t.count === 1 ? '' : 's'}`}>
-                                    {t.name}: €{formatAmount(t.total)}
-                                </Badge>
-                            </li>
-                        ))}
-                    </ul>
-                </Card>
-            )}
-
-            <Card title="Made before" icon={Receipt} divided flush>
-                {isLoading ? (
-                    <div className="p-4"><SkeletonRows rows={3} bare /></div>
-                ) : error ? (
-                    <ErrorState title="The requisitions couldn't be loaded" error={error} onRetry={() => refetch()} className="m-4" />
-                ) : rows.length === 0 ? (
-                    <EmptyState bare icon={<Receipt size={22} />} title="No requisitions yet" description="Requisitions you download appear here, to open or download again." />
-                ) : (
-                    <div className={tableWrapCls}>
-                        <table className={tableCls}>
-                            <thead className={theadCls}>
-                                <tr>
-                                    <th className={thCls}>Made</th>
-                                    <th className={thCls}>Supplier</th>
-                                    <th className={thCls}>Invoice</th>
-                                    <th className={`${thCls} text-right`}>Amount</th>
-                                    <th className={thCls}><span className="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody className={tbodyCls}>
-                                {rows.map(r => (
-                                    <tr key={r.id} className={`${trCls} cursor-pointer`} onClick={() => openSaved(r)}>
-                                        <td className={`${tdCls} whitespace-nowrap text-muted`}>{formatDisplayDate(r.created_at)}</td>
-                                        <td className={`${tdCls} max-w-[16rem]`}>
-                                            <span className="block truncate font-medium text-primary">{r.supplier_name || '—'}</span>
-                                            <span className="block truncate text-xs text-muted">{r.form.description}</span>
-                                        </td>
-                                        <td className={`${tdCls} whitespace-nowrap`}>
-                                            {r.invoice_number || '—'}
-                                            {r.invoice_date && <span className="block text-xs text-muted">{formatDisplayDate(r.invoice_date)}</span>}
-                                        </td>
-                                        <td className={`${tdCls} text-right whitespace-nowrap tabular-nums`}>{r.amount !== null ? `€${formatAmount(r.amount)}` : '—'}</td>
-                                        <td className={`${tdCls} text-right whitespace-nowrap`} onClick={e => e.stopPropagation()}>
-                                            <IconButton label="Download again" size="sm" onClick={() => downloadSaved(r)}>
-                                                <Download size={14} />
-                                            </IconButton>
-                                            <IconButton label="Delete" size="sm" tone="danger" onClick={() => setConfirmDelete(r)}>
-                                                <Trash2 size={14} />
-                                            </IconButton>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    {/* 4 clickable KPI StatTiles */}
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+                        <StatTile
+                            label={`Requisitions (${year})`}
+                            icon={Receipt}
+                            tone="brand"
+                            loading={isLoading}
+                            value={kpis.yearCount}
+                            hint={`€${formatAmount(kpis.yearGross)} total`}
+                            onClick={() => {
+                                setSupplierFilter('');
+                                setStatusFilter('all');
+                                handleNavigateTab('history');
+                            }}
+                        />
+                        <StatTile
+                            label="Suppliers near / over €5k"
+                            icon={AlertTriangle}
+                            tone={kpis.exceededCount > 0 ? 'warning' : 'success'}
+                            loading={isLoading}
+                            value={kpis.flaggedSuppliersCount}
+                            hint={
+                                kpis.exceededCount > 0
+                                    ? '3 quotes required'
+                                    : kpis.approachingCount > 0
+                                        ? `${kpis.approachingCount} approaching €5,000`
+                                        : 'All below €4,000'
+                            }
+                            hintTone={kpis.exceededCount > 0 ? 'alert' : kpis.approachingCount > 0 ? 'muted' : 'positive'}
+                            onClick={() => handleNavigateTab('suppliers')}
+                        />
+                        <StatTile
+                            label="Drafts to finish"
+                            icon={FileEdit}
+                            tone="info"
+                            loading={isLoading}
+                            value={kpis.draftsCount}
+                            hint={kpis.draftsCount > 0 ? 'Resume saved drafts' : 'All caught up'}
+                            onClick={() => {
+                                setSupplierFilter('');
+                                setStatusFilter('draft');
+                                handleNavigateTab('history');
+                            }}
+                        />
+                        <StatTile
+                            label="Remembered suppliers"
+                            icon={Building2}
+                            tone="completed"
+                            loading={isLoading}
+                            value={kpis.allSuppliers.length}
+                            hint={
+                                kpis.learnedSuppliersCount > 0
+                                    ? `${kpis.learnedSuppliersCount} with learned invoice zones`
+                                    : 'Auto-fills supplier details'
+                            }
+                            onClick={() => handleNavigateTab('suppliers')}
+                        />
                     </div>
-                )}
-            </Card>
+
+                    {/* Top workspace bar: UnderlineTabs + right-side actions */}
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-border-subtle">
+                        <UnderlineTabs<ChequeTabKey>
+                            ariaLabel="Cheque requisition sections"
+                            tabs={tabs}
+                            value={activeTab}
+                            onChange={handleNavigateTab}
+                            className="border-b-0 -mb-px"
+                        />
+                        <div className="flex items-center gap-2 flex-wrap pb-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDefaultsOpen(true)}
+                                title="Set your default SICAP action number, requester name, approver, and description presets"
+                            >
+                                <SlidersHorizontal size={14} />
+                                Defaults
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={copyPublicLink}
+                                title="A link to this page without signing in, to share: it saves nothing and shows nothing from the CRM"
+                            >
+                                <Link2 size={14} />
+                                Copy public link
+                            </Button>
+                            <Button variant="primary" size="sm" onClick={startBlank}>
+                                <FilePlus2 size={14} />
+                                Blank requisition
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Active tab panel */}
+                    <div key={activeTab} className="animate-fadeIn">
+                        {activeTab === 'new' && (
+                            <div className="space-y-5">
+                                <Card>
+                                    <div className="space-y-4">
+                                        <FileDropzone
+                                            multiple
+                                            accept={INVOICE_ACCEPT}
+                                            onChange={openInvoice}
+                                            uploading={!!reading}
+                                            uploadingTitle={progress?.label || reading || 'Reading invoice…'}
+                                            icon={<FileText size={20} />}
+                                            title="Make a requisition: click here to choose one or more invoices, or drag them onto this box"
+                                            hint="PDF, Word (.docx), scan, or photo of a paper invoice. Multi-file drops open as a queue — files are read locally and never uploaded."
+                                            className="py-10"
+                                        />
+
+                                        <ReadingProgressBanner reading={reading} progress={progress} onCancel={cancel} />
+
+                                        {/* Quick-start bar */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button variant="secondary" size="sm" onClick={startBlank} disabled={!!reading}>
+                                                    <FilePlus2 size={14} />
+                                                    Start blank requisition
+                                                </Button>
+                                                <KnownSupplierPicker
+                                                    suppliers={kpis.allSuppliers}
+                                                    disabled={!!reading}
+                                                    onPick={startForSupplier}
+                                                />
+                                            </div>
+                                            <span className="inline-flex items-center gap-1.5 text-xs text-muted px-2.5 py-1 rounded-lg bg-surface-elevated border border-border-subtle">
+                                                <ClipboardPaste size={13} className="text-brand-500" aria-hidden="true" />
+                                                Paste screenshot (Ctrl+V)
+                                            </span>
+                                        </div>
+
+                                        {/* Compact 3-step visual workflow strip */}
+                                        <div className="grid sm:grid-cols-3 gap-2.5 pt-2 border-t border-border-subtle">
+                                            <div className={`${panelCls} p-3 flex items-start gap-2.5`}>
+                                                <span className="w-6 h-6 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center text-xs font-bold shrink-0">
+                                                    1
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold text-primary">Drop 1 or more invoices</p>
+                                                    <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
+                                                        PDF, Word, scan, or pasted screenshot — multiple invoices queue automatically.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`${panelCls} p-3 flex items-start gap-2.5`}>
+                                                <span className="w-6 h-6 rounded-lg bg-info/15 text-status-invited flex items-center justify-center shrink-0">
+                                                    <Eye size={13} />
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold text-primary">Verify highlights &amp; live preview</p>
+                                                    <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
+                                                        Review extracted fields side by side with the invoice and click to pick values.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`${panelCls} p-3 flex items-start gap-2.5`}>
+                                                <span className="w-6 h-6 rounded-lg bg-success/15 text-status-confirmed flex items-center justify-center shrink-0">
+                                                    <FileCheck2 size={13} />
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-semibold text-primary">Download Word, PDF, or Print</p>
+                                                    <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
+                                                        Files stay in your browser; supplier details &amp; €5k totals are tracked automatically.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                {history && !history.available && (
+                                    <p className={`${calloutCls.info} text-sm p-3.5`}>
+                                        Requisitions are made and downloaded, but not kept yet: run migration <b>88_cheque_requisitions.sql</b> in Supabase to keep a history, remember each supplier’s details, and warn about the €5,000 limit.
+                                    </p>
+                                )}
+
+                                {/* Recent requisitions (last 5) */}
+                                <Card
+                                    title="Recent requisitions"
+                                    subtitle={rows.length > 0 ? `Latest ${recentRows.length} of ${rows.length} saved requisitions` : undefined}
+                                    icon={History}
+                                    divided
+                                    flush
+                                    action={
+                                        rows.length > 0 ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setSupplierFilter('');
+                                                    setStatusFilter('all');
+                                                    handleNavigateTab('history');
+                                                }}
+                                            >
+                                                View all history
+                                                <ArrowRight size={14} />
+                                            </Button>
+                                        ) : undefined
+                                    }
+                                >
+                                    {isLoading ? (
+                                        <div className="p-4">
+                                            <SkeletonRows rows={3} bare />
+                                        </div>
+                                    ) : error ? (
+                                        <ErrorState
+                                            title="The requisitions couldn't be loaded"
+                                            error={error}
+                                            onRetry={() => void refetch()}
+                                            className="m-4"
+                                        />
+                                    ) : recentRows.length === 0 ? (
+                                        <EmptyState
+                                            bare
+                                            icon={<Receipt size={22} />}
+                                            title="No requisitions yet"
+                                            description="Drop an invoice above or start a blank requisition — saved requisitions will appear here for quick access."
+                                        />
+                                    ) : (
+                                        <div className="divide-y divide-border-subtle">
+                                            {recentRows.map(row => {
+                                                const gross = row.amount ?? parseAmount(row.form.amount);
+                                                const st = RECENT_STATUS[getReqStatus(row)];
+                                                const busy = downloadingId === row.id;
+                                                const invoiceNo = row.invoice_number || row.meta?.invoiceNumber || '';
+                                                const invoiceDate = row.invoice_date || row.meta?.invoiceDate || '';
+                                                return (
+                                                    <div
+                                                        key={row.id}
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={() => openSaved(row)}
+                                                        onKeyDown={e => {
+                                                            if (e.target !== e.currentTarget) return;
+                                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                                e.preventDefault();
+                                                                openSaved(row);
+                                                            }
+                                                        }}
+                                                        className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-surface-elevated/50 transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:bg-brand-500/6"
+                                                    >
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="text-sm font-semibold text-primary truncate">
+                                                                    {row.supplier_name || row.form.payeeName || 'Unnamed supplier'}
+                                                                </span>
+                                                                <Badge tone={st.tone} shape="pill" className="shrink-0">
+                                                                    {st.label}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="text-xs text-muted truncate mt-0.5">
+                                                                {[
+                                                                    row.form.description || 'No description',
+                                                                    invoiceNo ? `Inv ${invoiceNo}` : '',
+                                                                    invoiceDate ? formatDisplayDate(invoiceDate) : formatDisplayDate(row.created_at),
+                                                                ]
+                                                                    .filter(Boolean)
+                                                                    .join(' · ')}
+                                                            </p>
+                                                        </div>
+
+                                                        <span className="text-sm font-semibold text-primary tabular-nums whitespace-nowrap shrink-0">
+                                                            {gross !== null ? `€${formatAmount(gross)}` : '—'}
+                                                        </span>
+
+                                                        <div
+                                                            className="shrink-0"
+                                                            onClick={e => e.stopPropagation()}
+                                                            onKeyDown={e => e.stopPropagation()}
+                                                        >
+                                                            <IconButton
+                                                                label="Download Word (.docx)"
+                                                                size="sm"
+                                                                disabled={busy}
+                                                                onClick={() => void downloadRecentDocx(row)}
+                                                            >
+                                                                {busy ? <Loader2 size={14} className="animate-spin text-brand-500" /> : <Download size={14} />}
+                                                            </IconButton>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </Card>
+                            </div>
+                        )}
+
+                        {activeTab === 'history' && (
+                            <HistoryTab
+                                rows={rows}
+                                isLoading={isLoading}
+                                error={error}
+                                onRetry={() => void refetch()}
+                                supplierFilter={supplierFilter}
+                                statusFilter={statusFilter}
+                                onSupplierFilterChange={setSupplierFilter}
+                                onStatusFilterChange={setStatusFilter}
+                                onOpen={openSaved}
+                                onDuplicate={duplicateSaved}
+                                onDelete={setConfirmDelete}
+                                onUpdateStatus={(row, status) => void handleUpdateStatus(row, status)}
+                            />
+                        )}
+
+                        {activeTab === 'suppliers' && (
+                            <SuppliersTab
+                                rows={rows}
+                                isLoading={isLoading}
+                                onNewForSupplier={startForSupplier}
+                                onViewHistory={name => {
+                                    setSupplierFilter(name);
+                                    setStatusFilter('all');
+                                    handleNavigateTab('history');
+                                }}
+                                onResetMemory={handleResetMemory}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <DefaultsModal
+                open={defaultsOpen}
+                onClose={() => setDefaultsOpen(false)}
+                staffName={staffName}
+                onSaved={next => setStoredDefaults(next)}
+            />
 
             <ConfirmDialog
                 open={!!confirmDelete}
@@ -228,6 +975,6 @@ export default function ChequeRequisitions() {
                 }}
                 onCancel={() => setConfirmDelete(null)}
             />
-        </div>
+        </>
     );
 }

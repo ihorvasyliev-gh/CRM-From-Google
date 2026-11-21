@@ -32,6 +32,12 @@ export interface OcrPage {
     scale: number;
 }
 
+/** Clockwise rotation applied before OCR for sideways or upside-down scans/photos */
+export type Rotation = 0 | 90 | 180 | 270;
+
+/** Default number of pages read by OCR for a scanned PDF */
+export const DEFAULT_OCR_MAX_PAGES = 4;
+
 const ASCENDER = /[A-Z0-9bdfhklt!?#%&/()[\]{}|]/;
 const DESCENDER = /[gjpqy,;()[\]{}|]/;
 /** Marks the reader makes of table rules, stamps and specks */
@@ -136,22 +142,47 @@ function hasSimd(): boolean {
     }
 }
 
+function abortError(): DOMException {
+    return new DOMException('Reading cancelled', 'AbortError');
+}
+
 /**
  * Read pictures of an invoice; `onProgress` gets 0…1 over all of them. Everything Tesseract
  * needs ships with the app (its worker, the WebAssembly core and the English model), so it
  * works under the site's content security policy, which allows no other hosts (it does allow
  * WebAssembly: 'wasm-unsafe-eval').
  */
-export async function readScan(pages: OcrPage[], onProgress?: (done: number) => void): Promise<ScanText> {
+export async function readScan(pages: OcrPage[], onProgress?: (done: number) => void, signal?: AbortSignal): Promise<ScanText> {
+    if (signal?.aborted) throw abortError();
     // A reader that fails inside its worker may never answer: give up rather than wait forever
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let activeWorker: { terminate: () => Promise<unknown> } | null = null;
+    let onAbort: (() => void) | undefined;
     const tooLong = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('reading took too long')), READ_TIMEOUT + pages.length * PAGE_TIMEOUT);
+        timer = setTimeout(() => {
+            void activeWorker?.terminate().catch(() => {});
+            reject(new Error('reading took too long'));
+        }, READ_TIMEOUT + pages.length * PAGE_TIMEOUT);
     });
+    const aborted = signal
+        ? new Promise<never>((_, reject) => {
+            onAbort = () => {
+                void activeWorker?.terminate().catch(() => {});
+                reject(abortError());
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+        })
+        : null;
+    const work = read(pages, onProgress, signal, w => {
+        activeWorker = w;
+    });
+    // Suppress unhandled rejection if timeout/abort wins the race before worker settles
+    work.catch(() => {});
     try {
-        return await Promise.race([read(pages, onProgress), tooLong]);
+        return await Promise.race(aborted ? [work, tooLong, aborted] : [work, tooLong]);
     } finally {
         clearTimeout(timer);
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
     }
 }
 
@@ -166,7 +197,13 @@ export interface ScanText {
 const READ_TIMEOUT = 60_000;
 const PAGE_TIMEOUT = 60_000;
 
-async function read(pages: OcrPage[], onProgress?: (done: number) => void): Promise<ScanText> {
+async function read(
+    pages: OcrPage[],
+    onProgress?: (done: number) => void,
+    signal?: AbortSignal,
+    onWorker?: (worker: { terminate: () => Promise<unknown> } | null) => void,
+): Promise<ScanText> {
+    if (signal?.aborted) throw abortError();
     const [{ default: tesseract }, workerUrl, simdCoreUrl, coreUrl, englishUrl] = await loadChunk(() =>
         Promise.all([
             import('tesseract.js'),
@@ -176,6 +213,7 @@ async function read(pages: OcrPage[], onProgress?: (done: number) => void): Prom
             import('@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url'),
         ]),
     );
+    if (signal?.aborted) throw abortError();
     // Tesseract fetches its model by name from a folder: the build keeps this one's name (vite.config.ts)
     const englishDir = englishUrl.default.slice(0, englishUrl.default.lastIndexOf('/'));
 
@@ -188,18 +226,24 @@ async function read(pages: OcrPage[], onProgress?: (done: number) => void): Prom
         // The browser's HTTP cache keeps the model; Tesseract's own cache would never notice a new one
         cacheMethod: 'none',
         logger: m => {
-            if (m.status === 'recognizing text') onProgress?.((current + m.progress) / pages.length);
+            if (!signal?.aborted && m.status === 'recognizing text') onProgress?.((current + m.progress) / pages.length);
         },
-        errorHandler: err => console.error('Text reader:', err),
+        errorHandler: err => {
+            if (!signal?.aborted) console.error('Text reader:', err);
+        },
     });
+    onWorker?.(worker);
     try {
+        if (signal?.aborted) throw abortError();
         // Find the page's own blocks (columns, address boxes) and keep the gaps between them;
         // the pictures have even lighting by now, so one threshold suits the whole page
         await worker.setParameters({ tessedit_pageseg_mode: tesseract.PSM.AUTO, preserve_interword_spaces: '1', thresholding_method: '0' } as Record<string, string>);
         const result: ScanText = { items: [], pageSizes: [], angles: [] };
         for (const [i, { canvas, scale }] of pages.entries()) {
+            if (signal?.aborted) throw abortError();
             current = i;
             const { data } = await worker.recognize(canvas, {}, { blocks: true, text: false });
+            if (signal?.aborted) throw abortError();
             const blocks = (data.blocks ?? []) as unknown as OcrBlock[];
             const size = { w: canvas.width / scale, h: canvas.height / scale };
             result.pageSizes.push(size);
@@ -209,7 +253,8 @@ async function read(pages: OcrPage[], onProgress?: (done: number) => void): Prom
         }
         return result;
     } finally {
-        void worker.terminate();
+        onWorker?.(null);
+        void worker.terminate().catch(() => {});
     }
 }
 
@@ -313,33 +358,82 @@ function blankCanvas(width: number, height: number): { canvas: HTMLCanvasElement
     return { canvas, ctx };
 }
 
+/** Rotate a canvas clockwise by `rotation` degrees (returns `source` untouched for 0°) */
+export function rotateCanvas(source: HTMLCanvasElement, rotation: Rotation): HTMLCanvasElement {
+    if (rotation === 0) return source;
+    const swapped = rotation === 90 || rotation === 270;
+    const { canvas, ctx } = blankCanvas(swapped ? source.height : source.width, swapped ? source.width : source.height);
+    ctx.save();
+    if (rotation === 90) {
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+    } else if (rotation === 180) {
+        ctx.translate(canvas.width, canvas.height);
+        ctx.rotate(Math.PI);
+    } else {
+        ctx.translate(0, canvas.height);
+        ctx.rotate((3 * Math.PI) / 2);
+    }
+    ctx.drawImage(source, 0, 0);
+    ctx.restore();
+    return canvas;
+}
+
 /** A photo of an invoice, drawn for reading; its page units are the photo's own pixels */
-export async function photoPage(file: Blob): Promise<OcrPage & { width: number; height: number }> {
+export async function photoPage(file: Blob, rotation: Rotation = 0): Promise<OcrPage & { width: number; height: number }> {
     // Phone photos come the right way up (browsers apply their EXIF orientation, as <img> does)
     const bitmap = await createImageBitmap(file);
     try {
         const scale = Math.min(READ_SIDE / Math.max(bitmap.width, bitmap.height), MAX_ENLARGE);
-        const { canvas, ctx } = blankCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
+        const { canvas: drawn, ctx } = blankCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0, drawn.width, drawn.height);
+        const canvas = rotateCanvas(drawn, rotation);
+        if (canvas !== drawn) drawn.width = drawn.height = 0;
         prepare(canvas);
-        return { canvas, scale, width: bitmap.width, height: bitmap.height };
+        const swapped = rotation === 90 || rotation === 270;
+        return {
+            canvas,
+            scale,
+            width: swapped ? bitmap.height : bitmap.width,
+            height: swapped ? bitmap.width : bitmap.height,
+        };
     } finally {
         bitmap.close();
     }
 }
 
+export interface ScannedPdfPagesOptions {
+    maxPages?: number;
+    rotation?: Rotation;
+    startPage?: number;
+}
+
 /** Pages of a scanned PDF drawn for reading; page units stay PDF points */
-export async function scannedPdfPages(doc: PDFDocumentProxy, maxPages = 4): Promise<OcrPage[]> {
+export async function scannedPdfPages(doc: PDFDocumentProxy, options?: ScannedPdfPagesOptions): Promise<OcrPage[]>;
+export async function scannedPdfPages(doc: PDFDocumentProxy, maxPages?: number, rotation?: Rotation, startPage?: number): Promise<OcrPage[]>;
+export async function scannedPdfPages(
+    doc: PDFDocumentProxy,
+    maxPagesOrOptions: number | ScannedPdfPagesOptions = DEFAULT_OCR_MAX_PAGES,
+    rotationArg: Rotation = 0,
+    startPageArg = 1,
+): Promise<OcrPage[]> {
+    const opts = typeof maxPagesOrOptions === 'object' && maxPagesOrOptions !== null ? maxPagesOrOptions : null;
+    const maxPages = typeof maxPagesOrOptions === 'number' ? maxPagesOrOptions : (opts?.maxPages ?? DEFAULT_OCR_MAX_PAGES);
+    const rotation: Rotation = opts ? (opts.rotation ?? 0) : rotationArg;
+    const startPage = Math.max(1, opts ? (opts.startPage ?? 1) : startPageArg);
+    const endPage = Math.min(doc.numPages, startPage + maxPages - 1);
     const pages: OcrPage[] = [];
-    for (let i = 1; i <= Math.min(doc.numPages, maxPages); i++) {
+    for (let i = startPage; i <= endPage; i++) {
         const page = await doc.getPage(i);
         const base = page.getViewport({ scale: 1 });
         const scale = READ_SIDE / Math.max(base.width, base.height);
         const viewport = page.getViewport({ scale });
-        const { canvas, ctx } = blankCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
-        await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+        const { canvas: drawn, ctx } = blankCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
+        await page.render({ canvasContext: ctx, viewport, canvas: drawn }).promise;
         page.cleanup();
+        const canvas = rotateCanvas(drawn, rotation);
+        if (canvas !== drawn) drawn.width = drawn.height = 0;
         prepare(canvas);
         pages.push({ canvas, scale });
     }

@@ -1233,3 +1233,24 @@ a:focus-visible,
 .report-preview .report-sheet {
     box-shadow: 0 10px 34px rgb(15 36 29 / 0.14), 0 0 0 1px rgb(15 36 29 / 0.06);
 }
+
+/* ── Cheque requisition print sheet ──────────────────────────────────────────
+   Scoped with `body.cheque-printing` so it never conflicts with `.report-print-root`
+   in Analytics. */
+.cheque-print-root { display: none; }
+@media print {
+    html:has(body.cheque-printing),
+    body.cheque-printing {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    body.cheque-printing > :not(.cheque-print-root) { display: none !important; }
+    body.cheque-printing .cheque-print-root { display: block !important; background: white !important; }
+    body.cheque-printing .cheque-print-root .cheque-print-page { break-inside: avoid; break-after: page; width: 100%; }
+    body.cheque-printing .cheque-print-root .cheque-print-page:last-child { break-after: auto; }
+}

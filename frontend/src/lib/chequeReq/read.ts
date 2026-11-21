@@ -11,12 +11,36 @@ export const MAX_INVOICE_BYTES = 25 * 1024 * 1024;
 
 export type InvoiceKind = 'pdf' | 'docx' | 'image';
 
+const HEIC_RE = /\.(heic|heif)$/i;
+const HEIC_MIME = /^image\/hei[cf]$/i;
+
 export function invoiceKind(file: Pick<File, 'name' | 'type'>): InvoiceKind | null {
     const name = file.name.toLowerCase();
-    if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+    const type = file.type.toLowerCase();
+    if (HEIC_RE.test(name) || HEIC_MIME.test(type)) return null;
+    if (type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
     if (name.endsWith('.docx')) return 'docx';
-    if (file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/.test(name)) return 'image';
+    if (type.startsWith('image/') || /\.(png|jpe?g|webp)$/.test(name)) return 'image';
     return null;
+}
+
+/** Helpful explanation when a dropped/selected invoice file cannot be opened in the browser */
+export function unsupportedFileReason(file: Pick<File, 'name' | 'type'>): string {
+    const name = file.name.toLowerCase();
+    const type = file.type.toLowerCase();
+    if (name.endsWith('.doc') || type === 'application/msword') {
+        return 'Legacy Word .doc files cannot be read in the browser — open in Word and Save As .docx or PDF.';
+    }
+    if (HEIC_RE.test(name) || HEIC_MIME.test(type)) {
+        return "HEIC photos aren't supported directly by most browsers — export or convert to JPG, PNG, or PDF first.";
+    }
+    if (/\.(pages|odt|rtf)$/.test(name) || type === 'application/rtf' || type === 'text/rtf' || type === 'application/vnd.oasis.opendocument.text') {
+        return 'Pages, ODT, and RTF documents cannot be read directly — export or Save As .docx or PDF first.';
+    }
+    if (/\.(eml|msg)$/.test(name) || type === 'message/rfc822' || type === 'application/vnd.ms-outlook') {
+        return 'Email files (.eml/.msg) cannot be read directly — print or save the email as a PDF first.';
+    }
+    return 'Please choose a PDF, Word (.docx), or photo (PNG, JPG, WebP) of the invoice.';
 }
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
