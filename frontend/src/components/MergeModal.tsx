@@ -11,6 +11,7 @@ import { formatDisplayDate } from '../lib/dateUtils';
 import { formatPhoneDisplay } from '../lib/contactUtils';
 import { errorMessage } from '../lib/errors';
 import { refreshStudentEnrollments } from '../lib/enrollmentCache';
+import { mergeStudents } from '../lib/mergeStudents';
 
 /** The details compared side by side */
 const MERGE_FIELDS: [label: string, field: keyof Student][] = [
@@ -114,38 +115,9 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
         if (!targetStudent || !duplicateId || !primaryStudent || !duplicateStudent) return;
         setMerging(true);
         setError('');
-        // If a later step fails, put the duplicate's email back so nothing is silently lost
-        let clearedDuplicateEmail: string | null | undefined;
         try {
-            // 1. If any fields were edited/copied, save them to the primary profile first
-            if (Object.keys(editedFields).length > 0) {
-                // To prevent violating the UNIQUE constraint on (first_name, last_name, email)
-                // when updating the primary student with fields (like name or email) that conflict with
-                // the duplicate student, set the duplicate student's email to NULL first.
-                // Since the duplicate is deleted in the merge RPC right after, this is completely safe.
-                const { error: clearEmailError } = await supabase
-                    .from('students')
-                    .update({ email: null })
-                    .eq('id', duplicateId);
-                
-                if (clearEmailError) throw clearEmailError;
-                clearedDuplicateEmail = duplicateStudent.email ?? null;
-
-                const { error: updateError } = await supabase
-                    .from('students')
-                    .update(editedFields)
-                    .eq('id', primaryId);
-
-                if (updateError) throw updateError;
-            }
-
-            // 2. Perform the merge RPC
-            const { error: rpcError } = await supabase.rpc('merge_students', {
-                p_primary_id: primaryId,
-                p_duplicate_id: duplicateId
-            });
-
-            if (rpcError) throw new Error(rpcError.message);
+            // One transaction in the database: a failure leaves both students untouched
+            await mergeStudents(primaryId, duplicateId, duplicateStudent.email ?? null, editedFields);
 
             // Invalidate React Query Cache
             queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -159,9 +131,6 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
             if (onSuccess) onSuccess();
             onClose();
         } catch (err) {
-            if (clearedDuplicateEmail) {
-                await supabase.from('students').update({ email: clearedDuplicateEmail }).eq('id', duplicateId);
-            }
             setError(errorMessage(err, 'Failed to merge students'));
         } finally {
             setMerging(false);
