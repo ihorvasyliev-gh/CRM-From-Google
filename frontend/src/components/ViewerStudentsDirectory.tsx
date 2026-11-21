@@ -81,6 +81,11 @@ export default function ViewerStudentsDirectory() {
     usePublishStudentList(students.map(s => s.student_id));
 
     const totalCount = students.length > 0 ? Number(students[0].total_count) : 0;
+    // A ?page= past the last page (old link, list got shorter): go back to page 1
+    const pageOutOfRange = page > 1 && !isLoading && !isFetching && !error && students.length === 0;
+    useEffect(() => {
+        if (pageOutOfRange) setParams({ page: null });
+    }, [pageOutOfRange, setParams]);
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
     const from = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
     const to = Math.min(page * PAGE_SIZE, totalCount);
@@ -97,7 +102,9 @@ export default function ViewerStudentsDirectory() {
     const goToPage = (p: number) => setParams({ page: p <= 1 ? null : p });
 
     const selectedCourse = courses.find(c => c.id === courseId);
-    const isFiltered = !!(search.value.trim() || courseId !== 'all' || status !== 'all' || priorityOnly || sortBy !== 'date_desc');
+    // Filters narrow the list ("12 students match"); a different sort only reorders it
+    const isFiltered = !!(search.value.trim() || courseId !== 'all' || status !== 'all' || priorityOnly);
+    const isCustomised = isFiltered || sortBy !== 'date_desc';
     const resetFilters = () => {
         search.setValue('');
         setParams({ q: null, course: null, status: null, priority: null, sort: null, page: null });
@@ -135,8 +142,9 @@ export default function ViewerStudentsDirectory() {
                 />
                 <div className="flex flex-col md:flex-row gap-2">
                     <Segmented className="self-start" ariaLabel="Status filter" options={STATUS_OPTIONS} value={status} onChange={v => setFilter({ status: v === 'all' ? null : v })} />
-                    <div className="flex gap-2 flex-1 min-w-0">
-                        <SelectField label="Course filter" value={courseId} onChange={v => setFilter({ course: v === 'all' ? null : v })} className="flex-1 min-w-0 md:max-w-[260px]" icon={<BookOpen size={13} />}>
+                    {/* Phones: course on its own line, then priority + sort; wider screens: one row */}
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:flex sm:flex-1 sm:min-w-0">
+                        <SelectField label="Course filter" value={courseId} onChange={v => setFilter({ course: v === 'all' ? null : v })} className="col-span-2 min-w-0 sm:flex-1 md:max-w-[260px]" icon={<BookOpen size={13} />}>
                             <option value="all">All courses</option>
                             {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </SelectField>
@@ -150,14 +158,14 @@ export default function ViewerStudentsDirectory() {
                             title="Show priority students only"
                         >
                             <Star size={13} className={priorityOnly ? 'fill-amber-400 text-amber-500' : ''} />
-                            <span className="hidden sm:inline">Priority</span>
+                            Priority
                         </button>
-                        <SelectField label="Sort by" value={sortBy} onChange={v => setFilter({ sort: v === 'date_desc' ? null : v })} className="w-40 shrink-0" icon={<ArrowDownUp size={13} />}>
+                        <SelectField label="Sort by" value={sortBy} defaultValue="date_desc" onChange={v => setFilter({ sort: v === 'date_desc' ? null : v })} className="min-w-0 sm:w-40 sm:shrink-0" icon={<ArrowDownUp size={13} />}>
                             {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </SelectField>
                     </div>
                 </div>
-                {isFiltered && (
+                {isCustomised && (
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
                         {search.value.trim() && <FilterChip label={`"${search.value.trim()}"`} onRemove={search.clear} />}
                         {selectedCourse && <FilterChip label={selectedCourse.name} onRemove={() => setFilter({ course: null })} />}
@@ -172,7 +180,7 @@ export default function ViewerStudentsDirectory() {
             </div>
 
             {/* Results */}
-            {isLoading ? (
+            {isLoading || pageOutOfRange ? (
                 <SkeletonRows rows={8} />
             ) : error ? (
                 <ErrorState title="Failed to load students" error={error} onRetry={() => refetch()} />
@@ -191,7 +199,7 @@ export default function ViewerStudentsDirectory() {
                             <span className="hidden lg:block w-36">Phone</span>
                             <span className="w-[30%]">Course & status</span>
                             <span className="w-28">Registered</span>
-                            <span className="w-[88px]" />
+                            <span className="w-[136px] lg:w-[108px]" />
                         </div>
                         <div data-row-list className="divide-y divide-border-subtle">
                             {students.map(s => (
@@ -244,7 +252,7 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
             onClick={onOpen}
             onKeyDown={onKeyDown}
             aria-label={`Open ${name}`}
-            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 ${
+            className={`group flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1.5 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 ${
                 active ? 'bg-brand-500/[0.07]' : 'hover:bg-surface-elevated/60'
             }`}
         >
@@ -260,15 +268,13 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
                         </span>
                     )}
                 </div>
-                <div className="text-xs text-muted flex items-center gap-2 min-w-0">
+                <div className="text-xs text-muted flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0">
                     <CopyText value={student.email} label="Email" className="min-w-0" />
-                    {student.phone && <CopyText value={student.phone} label="Phone" className="lg:hidden shrink-0 hidden sm:block tabular-nums">· {formatPhoneDisplay(student.phone)}</CopyText>}
-                </div>
-                {/* Mobile: course & status */}
-                <div className="md:hidden flex items-center gap-1.5 mt-1.5 min-w-0">
-                    <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
-                    <span className="text-xs text-muted truncate">{student.primary_course_name}</span>
-                    {student.total_enrollments > 1 && <span className="text-xs font-bold text-brand-600 dark:text-brand-400 shrink-0">+{student.total_enrollments - 1}</span>}
+                    {student.phone && (
+                        <CopyText value={student.phone} label="Phone" className="lg:hidden shrink-0 tabular-nums">
+                            <span className="hidden sm:inline">· </span>{formatPhoneDisplay(student.phone)}
+                        </CopyText>
+                    )}
                 </div>
             </div>
 
@@ -296,9 +302,16 @@ function StudentRow({ student, onOpen, active }: { student: ViewerStudentDirecto
                 <div className="text-xs text-muted">{relativeDay(student.created_at.slice(0, 10))}</div>
             </div>
 
-            <div className="flex items-center justify-end gap-1 md:w-[88px] shrink-0">
-                <ContactActions phone={student.phone} name={name} className="hidden xl:flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
-                <ChevronRight size={16} className="text-muted/60 group-hover:text-muted" />
+            <div className="flex items-center justify-end gap-1 md:w-[136px] lg:w-[108px] shrink-0">
+                <ContactActions phone={student.phone} email={student.email} name={name} copy={false} touch />
+                <ChevronRight size={16} className="hidden sm:block text-muted/60 group-hover:text-muted" />
+            </div>
+
+            {/* Phones and small tablets: course & status on their own line, under the name */}
+            <div className="md:hidden basis-full flex items-center gap-1.5 pl-12 min-w-0">
+                <StatusBadge status={student.primary_status} queuePosition={student.primary_queue_position} />
+                <span className="text-xs text-muted truncate">{student.primary_course_name}</span>
+                {student.total_enrollments > 1 && <span className="text-xs font-bold text-brand-600 dark:text-brand-400 shrink-0">+{student.total_enrollments - 1}</span>}
             </div>
         </div>
     );

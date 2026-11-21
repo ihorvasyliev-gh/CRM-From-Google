@@ -37,11 +37,27 @@ export default function ViewerHeader({
         return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
     }, [menuOpen]);
 
+    // Publishes the header's height as --viewer-header-h so sticky toolbars below it line up exactly
+    const headerRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        const el = headerRef.current;
+        if (!el) return;
+        const root = document.documentElement;
+        const publish = () => root.style.setProperty('--viewer-header-h', `${el.offsetHeight}px`);
+        publish();
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(publish) : null;
+        ro?.observe(el);
+        return () => {
+            ro?.disconnect();
+            root.style.removeProperty('--viewer-header-h');
+        };
+    }, []);
+
     const activeLabel = VIEWER_TABS.find(t => t.key === activeTab)?.label;
     const menuItem = 'w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-xs font-medium text-primary hover:bg-surface-elevated transition-colors';
 
     return (
-        <header className="sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-3 sm:px-6 flex items-center gap-3 min-w-0">
+        <header ref={headerRef} className="sticky top-0 z-20 h-14 bg-background/85 backdrop-blur-md backdrop-saturate-150 border-b border-border-subtle/60 px-3 sm:px-6 flex items-center gap-3 min-w-0">
             <button type="button" onClick={() => onNavigate('home')} className="flex items-center gap-2.5 shrink-0" aria-label="Home">
                 <span className="w-8 h-8 bg-linear-to-br from-brand-500 via-brand-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-brand-500/25 ring-1 ring-inset ring-white/15">C</span>
                 <span className="hidden sm:block text-left leading-tight">

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Calendar, Clock, LayoutGrid, List, Pin, PinOff, RefreshCw, ArrowDownUp, ChevronRight } from 'lucide-react';
 import type { ViewerCourse, ViewerUpcomingCourse } from '../../lib/types';
@@ -111,7 +112,7 @@ export default function ViewerCourseCatalog() {
                     onEnter={() => { if (filtered.length === 1) openCourse(filtered[0].id); }}
                 />
                 <div className="flex gap-2">
-                    <SelectField label="Sort courses" value={sort} onChange={v => setParams({ sort: v === 'next' ? null : v })} icon={<ArrowDownUp size={13} />} className="flex-1 sm:w-48">
+                    <SelectField label="Sort courses" value={sort} defaultValue="next" onChange={v => setParams({ sort: v === 'next' ? null : v })} icon={<ArrowDownUp size={13} />} className="flex-1 sm:w-48">
                         {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </SelectField>
                     <div className="flex items-center p-1 bg-surface-elevated border border-border-subtle rounded-xl" role="group" aria-label="Layout">
@@ -215,6 +216,29 @@ const STAT_KEYS = [
     { key: 'completed', field: 'completed_count' },
 ] as const;
 
+/** Enter or Space on the row itself (not on a button inside it) opens the course. */
+function openOnKey(open: () => void) {
+    return (e: React.KeyboardEvent<HTMLElement>) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    };
+}
+
+function AwaitingPill({ course, onOpen, compact = false }: { course: ViewerCourse; onOpen: CourseItemProps['onOpen']; compact?: boolean }) {
+    if (course.pending_approval_count <= 0) return null;
+    return (
+        <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onOpen(course.id, { status: 'awaiting' }); }}
+            onKeyDown={e => e.stopPropagation()}
+            className={`${compact ? 'px-1.5' : 'px-2'} py-0.5 rounded-full text-xs font-bold status-pill-requested inline-flex items-center gap-1 shrink-0 hover:brightness-95 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500/40`}
+            title="Completion requests waiting for admin approval"
+        >
+            <Clock size={10} /> {course.pending_approval_count} awaiting
+        </button>
+    );
+}
+
 function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemProps) {
     const open = () => onOpen(course.id);
     return (
@@ -223,7 +247,7 @@ function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemPro
             tabIndex={0}
             aria-label={`Open ${course.name}`}
             onClick={open}
-            onKeyDown={e => { if (e.key === 'Enter') open(); }}
+            onKeyDown={openOnKey(open)}
             className="group bg-surface rounded-2xl border border-border-subtle shadow-card hover:shadow-card-hover hover:border-brand-500/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40 transition-all cursor-pointer p-4 flex flex-col gap-3"
         >
             <div className="flex items-start justify-between gap-2">
@@ -232,16 +256,7 @@ function CourseCard({ course, next, pinned, onTogglePin, onOpen }: CourseItemPro
                     <p className="text-xs text-muted mt-0.5">{pluralize(course.total_count, 'student')}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                    {course.pending_approval_count > 0 && (
-                        <button
-                            type="button"
-                            onClick={e => { e.stopPropagation(); onOpen(course.id, { status: 'awaiting' }); }}
-                            className="px-2 py-0.5 rounded-full text-xs font-bold status-pill-requested inline-flex items-center gap-1"
-                            title="Completion requests waiting for admin approval"
-                        >
-                            <Clock size={10} /> {course.pending_approval_count} awaiting
-                        </button>
-                    )}
+                    <AwaitingPill course={course} onOpen={onOpen} />
                     <PinButton pinned={pinned} onToggle={onTogglePin} name={course.name} />
                 </div>
             </div>
@@ -280,17 +295,26 @@ function CourseListRow({ course, next, pinned, onTogglePin, onOpen }: CourseItem
             tabIndex={0}
             aria-label={`Open ${course.name}`}
             onClick={open}
-            onKeyDown={e => { if (e.key === 'Enter') open(); }}
+            onKeyDown={openOnKey(open)}
             className="group flex items-center gap-3 px-4 py-3 hover:bg-surface-elevated/60 focus-visible:outline-hidden focus-visible:bg-surface-elevated cursor-pointer transition-colors"
         >
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-primary text-sm truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{course.name}</h3>
-                    {course.pending_approval_count > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-xs font-bold status-pill-requested shrink-0">{course.pending_approval_count} awaiting</span>
-                    )}
+                    <AwaitingPill course={course} onOpen={onOpen} compact />
                 </div>
                 <div className="text-xs mt-0.5 truncate"><NextSession next={next} /></div>
+                {/* Phones and tablets: the same counts, in one wrapping line */}
+                <div className="md:hidden flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs tabular-nums">
+                    {STAT_KEYS.filter(({ field }) => course[field] > 0).map(({ key, field }) => (
+                        <span key={key} className="inline-flex items-center gap-1">
+                            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[key].dot}`} />
+                            <strong className="text-primary">{course[field]}</strong>
+                            <span className="text-muted">{STATUS_META[key].label.toLowerCase()}</span>
+                        </span>
+                    ))}
+                    {course.total_count === 0 && <span className="text-muted">No students yet</span>}
+                </div>
             </div>
             <div className="hidden md:flex items-center gap-4 text-xs tabular-nums shrink-0">
                 {STAT_KEYS.map(({ key, field }) => (
@@ -301,7 +325,6 @@ function CourseListRow({ course, next, pinned, onTogglePin, onOpen }: CourseItem
                     </span>
                 ))}
             </div>
-            <span className="md:hidden text-xs text-muted tabular-nums shrink-0">{course.total_count}</span>
             <PinButton pinned={pinned} onToggle={onTogglePin} name={course.name} />
             <ChevronRight size={16} className="text-muted shrink-0" />
         </div>

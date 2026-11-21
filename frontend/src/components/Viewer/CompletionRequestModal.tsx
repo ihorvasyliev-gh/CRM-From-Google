@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GraduationCap, Loader2, AlertTriangle, X } from 'lucide-react';
-import DialogLayer from '../ui/DialogLayer';
+import { GraduationCap, AlertTriangle, ShieldCheck } from 'lucide-react';
+import Modal from '../ui/Modal';
 import { useRequestCompletion } from '../../hooks/useApprovals';
 import { todayISO } from '../../lib/dateUtils';
 import { toast } from '../../lib/toast';
@@ -15,9 +15,12 @@ export interface CompletionTarget {
     sessionDate?: string | null;
 }
 
+const FORM_ID = 'completion-request-form';
+
 /**
  * Asks for the completion date and submits a completion request for admin approval.
- * Quick picks cover the common cases (session date, today, yesterday).
+ * Quick picks cover the common cases (course day, today, yesterday); any other day comes
+ * from the app's calendar. A bottom sheet on phones.
  */
 export default function CompletionRequestModal({
     open,
@@ -63,68 +66,77 @@ export default function CompletionRequestModal({
         if (!date || mutation.isPending) return;
         try {
             await mutation.mutateAsync({ enrollmentIds: targets.map(t => t.enrollmentId), completedDate: date });
-            toast.success(`Completion requested for ${targets.length === 1 ? targets[0].name : pluralize(targets.length, 'student')} — waiting for admin approval`);
+            toast.success(`Completion requested for ${targets.length === 1 ? targets[0].name : pluralize(targets.length, 'student')}, waiting for admin approval`);
             onSubmitted?.();
             onClose();
         } catch (err) {
-            toast.error((err as Error)?.message || 'Failed to submit completion request');
+            toast.error((err as Error)?.message || "Couldn't send the request. Please try again.");
         }
     };
 
     const shown = targets.slice(0, 6);
     const rest = targets.length - shown.length;
+    const busy = mutation.isPending;
 
     return (
-        <DialogLayer
+        <Modal
             open={open}
             onClose={onClose}
-            dismissible={!mutation.isPending}
-            labelledBy="completion-title"
-            className="z-70 flex items-end sm:items-center justify-center sm:p-4"
-            backdropClassName="bg-black/50 backdrop-blur-xs"
-            panelClassName="w-full sm:max-w-md bg-surface rounded-t-3xl sm:rounded-2xl border border-border-subtle shadow-2xl p-5 sm:p-6 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
-            enter="animate-sheetSlideUp sm:animate-scaleIn"
-            exit="animate-sheetSlideDown sm:animate-scaleOut"
+            dismissible={!busy}
+            labelId="completion-title"
+            zIndex="z-70"
+            sheetOnMobile
+            icon={GraduationCap}
+            tone="success"
+            title="Request completion"
+            subtitle={context}
+            footer={
+                <div className="flex w-full sm:w-auto items-center justify-end gap-2 pb-[env(safe-area-inset-bottom)] sm:pb-0">
+                    <Button variant="ghost" onClick={onClose} disabled={busy} className="flex-1 sm:flex-none">Cancel</Button>
+                    <Button type="submit" form={FORM_ID} variant="success" loading={busy} disabled={!date} className="flex-1 sm:flex-none">
+                        {!busy && <GraduationCap size={14} />}
+                        Submit request
+                    </Button>
+                </div>
+            }
         >
-            <form onSubmit={e => { e.preventDefault(); submit(); }} className="space-y-4">
-                <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-emerald-500/10 text-status-confirmed rounded-xl shrink-0">
-                        <GraduationCap size={22} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 id="completion-title" className="font-bold text-base text-primary">Request completion</h3>
-                        <p className="text-xs text-muted truncate">
-                            {pluralize(targets.length, 'student')}{context ? ` · ${context}` : ''}
+            <form id={FORM_ID} onSubmit={e => { e.preventDefault(); submit(); }} className="space-y-5">
+                {targets.length === 1 ? (
+                    <p className="text-sm text-primary">
+                        Ask an admin to mark <strong className="font-semibold">{targets[0].name}</strong> as completed.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        <p className="text-sm text-primary">
+                            Ask an admin to mark <strong className="font-semibold">{pluralize(targets.length, 'student')}</strong> as completed.
                         </p>
+                        <div className="flex flex-wrap gap-1.5" aria-label="Students">
+                            {shown.map(t => (
+                                <span key={t.enrollmentId} className="px-2 py-0.5 rounded-full bg-surface-elevated border border-border-subtle text-xs font-medium text-primary">
+                                    {t.name}
+                                </span>
+                            ))}
+                            {rest > 0 && <span className="px-2 py-0.5 text-xs font-semibold text-muted">+{rest} more</span>}
+                        </div>
                     </div>
-                    <button type="button" onClick={onClose} disabled={mutation.isPending} aria-label="Close" className="p-1.5 -m-1 text-muted hover:text-primary rounded-lg hover:bg-surface-elevated">
-                        <X size={18} />
-                    </button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                    {shown.map(t => (
-                        <span key={t.enrollmentId} className="px-2 py-0.5 rounded-full bg-surface-elevated border border-border-subtle text-xs font-medium text-primary">
-                            {t.name}
-                        </span>
-                    ))}
-                    {rest > 0 && <span className="px-2 py-0.5 text-xs font-semibold text-muted">+{rest} more</span>}
-                </div>
+                )}
 
                 <div className="space-y-2">
-                    <label htmlFor="completion-date-input" className="text-xs font-bold text-muted uppercase tracking-wider block">
+                    <label htmlFor="completion-date-input" className="block text-sm font-medium text-primary">
                         Completion date
                     </label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p className="text-xs text-muted -mt-1">The day {targets.length === 1 ? 'they' : 'these students'} finished the course.</p>
+                    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick dates">
                         {quickPicks.map(p => (
                             <button
                                 key={p.value + p.label}
                                 type="button"
                                 onClick={() => setDate(p.value)}
-                                className={`px-2.5 h-7 rounded-lg text-xs font-semibold border transition-colors ${
+                                aria-pressed={date === p.value}
+                                className={`px-3 h-9 sm:h-8 rounded-lg text-xs font-semibold border transition-colors ${
                                     date === p.value
-                                        ? 'bg-emerald-600 text-white border-emerald-600'
-                                        : 'bg-surface-elevated text-primary border-border-subtle hover:border-border-strong'
+                                        ? 'bg-success/15 text-status-confirmed border-emerald-500/50'
+                                        : 'bg-surface text-primary border-border-subtle hover:border-border-strong'
                                 }`}
                             >
                                 {p.label}
@@ -135,25 +147,22 @@ export default function CompletionRequestModal({
                         id="completion-date-input"
                         value={date}
                         onChange={setDate}
-                        className="w-full h-10 px-3 bg-surface-elevated border border-border-subtle rounded-xl text-sm text-primary focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        placeholder="Pick a date"
+                        className="w-full h-10 px-3 bg-surface border border-border-subtle rounded-xl text-sm text-primary focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                     />
-                    {inFuture ? (
-                        <p className="text-xs text-status-requested flex items-center gap-1">
-                            <AlertTriangle size={12} /> This date is in the future — double-check before submitting.
+                    {inFuture && (
+                        <p role="alert" className="flex items-start gap-1.5 px-3 py-2 rounded-xl bg-warning/10 border border-warning/30 text-xs font-medium text-status-requested">
+                            <AlertTriangle size={13} className="shrink-0 mt-px" />
+                            This date is in the future. Check it before you submit.
                         </p>
-                    ) : (
-                        <p className="text-xs text-muted">An admin reviews every request before the student is marked completed.</p>
                     )}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-1">
-                    <Button variant="ghost" onClick={onClose} disabled={mutation.isPending}>Cancel</Button>
-                    <Button type="submit" variant="success" disabled={mutation.isPending || !date}>
-                        {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GraduationCap size={14} />}
-                        Submit request
-                    </Button>
-                </div>
+                <p className="flex items-start gap-2 text-xs text-muted">
+                    <ShieldCheck size={14} className="shrink-0 mt-px text-brand-500" />
+                    An admin checks every request. The student shows as completed once it is approved.
+                </p>
             </form>
-        </DialogLayer>
+        </Modal>
     );
 }

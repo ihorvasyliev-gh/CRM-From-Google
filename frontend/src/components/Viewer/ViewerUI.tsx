@@ -7,7 +7,7 @@ import {
     Clock, Star, Search, X, Copy, Mail, Phone, MessageCircle, ChevronDown,
 } from 'lucide-react';
 import { getAvatarGradient } from '../../lib/types';
-import { formatPhoneForCall, formatPhoneForWhatsApp } from '../../lib/contactUtils';
+import { formatPhoneForCall, formatPhoneForWhatsApp, normalizePhone } from '../../lib/contactUtils';
 import { copyText, initials } from './viewerUtils';
 import { STATUS_META } from './viewerMeta';
 
@@ -101,44 +101,56 @@ export function Avatar({
     );
 }
 
-const iconBtn = 'inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40';
+const iconBtnBase = 'inline-flex items-center justify-center rounded-lg text-muted hover:text-primary hover:bg-surface-elevated border border-transparent hover:border-border-subtle transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-500/40';
 
-/** Copy / mail / call / WhatsApp shortcuts for a contact. Never bubbles clicks to the row. */
+/**
+ * Copy / mail / call / WhatsApp shortcuts for a contact. Never bubbles clicks to the row.
+ * `touch`: finger-sized buttons on phones and tablets (smaller from the laptop breakpoint up).
+ */
 export function ContactActions({
     email,
     phone,
     name,
+    copy = true,
+    touch = false,
     className = '',
 }: {
     email?: string | null;
     phone?: string | null;
     name?: string;
+    /** Show the "copy email" button */
+    copy?: boolean;
+    touch?: boolean;
     className?: string;
 }) {
-    const call = formatPhoneForCall(phone);
-    const whatsapp = formatPhoneForWhatsApp(phone);
+    // Stored numbers can be local ("087 …"): dial and message them in +353 form
+    const intl = normalizePhone(phone);
+    const call = formatPhoneForCall(intl);
+    const whatsapp = formatPhoneForWhatsApp(intl);
     const who = name ? ` ${name}` : '';
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+    const iconBtn = `${iconBtnBase} ${touch ? 'w-9 h-9 lg:w-7 lg:h-7' : 'w-7 h-7'}`;
+    const size = touch ? 15 : 13;
     return (
         <div className={`flex items-center gap-0.5 ${className}`} onClick={stop} onKeyDown={stop}>
-            {email && (
+            {email && copy && (
                 <button type="button" className={iconBtn} onClick={() => copyText(email, 'Email')} title={`Copy email${who}`} aria-label={`Copy email${who}`}>
-                    <Copy size={13} />
+                    <Copy size={size} />
                 </button>
             )}
             {email && (
                 <a className={iconBtn} href={`mailto:${email}`} title={`Email${who}`} aria-label={`Email${who}`}>
-                    <Mail size={13} />
+                    <Mail size={size} />
                 </a>
             )}
             {call && (
                 <a className={iconBtn} href={call} title={`Call${who}`} aria-label={`Call${who}`}>
-                    <Phone size={13} />
+                    <Phone size={size} />
                 </a>
             )}
             {whatsapp && (
                 <a className={`${iconBtn} hover:text-emerald-600 dark:hover:text-emerald-400`} href={whatsapp} target="_blank" rel="noopener noreferrer" title={`WhatsApp${who}`} aria-label={`WhatsApp${who}`}>
-                    <MessageCircle size={13} />
+                    <MessageCircle size={size} />
                 </a>
             )}
         </div>
@@ -239,6 +251,7 @@ export function SelectField({
     children,
     className = '',
     icon,
+    defaultValue = 'all',
 }: {
     label: string;
     value: string;
@@ -246,9 +259,11 @@ export function SelectField({
     children: React.ReactNode;
     className?: string;
     icon?: React.ReactNode;
+    /** The "nothing changed" value: any other value highlights the field */
+    defaultValue?: string;
 }) {
     const id = useId();
-    const active = value !== 'all' && value !== '';
+    const active = value !== defaultValue && value !== '';
     return (
         <div className={`relative ${className}`}>
             <label htmlFor={id} className="sr-only">{label}</label>
@@ -295,7 +310,7 @@ export function PageHeader({
     eyebrow?: React.ReactNode;
 }) {
     return (
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
                 {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
                 <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-primary leading-tight truncate">{title}</h1>
