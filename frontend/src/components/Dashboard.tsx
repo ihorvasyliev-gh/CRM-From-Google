@@ -65,7 +65,6 @@ const NO_STATS: DashboardStats = { students: 0, courses: 0, enrollments: 0, bySt
 const NO_ENROLLMENTS: EnrollmentRow[] = [];
 
 function greeting(hour: number): string {
-    if (hour < 5) return 'Good evening';
     if (hour < 12) return 'Good morning';
     if (hour < 18) return 'Good afternoon';
     return 'Good evening';
@@ -92,9 +91,9 @@ function DashboardHeading({ updatedAt, refreshing, children }: { updatedAt: numb
     const today = new Date(now);
     return (
         <div className="min-w-0">
-            <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight">{greeting(today.getHours())}</h2>
-            <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                <span>{today.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            <h2 className="text-2xl sm:text-[28px] font-bold text-primary tracking-tight leading-tight">{greeting(today.getHours())}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                <span className="min-w-0">{today.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                 {updatedAt > 0 && (
                     <>
                         <span className="w-1 h-1 rounded-full bg-border-strong" aria-hidden />
@@ -305,10 +304,10 @@ export default function Dashboard({
     }, [stats, staleRequests, expiredInvites, upcomingCohorts]);
 
     const quickActions: QuickAction[] = [
-        { key: 'student', label: 'Student', icon: UserPlus, onClick: handleAddStudent, primary: true },
+        { key: 'student', label: 'Add student', icon: UserPlus, onClick: handleAddStudent, primary: true },
         { key: 'enroll', label: 'Enroll', icon: Plus, onClick: handleAddEnrollment },
-        { key: 'course', label: 'Course', icon: BookOpen, onClick: () => onNavigate?.('courses', { openCreate: true }) },
-        { key: 'board', label: 'Board', icon: KanbanSquare, onClick: () => onNavigate?.('enrollments') },
+        { key: 'course', label: 'New course', icon: BookOpen, onClick: () => onNavigate?.('courses', { openCreate: true }) },
+        { key: 'board', label: 'Open board', icon: KanbanSquare, onClick: () => onNavigate?.('enrollments') },
     ];
 
     const header = (
@@ -325,7 +324,7 @@ export default function Dashboard({
                     <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 </button>
             </DashboardHeading>
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 pb-0.5">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap [&>*]:justify-center sm:[&>*]:justify-start">
                 {quickActions.map(a => (
                     <QuickActionButton key={a.key} action={a} compact={isMobile} />
                 ))}
@@ -343,7 +342,7 @@ export default function Dashboard({
                     <p className="text-[13px] font-semibold text-primary">
                         {pendingApprovalsCount} course completion request{pendingApprovalsCount > 1 ? 's' : ''} awaiting approval
                     </p>
-                    <p className="text-xs text-muted hidden sm:block">Review them to update student outcomes</p>
+                    <p className="text-xs text-muted">Review them to update student outcomes</p>
                 </div>
             </div>
             <button
@@ -389,15 +388,15 @@ export default function Dashboard({
                 the numbers down just as they could be clicked */}
             <SendRemindersBanner items={reminders} onSend={sendReminder} onMarkSent={markReminderSent} />
 
-            {/* Only one layout is mounted to avoid rendering everything twice. The registration
-                form and public page links go near the top, as on the viewer home: below the activity feed nobody saw it. */}
+            {/* Only one layout is mounted to avoid rendering everything twice. */}
             {isMobile ? (
                 <div className="space-y-4">
-                    <PublicLinksCard />
+                    {/* Things to act on first, then the reference cards and the feed */}
+                    {statusBreakdown}
                     {expired}
                     {cohorts}
+                    <PublicLinksCard />
                     {activity}
-                    {statusBreakdown}
                 </div>
             ) : (
                 <div className="grid grid-cols-12 gap-6 items-start">

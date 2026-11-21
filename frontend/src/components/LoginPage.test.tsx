@@ -101,8 +101,8 @@ describe('LoginPage Security Hardening & Lockout', () => {
             await performLogin();
         });
 
-        expect(screen.getByText(/too many failed login attempts/i)).toBeInTheDocument();
-        expect(screen.getByText(/please try again in 30 seconds/i)).toBeInTheDocument();
+        expect(screen.getByText(/too many incorrect attempts/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('0:30');
         expect(emailInput).toBeDisabled();
         expect(passwordInput).toBeDisabled();
         expect(submitBtn).toBeDisabled();
@@ -115,8 +115,8 @@ describe('LoginPage Security Hardening & Lockout', () => {
 
         render(<LoginPage />);
 
-        expect(screen.getByText(/too many failed login attempts/i)).toBeInTheDocument();
-        expect(screen.getByText(/please try again in 30 seconds/i)).toBeInTheDocument();
+        expect(screen.getByText(/too many incorrect attempts/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('0:30');
         expect(screen.getByPlaceholderText('name@partnershipcork.ie')).toBeDisabled();
         expect(screen.getByPlaceholderText('••••••••')).toBeDisabled();
         expect(screen.getByRole('button', { name: /sign in/i })).toBeDisabled();
@@ -133,20 +133,20 @@ describe('LoginPage Security Hardening & Lockout', () => {
         const submitBtn = screen.getByRole('button', { name: /sign in/i });
 
         expect(emailInput).toBeDisabled();
-        expect(screen.getByText(/please try again in 5 seconds/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('0:05');
 
         // Advance timers by 2 seconds
         act(() => {
             vi.advanceTimersByTime(2000);
         });
-        expect(screen.getByText(/please try again in 3 seconds/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('0:03');
 
         // Advance timers by another 3 seconds (5 seconds total elapsed)
         act(() => {
             vi.advanceTimersByTime(3000);
         });
 
-        expect(screen.queryByText(/too many failed login attempts/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/too many incorrect attempts/i)).not.toBeInTheDocument();
         expect(emailInput).not.toBeDisabled();
         expect(submitBtn).not.toBeDisabled();
     });
@@ -169,7 +169,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
             await performLogin();
         });
 
-        expect(screen.getByText(/please try again in 1 minute/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('1:00');
 
         // Wait until unlocked again
         act(() => {
@@ -181,7 +181,7 @@ describe('LoginPage Security Hardening & Lockout', () => {
             await performLogin();
         });
 
-        expect(screen.getByText(/please try again in 5 minutes/i)).toBeInTheDocument();
+        expect(screen.getByTestId('lockout-countdown')).toHaveTextContent('5:00');
     });
 
     it('clears attempts counter and lockout data on successful login', async () => {
@@ -196,5 +196,13 @@ describe('LoginPage Security Hardening & Lockout', () => {
 
         expect(localStorage.getItem('crm_login_attempts')).toBeNull();
         expect(localStorage.getItem('crm_login_locked_until')).toBeNull();
+    });
+
+    it('shows the reset help text and a keyboard-reachable show-password button', () => {
+        render(<LoginPage />);
+        expect(screen.getByText(/ask an admin to reset it/i)).toBeInTheDocument();
+        const toggle = screen.getByRole('button', { name: /show password/i });
+        expect(toggle).not.toHaveAttribute('tabindex', '-1');
+        expect(toggle).toHaveAttribute('aria-pressed', 'false');
     });
 });

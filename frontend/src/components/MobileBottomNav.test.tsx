@@ -110,3 +110,30 @@ describe('MobileBottomNav Component', () => {
         expect(studentsBtnLookup).toHaveClass('text-brand-600');
     });
 });
+
+describe('MobileBottomNav extras', () => {
+    const base = {
+        onNavigate: vi.fn(),
+        darkMode: false,
+        toggleDarkMode: vi.fn(),
+        density: 'comfortable' as const,
+        toggleDensity: vi.fn(),
+        onOpenCommandPalette: vi.fn(),
+        onSignOut: vi.fn(),
+    };
+
+    it('shows the pending approvals count on the admin Dashboard tab', () => {
+        render(<MobileBottomNav {...base} activeTab="students" isViewer={false} pendingApprovalsCount={3} />);
+        expect(screen.getByRole('button', { name: /dashboard, 3 approvals waiting/i })).toBeInTheDocument();
+    });
+
+    it('marks More active inside it, and labels the density toggle in plain case', () => {
+        render(<MobileBottomNav {...base} activeTab="pdf-forms" isViewer={true} />);
+        const more = screen.getByRole('button', { name: 'More' });
+        expect(more).toHaveAttribute('aria-current', 'page');
+        expect(more).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(more);
+        expect(screen.getByText('Comfortable view')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Close menu' })).toBeInTheDocument();
+    });
+});

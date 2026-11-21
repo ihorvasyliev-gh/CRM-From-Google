@@ -42,11 +42,14 @@ const getLockoutDuration = (attempts: number): number => {
     return 0;
 };
 
-const formatLockoutTime = (seconds: number): string => {
-    if (seconds < 60) return `${seconds} seconds`;
-    const minutes = Math.ceil(seconds / 60);
-    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+/** m:ss, for the visible countdown */
+const formatCountdown = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
 };
+
+const LOCKED_MESSAGE = 'Too many incorrect attempts, so sign-in is paused for a short time to keep accounts safe.';
 
 export default function LoginPage() {
     const { signIn } = useAuth();
@@ -65,7 +68,6 @@ export default function LoginPage() {
         if (lockedUntil > now) {
             const seconds = Math.ceil((lockedUntil - now) / 1000);
             setLockoutSecondsLeft(seconds);
-            setError(`Too many failed login attempts. Please try again in ${formatLockoutTime(seconds)}.`);
         }
     }, []);
 
@@ -81,7 +83,6 @@ export default function LoginPage() {
                 setError('');
             } else {
                 setLockoutSecondsLeft(remaining);
-                setError(`Too many failed login attempts. Please try again in ${formatLockoutTime(remaining)}.`);
             }
         }, 1000);
 
@@ -97,7 +98,6 @@ export default function LoginPage() {
         if (lockedUntil > now) {
             const remaining = Math.ceil((lockedUntil - now) / 1000);
             setLockoutSecondsLeft(remaining);
-            setError(`Too many failed login attempts. Please try again in ${formatLockoutTime(remaining)}.`);
             return;
         }
 
@@ -115,7 +115,6 @@ export default function LoginPage() {
                     setLockoutData(newAttempts, nextLockout);
                     const seconds = Math.ceil(duration / 1000);
                     setLockoutSecondsLeft(seconds);
-                    setError(`Too many failed login attempts. Please try again in ${formatLockoutTime(seconds)}.`);
                 } else {
                     setLockoutData(newAttempts, 0);
                     const message = signInError.message === 'Invalid login credentials'
@@ -157,7 +156,16 @@ export default function LoginPage() {
                 {/* Card */}
                 <div className="bg-surface border border-border-subtle rounded-2xl shadow-float p-6 sm:p-7">
                     <form onSubmit={handleSubmit} {...formProps} className="space-y-4">
-                        {error && (
+                        {lockoutSecondsLeft > 0 && (
+                            <div role="alert" className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-3 rounded-xl animate-slideDown text-center space-y-1">
+                                <p>{LOCKED_MESSAGE}</p>
+                                <p className="font-semibold">
+                                    You can try again in{' '}
+                                    <span role="timer" className="tabular-nums" data-testid="lockout-countdown">{formatCountdown(lockoutSecondsLeft)}</span>
+                                </p>
+                            </div>
+                        )}
+                        {error && lockoutSecondsLeft <= 0 && (
                             <div role="alert" className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl animate-slideDown text-center">
                                 {error}
                             </div>
@@ -208,8 +216,7 @@ export default function LoginPage() {
                                     onClick={() => setShowPassword(v => !v)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                                     aria-pressed={showPassword}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted/70 hover:text-primary hover:bg-surface-elevated transition-colors"
-                                    tabIndex={-1}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated transition-colors focus-visible:outline-2 focus-visible:outline-brand-500"
                                 >
                                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
@@ -228,12 +235,11 @@ export default function LoginPage() {
                             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                             {loading ? 'Signing in...' : 'Sign In'}
                         </button>
+                        <p className="text-center text-xs text-muted">
+                            Forgot password? Ask an admin to reset it.
+                        </p>
                     </form>
                 </div>
-
-                <p className="text-center text-xs text-muted mt-6">
-                    CCP CRM • Management System
-                </p>
             </div>
         </div>
     );

@@ -657,6 +657,7 @@ function App() {
                 onOpenCommandPalette={() => setCommandPaletteOpen(true)}
                 onSignOut={signOut}
                 userEmail={user.email}
+                pendingApprovalsCount={isViewer ? 0 : pendingApprovalsCount}
             />
 
             {/* Mobile Floating Actions (FAB): the dashboard only; the board, Students and Courses
