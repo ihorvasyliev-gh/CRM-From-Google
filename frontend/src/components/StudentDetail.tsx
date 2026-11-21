@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation } from 'lucide-react';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
@@ -12,6 +12,7 @@ import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, se
 import { STATUS_CONFIG } from '../lib/statusConfig';
 import DialogLayer from './ui/DialogLayer';
 import MergeModal from './MergeModal';
+import ConfirmDialog from './ConfirmDialog';
 import { CalendarPanel } from './ui/DatePicker';
 import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
@@ -26,6 +27,9 @@ import { useDialogMount, useLastPresent } from '../hooks/usePresence';
 import type { GraduateRow } from '../hooks/useOutcomes';
 
 const EMPTY_OUTCOME = { is_working: null, employment_type: null, field_of_work: null };
+
+/** How the saved-field toast names each field */
+const FIELD_LABELS: Record<string, string> = { email: 'Email', phone: 'Phone', address: 'Address', eircode: 'Eircode', dob: 'Date of birth' };
 
 function formatStartedMonth(value: string): string {
     const d = new Date(`${value}-01T12:00:00`);
@@ -503,6 +507,7 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
 
     async function handleDeleteEnrollment(id: string) {
         if (busyEnrollmentId) return;
+        const courseName = enrollments.find(e => e.id === id)?.courses?.name || 'the course';
         setBusyEnrollmentId(id);
         try {
             const { error } = await supabase
@@ -512,10 +517,11 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
             if (error) throw error;
             setEnrollments(prev => prev.filter(e => e.id !== id));
             setConfirmDeleteId(null);
-            notify({ message: 'Enrollment deleted', type: 'success' });
+            notify({ message: `Removed from ${courseName}`, type: 'success' });
             invalidateRelated([id]);
         } catch {
-            notify({ message: 'Failed to delete enrollment', type: 'error' });
+            setConfirmDeleteId(null);
+            notify({ message: `Could not remove the ${courseName} enrollment. Please try again.`, type: 'error' });
         } finally {
             setBusyEnrollmentId(null);
         }
@@ -528,7 +534,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
         const updated = applyStudentChange(queryClient, row ?? { id: student.id, [field]: value || null })
             ?? ({ ...student, ...row, [field]: row ? row[field as keyof Student] : value || null } as Student);
         onStudentUpdated?.(updated);
-        notify({ message: 'Saved', type: 'success' });
+        const label = FIELD_LABELS[field] ?? 'Change';
+        notify({ message: value ? `${label} saved` : `${label} cleared`, type: 'success' });
     }
 
     // Navigate to enrollments filtered by course
@@ -571,7 +578,7 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all">
+                        <button type="button" onClick={onClose} aria-label="Close student details" title="Close (Esc)" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -666,7 +673,7 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 }
                             />
                             <InlineEditField
-                                icon={<MapPin size={14} />}
+                                icon={<House size={14} />}
                                 label="Address"
                                 value={student.address || ''}
                                 field="address"
@@ -689,7 +696,7 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 }
                             />
                             <InlineEditField
-                                icon={<MapPin size={14} />}
+                                icon={<Mailbox size={14} />}
                                 label="Eircode"
                                 value={student.eircode || ''}
                                 field="eircode"
@@ -893,30 +900,15 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                                 </button>
                                             )}
 
-                                            {confirmDeleteId === en.id ? (
-                                                <div className="flex items-center gap-1">
-                                                    <button
-                                                        onClick={() => handleDeleteEnrollment(en.id)}
-                                                        className="px-2 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600"
-                                                    >
-                                                        Confirm
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setConfirmDeleteId(null)}
-                                                        className="px-2 py-1.5 bg-surface text-muted border border-border-subtle rounded-lg text-xs hover:bg-surface-elevated transition-all"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setConfirmDeleteId(en.id)}
-                                                    className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-xs rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
-                                                    title="Delete permanently"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setConfirmDeleteId(en.id)}
+                                                className="flex items-center justify-center px-2.5 py-1.5 bg-surface-elevated border border-border-subtle shadow-xs rounded-lg text-xs font-medium text-status-rejected hover:bg-danger/10 hover:border-danger/20 transition-all"
+                                                title="Delete this enrollment"
+                                                aria-label={`Delete the ${en.courses?.name || 'course'} enrollment`}
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -925,6 +917,14 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                     </div>
                 </div>
             </DialogLayer>
+            <ConfirmDialog
+                open={!!confirmDeleteId}
+                title="Delete this enrollment?"
+                message={`${fullName(student)} will be taken off ${enrollments.find(e => e.id === confirmDeleteId)?.courses?.name || 'this course'} and its history removed. To keep the history, use Withdraw instead. This can't be undone.`}
+                confirmLabel="Delete enrollment"
+                onConfirm={() => confirmDeleteId ? handleDeleteEnrollment(confirmDeleteId) : undefined}
+                onCancel={() => setConfirmDeleteId(null)}
+            />
             <MergeModal
                 open={mergeModalOpen}
                 student={student}

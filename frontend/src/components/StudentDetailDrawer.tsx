@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-    X, Mail, Phone, MapPin, Calendar, Copy, Navigation, Loader2, XCircle, AlertTriangle, MessageSquare,
+    X, Mail, Phone, House, Mailbox, Calendar, Copy, Navigation, Loader2, AlertTriangle, MessageSquare, WifiOff,
     MessageCircle, ChevronUp, ChevronDown, GraduationCap, ArrowRight, Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -236,7 +236,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                 </>
                             )}
                         </div>
-                        <button type="button" aria-label="Close drawer" onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated" title="Close (Esc)">
+                        <button type="button" aria-label="Close student details" onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-muted hover:text-primary hover:bg-surface-elevated" title="Close (Esc)">
                             <X size={20} />
                         </button>
                     </div>
@@ -284,12 +284,12 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                             <span className="text-sm font-medium">Loading student…</span>
                         </div>
                     ) : error || !student ? (
-                        <div className="text-center py-14 px-4 bg-red-500/5 rounded-2xl border border-red-500/15">
-                            <XCircle className="text-red-500 mx-auto mb-2" size={32} />
-                            <h3 className="font-bold text-primary text-sm">Failed to load student record</h3>
-                            <p className="text-xs text-muted mt-1">Please try again or contact your administrator.</p>
-                            <button type="button" onClick={() => refetch()} className="mt-4 h-8 px-3 bg-surface border border-border-subtle rounded-xl text-xs font-semibold hover:bg-surface-elevated">
-                                Retry
+                        <div role="alert" className="text-center py-14 px-4 bg-surface-elevated/40 rounded-2xl border border-border-subtle">
+                            <WifiOff className="text-muted mx-auto mb-2" size={28} />
+                            <h3 className="font-bold text-primary text-sm">Couldn't open this student's details</h3>
+                            <p className="text-xs text-muted mt-1">This is usually the connection. Check you're online and try again. If it keeps happening, tell your coordinator.</p>
+                            <button type="button" onClick={() => refetch()} className="mt-4 h-8 px-3 bg-surface border border-border-subtle rounded-xl text-xs font-semibold text-primary hover:bg-surface-elevated">
+                                Try again
                             </button>
                         </div>
                     ) : (
@@ -317,7 +317,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                     <InfoField icon={<Mail size={15} />} label="Email" value={student.email} />
                                     <InfoField icon={<Phone size={15} />} label="Phone" value={student.phone && formatPhoneDisplay(student.phone)} copyValue={student.phone} />
                                     <InfoField
-                                        icon={<MapPin size={15} />}
+                                        icon={<House size={15} />}
                                         label="Address"
                                         value={student.address}
                                         action={student.address && formatGoogleMapsUrl(student.address) ? (
@@ -327,7 +327,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                         ) : undefined}
                                     />
                                     <InfoField
-                                        icon={<MapPin size={15} />}
+                                        icon={<Mailbox size={15} />}
                                         label="Eircode"
                                         value={student.eircode}
                                         action={student.eircode && formatGoogleMapsUrl(student.eircode) ? (
@@ -337,7 +337,7 @@ export default function StudentDetailDrawer({ studentId, onClose, onPrev, onNext
                                         ) : undefined}
                                     />
                                     {student.dob && (
-                                        <InfoField icon={<Calendar size={15} />} label="Date of Birth" value={`${formatDisplayDate(student.dob)}${age !== null ? ` · ${age} y.o.` : ''}`} copyValue={formatDisplayDate(student.dob)} />
+                                        <InfoField icon={<Calendar size={15} />} label="Date of Birth" value={`${formatDisplayDate(student.dob)}${age !== null ? ` · ${age} years old` : ''}`} copyValue={formatDisplayDate(student.dob)} />
                                     )}
                                 </div>
                             </section>

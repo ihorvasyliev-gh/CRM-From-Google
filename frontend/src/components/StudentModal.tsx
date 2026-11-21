@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
-import { User, AlertTriangle } from 'lucide-react';
+import { User, AlertTriangle, Info } from 'lucide-react';
 import { fullName, Student, StudentFormData, StudentPayload, toStudentPayload } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { todayISO } from '../lib/dateUtils';
@@ -12,6 +12,7 @@ import { DateInput } from './ui/DatePicker';
 import FieldError from './ui/FieldError';
 import ConfirmDialog from './ConfirmDialog';
 import { useFieldErrors } from '../hooks/useFieldErrors';
+import { formatEircode, looksLikeEircode, looksLikePhone } from './Students/studentListData';
 
 interface Props {
     open: boolean;
@@ -21,7 +22,19 @@ interface Props {
     onClose: () => void;
     /** When adding: a "Save and enroll" button, which hands the new student on to be enrolled */
     onSaveAndEnroll?: (student: Student) => void;
+    /** The duplicate warning's "Open" button: shows the student who is already there instead */
+    onOpenExisting?: (studentId: string) => void;
+    /** When editing: the duplicate warning's "Merge" button, to merge this student with that one */
+    onMergeWith?: (studentId: string) => void;
 }
+
+interface DuplicateMatch {
+    id: string;
+    name: string;
+    field: 'email' | 'phone';
+}
+
+const hintCls = 'mt-1.5 text-xs text-muted';
 
 const EMPTY_FORM: StudentFormData = { first_name: '', last_name: '', email: '', phone: '', address: '', eircode: '', dob: '' };
 
@@ -33,14 +46,18 @@ function quoteFilterValue(value: string): string {
     return `"${value.replace(/["\\]/g, '')}"`;
 }
 
-export default function StudentModal({ open, student, onSave, onClose, onSaveAndEnroll }: Props) {
+export default function StudentModal({ open, student, onSave, onClose, onSaveAndEnroll, onOpenExisting, onMergeWith }: Props) {
     const [form, setForm] = useState<StudentFormData>(EMPTY_FORM);
     const formRef = useRef<HTMLFormElement>(null);
     // Set by "Save and enroll" just before it submits the form
     const enrollAfterSaveRef = useRef(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    const [duplicateWarning, setDuplicateWarning] = useState('');
+    const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
+    // The duplicate check could not run (e.g. offline): said so, rather than looking like "no duplicates"
+    const [duplicateCheckFailed, setDuplicateCheckFailed] = useState(false);
+    const [phoneTouched, setPhoneTouched] = useState(false);
+    const [eircodeTouched, setEircodeTouched] = useState(false);
     const { errors, check, formProps, fieldProps } = useFieldErrors();
     const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -50,7 +67,8 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
         if (open) {
             setForm(initialForm);
             setError('');
-            setDuplicateWarning('');
+            setDuplicate(null);
+            setDuplicateCheckFailed(false);
         }
     }, [open, initialForm]);
 
@@ -72,7 +90,7 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
     // Live duplicate detection (same email or same normalized phone)
     useEffect(() => {
         if (!open) {
-            setDuplicateWarning('');
+            setDuplicate(null);
             return;
         }
 
@@ -80,7 +98,8 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
         const checkPhone = normalizePhone(form.phone);
 
         if (!checkEmail && !checkPhone) {
-            setDuplicateWarning('');
+            setDuplicate(null);
+            setDuplicateCheckFailed(false);
             return;
         }
 
@@ -100,18 +119,21 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                     query = query.neq('id', student.id);
                 }
 
-                const { data } = await query.limit(1);
+                const { data, error: checkError } = await query.limit(1);
                 if (!active) return;
+                if (checkError) throw checkError;
+                setDuplicateCheckFailed(false);
 
                 if (data && data.length > 0) {
                     const match = data[0];
-                    const matchedOnEmail = match.email && match.email.trim().toLowerCase() === checkEmail;
-                    setDuplicateWarning(`A student named "${fullName(match)}" already exists with this ${matchedOnEmail ? 'email' : 'phone'}.`);
+                    const matchedOnEmail = !!match.email && match.email.trim().toLowerCase() === checkEmail;
+                    setDuplicate({ id: match.id, name: fullName(match) || 'A student', field: matchedOnEmail ? 'email' : 'phone' });
                 } else {
-                    setDuplicateWarning('');
+                    setDuplicate(null);
                 }
             } catch (err) {
                 console.error('Duplicate check failed:', err);
+                if (active) setDuplicateCheckFailed(true);
             }
         }, 500);
 
@@ -150,6 +172,8 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
     const isEditing = !!student?.id;
     const update = (field: keyof StudentFormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
         setForm(prev => ({ ...prev, [field]: e.target.value }));
+    const phoneLooksOff = phoneTouched && !!form.phone.trim() && !looksLikePhone(form.phone);
+    const eircodeLooksOff = eircodeTouched && !!form.eircode.trim() && !looksLikeEircode(form.eircode);
 
     return (
         <Modal
@@ -169,6 +193,7 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                         <Button
                             variant="secondary"
                             disabled={saving}
+                            title="Add the student, then choose a course for them"
                             onClick={() => {
                                 enrollAfterSaveRef.current = true;
                                 formRef.current?.requestSubmit();
@@ -186,11 +211,33 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                 <form id="student-form" ref={formRef} onSubmit={handleSubmit} {...formProps} className="space-y-4">
                     {error && <FormError>{error}</FormError>}
 
-                    {duplicateWarning && (
-                        <div className={`${calloutCls.warning} text-sm px-3.5 py-2.5 flex items-center gap-2.5 animate-slideDown`}>
-                            <AlertTriangle size={16} className="shrink-0 text-status-requested" />
-                            <span>{duplicateWarning}</span>
+                    {duplicate && (
+                        <div role="status" className={`${calloutCls.warning} text-sm px-3.5 py-2.5 flex items-start gap-2.5 animate-slideDown`}>
+                            <AlertTriangle size={16} className="shrink-0 mt-0.5 text-status-requested" />
+                            <div className="min-w-0 space-y-2">
+                                <p><strong>{duplicate.name}</strong> already has this {duplicate.field}. {isEditing ? 'If they are the same person, merge the two records.' : 'Open their record instead of adding them twice.'}</p>
+                                {(onOpenExisting || (isEditing && onMergeWith)) && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {onOpenExisting && (
+                                            <Button size="sm" variant="secondary" onClick={() => onOpenExisting(duplicate.id)}>
+                                                Open {duplicate.name}
+                                            </Button>
+                                        )}
+                                        {isEditing && onMergeWith && (
+                                            <Button size="sm" variant="brand-soft" onClick={() => onMergeWith(duplicate.id)}>
+                                                Merge the two
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
+                    )}
+                    {!duplicate && duplicateCheckFailed && (
+                        <p role="status" className="text-xs text-muted flex items-center gap-1.5">
+                            <Info size={13} className="shrink-0" />
+                            Couldn't check whether this student is already in the system. Search the list before saving if unsure.
+                        </p>
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -252,7 +299,14 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                                 className={INPUT_CLASS}
                                 value={form.phone}
                                 onChange={update('phone')}
+                                onBlur={() => setPhoneTouched(true)}
+                                aria-describedby="student-phone-hint"
                             />
+                            <p id="student-phone-hint" className={phoneLooksOff ? 'mt-1.5 text-xs text-status-requested' : hintCls}>
+                                {phoneLooksOff
+                                    ? 'This doesn\'t look like a phone number. Irish mobiles look like 087 123 4567; add +353 or another country code for others.'
+                                    : 'Irish mobile or landline, or a number with its country code'}
+                            </p>
                         </div>
                         <div>
                             <label htmlFor="student-dob" className={LABEL_CLASS}>Date of Birth</label>
@@ -283,12 +337,27 @@ export default function StudentModal({ open, student, onSave, onClose, onSaveAnd
                             id="student-eircode"
                             type="text"
                             autoCapitalize="characters"
+                            placeholder="e.g. T12 AB34"
                             className={`${INPUT_CLASS} uppercase`}
                             value={form.eircode}
-                            onChange={update('eircode')}
+                            onChange={e => setForm(prev => ({ ...prev, eircode: e.target.value.toUpperCase() }))}
+                            onBlur={() => {
+                                setEircodeTouched(true);
+                                setForm(prev => ({ ...prev, eircode: formatEircode(prev.eircode.trim()) }));
+                            }}
+                            aria-describedby="student-eircode-hint"
                         />
+                        <p id="student-eircode-hint" className={eircodeLooksOff ? 'mt-1.5 text-xs text-status-requested' : hintCls}>
+                            {eircodeLooksOff ? 'Eircodes have 7 letters and numbers, like T12 AB34. Check it before saving.' : '7 letters and numbers, like T12 AB34'}
+                        </p>
                     </div>
 
+                    {!isEditing && onSaveAndEnroll && (
+                        <p className="text-xs text-muted flex items-start gap-1.5">
+                            <Info size={13} className="shrink-0 mt-px" />
+                            <span><strong className="font-semibold text-primary">Save and enroll</strong> adds the student, then lets you choose their course straight away.</span>
+                        </p>
+                    )}
                 </form>
             <ConfirmDialog
                 open={confirmDiscard}
