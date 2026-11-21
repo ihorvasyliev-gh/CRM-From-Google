@@ -211,20 +211,37 @@ describe('CourseList Component', () => {
         const unsubscribe = subscribeToasts(t => toasts.push(t));
 
         renderWithClient(<CourseList />);
-        await waitFor(() => expect(screen.getAllByText('Standard')).toHaveLength(2));
+        await waitFor(() => expect(screen.getAllByText('Standard letter')).toHaveLength(2));
 
-        fireEvent.click(screen.getAllByText('Standard')[0]);
+        fireEvent.click(screen.getAllByText('Standard letter')[0]);
         await waitFor(() => expect(toasts).toHaveLength(1));
         expect(update).toHaveBeenLastCalledWith({ requires_english: true });
-        expect(screen.getByText('High English')).toBeInTheDocument();
+        expect(screen.getByText('High English letter')).toBeInTheDocument();
         // The card's click (open the board) is not triggered
         expect(mockNavigate).not.toHaveBeenCalled();
 
         toasts[0].action!.onClick();
         await waitFor(() => expect(update).toHaveBeenLastCalledWith({ requires_english: false }));
-        await waitFor(() => expect(screen.getAllByText('Standard')).toHaveLength(2));
+        await waitFor(() => expect(screen.getAllByText('Standard letter')).toHaveLength(2));
         // Undoing does not offer another undo
         expect(toasts[1].action).toBeUndefined();
         unsubscribe();
+    });
+
+    it('tells how many enrollments a delete will remove', async () => {
+        (supabase.from as any).mockImplementation((table: string) => {
+            if (table === 'courses') {
+                return { select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [mockCourses[0]], error: null }) }) };
+            }
+            return { select: vi.fn().mockResolvedValue({ data: [], error: null }) };
+        });
+        (supabase.rpc as any).mockResolvedValue({
+            data: [{ course_id: 'course-1', total: 12, requested: 12, invited: 0, confirmed: 0, completed: 0, withdrawn: 0, rejected: 0 }],
+            error: null,
+        });
+        renderWithClient(<CourseList />);
+        await waitFor(() => expect(screen.getByText('12')).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Delete Patient moving and handling' }));
+        expect(await screen.findByText(/12 enrollments will be deleted too/)).toBeInTheDocument();
     });
 });

@@ -206,7 +206,7 @@ export default function CourseList() {
             updateCachedRelations(queryClient, { courses: [{ id: course.id, requires_english: requiresEnglish }] });
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             notify({
-                message: `${course.name}: ${requiresEnglish ? 'High English template enabled' : 'Standard template enabled'}`,
+                message: `${course.name}: invitation letter switched to ${requiresEnglish ? 'High English' : 'Standard'}`,
                 type: 'success',
                 ...(offerUndo && { action: { label: 'Undo', onClick: () => void setCourseEnglish(course, !requiresEnglish, false) } }),
             });
@@ -240,6 +240,13 @@ export default function CourseList() {
             c.name.toLowerCase().includes(debouncedSearch.toLowerCase())
         );
     }, [courses, debouncedSearch]);
+
+    const deleteTotal = deleteTarget ? enrollmentCounts[deleteTarget.id]?.total ?? 0 : 0;
+    const deleteMessage = deleteTarget
+        ? `Delete "${deleteTarget.name}"? ${deleteTotal > 0
+            ? `${deleteTotal} ${deleteTotal === 1 ? 'enrollment' : 'enrollments'} will be deleted too.`
+            : 'It has no enrollments.'} This can't be undone.`
+        : '';
 
     const openCreate = () => { setEditingCourse(null); setModalOpen(true); };
 
@@ -329,11 +336,11 @@ export default function CourseList() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                            <IconButton size="sm" tone="brand" label="Edit Course" onClick={() => { setEditingCourse(course); setModalOpen(true); }}>
+                                        <div className="flex gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                                            <IconButton size="sm" tone="brand" label={`Edit ${course.name}`} onClick={() => { setEditingCourse(course); setModalOpen(true); }}>
                                                 <Edit2 size={14} />
                                             </IconButton>
-                                            <IconButton size="sm" tone="danger" label="Delete Course" onClick={() => setDeleteTarget(course)}>
+                                            <IconButton size="sm" tone="danger" label={`Delete ${course.name}`} onClick={() => setDeleteTarget(course)}>
                                                 <Trash2 size={14} />
                                             </IconButton>
                                         </div>
@@ -343,7 +350,7 @@ export default function CourseList() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-t border-border-subtle">
-                                    <CustomTooltip content={course.requires_english ? 'Invitations ask for good English. Click to switch to the Standard template' : 'Standard invitations. Click to switch to the High English template'}>
+                                    <CustomTooltip content={course.requires_english ? 'Invitation letter asks for good English. Click to switch to the Standard letter' : 'Standard invitation letter. Click to switch to the High English letter'}>
                                         <button
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); void setCourseEnglish(course, !course.requires_english); }}
@@ -354,7 +361,7 @@ export default function CourseList() {
                                             }`}
                                         >
                                             {course.requires_english ? <Languages size={13} /> : <Globe size={13} />}
-                                            <span>{course.requires_english ? 'High English' : 'Standard'}</span>
+                                            <span>{course.requires_english ? 'High English letter' : 'Standard letter'}</span>
                                         </button>
                                     </CustomTooltip>
                                     <CustomTooltip content={course.max_capacity ? `Max ${course.max_capacity} confirmed participants per date (click to edit)` : 'No participant limit (click to set one)'}>
@@ -373,7 +380,7 @@ export default function CourseList() {
                                         const title = preset.state === 'preset'
                                             ? `Documents: ${preset.templates.map(t => t.name).join(', ')} (click to edit)`
                                             : off ? 'Every template picked for this course is switched off, so no documents are made (click to edit)'
-                                                : 'Documents use all active templates (click to pick)';
+                                                : 'Documents use every template that is switched on (click to pick specific ones)';
                                         return (
                                             <CustomTooltip content={title}>
                                                 <button
@@ -384,7 +391,7 @@ export default function CourseList() {
                                                     }`}
                                                 >
                                                     <FileText size={12} />
-                                                    <span>{preset.state === 'preset' ? `${preset.templates.length} template${preset.templates.length !== 1 ? 's' : ''}` : off ? 'Templates off' : 'All templates'}</span>
+                                                    <span>{preset.state === 'preset' ? `${preset.templates.length} template${preset.templates.length !== 1 ? 's' : ''}` : off ? 'No documents made' : 'All documents'}</span>
                                                 </button>
                                             </CustomTooltip>
                                         );
@@ -407,13 +414,15 @@ export default function CourseList() {
                     course={editingCourse}
                     templates={allTemplates}
                     onSave={handleSave}
+                    existingCourses={courses}
+                    confirmedCount={editingCourse ? enrollmentCounts[editingCourse.id]?.confirmed ?? 0 : 0}
                     onClose={() => setModalOpen(false)}
                 />
             )}
             <ConfirmDialog
                 open={!!deleteTarget}
-                title="Delete Course"
-                message={`Are you sure you want to delete "${deleteTarget?.name}"? All enrollments for this course will also be deleted.`}
+                title="Delete course?"
+                message={deleteMessage}
                 onConfirm={handleDelete}
                 onCancel={() => setDeleteTarget(null)}
             />
