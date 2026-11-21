@@ -83,7 +83,7 @@ function SourceEditor({ value, onChange, columns, id }: SourceEditorProps) {
                 options={[
                     { value: 'column', label: 'From a column' },
                     { value: 'fixed', label: 'Same for everyone' },
-                    { value: 'advanced', label: 'Advanced' },
+                    { value: 'advanced', label: 'Mix text and columns' },
                 ]}
             />
             {mode === 'column' && (
@@ -145,7 +145,7 @@ function AdvancedSource({ value, onChange, columns, id }: SourceEditorProps) {
                 value={value}
                 onChange={e => onChange(e.target.value)}
                 rows={2}
-                placeholder="{Column name} or fixed text"
+                placeholder="e.g. Dear {First name}, welcome"
                 className={`${fieldCls} h-auto py-2 font-mono text-xs leading-relaxed`}
             />
             <SourceChips source={value} />

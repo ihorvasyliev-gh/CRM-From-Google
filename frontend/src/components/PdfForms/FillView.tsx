@@ -418,8 +418,8 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                         )}
                     </div>
                     <div className={`${tableWrapCls} max-h-[60vh] overflow-y-auto`}>
-                        <table className={tableCls}>
-                            <thead className={`${theadCls} sticky top-0 z-10`}>
+                        <table className={`${tableCls} max-sm:block max-sm:min-w-0`}>
+                            <thead className={`${theadCls} sticky top-0 z-10 max-sm:hidden`}>
                                 <tr>
                                     <th className={`${thCls} w-12`}>
                                         <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllShown} aria-label="Tick all shown" className="accent-brand-500 w-4 h-4" />
@@ -429,22 +429,22 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                     <th className={`${thCls} text-right`}>Check this form</th>
                                 </tr>
                             </thead>
-                            <tbody className={tbodyCls}>
+                            <tbody className={`${tbodyCls} max-sm:block`}>
                                 {shown.map(p => {
                                     const on = selected.has(p.index);
                                     return (
-                                        <tr key={p.index} className={`${trCls} ${on ? 'bg-brand-500/4' : ''} cursor-pointer`} onClick={() => toggle(p.index)}>
-                                            <td className={tdCls} onClick={e => e.stopPropagation()}>
+                                        <tr key={p.index} className={`${trCls} ${on ? 'bg-brand-500/4' : ''} cursor-pointer max-sm:flex max-sm:flex-wrap max-sm:items-start`} onClick={() => toggle(p.index)}>
+                                            <td className={`${tdCls} max-sm:w-12`} onClick={e => e.stopPropagation()}>
                                                 <input type="checkbox" checked={on} onChange={() => toggle(p.index)} aria-label={`Tick ${p.title}`} className="accent-brand-500 w-4 h-4" />
                                             </td>
-                                            <td className={`${tdCls} min-w-[200px]`}>
-                                                <span className="block text-sm font-medium text-primary truncate max-w-[340px]">{p.title}</span>
+                                            <td className={`${tdCls} sm:min-w-[200px] max-sm:flex-1 max-sm:min-w-0`}>
+                                                <span className="block text-sm font-medium text-primary truncate max-w-full sm:max-w-[340px]">{p.title}</span>
                                                 <span className="block text-xs text-muted">
                                                     {p.title === `Row ${p.rowNumber}` ? 'No name found for this row' : `Row ${p.rowNumber}`}
                                                     {rowDays[p.index] ? ` · sent in ${rowDays[p.index]!.split('-').reverse().join('/')}` : ''}
                                                 </span>
                                             </td>
-                                            <td className={`${tdCls} min-w-[220px]`}>
+                                            <td className={`${tdCls} sm:min-w-[220px] max-sm:basis-full max-sm:pt-0 max-sm:pl-12`}>
                                                 {p.notes.length === 0 ? (
                                                     <span className="inline-flex items-center gap-1 text-xs text-status-confirmed">
                                                         <CheckCircle2 size={13} /> {overrides[p.index] ? 'You changed it' : 'All good'}
@@ -463,7 +463,7 @@ export default function FillView({ template, initialWorkbook = null, initialShee
                                                     </ul>
                                                 )}
                                             </td>
-                                            <td className={`${tdCls} text-right whitespace-nowrap`} onClick={e => e.stopPropagation()}>
+                                            <td className={`${tdCls} text-right whitespace-nowrap max-sm:basis-full max-sm:text-left max-sm:pt-0 max-sm:pl-10`} onClick={e => e.stopPropagation()}>
                                                 <Button size="sm" variant="ghost" onClick={() => openPreview(p)} disabled={!pdfBytes} title="See this filled form">
                                                     <Eye size={14} /> Preview
                                                 </Button>

@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { CheckSquare, Download, FileInput, FileSpreadsheet, FileText, HelpCircle, Pencil, Plus, Trash2, Type, Wand2, X } from 'lucide-react';
 import Card, { SectionHeader } from './ui/Card';
 import { Button, IconButton } from './ui/Button';
@@ -49,6 +49,9 @@ type Tab = 'sheet' | 'word';
  */
 export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
     const { data: templates = [], isLoading, error, refetch } = usePdfFormTemplates();
+    useEffect(() => {
+        if (error) console.error('PDF forms could not be loaded', error);
+    }, [error]);
     const [view, setView] = useState<View>({ mode: 'list' });
     const [tab, setTab] = usePersistentState<Tab>('pdf_forms_tab', 'sheet', { validate: (v): v is Tab => v === 'sheet' || v === 'word' });
     const [confirmDelete, setConfirmDelete] = useState<PdfFormTemplate | null>(null);
@@ -179,9 +182,15 @@ export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
                 className="w-fit"
                 options={[
                     { value: 'sheet', label: 'Fill from a spreadsheet', icon: <FileSpreadsheet size={13} /> },
-                    { value: 'word', label: 'PDF → Word', icon: <FileText size={13} /> },
+                    { value: 'word', label: 'Make a Word template', icon: <FileText size={13} /> },
                 ]}
             />
+
+            <p className="text-xs text-muted -mt-2">
+                {tab === 'word'
+                    ? 'Turn a PDF form into a Word template you can edit, then fill in and print.'
+                    : 'Fill in the same PDF form for many people, using a spreadsheet.'}
+            </p>
 
             {/* Both stay mounted, so a form being filled in survives a look at the other tab */}
             <div className={tab === 'word' ? '' : 'hidden'}>
@@ -213,7 +222,7 @@ export default function PdfForms({ canManage, admin = false }: PdfFormsProps) {
             {isLoading ? (
                 <SkeletonRows rows={3} />
             ) : error ? (
-                <ErrorState title="The forms couldn't be loaded. Check your internet connection (admins: is migration 75 applied?)" error={error} onRetry={() => refetch()} />
+                <ErrorState title="The forms couldn't be loaded. Check your internet connection and try again." error={null} onRetry={() => refetch()} />
             ) : templates.length === 0 ? (
                 <EmptyState
                     icon={<FileInput size={22} />}
