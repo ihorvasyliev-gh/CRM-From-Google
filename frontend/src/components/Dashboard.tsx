@@ -324,7 +324,7 @@ export default function Dashboard({
                     <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                 </button>
             </DashboardHeading>
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 pb-0.5">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap [&>*]:justify-center sm:[&>*]:justify-start">
                 {quickActions.map(a => (
                     <QuickActionButton key={a.key} action={a} compact={isMobile} />
                 ))}
