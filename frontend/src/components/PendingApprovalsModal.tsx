@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePendingApprovalsList, useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
 import { PendingCompletionRequest, cleanVariant } from '../lib/types';
 import { notify } from '../lib/toast';
 import DialogLayer from './ui/DialogLayer';
+import ConfirmDialog from './ConfirmDialog';
+import { ErrorState } from './ui/States';
 import { formatDisplayDate } from '../lib/dateUtils';
 import {
     X, CheckCircle, XCircle, Clock, GraduationCap,
@@ -32,13 +34,24 @@ function formatDateTime(dateTimeStr: string | null | undefined) {
 }
 
 export default function PendingApprovalsModal({ open, onClose }: PendingApprovalsModalProps) {
-    const { data: pendingList = [], isLoading, refetch } = usePendingApprovalsList(open);
+    const { data: pendingList = [], isLoading, error, refetch } = usePendingApprovalsList(open);
     const approveMutation = useApproveCompletion();
     const rejectMutation = useRejectCompletion();
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [rejectionTargetId, setRejectionTargetId] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState<string>('');
+    // Approving is not undoable, so a batch approval asks first
+    const [batchToConfirm, setBatchToConfirm] = useState<string[] | null>(null);
+
+    // Forget selections for requests that are no longer pending (approved elsewhere, list refreshed)
+    useEffect(() => {
+        setSelectedIds(prev => {
+            const live = new Set(pendingList.map(p => p.enrollment_id));
+            const next = new Set([...prev].filter(id => live.has(id)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, [pendingList]);
 
     const isAllSelected = pendingList.length > 0 && pendingList.every(p => selectedIds.has(p.enrollment_id));
 
@@ -127,7 +140,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 label="Pending approvals"
                 className="z-50 flex items-center justify-center p-3 sm:p-6"
                 backdropClassName="bg-background/80 backdrop-blur-xs"
-                panelClassName="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+                panelClassName="bg-surface rounded-3xl border border-border-subtle shadow-card max-w-4xl w-full max-h-[90dvh] flex flex-col overflow-hidden"
             >
                 {/* Header */}
                 <div className="p-5 border-b border-border-subtle flex items-center justify-between shrink-0">
@@ -141,7 +154,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                     Pending Course Completions
                                 </h2>
                                 <span className="text-xs font-bold text-status-requested bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                                    {pendingList.length} pending
+                                    {isLoading ? '…' : `${pendingList.length} pending`}
                                 </span>
                             </div>
                             <p className="text-xs text-muted">
@@ -151,7 +164,9 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                     </div>
 
                     <button
+                        type="button"
                         onClick={onClose}
+                        aria-label="Close"
                         className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-xl transition-all"
                         title="Close modal"
                     >
@@ -163,7 +178,9 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 {pendingList.length > 0 && (
                     <div className="px-5 py-3 border-b border-border-subtle/70 bg-surface-elevated/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
                         <button
+                            type="button"
                             onClick={toggleSelectAll}
+                            aria-pressed={isAllSelected}
                             className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-brand-500 transition-colors"
                         >
                             {isAllSelected ? <CheckSquare size={16} className="text-brand-500" /> : <Square size={16} />}
@@ -173,7 +190,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                         <div className="flex items-center gap-2">
                             {selectedIds.size > 0 ? (
                                 <button
-                                    onClick={() => handleApproveBatch(Array.from(selectedIds))}
+                                    onClick={() => setBatchToConfirm(Array.from(selectedIds))}
                                     disabled={approveMutation.isPending}
                                     className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                                 >
@@ -182,7 +199,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => handleApproveBatch(pendingList.map(p => p.enrollment_id))}
+                                    onClick={() => setBatchToConfirm(pendingList.map(p => p.enrollment_id))}
                                     disabled={approveMutation.isPending}
                                     className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                                 >
@@ -201,6 +218,8 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                             <Loader2 size={32} className="animate-spin text-brand-500" />
                             <span className="text-xs font-semibold">Loading pending approvals...</span>
                         </div>
+                    ) : error ? (
+                        <ErrorState title="Couldn't load the requests" error={error} onRetry={() => refetch()} />
                     ) : pendingList.length === 0 ? (
                         <div className="text-center py-16">
                             <div className="w-14 h-14 bg-emerald-500/10 text-status-confirmed rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -226,7 +245,10 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                                     {/* Left: Checkbox + Student details */}
                                     <div className="flex items-start gap-3 min-w-0 flex-1">
                                         <button
+                                            type="button"
                                             onClick={() => toggleSelectItem(item.enrollment_id)}
+                                            aria-pressed={isSelected}
+                                            aria-label={`Select ${item.student_name}`}
                                             className="mt-1 text-muted hover:text-brand-500 transition-colors shrink-0"
                                         >
                                             {isSelected ? <CheckSquare size={18} className="text-brand-500" /> : <Square size={18} />}
@@ -249,7 +271,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
 
                                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                                                 <span>{item.student_email}</span>
-                                                {item.student_phone && <span>• {item.student_phone}</span>}
+                                                {item.student_phone && <span>• <a href={`tel:${item.student_phone.replace(/[^\d+]/g, '')}`} className="hover:text-brand-500 underline-offset-2 hover:underline">{item.student_phone}</a></span>}
                                             </div>
 
                                             {/* Request Info Bar */}
@@ -297,7 +319,7 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-border-subtle bg-surface-elevated/40 flex items-center justify-between text-xs text-muted shrink-0">
+                <div className="p-4 border-t border-border-subtle bg-surface-elevated/40 flex flex-wrap items-center justify-between gap-3 text-xs text-muted shrink-0">
                     <span>Approving updates student status to <strong className="text-teal-600 dark:text-teal-400 font-bold">Completed</strong> with the specified date.</span>
                     <button
                         onClick={onClose}
@@ -307,6 +329,20 @@ export default function PendingApprovalsModal({ open, onClose }: PendingApproval
                     </button>
                 </div>
             </DialogLayer>
+
+            <ConfirmDialog
+                open={!!batchToConfirm}
+                variant="warning"
+                title={`Approve ${batchToConfirm?.length ?? 0} completion${batchToConfirm?.length === 1 ? '' : 's'}?`}
+                message="Each student will be marked Completed with the date the viewer gave. This can't be undone from here."
+                confirmLabel="Approve"
+                onCancel={() => setBatchToConfirm(null)}
+                onConfirm={async () => {
+                    const ids = batchToConfirm ?? [];
+                    setBatchToConfirm(null);
+                    await handleApproveBatch(ids);
+                }}
+            />
 
             {/* Rejection Prompt Modal */}
             <DialogLayer
