@@ -5,7 +5,7 @@ import type { ViewerUpcomingCourse } from '../lib/types';
 import { formatLocalDate, todayISO, formatDisplayDate } from '../lib/dateUtils';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { useViewerCourses, useViewerUpcoming } from './Viewer/useViewerData';
-import { ErrorState, StatusDistributionBar } from './Viewer/ViewerUI';
+import { EmptyState, ErrorState, StatusDistributionBar } from './Viewer/ViewerUI';
 import { daysFromToday, pluralize, relativeDay, weekdayDate } from './Viewer/viewerUtils';
 import PublicLinksCard from './Dashboard/PublicLinksCard';
 
@@ -59,12 +59,12 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
     }, [upcoming, courses]);
 
     const attention = courses.filter(c => c.pending_approval_count > 0).sort((a, b) => b.pending_approval_count - a.pending_approval_count);
+    // One course: straight to its "Awaiting approval" tab; several: the course list, those courses first
+    const openAwaiting = () => navigate(attention.length === 1 ? `/courses/${attention[0].id}?status=awaiting` : '/courses?sort=pending');
     const pinnedCourses = courses.filter(c => pinned.includes(c.id));
     const quickCourses = pinnedCourses.length > 0
         ? pinnedCourses
         : [...courses].sort((a, b) => (b.total_count - b.completed_count) - (a.total_count - a.completed_count)).slice(0, 5);
-
-    const loading = loadingCourses || loadingUpcoming;
 
     return (
         <div className="max-w-7xl mx-auto w-full space-y-6">
@@ -85,10 +85,10 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
 
             {/* KPI tiles */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatTile label="Sessions · next 14 days" value={stats.sessions} icon={<CalendarDays size={16} />} tone="brand" loading={loading} onClick={() => document.getElementById('viewer-upcoming')?.scrollIntoView({ behavior: 'smooth' })} />
-                <StatTile label="Confirmed attendees" value={stats.confirmed} icon={<CheckCircle2 size={16} />} tone="emerald" loading={loading} hint={stats.pending ? `+${stats.pending} awaiting reply` : undefined} />
-                <StatTile label="Waiting in queues" value={stats.queue} icon={<Users size={16} />} tone="amber" loading={loading} onClick={() => navigate('/students?status=requested')} />
-                <StatTile label="Awaiting admin approval" value={stats.awaiting} icon={<Clock size={16} />} tone="violet" loading={loading} />
+                <StatTile label="Sessions · next 14 days" value={upcomingError ? null : stats.sessions} icon={<CalendarDays size={16} />} tone="brand" loading={loadingUpcoming} hint="Course days coming up" onClick={() => document.getElementById('viewer-upcoming')?.scrollIntoView({ behavior: 'smooth' })} />
+                <StatTile label="Confirmed attendees" value={upcomingError ? null : stats.confirmed} icon={<CheckCircle2 size={16} />} tone="emerald" loading={loadingUpcoming} hint={stats.pending ? `+${stats.pending} awaiting reply` : 'Next 14 days'} />
+                <StatTile label="Waiting for a place" value={coursesError ? null : stats.queue} icon={<Users size={16} />} tone="amber" loading={loadingCourses} hint="In course queues" onClick={() => navigate('/students?status=requested')} />
+                <StatTile label="Awaiting admin approval" value={coursesError ? null : stats.awaiting} icon={<Clock size={16} />} tone="violet" loading={loadingCourses} hint="Completion requests" onClick={stats.awaiting > 0 && !coursesError ? openAwaiting : undefined} />
             </div>
 
             <PublicLinksCard className="lg:hidden" />
@@ -109,11 +109,9 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                             {[0, 1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/10 rounded-xl animate-pulse" />)}
                         </div>
                     ) : groups.length === 0 ? (
-                        <div className="bg-surface rounded-2xl border border-dashed border-border-strong/60 p-8 text-center">
-                            <Calendar size={22} className="mx-auto text-muted mb-2" />
-                            <p className="text-sm font-semibold text-primary">No upcoming sessions</p>
-                            <p className="text-xs text-muted mt-0.5">New course dates will show up here.</p>
-                        </div>
+                        upcomingError ? null : (
+                            <EmptyState icon={<Calendar size={22} />} title="No upcoming sessions" description="New course dates will show up here." />
+                        )
                     ) : (
                         <div className="space-y-4">
                             {groups.map(({ bucket, sessions }) => (
@@ -154,8 +152,8 @@ export default function ViewerHome({ onOpenSearch }: { onOpenSearch?: () => void
                         </h2>
                         {loadingCourses ? (
                             <div className="bg-surface rounded-2xl border border-border-subtle p-4 space-y-3">{[0, 1, 2].map(i => <div key={i} className="h-10 bg-muted/10 rounded-xl animate-pulse" />)}</div>
-                        ) : quickCourses.length === 0 ? (
-                            <p className="text-xs text-muted">No courses yet.</p>
+                        ) : coursesError ? null : quickCourses.length === 0 ? (
+                            <EmptyState className="py-8!" icon={<BookOpen size={20} />} title="No courses yet" description="Courses will show up here once an admin adds them." />
                         ) : (
                             <div className="bg-surface rounded-2xl border border-border-subtle divide-y divide-border-subtle shadow-card overflow-hidden">
                                 {quickCourses.map(c => (
@@ -188,7 +186,7 @@ const TONES = {
 };
 
 function StatTile({ label, value, icon, tone, loading, hint, onClick }: {
-    label: string; value: number; icon: ReactNode; tone: keyof typeof TONES; loading: boolean; hint?: string; onClick?: () => void;
+    label: string; value: number | null; icon: ReactNode; tone: keyof typeof TONES; loading: boolean; hint?: string; onClick?: () => void;
 }) {
     const Tag = onClick ? 'button' : 'div';
     return (
@@ -203,9 +201,13 @@ function StatTile({ label, value, icon, tone, loading, hint, onClick }: {
             {loading ? (
                 <div className="h-7 w-12 bg-muted/15 rounded-lg animate-pulse mt-2" />
             ) : (
-                <div className="text-2xl font-bold text-primary tabular-nums mt-1">{value}</div>
+                <div className="text-2xl font-bold text-primary tabular-nums mt-1">
+                    {value ?? <span className="text-muted" aria-label="Not available">—</span>}
+                </div>
             )}
-            {hint && !loading && <div className="text-xs text-muted mt-0.5">{hint}</div>}
+            {!loading && (value === null
+                ? <div className="text-xs text-status-rejected mt-0.5">Couldn't load</div>
+                : hint && <div className="text-xs text-muted mt-0.5">{hint}</div>)}
         </Tag>
     );
 }
@@ -221,26 +223,28 @@ function SessionRow({ session, onOpen }: { session: ViewerUpcomingCourse; onOpen
                 <div className="text-base font-bold leading-tight tabular-nums">{d.getDate()}</div>
                 <div className="text-[9px] font-semibold uppercase leading-none mb-0.5 opacity-80">{formatLocalDate(d, { month: 'short' })}</div>
             </div>
-            <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{session.course_name}</div>
-                <div className="text-xs text-muted">{weekdayDate(session.course_date)} · {relativeDay(session.course_date)}</div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 text-xs font-bold tabular-nums">
-                {session.max_capacity != null ? (
-                    <span
-                        className={`px-2 py-0.5 rounded-full ${session.is_full ? 'status-pill-rejected' : 'status-pill-confirmed'}`}
-                        title={session.is_full ? `Full — ${session.max_capacity} places` : `Confirmed of ${session.max_capacity} places`}
-                    >
-                        {session.confirmed_count}/{session.max_capacity}
-                        <span className="hidden sm:inline font-semibold">{session.is_full ? ' full' : ' confirmed'}</span>
-                    </span>
-                ) : (
-                    <span className="px-2 py-0.5 rounded-full status-pill-confirmed" title="Confirmed">{session.confirmed_count}<span className="hidden sm:inline font-semibold"> confirmed</span></span>
-                )}
-                {session.pending_count > 0 && (
-                    <span className="px-2 py-0.5 rounded-full status-pill-invited" title="Invited, waiting for a reply">{session.pending_count}<span className="hidden sm:inline font-semibold"> pending</span></span>
-                )}
-                {total === 0 && <span className="text-muted font-medium">No bookings</span>}
+            <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-primary truncate group-hover:text-brand-600 dark:group-hover:text-brand-400">{session.course_name}</div>
+                    <div className="text-xs text-muted">{weekdayDate(session.course_date)} · {relativeDay(session.course_date)}</div>
+                </div>
+                <div className="flex items-center flex-wrap gap-1.5 shrink-0 text-xs font-bold tabular-nums">
+                    {session.max_capacity != null ? (
+                        <span
+                            className={`px-2 py-0.5 rounded-full ${session.is_full ? 'status-pill-rejected' : 'status-pill-confirmed'}`}
+                            title={session.is_full ? `Full — ${session.max_capacity} places` : `Confirmed of ${session.max_capacity} places`}
+                        >
+                            {session.confirmed_count}/{session.max_capacity}
+                            <span className="font-semibold">{session.is_full ? ' full' : ' confirmed'}</span>
+                        </span>
+                    ) : (
+                        <span className="px-2 py-0.5 rounded-full status-pill-confirmed" title="Confirmed">{session.confirmed_count}<span className="font-semibold"> confirmed</span></span>
+                    )}
+                    {session.pending_count > 0 && (
+                        <span className="px-2 py-0.5 rounded-full status-pill-invited" title="Invited, waiting for a reply">{session.pending_count}<span className="font-semibold"> pending</span></span>
+                    )}
+                    {total === 0 && <span className="text-muted font-medium">No bookings</span>}
+                </div>
             </div>
             <ArrowRight size={14} className="text-muted shrink-0 hidden sm:block group-hover:translate-x-0.5 transition-transform" />
         </button>

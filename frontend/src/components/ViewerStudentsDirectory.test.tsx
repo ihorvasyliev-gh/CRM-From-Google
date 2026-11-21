@@ -192,6 +192,42 @@ describe('ViewerStudentsDirectory', () => {
         expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
     });
 
+    it('goes back to page 1 when ?page= is past the last page', async () => {
+        (supabase.rpc as any).mockImplementation((name: string, args: any) => {
+            if (name === 'get_viewer_courses') return Promise.resolve({ data: mockCourses, error: null });
+            if (name === 'get_viewer_students_directory') return Promise.resolve({ data: args.p_offset > 0 ? [] : mockStudents, error: null });
+            return Promise.resolve({ data: null, error: null });
+        });
+        renderViewer(routes, '/students?page=9&status=confirmed');
+
+        expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
+        expect(location()).toBe('/students?status=confirmed');
+        expect(screen.queryByText('No students match these filters')).not.toBeInTheDocument();
+    });
+
+    it('says "match" only when a filter narrows the list, not for a different sort', async () => {
+        renderViewer(routes, '/students?sort=name_asc');
+        await screen.findAllByTestId('student-row');
+        expect(screen.getByText('2 students')).toBeInTheDocument();
+        expect(screen.queryByText(/match/)).not.toBeInTheDocument();
+        // The sort chip still offers a way back to the default order
+        expect(screen.getByRole('button', { name: 'Reset filters' })).toBeInTheDocument();
+    });
+
+    it('offers call, WhatsApp (in +353 form) and email on every row', async () => {
+        renderViewer(routes, '/students');
+        const [jane, john] = await screen.findAllByTestId('student-row');
+
+        expect(within(jane).getByRole('link', { name: 'Call Jane Doe' })).toHaveAttribute('href', 'tel:+353871234567');
+        expect(within(jane).getByRole('link', { name: 'WhatsApp Jane Doe' })).toHaveAttribute('href', 'https://wa.me/353871234567');
+        expect(within(jane).getByRole('link', { name: 'Email Jane Doe' })).toHaveAttribute('href', 'mailto:jane@example.com');
+        expect(within(jane).getAllByText('087 123 4567').length).toBeGreaterThan(0);
+
+        // No phone: just email
+        expect(within(john).queryByRole('link', { name: /Call/ })).not.toBeInTheDocument();
+        expect(within(john).getByRole('link', { name: 'Email John Smith' })).toBeInTheDocument();
+    });
+
     it('does not render a variant badge for students without course or variant', async () => {
         setupRpc([student({ primary_course_name: null, primary_course_id: null, primary_status: null, primary_course_variant: null })]);
         renderViewer(routes, '/students');

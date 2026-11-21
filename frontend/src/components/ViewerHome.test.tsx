@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, within } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Route } from 'react-router-dom';
 import ViewerHome from './ViewerHome';
 import { supabase } from '../lib/supabase';
@@ -16,7 +16,7 @@ const TOMORROW = isoFromToday(1);
 const LATER = isoFromToday(30);
 
 /** The KPI tile with this label: the session dates on the page can show the same numbers (the 10th, the 13th…) */
-const tile = (label: string) => screen.getByText(label).closest('.shadow-card') as HTMLElement;
+const tile = (label: string) => screen.getByText(label, { selector: 'span' }).closest('.shadow-card') as HTMLElement;
 
 const courses = [
     { id: 'c-1', name: 'Manual Handling', created_at: '2026-01-01', total_count: 20, requested_count: 5, invited_count: 3, confirmed_count: 7, completed_count: 5, rejected_count: 0, pending_approval_count: 2 },
@@ -55,7 +55,7 @@ describe('ViewerHome', () => {
         // 2 sessions within 14 days, 10 confirmed (+1 awaiting reply), 13 in queues, 2 awaiting approval
         expect(await screen.findByText('+1 awaiting reply')).toBeInTheDocument();
         expect(within(tile('Confirmed attendees')).getByText('10')).toBeInTheDocument();
-        expect(within(tile('Waiting in queues')).getByText('13')).toBeInTheDocument();
+        expect(within(tile('Waiting for a place')).getByText('13')).toBeInTheDocument();
     });
 
     it('groups upcoming sessions by day and opens the roster for that date', async () => {
@@ -110,6 +110,49 @@ describe('ViewerHome', () => {
         expect(screen.getAllByRole('link', { name: 'Open Registration form' })[0]).toHaveAttribute('href', 'https://forms.gle/9U4DsSe5UYnsakJZ8');
         expect(screen.getAllByRole('link', { name: 'Open Cheque requisition' })[0]).toHaveAttribute('href', `${window.location.origin}/cheque`);
         expect(screen.getAllByRole('link', { name: 'Open Certificates' })[0]).toHaveAttribute('href', `${window.location.origin}/certificates`);
+    });
+
+    it('opens the awaiting-approval tab from its tile', async () => {
+        render();
+        await waitFor(() => expect(within(tile('Awaiting admin approval')).getByText('2')).toBeInTheDocument());
+        // Only one course has requests waiting: straight to its tab
+        fireEvent.click(tile('Awaiting admin approval'));
+        expect(screen.getByTestId('location').textContent).toBe('/courses/c-1?status=awaiting');
+    });
+
+    it('opens the course list sorted by waiting requests when several courses have some', async () => {
+        (supabase.rpc as any).mockImplementation((name: string) => {
+            if (name === 'get_viewer_courses') return Promise.resolve({ data: courses.map(c => ({ ...c, pending_approval_count: 1 })), error: null });
+            if (name === 'get_viewer_upcoming_courses') return Promise.resolve({ data: upcoming, error: null });
+            return Promise.resolve({ data: null, error: null });
+        });
+        render();
+        await waitFor(() => expect(within(tile('Awaiting admin approval')).getByText('2')).toBeInTheDocument());
+        fireEvent.click(tile('Awaiting admin approval'));
+        expect(screen.getByTestId('location').textContent).toBe('/courses?sort=pending');
+    });
+
+    it('does not show zeros when the data failed to load', async () => {
+        (supabase.rpc as any).mockImplementation((name: string) => {
+            if (name === 'get_viewer_courses') return Promise.resolve({ data: null, error: { message: 'Network down' } });
+            if (name === 'get_viewer_upcoming_courses') return Promise.resolve({ data: upcoming, error: null });
+            return Promise.resolve({ data: null, error: null });
+        });
+        render();
+        expect(await screen.findByText('Some data failed to load')).toBeInTheDocument();
+        expect(within(tile('Waiting for a place')).getByText('—')).toBeInTheDocument();
+        expect(within(tile('Awaiting admin approval')).getByText("Couldn't load")).toBeInTheDocument();
+        expect(within(tile('Awaiting admin approval')).queryByText('0')).not.toBeInTheDocument();
+        // Sessions still load on their own
+        expect(within(tile('Confirmed attendees')).getByText('10')).toBeInTheDocument();
+        expect(screen.queryByText('No courses yet')).not.toBeInTheDocument();
+    });
+
+    it('spells out confirmed and pending on every session row', async () => {
+        render();
+        expect(await screen.findByText('6')).toBeInTheDocument();
+        const pending = screen.getAllByTitle('Invited, waiting for a reply');
+        expect(pending[0]).toHaveTextContent('1 pending');
     });
 
     it('shows pinned courses first when there are any', async () => {

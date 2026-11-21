@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowLeft, ArrowDownUp, Calendar, CheckSquare, ChevronRight, Clock, Copy, Download, FileSpreadsheet,
-    GraduationCap, Layers, Loader2, Minus, Phone, RefreshCw, Square, Users, X, AlertTriangle,
+    GraduationCap, Layers, Loader2, Minus, Phone, RefreshCw, SlidersHorizontal, Square, Users, X, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { cleanVariant, type ViewerCourseRosterItem } from '../../lib/types';
@@ -224,6 +224,9 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
     };
 
     const hasFilters = !!(search.value.trim() || dateFilter || stream || tab !== 'all');
+    // Phones: stream + sort fold away behind a "Filters" button (open by itself when one is set)
+    const extraFilterCount = (stream ? 1 : 0) + (sort !== 'queue' ? 1 : 0);
+    const [moreFilters, setMoreFilters] = useState(extraFilterCount > 0);
     const resetFilters = () => {
         search.setValue('');
         setParams({ q: null, date: null, stream: null, status: null, past: null });
@@ -315,32 +318,46 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
             )}
 
             {/* Toolbar */}
-            <div className="sticky top-[57px] z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-background/90 backdrop-blur-md space-y-2">
+            {/* Sticks right under the viewer header, whatever its height (ViewerHeader publishes it) */}
+            <div className="sticky top-[var(--viewer-header-h,3.5rem)] z-10 -mx-3 sm:mx-0 px-3 sm:px-0 py-2 bg-background sm:bg-background/90 sm:backdrop-blur-md space-y-2">
                 <div className="flex flex-col gap-2">
                     <Segmented className="self-start" ariaLabel="Status" options={tabOptions} value={tab} onChange={v => { setFilter({ status: v === 'all' ? null : v, date: null }); }} />
                     <div className="flex gap-2 flex-1 min-w-0">
                         <SearchField className="flex-1 min-w-0" value={search.value} onChange={search.setValue} onClear={search.clear} placeholder="Search name, email, phone…" ariaLabel="Search students in this course" />
+                        <button
+                            type="button"
+                            onClick={() => setMoreFilters(o => !o)}
+                            aria-expanded={moreFilters}
+                            aria-controls="roster-more-filters"
+                            className={`sm:hidden h-10 px-3 shrink-0 inline-flex items-center gap-1.5 rounded-xl border text-xs font-semibold shadow-card transition-colors ${
+                                moreFilters || extraFilterCount > 0 ? 'bg-brand-500/5 border-brand-500/50 text-primary' : 'bg-surface border-border-subtle text-muted'
+                            }`}
+                        >
+                            <SlidersHorizontal size={14} />
+                            Sort{streams.length > 1 ? ' & stream' : ''}
+                            {extraFilterCount > 0 && <span className="px-1.5 rounded-full bg-brand-500 text-white text-xs font-bold tabular-nums">{extraFilterCount}</span>}
+                        </button>
                         {streams.length > 1 && (
                             <SelectField label="Stream" value={stream || 'all'} onChange={v => setFilter({ stream: v === 'all' ? null : v, date: null })} className="w-36 hidden sm:block" icon={<Layers size={13} />}>
                                 <option value="all">All streams</option>
                                 {streams.map(s => <option key={s} value={s}>{s}</option>)}
                             </SelectField>
                         )}
-                        <SelectField label="Sort" value={sort} onChange={v => setFilter({ sort: v === 'queue' ? null : v })} className="w-40 hidden sm:block" icon={<ArrowDownUp size={13} />}>
+                        <SelectField label="Sort" value={sort} defaultValue="queue" onChange={v => setFilter({ sort: v === 'queue' ? null : v })} className="w-40 hidden sm:block" icon={<ArrowDownUp size={13} />}>
                             {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </SelectField>
                     </div>
                 </div>
 
                 {/* Mobile-only secondary filters */}
-                <div className="flex gap-2 sm:hidden">
+                <div id="roster-more-filters" className={`gap-2 sm:hidden ${moreFilters ? 'flex' : 'hidden'}`}>
                     {streams.length > 1 && (
                         <SelectField label="Stream" value={stream || 'all'} onChange={v => setFilter({ stream: v === 'all' ? null : v, date: null })} className="flex-1" icon={<Layers size={13} />}>
                             <option value="all">All streams</option>
                             {streams.map(s => <option key={s} value={s}>{s}</option>)}
                         </SelectField>
                     )}
-                    <SelectField label="Sort" value={sort} onChange={v => setFilter({ sort: v === 'queue' ? null : v })} className="flex-1" icon={<ArrowDownUp size={13} />}>
+                    <SelectField label="Sort" value={sort} defaultValue="queue" onChange={v => setFilter({ sort: v === 'queue' ? null : v })} className="flex-1" icon={<ArrowDownUp size={13} />}>
                         {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </SelectField>
                 </div>
@@ -549,7 +566,7 @@ function RosterRow({
                 onOpen();
             }}
             onKeyDown={onKeyDown}
-            className={`group flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 focus-visible:shadow-[inset_3px_0_0_0] focus-visible:shadow-brand-500 ${
+            className={`group flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1.5 px-3 sm:px-4 py-3 cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:bg-brand-500/5 focus-visible:shadow-[inset_3px_0_0_0] focus-visible:shadow-brand-500 ${
                 selected ? 'bg-brand-500/6' : 'hover:bg-surface-elevated/60'
             }`}
         >
@@ -560,7 +577,7 @@ function RosterRow({
                 aria-label={selected ? `Deselect ${name}` : `Select ${name}`}
                 onClick={e => { e.stopPropagation(); onToggle(e.shiftKey); }}
                 onKeyDown={e => e.stopPropagation()}
-                className="p-1 -m-1 text-muted hover:text-brand-600 shrink-0 self-start sm:self-center mt-2 sm:mt-0"
+                className="p-1 -m-1 text-muted hover:text-brand-600 shrink-0"
             >
                 {selected ? <CheckSquare size={17} className="text-brand-500" /> : <Square size={17} />}
             </button>
@@ -573,15 +590,13 @@ function RosterRow({
                     {item.is_priority && <PriorityStar />}
                     {variant && <span className="hidden sm:inline text-xs font-medium text-muted bg-surface-elevated border border-border-subtle px-1.5 py-0.5 rounded-md shrink-0">{variant}</span>}
                 </div>
-                <div className="text-xs text-muted flex items-center gap-2 min-w-0">
+                <div className="text-xs text-muted flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0">
                     <CopyText value={item.email} label="Email" className="min-w-0" />
-                    {item.phone && <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0 tabular-nums">· {formatPhoneDisplay(item.phone)}</CopyText>}
-                </div>
-                {/* Mobile meta */}
-                <div className="md:hidden flex items-center flex-wrap gap-1.5 mt-1.5">
-                    <StatusBadge status={item.status} queuePosition={item.queue_position} pendingApproval={pending} />
-                    {session && <span className="text-xs text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
-                    {variant && <span className="sm:hidden text-xs text-muted">{variant}</span>}
+                    {item.phone && (
+                        <CopyText value={item.phone} label="Phone" className="lg:hidden shrink-0 tabular-nums">
+                            <span className="hidden sm:inline">· </span>{formatPhoneDisplay(item.phone)}
+                        </CopyText>
+                    )}
                 </div>
                 {declined && (
                     <p className="mt-1 text-xs text-status-rejected line-clamp-2">
@@ -619,15 +634,22 @@ function RosterRow({
                         type="button"
                         onClick={e => { e.stopPropagation(); onRequestCompletion(); }}
                         onKeyDown={e => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 h-8 px-2 rounded-lg text-xs font-semibold text-status-confirmed hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 transition-colors"
+                        className="inline-flex items-center gap-1 h-9 sm:h-8 px-2.5 sm:px-2 rounded-lg text-xs font-semibold text-status-confirmed bg-emerald-500/5 sm:bg-transparent hover:bg-emerald-500/10 border border-emerald-500/25 sm:border-transparent hover:border-emerald-500/30 transition-colors"
                         title={declined ? 'Re-submit completion request' : 'Request completion'}
-                        aria-label={`Mark ${name} completed`}
+                        aria-label={`${declined ? 'Re-submit' : 'Complete'} ${name}`}
                     >
                         <GraduationCap size={15} />
-                        <span className="hidden sm:inline">{declined ? 'Re-submit' : 'Complete'}</span>
+                        <span>{declined ? 'Re-submit' : 'Complete'}</span>
                     </button>
                 ) : null}
                 <ChevronRight size={16} className="text-muted/60 group-hover:text-muted hidden sm:block" />
+            </div>
+
+            {/* Phones and small tablets: status and course day on their own line, under the name */}
+            <div className="md:hidden basis-full flex items-center flex-wrap gap-1.5 pl-[77px]">
+                <StatusBadge status={item.status} queuePosition={item.queue_position} pendingApproval={pending} />
+                {session && <span className="text-xs text-muted inline-flex items-center gap-1"><Calendar size={11} />{weekdayDate(session)}</span>}
+                {variant && <span className="sm:hidden text-xs text-muted">{variant}</span>}
             </div>
         </div>
     );

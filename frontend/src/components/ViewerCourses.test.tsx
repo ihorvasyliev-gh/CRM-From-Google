@@ -125,6 +125,27 @@ describe('ViewerCourses', () => {
             expect(location()).toBe('/courses/course-2');
         });
 
+        it('opens a course with Enter or Space, but not when a button inside has focus', async () => {
+            renderViewer(routes, '/courses');
+            const card = await screen.findByRole('link', { name: 'Open Barista Skills' });
+
+            fireEvent.keyDown(within(card).getByRole('button', { name: 'Pin Barista Skills' }), { key: ' ' });
+            expect(location()).toBe('/courses');
+
+            fireEvent.keyDown(card, { key: ' ' });
+            expect(location()).toBe('/courses/course-2');
+        });
+
+        it('in list view, shows per-status counts and opens the awaiting tab from its pill', async () => {
+            window.localStorage.setItem('viewer_catalog_view', JSON.stringify('list'));
+            renderViewer(routes, '/courses');
+            const row = await screen.findByRole('link', { name: 'Open First Aid Training' });
+
+            expect(within(row).getAllByText('in queue').length).toBeGreaterThan(0);
+            fireEvent.click(within(row).getByRole('button', { name: /1 awaiting/ }));
+            expect(location()).toBe('/courses/course-1?status=awaiting');
+        });
+
         it('pins a course to the top and remembers it', async () => {
             renderViewer(routes, '/courses');
             fireEvent.click(await screen.findByRole('button', { name: 'Pin Barista Skills' }));
@@ -290,7 +311,7 @@ describe('ViewerCourses', () => {
             renderViewer(routes, '/courses/course-1');
             await screen.findByText('Dana White');
 
-            fireEvent.click(screen.getByRole('button', { name: 'Mark Dana White completed' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Complete Dana White' }));
             expect(await screen.findByLabelText('Completion date')).toHaveTextContent(formatDisplayDate(TODAY));
         });
 
