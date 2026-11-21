@@ -28,6 +28,8 @@ interface MobileBottomNavProps {
     onOpenCommandPalette: () => void;
     onSignOut: () => void;
     userEmail?: string;
+    /** Admins: course completion requests waiting for approval (badge on the Dashboard tab) */
+    pendingApprovalsCount?: number;
 }
 
 export default function MobileBottomNav({
@@ -40,10 +42,13 @@ export default function MobileBottomNav({
     toggleDensity,
     onOpenCommandPalette,
     onSignOut,
-    userEmail
+    userEmail,
+    pendingApprovalsCount = 0
 }: MobileBottomNavProps) {
     const [moreOpen, setMoreOpen] = useState(false);
     const closeMore = () => setMoreOpen(false);
+    // The More tab lights up while one of the pages inside it is open
+    const moreActive = activeTab === 'external-lists' || activeTab === 'pdf-forms';
 
     if (isViewer) {
         return (
@@ -79,6 +84,7 @@ export default function MobileBottomNav({
 
                         <button
                             onClick={onOpenCommandPalette}
+                            aria-label="Search"
                             className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[60px]"
                         >
                             <div className="p-1">
@@ -89,9 +95,15 @@ export default function MobileBottomNav({
 
                         <button
                             onClick={() => setMoreOpen(true)}
-                            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-muted hover:text-primary transition-all duration-200 min-w-[60px]"
+                            aria-label="More"
+                            aria-haspopup="dialog"
+                            aria-expanded={moreOpen}
+                            aria-current={moreActive ? 'page' : undefined}
+                            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[60px] ${
+                                moreActive ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-muted hover:text-primary'
+                            }`}
                         >
-                            <div className="p-1">
+                            <div className={`p-1 rounded-lg transition-transform ${moreActive ? 'bg-brand-500/10 scale-110' : ''}`}>
                                 <MoreHorizontal size={19} />
                             </div>
                             <span className="text-xs tracking-tight mt-0.5">More</span>
@@ -116,7 +128,7 @@ export default function MobileBottomNav({
                             <p className="text-xs font-bold uppercase tracking-wider text-muted">Viewer Portal</p>
                             <p className="text-sm font-semibold text-primary truncate">{userEmail}</p>
                         </div>
-                        <button onClick={closeMore} className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors">
+                        <button onClick={closeMore} aria-label="Close menu" className="p-1.5 text-muted hover:text-primary rounded-lg hover:bg-surface transition-colors">
                             <X size={18} />
                         </button>
                     </div>
@@ -149,10 +161,10 @@ export default function MobileBottomNav({
                         </button>
                         <button
                             onClick={toggleDensity}
-                            className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all capitalize"
+                            className="flex items-center gap-2 p-3 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-medium text-primary transition-all"
                         >
                             <Rows3 size={16} className="text-brand-500" />
-                            <span>{density} View</span>
+                            <span>{density === 'compact' ? 'Compact view' : 'Comfortable view'}</span>
                         </button>
                     </div>
 
@@ -178,14 +190,23 @@ export default function MobileBottomNav({
                 <button
                     onClick={() => onNavigate('dashboard')}
                     aria-current={activeTab === 'dashboard' ? 'page' : undefined}
+                    aria-label={pendingApprovalsCount > 0 ? `Dashboard, ${pendingApprovalsCount} approval${pendingApprovalsCount > 1 ? 's' : ''} waiting` : undefined}
                     className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 min-w-[56px] ${
                         activeTab === 'dashboard'
                             ? 'text-brand-600 dark:text-brand-400 font-bold'
                             : 'text-muted hover:text-primary'
                     }`}
                 >
-                    <div className={`p-1 rounded-lg transition-transform ${activeTab === 'dashboard' ? 'bg-brand-500/10 scale-110' : ''}`}>
+                    <div className={`relative p-1 rounded-lg transition-transform ${activeTab === 'dashboard' ? 'bg-brand-500/10 scale-110' : ''}`}>
                         <LayoutDashboard size={18} />
+                        {pendingApprovalsCount > 0 && (
+                            <span
+                                aria-hidden
+                                className="absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-4 text-center"
+                            >
+                                {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+                            </span>
+                        )}
                     </div>
                     <span className="text-xs tracking-tight mt-0.5">Dashboard</span>
                 </button>
