@@ -225,7 +225,7 @@ describe('StudentDetailDrawer Component', () => {
         renderWithClient(<StudentDetailDrawer studentId="st-101" onClose={onClose} />);
         await screen.findByText('Jane Doe');
 
-        fireEvent.click(screen.getByLabelText('Close drawer'));
+        fireEvent.click(screen.getByLabelText('Close student details'));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 

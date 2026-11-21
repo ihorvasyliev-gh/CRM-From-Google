@@ -1,12 +1,27 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { buildStudentSearchFilters } from '../lib/searchUtils';
-import { Student } from '../lib/types';
-import { X, Loader2, Search, GitMerge, Check, AlertCircle } from 'lucide-react';
+import { fullName, type Student } from '../lib/types';
+import { Loader2, Search, GitMerge, Check, AlertCircle, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import DialogLayer from './ui/DialogLayer';
+import Modal, { FormError } from './ui/Modal';
+import { Button } from './ui/Button';
+import { calloutCls, fieldCls, labelCls } from './ui/styles';
+import { formatDisplayDate } from '../lib/dateUtils';
+import { formatPhoneDisplay } from '../lib/contactUtils';
 import { errorMessage } from '../lib/errors';
 import { refreshStudentEnrollments } from '../lib/enrollmentCache';
+
+/** The details compared side by side */
+const MERGE_FIELDS: [label: string, field: keyof Student][] = [
+    ['First name', 'first_name'],
+    ['Last name', 'last_name'],
+    ['Email', 'email'],
+    ['Phone', 'phone'],
+    ['Address', 'address'],
+    ['Eircode', 'eircode'],
+    ['Date of birth', 'dob'],
+];
 
 interface Props {
     open: boolean;
@@ -27,6 +42,8 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
     const [error, setError] = useState('');
     const [markingNonDuplicate, setMarkingNonDuplicate] = useState(false);
     const [editedFields, setEditedFields] = useState<Partial<Student>>({});
+    // Phones and short screens: only the details that differ, unless asked for all
+    const [showAllFields, setShowAllFields] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -175,280 +192,220 @@ export default function MergeModal({ open, student: sourceStudent, initialTarget
         }
     }
 
+    const busy = merging || markingNonDuplicate;
+    const primaryName = fullName(primaryStudent) || 'this student';
+    const duplicateName = fullName(duplicateStudent) || 'the other student';
+    // The two records keep their places while the kept one is switched, so nothing jumps
+    const pair = targetStudent ? [sourceStudent, targetStudent] : [];
+    const contactLine = (s: Student) => [s.email, s.phone && formatPhoneDisplay(s.phone)].filter(Boolean).join(' · ') || 'No email or phone';
+    const differs = (field: keyof Student) => ((sourceStudent[field] as string) || '') !== ((targetStudent?.[field] as string) || '');
+    const shownFields = MERGE_FIELDS.filter(([, field]) => showAllFields || differs(field) || editedFields[field] !== undefined);
+
     return (
-        <DialogLayer
+        <Modal
             open={open}
             onClose={onClose}
-            dismissible={!merging && !markingNonDuplicate}
-            label="Merge Student Profiles"
-            className="z-60 flex items-center justify-center p-4"
-            panelClassName="w-full max-w-2xl bg-surface border border-border-subtle rounded-2xl shadow-float overflow-hidden max-h-[90vh] flex flex-col"
-        >
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-border-subtle bg-surface shrink-0">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-brand-50 rounded-xl text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
-                            <GitMerge size={18} />
-                        </div>
-                        <h2 className="text-lg font-bold text-primary">Merge Student Profiles</h2>
-                    </div>
-                    <button onClick={onClose} className="p-2 text-muted hover:text-primary hover:bg-surface rounded-lg transition-all">
-                        <X size={18} />
-                    </button>
+            dismissible={!busy}
+            title="Merge duplicate students"
+            subtitle={targetStudent ? 'Choose the record to keep' : `Find the duplicate of ${fullName(sourceStudent)}`}
+            icon={GitMerge}
+            labelId="merge-modal-title"
+            size="xl"
+            zIndex="z-60"
+            sheetOnMobile
+            footer={
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 w-full">
+                    <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+                    {targetStudent && (
+                        <Button variant="secondary" onClick={handleMarkAsNonDuplicate} disabled={busy} loading={markingNonDuplicate}>
+                            {!markingNonDuplicate && <Check size={15} />} Not the same person
+                        </Button>
+                    )}
+                    {targetStudent && (
+                        <Button variant="primary" onClick={handleMerge} disabled={busy} loading={merging} className="whitespace-normal! h-auto! min-h-9 py-2 text-left">
+                            {!merging && <GitMerge size={15} className="shrink-0" />}
+                            {merging ? 'Merging…' : `Merge into ${primaryName}`}
+                        </Button>
+                    )}
                 </div>
-            </div>
+            }
+        >
+            <div className="space-y-4">
+                {error && <FormError>{error}</FormError>}
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                {error && (
-                    <div className="text-sm text-status-rejected bg-danger/10 border border-danger/25 px-4 py-2.5 rounded-xl flex items-center gap-2 animate-slideDown">
-                        <AlertCircle size={16} className="shrink-0" />
-                        <span>{error}</span>
-                    </div>
-                )}
-
-                {/* Step 1: Select Target Student */}
+                {/* Step 1: find the other record */}
                 {!targetStudent && (
                     <div className="space-y-3">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">
-                            Search for the duplicate student profile
+                        <label htmlFor="merge-search" className={labelCls}>
+                            Search for the other record of {fullName(sourceStudent)}
                         </label>
                         <div className="relative">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={16} aria-hidden />
                             <input
+                                id="merge-search"
                                 type="text"
                                 placeholder="Name, email or phone…"
-                                className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border-subtle rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 focus:bg-surface-elevated"
+                                className={`${fieldCls} pl-10`}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 autoFocus
                             />
                         </div>
 
-                        {/* Search Results */}
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        <div className="space-y-1.5 max-h-60 overflow-y-auto">
                             {searching && (
                                 <div className="flex items-center justify-center py-6 text-muted gap-2">
                                     <Loader2 size={16} className="animate-spin text-brand-500" />
-                                    <span className="text-xs font-medium">Searching database...</span>
+                                    <span className="text-xs font-medium">Searching…</span>
                                 </div>
                             )}
                             {!searching && searchQuery && searchResults.length === 0 && (
-                                <div className="text-center py-6 text-xs text-muted">
-                                    No matching student profiles found.
-                                </div>
+                                <p className="text-center py-6 text-xs text-muted">No other student matches that.</p>
                             )}
                             {searchResults.map((s) => (
                                 <button
                                     key={s.id}
+                                    type="button"
                                     onClick={() => setTargetStudent(s)}
-                                    className="group w-full flex items-center justify-between p-3 rounded-xl hover:bg-brand-50/40 dark:hover:bg-brand-500/10 border border-transparent hover:border-brand-500/10 transition-all text-left text-sm"
+                                    className="w-full flex items-center justify-between gap-3 p-3 rounded-xl border border-border-subtle hover:border-brand-500/40 hover:bg-brand-500/5 transition-colors text-left text-sm"
                                 >
-                                    <div>
-                                        <p className="font-semibold text-primary">{s.first_name} {s.last_name}</p>
-                                        <p className="text-xs text-muted">{s.email} • {s.phone || 'No phone'}</p>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-primary truncate">{fullName(s)}</p>
+                                        <p className="text-xs text-muted truncate">{contactLine(s)}</p>
                                     </div>
-                                    <Check size={16} className="text-muted opacity-0 group-hover:opacity-100" />
+                                    <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 shrink-0">Compare</span>
                                 </button>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* Step 2: Compare and Configure Direction */}
+                {/* Step 2: choose the record to keep and the details it keeps */}
                 {targetStudent && primaryStudent && duplicateStudent && (
                     <div className="space-y-4">
-                        {/* Merge Policy Alert */}
-                        <div className="bg-brand-50/50 border border-brand-100 rounded-xl p-3.5 text-xs text-brand-700 space-y-1 dark:bg-brand-500/5 dark:border-brand-500/10 dark:text-brand-300">
-                            <p className="font-bold flex items-center gap-1.5">
-                                <AlertCircle size={14} /> Merge Actions:
-                            </p>
-                            <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                                <li>All course enrollments will be merged (no progress lost).</li>
-                                <li>Student flags and comments will be combined.</li>
-                                <li>Employment outcomes data will be safely merged.</li>
-                                <li>The duplicate student profile will be deleted permanently.</li>
-                            </ul>
+                        <fieldset>
+                            <legend className={`${labelCls} mb-2`}>Which record do you want to keep?</legend>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {pair.map(s => {
+                                    const keep = s.id === primaryId;
+                                    return (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={keep}
+                                            onClick={() => setPrimaryId(s.id)}
+                                            className={`text-left p-3.5 rounded-xl border-2 transition-colors ${keep
+                                                ? 'border-brand-500 bg-brand-500/5'
+                                                : 'border-border-subtle hover:border-border-strong bg-surface'}`}
+                                        >
+                                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${keep
+                                                ? 'bg-brand-500 text-white'
+                                                : 'bg-danger/10 text-status-rejected'}`}>
+                                                {keep ? <><Check size={12} /> Keep</> : <><Trash2 size={12} /> Will be deleted</>}
+                                            </span>
+                                            <p className="font-semibold text-primary truncate">{fullName(s) || 'No name'}</p>
+                                            <p className="text-xs text-muted truncate">{contactLine(s)}</p>
+                                            {s.created_at && <p className="text-xs text-muted mt-0.5">Added {formatDisplayDate(s.created_at)}</p>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </fieldset>
+
+                        <div className={`${calloutCls.warning} text-sm px-3.5 py-3 flex items-start gap-2.5`}>
+                            <AlertCircle size={16} className="shrink-0 mt-0.5 text-status-requested" />
+                            <div className="space-y-1">
+                                <p>
+                                    <strong>{duplicateName}</strong>{duplicateStudent.email ? ` (${duplicateStudent.email})` : ''} will be deleted.
+                                    Their courses, flags, comments and survey answers move to <strong>{primaryName}</strong>.
+                                </p>
+                                <p className="text-xs text-muted">This can't be undone.</p>
+                            </div>
                         </div>
 
-                        {/* Profiles Table */}
-                        <div className="border border-border-subtle rounded-xl overflow-hidden text-sm bg-surface">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-surface-elevated/50 border-b border-border-subtle text-xs font-bold uppercase text-muted tracking-wider">
-                                        <th className="p-3 w-1/4">Field</th>
-                                        <th className="p-3 w-3/8 text-center">Profile A</th>
-                                        <th className="p-3 w-3/8 text-center">Profile B</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border-subtle">
-                                    {/* Merge Direction Selector */}
-                                    <tr className="bg-brand-50/10 dark:bg-brand-500/5">
-                                        <td className="p-3 font-semibold text-primary">Merge Status</td>
-                                        <td className="p-3 text-center">
-                                            <button
-                                                onClick={() => setPrimaryId(sourceStudent.id)}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                                                    primaryId === sourceStudent.id
-                                                        ? 'bg-brand-500 border-brand-500 text-white shadow-xs'
-                                                        : 'bg-surface border-border-subtle text-muted hover:text-primary'
-                                                }`}
-                                            >
-                                                KEEP (Primary)
-                                            </button>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <button
-                                                onClick={() => setPrimaryId(targetStudent.id)}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                                                    primaryId === targetStudent.id
-                                                        ? 'bg-brand-500 border-brand-500 text-white shadow-xs'
-                                                        : 'bg-surface border-border-subtle text-muted hover:text-primary'
-                                                }`}
-                                            >
-                                                KEEP (Primary)
-                                            </button>
-                                        </td>
-                                    </tr>
-
-                                    {/* Render comparing rows using helper */}
-                                    {(() => {
-                                        const renderRow = (label: string, field: keyof Student) => {
-                                            if (!primaryStudent || !duplicateStudent) return null;
-                                            
-                                            const valA = sourceStudent[field] as string;
-                                            const valB = targetStudent[field] as string;
-                                            const isAPrimary = primaryId === sourceStudent.id;
-                                            
-                                            const primaryVal = getPrimaryValue(field) as string;
-                                            const duplicateVal = (isAPrimary ? valB : valA) as string;
-                                            
-                                            const hasDiff = (valA || '') !== (valB || '');
-                                            const isModified = editedFields[field] !== undefined;
-
-                                            const renderCopyButton = () => {
-                                                if (!hasDiff || !duplicateVal) return null;
-                                                return (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditedFields(prev => ({
-                                                                ...prev,
-                                                                [field]: duplicateVal
-                                                            }));
-                                                        }}
-                                                        title={`Copy "${duplicateVal}" to primary profile`}
-                                                        className="ml-2 px-1.5 py-0.5 text-xs font-bold bg-brand-500 text-white hover:bg-brand-600 rounded-sm transition-all shadow-xs"
-                                                    >
-                                                        {isAPrimary ? '← Copy' : 'Copy →'}
-                                                    </button>
-                                                );
-                                            };
-
-                                            return (
-                                                <tr key={field} className={hasDiff ? 'bg-amber-500/5 dark:bg-amber-500/2' : ''}>
-                                                    <td className="p-3 font-medium text-muted flex items-center justify-between">
-                                                        <span>{label}</span>
-                                                        {hasDiff && !isModified && (
-                                                            <span className="text-xs bg-amber-500/10 text-status-requested px-1.5 py-0.5 rounded-sm font-semibold uppercase">
-                                                                Differs
-                                                            </span>
-                                                        )}
-                                                        {isModified && (
-                                                            <span className="text-xs bg-brand-500/10 text-brand-600 px-1.5 py-0.5 rounded-sm font-semibold uppercase">
-                                                                Updated
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    
-                                                    {/* Profile A Cell */}
-                                                    {isAPrimary ? (
-                                                        <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
-                                                            {primaryVal || <span className="text-muted italic">Not set</span>}
-                                                        </td>
-                                                    ) : (
-                                                        <td className="p-3 text-center text-muted">
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="line-through text-muted/60">{valA || <span className="text-muted/20 italic">Not set</span>}</span>
-                                                                {renderCopyButton()}
-                                                            </div>
-                                                        </td>
-                                                    )}
-                                                    
-                                                    {/* Profile B Cell */}
-                                                    {!isAPrimary ? (
-                                                        <td className={`p-3 text-center ${isModified ? 'font-bold text-brand-500' : 'font-semibold text-primary'}`}>
-                                                            {primaryVal || <span className="text-muted italic">Not set</span>}
-                                                        </td>
-                                                    ) : (
-                                                        <td className="p-3 text-center text-muted">
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <span className="line-through text-muted/60">{valB || <span className="text-muted/20 italic">Not set</span>}</span>
-                                                                {renderCopyButton()}
-                                                            </div>
-                                                        </td>
-                                                    )}
-                                                </tr>
-                                            );
-                                        };
-
+                        {/* Details: the kept record's, or the other's where "Use this" is picked */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <h3 className={labelCls + ' mb-0!'}>
+                                    {MERGE_FIELDS.some(([, f]) => differs(f)) ? 'Details that differ' : 'The details are the same'}
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllFields(v => !v)}
+                                    aria-expanded={showAllFields}
+                                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                                >
+                                    {showAllFields ? 'Only what differs' : 'Show all details'}
+                                </button>
+                            </div>
+                            {shownFields.length > 0 && (
+                                <div className="rounded-xl border border-border-subtle divide-y divide-border-subtle text-sm">
+                                    {/* Column names (wider screens) */}
+                                    <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr] gap-3 px-3 py-2 bg-surface-elevated/60 text-xs font-semibold text-muted rounded-t-xl">
+                                        <span>Detail</span>
+                                        {pair.map(s => <span key={s.id} className="truncate">{fullName(s)}{s.id === primaryId ? ' (keep)' : ''}</span>)}
+                                    </div>
+                                    {shownFields.map(([label, field]) => {
+                                        const isModified = editedFields[field] !== undefined;
+                                        const otherVal = (duplicateStudent[field] as string) || '';
                                         return (
-                                            <>
-                                                {renderRow('First Name', 'first_name')}
-                                                {renderRow('Last Name', 'last_name')}
-                                                {renderRow('Email', 'email')}
-                                                {renderRow('Phone', 'phone')}
-                                                {renderRow('Address', 'address')}
-                                                {renderRow('Eircode', 'eircode')}
-                                                {renderRow('Date of Birth', 'dob')}
-                                            </>
+                                            <div key={field} className={`grid grid-cols-1 sm:grid-cols-[8rem_1fr_1fr] gap-1.5 sm:gap-3 px-3 py-2.5 ${differs(field) ? 'bg-warning/5' : ''}`}>
+                                                <span className="text-xs font-semibold text-muted sm:pt-0.5">{label}</span>
+                                                {pair.map(s => {
+                                                    const keep = s.id === primaryId;
+                                                    const value = keep ? (getPrimaryValue(field) as string) : ((s[field] as string) || '');
+                                                    const shown = field === 'dob' && value ? formatDisplayDate(value) : value;
+                                                    return (
+                                                        <div key={s.id} className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                            <span className="sm:hidden text-xs text-muted w-full">{fullName(s)}{keep ? ' (keep)' : ''}</span>
+                                                            <span className={`break-words min-w-0 ${keep ? 'font-semibold text-primary' : 'text-muted'}`}>
+                                                                {shown || <span className="italic text-muted">Not set</span>}
+                                                            </span>
+                                                            {keep && isModified && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditedFields(prev => {
+                                                                        const next = { ...prev };
+                                                                        delete next[field];
+                                                                        return next;
+                                                                    })}
+                                                                    className="text-xs font-semibold text-muted hover:text-primary underline"
+                                                                >
+                                                                    Undo
+                                                                </button>
+                                                            )}
+                                                            {!keep && differs(field) && otherVal && !isModified && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditedFields(prev => ({ ...prev, [field]: otherVal }))}
+                                                                    title={`Keep "${shown}" on the merged record`}
+                                                                    className="text-xs font-semibold px-2 py-0.5 rounded-md text-brand-600 dark:text-brand-400 bg-brand-500/10 hover:bg-brand-500/20 transition-colors"
+                                                                >
+                                                                    Use this
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         );
-                                    })()}
-                                </tbody>
-                            </table>
+                                    })}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setTargetStudent(null)}
-                                className="flex-1 px-4 py-2 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-xs font-semibold text-muted transition-all"
-                            >
-                                Choose Different Student
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setTargetStudent(null)}
+                            disabled={busy}
+                            className="text-xs font-semibold text-muted hover:text-primary underline"
+                        >
+                            Not this one? Choose a different student
+                        </button>
                     </div>
                 )}
             </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-border-subtle bg-surface-elevated flex justify-between gap-3 shrink-0">
-                <button
-                    onClick={onClose}
-                    className="px-4 py-2.5 bg-surface hover:bg-surface-elevated border border-border-subtle rounded-xl text-sm font-semibold text-muted transition-all flex-1"
-                >
-                    Cancel
-                </button>
-                {targetStudent && (
-                    <button
-                        onClick={handleMarkAsNonDuplicate}
-                        disabled={markingNonDuplicate || merging}
-                        className="px-4 py-2.5 bg-success/10 hover:bg-success/20 disabled:opacity-50 text-success rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 border border-success/10 hover:border-success/20 shadow-xs"
-                    >
-                        {markingNonDuplicate ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                        Not Duplicates
-                    </button>
-                )}
-                {targetStudent && (
-                    <button
-                        onClick={handleMerge}
-                        disabled={merging || markingNonDuplicate}
-                        className="px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 flex-1 shadow-xs hover:shadow-sm"
-                    >
-                        {merging ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
-                        {merging ? 'Merging...' : `Confirm Merge into ${primaryStudent?.first_name}`}
-                    </button>
-                )}
-            </div>
-        </DialogLayer>
+        </Modal>
     );
 }

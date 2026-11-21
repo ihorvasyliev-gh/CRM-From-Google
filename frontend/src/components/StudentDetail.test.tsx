@@ -335,4 +335,38 @@ describe('StudentDetail Component', () => {
             payload: { called_no_answer_at: expect.any(String) },
         });
     });
+
+    it('asks in a confirm dialog before deleting an enrollment', async () => {
+        mockDb.enrollments = [
+            {
+                id: 'en-9',
+                student_id: mockStudent.id,
+                course_id: 'course-1',
+                status: 'requested',
+                course_variant: null,
+                created_at: '2026-02-01T00:00:00Z',
+                confirmed_date: null,
+                confirmed_at: null,
+                invited_date: null,
+                invited_dates: null,
+                invited_at: null,
+                courses: { name: 'Barista Skills' },
+            },
+        ];
+        renderWithQueryClient(<StudentDetail student={mockStudent} onClose={mockOnClose} />);
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Delete the Barista Skills enrollment' }));
+        const dialog = await screen.findByRole('alertdialog');
+        expect(dialog).toHaveTextContent('John Doe will be taken off Barista Skills');
+        expect(mockDb.deleteCalls).toHaveLength(0);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete enrollment' }));
+        await waitFor(() => expect(mockDb.deleteCalls).toEqual([{ table: 'enrollments', column: 'id', value: 'en-9' }]));
+    });
+
+    it('labels its close button', () => {
+        renderWithQueryClient(<StudentDetail student={mockStudent} onClose={mockOnClose} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Close student details' }));
+        expect(mockOnClose).toHaveBeenCalled();
+    });
 });
