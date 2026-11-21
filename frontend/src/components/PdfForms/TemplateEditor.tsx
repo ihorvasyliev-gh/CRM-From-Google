@@ -537,7 +537,7 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
                         >
                             {/* With example answers in the boxes, only the chosen box needs its name on top */}
                             {(isSel || !(showValues && example)) && (
-                                <span className={`absolute -top-4 left-0 max-w-full truncate px-1 rounded-sm text-[9px] font-semibold leading-4 ${isSel ? 'bg-brand-500 text-white' : 'bg-sky-600/80 text-white'}`}>
+                                <span className={`absolute -top-[18px] left-0 max-w-full truncate px-1 rounded-sm text-[11px] font-semibold leading-[18px] ${isSel ? 'bg-brand-500 text-white' : 'bg-sky-600/80 text-white'}`}>
                                     {f.name}
                                 </span>
                             )}
@@ -569,6 +569,11 @@ export default function TemplateEditor({ template, onBack, onSaved }: TemplateEd
 
     return (
         <div className="space-y-4">
+            {step === 'edit' && (
+                <p role="note" className="sm:hidden rounded-xl border border-border-subtle bg-surface-elevated px-3 py-2 text-xs text-muted">
+                    Setting up a form layout works best on a computer. On a phone you can look around, but placing the boxes is fiddly.
+                </p>
+            )}
             <div className="sm:sticky sm:top-14 z-10 -mx-2 px-2 py-2 flex flex-wrap items-center gap-2 bg-background/90 backdrop-blur-md">
                 <Button variant="ghost" onClick={back}>
                     <ArrowLeft size={15} /> Back to all forms
