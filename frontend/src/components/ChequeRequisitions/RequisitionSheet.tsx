@@ -132,13 +132,13 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
 
                     {/* PO Number */}
                     <div className="flex items-baseline mb-4">
-                        <span className="font-bold shrink-0" style={{ width: '152px' }}>
+                        <span className="font-bold shrink-0 whitespace-nowrap" style={{ width: '166px' }}>
                             PO Number:
                         </span>
                         <span
-                            className="font-bold inline-block min-w-0 break-words"
+                            className="font-bold inline-block flex-1 min-w-0 break-words"
                             style={{
-                                width: '240px',
+                                maxWidth: '234px',
                                 borderBottom: '0.8px solid #000',
                                 paddingLeft: '3px',
                                 paddingBottom: '1px',
@@ -149,9 +149,9 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                         </span>
                     </div>
 
-                    {/* Payee Name & Address (hanging indent at 114pt = 152px, never pushed under Checklist) */}
-                    <div className="grid mb-5" style={{ gridTemplateColumns: '152px minmax(0, 1fr)', rowGap: '6px' }}>
-                        <span className="pr-2">Payee Name &amp; Address:</span>
+                    {/* Payee Name & Address (hanging indent never wraps label or collides with Checklist) */}
+                    <div className="grid mb-5" style={{ gridTemplateColumns: '166px minmax(0, 1fr)', rowGap: '6px' }}>
+                        <span className="whitespace-nowrap pr-2.5">Payee Name &amp; Address:</span>
                         <div className="min-w-0 break-words">
                             {payeeName ? (
                                 <span className="underline" style={{ textUnderlineOffset: '3px' }}>
@@ -180,40 +180,25 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                         </div>
                     </div>
 
-                    {/* Payment Amount */}
-                    <div className="flex items-baseline mb-6">
-                        <span className="shrink-0" style={{ width: '158px' }}>
+                    {/* Payment Amount (€ sits left of the ruled line, matching Word) */}
+                    <div className="flex items-baseline mb-2">
+                        <span className="shrink-0 whitespace-nowrap" style={{ width: '150px' }}>
                             Payment Amount:
                         </span>
+                        <span className="shrink-0" style={{ width: '16px' }}>
+                            €
+                        </span>
                         <span
-                            className="inline-block min-w-0"
+                            className="inline-block flex-1 min-w-0"
                             style={{
-                                width: '242px',
+                                maxWidth: '238px',
                                 borderBottom: '0.8px solid #000',
                                 paddingLeft: '3px',
                                 paddingBottom: '1px',
                                 minHeight: '19px',
                             }}
                         >
-                            €{amount ? `  ${amount}` : '\u00a0'}
-                        </span>
-                    </div>
-
-                    {/* Description Line 1 (stops cleanly left of Checklist box) */}
-                    <div className="flex items-baseline">
-                        <span className="shrink-0" style={{ width: '194px' }}>
-                            Description of goods/services:
-                        </span>
-                        <span
-                            className="flex-1 min-w-0 break-words"
-                            style={{
-                                borderBottom: '0.8px solid #000',
-                                paddingLeft: '3px',
-                                paddingBottom: '1px',
-                                minHeight: '19px',
-                            }}
-                        >
-                            {desc1 || '\u00a0'}
+                            {amount || '\u00a0'}
                         </span>
                     </div>
                 </div>
@@ -277,12 +262,29 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                 </aside>
             </div>
 
-            {/* Description Line 2 (full ruled width below Checklist box) */}
-            <div style={{ marginTop: '14px', marginBottom: '26px' }}>
+            {/* Description of goods/services (Lines 1 & 2 full ruled width below Checklist box, matching Word) */}
+            <div style={{ marginTop: '16px', marginBottom: '22px' }} className="space-y-3.5">
+                <div className="flex items-baseline" style={{ width: '526px', maxWidth: '100%' }}>
+                    <span className="shrink-0 whitespace-nowrap mr-2.5" style={{ minWidth: '194px' }}>
+                        Description of goods/services:
+                    </span>
+                    <span
+                        className="flex-1 min-w-0 break-words"
+                        style={{
+                            borderBottom: '0.8px solid #000',
+                            paddingLeft: '3px',
+                            paddingBottom: '1px',
+                            minHeight: '19px',
+                        }}
+                    >
+                        {desc1 || '\u00a0'}
+                    </span>
+                </div>
+
                 <div
                     className="break-words"
                     style={{
-                        width: '526px',
+                        width: '518px',
                         maxWidth: '100%',
                         borderBottom: '0.8px solid #000',
                         paddingLeft: '2px',
@@ -294,16 +296,16 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                 </div>
             </div>
 
-            {/* Requested & Approved */}
-            <div className="space-y-3.5">
-                <div className="flex items-baseline">
-                    <span className="shrink-0" style={{ width: '96px' }}>
-                        Requested by:
-                    </span>
+            {/* Requested & Approved + Dates side-by-side (matching Word's 2-column continuous section, midpoint 249.3pt) */}
+            <div
+                className="grid items-baseline mb-4"
+                style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', columnGap: '0px', rowGap: '14px' }}
+            >
+                <div className="flex items-baseline min-w-0 pr-6" style={{ maxWidth: '328px' }}>
+                    <span className="shrink-0 mr-1.5">Requested by:</span>
                     <span
-                        className="inline-block"
+                        className="inline-block flex-1 min-w-0 break-words"
                         style={{
-                            width: '214px',
                             borderBottom: '0.8px solid #000',
                             paddingLeft: '4px',
                             paddingBottom: '1px',
@@ -314,14 +316,23 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                     </span>
                 </div>
 
-                <div className="flex items-baseline">
-                    <span className="shrink-0" style={{ width: '91px' }}>
-                        Approved by:
-                    </span>
+                <div className="flex items-baseline min-w-0">
+                    <span className="shrink-0 mr-1.5">Date:</span>
+                    {requestedDate ? (
+                        <span>{requestedDate}</span>
+                    ) : (
+                        <span
+                            className="inline-block flex-1"
+                            style={{ maxWidth: '176px', borderBottom: '0.8px solid #000', height: '16px' }}
+                        />
+                    )}
+                </div>
+
+                <div className="flex items-baseline min-w-0 pr-6" style={{ maxWidth: '328px' }}>
+                    <span className="shrink-0 mr-1.5">Approved by:</span>
                     <span
-                        className="inline-block"
+                        className="inline-block flex-1 min-w-0 break-words"
                         style={{
-                            width: '219px',
                             borderBottom: '0.8px solid #000',
                             paddingLeft: '4px',
                             paddingBottom: '1px',
@@ -332,33 +343,18 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                     </span>
                 </div>
 
-                <div className="flex items-baseline">
-                    <span className="shrink-0 mr-1.5">Date:</span>
-                    {requestedDate ? (
-                        <span>{requestedDate}</span>
-                    ) : (
-                        <span
-                            className="inline-block"
-                            style={{ width: '158px', borderBottom: '0.8px solid #000', height: '16px' }}
-                        />
-                    )}
-                </div>
-
-                <div className="flex items-baseline">
+                <div className="flex items-baseline min-w-0">
                     <span className="shrink-0 mr-1.5">Date:</span>
                     {approvedDate ? (
                         <span>{approvedDate}</span>
                     ) : (
                         <span
-                            className="inline-block"
-                            style={{ width: '158px', borderBottom: '0.8px solid #000', height: '16px' }}
+                            className="inline-block flex-1"
+                            style={{ maxWidth: '176px', borderBottom: '0.8px solid #000', height: '16px' }}
                         />
                     )}
                 </div>
             </div>
-
-            {/* Full-width thick divider #2 */}
-            <div style={{ borderBottom: '3px solid #000', marginTop: '10px', marginBottom: '10px' }} />
 
             {/* OR Approval Email attached */}
             <div className="flex items-center gap-2">
@@ -371,8 +367,8 @@ export default function RequisitionSheet({ form, printMode = false }: Requisitio
                 <SheetCheckbox checked={form.approvalEmailAttached} size={12} />
             </div>
 
-            {/* Full-width thick divider #3 */}
-            <div style={{ borderBottom: '3px solid #000', marginTop: '10px', marginBottom: '16px' }} />
+            {/* Single full-width thick divider below OR Approval Email attached (matches Word merged pBdr) */}
+            <div style={{ borderBottom: '3px solid #000', marginTop: '8px', marginBottom: '16px' }} />
 
             {/* Single Quotation */}
             <div className="space-y-3">

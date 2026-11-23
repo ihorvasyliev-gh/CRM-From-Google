@@ -384,34 +384,33 @@ export async function renderChequeReqPdfBytes(
         y += 24;
     }
 
-    // Payment Amount
+    // Payment Amount (€ sits left of the ruled line; value aligns cleanly with PO/Payee column)
+    const euroX = MARGIN_L + 110;
     const amountLineX = MARGIN_L + 122;
     const amountLineEnd = Math.min(MARGIN_L + 302, LEFT_COL_RIGHT);
     drawText('Payment Amount:', MARGIN_L, y, 11, regular);
-    const euroW = drawText('€  ', amountLineX + 2, y, 11, regular);
+    drawText('€', euroX, y, 11, regular);
     const amountVal = money(form.amount);
     if (amountVal) {
-        const fit = fitSingleLine(amountVal, pickFont(amountVal, regular, fonts), 11, amountLineEnd - (amountLineX + 2 + euroW), fonts);
-        drawText(fit.text, amountLineX + 2 + euroW, y, fit.size, regular);
+        const fit = fitSingleLine(amountVal, pickFont(amountVal, regular, fonts), 11, amountLineEnd - amountLineX - 4, fonts);
+        drawText(fit.text, amountLineX + 2, y, fit.size, regular);
     }
     drawRule(amountLineX, amountLineEnd, y + 2.5, 0.6);
 
-    // Description of goods/services (Line 1 beside/below Checklist box, Line 2 full width)
-    y += 28;
+    // Description of goods/services (Lines 1 & 2 cleanly below Checklist box, matching Word)
+    y = Math.max(y + 26, boxBottom + 18);
     const [desc1, desc2] = descriptionLines(form.description);
     const descLabelW = drawText('Description of goods/services:', MARGIN_L, y, 10.5, regular);
-    const desc1X = Math.max(MARGIN_L + 152, MARGIN_L + descLabelW + 8);
-    // Stay cleanly clear of the Checklist box if Description line 1 still overlaps its height
-    const desc1End = y - 10 < boxBottom ? LEFT_COL_RIGHT : MARGIN_L + 394.5;
+    const desc1X = Math.max(MARGIN_L + 145.5, MARGIN_L + descLabelW + 8);
+    const desc1End = MARGIN_L + 394.5;
     if (desc1) {
         const fit = fitSingleLine(desc1, pickFont(desc1, regular, fonts), 10.5, desc1End - desc1X - 2, fonts, 8);
         drawText(fit.text, desc1X + 2, y, fit.size, regular);
     }
     drawRule(desc1X, desc1End, y + 2.5, 0.6);
 
-    // Ensure Line 2 always sits below the Checklist box if needed
-    y = Math.max(y + 21, boxBottom + 16);
-    const desc2End = MARGIN_L + 394.5;
+    y += 22;
+    const desc2End = MARGIN_L + 388.5;
     if (desc2) {
         const d2Font = pickFont(desc2, regular, fonts);
         const d2Lines = wrapText(desc2, d2Font, 10.5, desc2End - MARGIN_L - 2, fonts);
@@ -429,11 +428,14 @@ export async function renderChequeReqPdfBytes(
         drawRule(MARGIN_L, desc2End, y + 2.5, 0.6);
     }
 
-    // ── 5. Requested & Approved Block ───────────────────────────
-    y += 28;
+    // ── 5. Requested & Approved + Dates side-by-side (Word 2-col continuous section) ──
+    const sigLineEnd = MARGIN_L + 228;
+    const dateColX = MARGIN_L + CONTENT_W / 2; // exact 249.3pt 2-column midpoint
+    const dateLineLen = 132;
+
+    y += 26;
     const reqLabelW = drawText('Requested by:', MARGIN_L, y, 11, regular);
     const reqLineX = MARGIN_L + reqLabelW + 6;
-    const sigLineEnd = MARGIN_L + 238;
     const reqBy = form.requestedBy.trim();
     if (reqBy) {
         const fit = fitSingleLine(reqBy, pickFont(reqBy, regular, fonts), 11, sigLineEnd - reqLineX - 4, fonts);
@@ -441,7 +443,15 @@ export async function renderChequeReqPdfBytes(
     }
     drawRule(reqLineX, sigLineEnd, y + 2.5, 0.6);
 
-    y += 22;
+    const dateLabelW = drawText('Date: ', dateColX, y, 11, regular);
+    const reqDate = form.requestedDate ? slashDate(form.requestedDate) : '';
+    if (reqDate) {
+        drawText(reqDate, dateColX + dateLabelW + 2, y, 11, regular);
+    } else {
+        drawRule(dateColX + dateLabelW, dateColX + dateLabelW + dateLineLen, y + 2.5, 0.6);
+    }
+
+    y += 23;
     const appLabelW = drawText('Approved by:', MARGIN_L, y, 11, regular);
     const appLineX = MARGIN_L + appLabelW + 6;
     const appBy = form.approvedBy.trim();
@@ -451,35 +461,21 @@ export async function renderChequeReqPdfBytes(
     }
     drawRule(appLineX, sigLineEnd, y + 2.5, 0.6);
 
-    y += 22;
-    const dateLabelW = drawText('Date: ', MARGIN_L, y, 11, regular);
-    const reqDate = form.requestedDate ? slashDate(form.requestedDate) : '';
-    if (reqDate) {
-        drawText(reqDate, MARGIN_L + dateLabelW + 2, y, 11, regular);
-    } else {
-        drawRule(MARGIN_L + dateLabelW, MARGIN_L + dateLabelW + 118, y + 2.5, 0.6);
-    }
-
-    y += 21;
-    drawText('Date: ', MARGIN_L, y, 11, regular);
+    drawText('Date: ', dateColX, y, 11, regular);
     const appDate = form.approvedDate ? slashDate(form.approvedDate) : '';
     if (appDate) {
-        drawText(appDate, MARGIN_L + dateLabelW + 2, y, 11, regular);
+        drawText(appDate, dateColX + dateLabelW + 2, y, 11, regular);
     } else {
-        drawRule(MARGIN_L + dateLabelW, MARGIN_L + dateLabelW + 118, y + 2.5, 0.6);
+        drawRule(dateColX + dateLabelW, dateColX + dateLabelW + dateLineLen, y + 2.5, 0.6);
     }
 
-    // Thick divider #2
-    y += 8;
-    drawRule(MARGIN_L, PAGE_W - MARGIN_R, y, 2.25);
-
     // OR Approval Email attached
-    y += 18;
+    y += 24;
     const orW = drawText('OR', MARGIN_L, y, 11, boldItalic, true);
     const attachW = drawText(' Approval Email attached  ', MARGIN_L + orW, y, 11, regular);
     drawCheckbox(MARGIN_L + orW + attachW, y, form.approvalEmailAttached, 9);
 
-    // Thick divider #3
+    // Single thick divider below OR Approval Email attached (matches Word merged pBdr)
     y += 8;
     drawRule(MARGIN_L, PAGE_W - MARGIN_R, y, 2.25);
 
@@ -554,7 +550,7 @@ export async function renderChequeReqPdfBytes(
     let nx = MARGIN_L;
     nx += drawText('(', nx, y, 10, regular, false);
     nx += drawText('OBTAIN 3 QUOTES AND COMPLETE THE 3 QUOTES FORM', nx, y, 10, italic, true);
-    drawText(')', nx, y, 10, regular, false);
+    drawText(')', nx + 1.5, y, 10, regular, false);
 
     const title = chequeReqPdfFileName({ invoiceNumber: meta?.invoiceNumber ?? '' }, form).replace(/\.pdf$/i, '');
     pdf.setTitle(title);
