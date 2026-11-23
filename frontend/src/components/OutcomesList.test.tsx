@@ -9,6 +9,8 @@ import { copyEligibleEmails, copySurveyAndOpenMailto } from '../lib/surveyEmail'
 import { OUTCOME_UNDO_MS, restoreGraduatesFromPending } from '../lib/outcomeUndo';
 import { showToast } from '../lib/toast';
 import { supabase } from '../lib/supabase';
+import { todayISO } from '../lib/dateUtils';
+import { shiftDays, shiftMonths } from '../lib/outcomeCompletionDate';
 
 const mockOutreachLists = vi.fn();
 
@@ -56,6 +58,14 @@ vi.mock('../lib/supabase', () => ({
     },
 }));
 
+const TODAY = todayISO();
+const DATE_5D_AGO = shiftDays(TODAY, -5);
+const DATE_10D_AGO = shiftDays(TODAY, -10);
+const DATE_2M_AGO = shiftMonths(TODAY, -2);
+const DATE_4M_AGO = shiftMonths(TODAY, -4);
+const DATE_8M_AGO = shiftMonths(TODAY, -8);
+const DATE_14M_AGO = shiftMonths(TODAY, -14);
+
 const SAMPLE_GRADUATES: GraduateRow[] = [
     {
         student_id: 's1',
@@ -72,6 +82,8 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'responded',
         last_sent_at: '2026-09-01T10:00:00Z',
         called_no_answer_at: null,
+        last_completed_date: DATE_5D_AGO,
+        course_completed_dates: { 'Safe Pass': DATE_5D_AGO },
     },
     {
         student_id: 's2',
@@ -88,6 +100,8 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'responded',
         last_sent_at: '2026-09-01T10:00:00Z',
         called_no_answer_at: null,
+        last_completed_date: DATE_2M_AGO,
+        course_completed_dates: { 'First Aid': DATE_2M_AGO },
     },
     {
         student_id: 's3',
@@ -104,6 +118,11 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'pending',
         last_sent_at: '2026-10-01T10:00:00Z',
         called_no_answer_at: null,
+        last_completed_date: DATE_10D_AGO,
+        course_completed_dates: {
+            'Safe Pass': DATE_8M_AGO,
+            'Manual Handling': DATE_10D_AGO,
+        },
     },
     {
         student_id: 's4',
@@ -120,6 +139,8 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'pending',
         last_sent_at: '2026-10-02T10:00:00Z',
         called_no_answer_at: '2026-10-05T10:00:00Z',
+        last_completed_date: DATE_4M_AGO,
+        course_completed_dates: { 'First Aid': DATE_4M_AGO },
     },
     {
         student_id: 's5',
@@ -136,6 +157,8 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'not_contacted',
         last_sent_at: null,
         called_no_answer_at: null,
+        last_completed_date: DATE_14M_AGO,
+        course_completed_dates: { 'Manual Handling': DATE_14M_AGO },
     },
     {
         student_id: 's6',
@@ -152,6 +175,8 @@ const SAMPLE_GRADUATES: GraduateRow[] = [
         tracking_status: 'not_contacted',
         last_sent_at: null,
         called_no_answer_at: null,
+        last_completed_date: null,
+        course_completed_dates: { 'First Aid': null },
     },
 ];
 
@@ -318,6 +343,8 @@ describe('OutcomesList', () => {
                 tracking_status: 'pending',
                 last_sent_at: '2026-10-03T10:00:00Z',
                 called_no_answer_at: null,
+                last_completed_date: DATE_2M_AGO,
+                course_completed_dates: { 'First Aid': DATE_2M_AGO },
             },
         ]);
 
@@ -526,5 +553,89 @@ describe('OutcomesList', () => {
             }),
             { onConflict: 'student_id' },
         );
+    });
+
+    it('filters graduates by course completion date (recent, older, per-course, and custom range) and sorts by Completed', async () => {
+        renderOutcomes();
+        await screen.findByText('Alice Adams');
+
+        const dateSelect = screen.getByLabelText('Filter by completion date');
+        const courseSelect = screen.getByLabelText('Filter by course');
+
+        // 1. Recent: Last 30 days -> Alice (5d ago) & Cara (Manual Handling 10d ago)
+        fireEvent.change(dateSelect, { target: { value: 'recent_30d' } });
+        expect(screen.getByText('2 of 6 graduates')).toBeInTheDocument();
+        expect(screen.getByText('Alice Adams')).toBeInTheDocument();
+        expect(screen.getByText('Cara Collins')).toBeInTheDocument();
+        expect(screen.queryByText('Brian Byrne')).not.toBeInTheDocument();
+
+        // 2. Older: Over 3 months ago -> David (4m ago) & Eva (14m ago); Frank (no date) excluded
+        fireEvent.change(dateSelect, { target: { value: 'older_3m' } });
+        expect(screen.getByText('2 of 6 graduates')).toBeInTheDocument();
+        expect(screen.getByText('David Doyle')).toBeInTheDocument();
+        expect(screen.getByText('Eva Egan')).toBeInTheDocument();
+        expect(screen.queryByText('Frank Flynn')).not.toBeInTheDocument();
+
+        // 3. Older: Over 1 year ago -> only Eva (14m ago)
+        fireEvent.change(dateSelect, { target: { value: 'older_1y' } });
+        expect(screen.getByText('1 of 6 graduates')).toBeInTheDocument();
+        expect(screen.getByText('Eva Egan')).toBeInTheDocument();
+
+        // 4. Combining Course + Completion Date uses that course's own completion date:
+        //    Cara completed Safe Pass 8 months ago (even though Manual Handling was 10 days ago)
+        fireEvent.change(courseSelect, { target: { value: 'Safe Pass' } });
+        fireEvent.change(dateSelect, { target: { value: 'older_6m' } });
+        expect(screen.getByText('1 of 6 graduates')).toBeInTheDocument();
+        expect(screen.getByText('Cara Collins')).toBeInTheDocument();
+        expect(screen.queryByText('Alice Adams')).not.toBeInTheDocument();
+
+        // Clear resets both Course and Completion date filters
+        fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+        expect(screen.getByText('6 of 6 graduates')).toBeInTheDocument();
+        expect(dateSelect).toHaveValue('all');
+        expect(courseSelect).toHaveValue('all');
+
+        // 5. Custom date range shows From/To inputs and filters inclusively
+        fireEvent.change(dateSelect, { target: { value: 'custom' } });
+        const customGroup = screen.getByRole('group', { name: 'Custom completion date range' });
+        expect(customGroup).toBeInTheDocument();
+        expect(screen.getByText('6 of 6 graduates')).toBeInTheDocument();
+
+        // Pick "Today" as From -> no one completed today (Alice was 5 days ago), so 0 matches
+        fireEvent.click(within(customGroup).getByLabelText('From'));
+        fireEvent.click(screen.getByRole('button', { name: 'Today' }));
+        expect(screen.getByText('0 of 6 graduates')).toBeInTheDocument();
+
+        // Reset dates brings back all 6 while staying in custom mode
+        fireEvent.click(within(customGroup).getByRole('button', { name: 'Reset dates' }));
+        expect(screen.getByText('6 of 6 graduates')).toBeInTheDocument();
+
+        // Clear exits custom mode back to "all"
+        fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+        expect(screen.queryByRole('group', { name: 'Custom completion date range' })).not.toBeInTheDocument();
+
+        // 6. Sorting by Completed column header: first click newest first, second click oldest first, missing date always last
+        const completedHeader = screen.getByRole('button', { name: 'Completed' });
+        const rowNames = () => screen.getAllByRole('row').slice(1).map(r => r.textContent || '');
+
+        fireEvent.click(completedHeader);
+        expect(rowNames().map(t => t.match(/Alice Adams|Cara Collins|Brian Byrne|David Doyle|Eva Egan|Frank Flynn/)?.[0])).toEqual([
+            'Alice Adams',
+            'Cara Collins',
+            'Brian Byrne',
+            'David Doyle',
+            'Eva Egan',
+            'Frank Flynn',
+        ]);
+
+        fireEvent.click(completedHeader);
+        expect(rowNames().map(t => t.match(/Alice Adams|Cara Collins|Brian Byrne|David Doyle|Eva Egan|Frank Flynn/)?.[0])).toEqual([
+            'Eva Egan',
+            'David Doyle',
+            'Brian Byrne',
+            'Cara Collins',
+            'Alice Adams',
+            'Frank Flynn',
+        ]);
     });
 });

@@ -1,7 +1,7 @@
 // Sorting of the Outcomes tables (CRM graduates and External Lists) by one column.
 import { EMPLOYMENT_TYPES, employmentTypeRank, isResentNotWorking } from './employmentTypes';
 
-export type OutcomeSortKey = 'name' | 'courses' | 'ref' | 'tracking' | 'employment' | 'updated';
+export type OutcomeSortKey = 'name' | 'courses' | 'completed' | 'ref' | 'tracking' | 'employment' | 'updated';
 export interface OutcomeSort { key: OutcomeSortKey; dir: 'asc' | 'desc' }
 
 /** The fields of a row that the columns sort by */
@@ -11,6 +11,8 @@ export interface SortFields {
     email: string;
     /** Courses (graduates) or IRIS ID (lists) */
     courses?: string[];
+    /** Course completion date (YYYY-MM-DD) for graduates */
+    completed_date?: string | null;
     ref?: string | null;
     tracking_status: 'not_contacted' | 'pending' | 'responded';
     called_no_answer_at?: string | null;
@@ -75,6 +77,11 @@ export function sortOutcomeRows<T>(rows: T[], sort: OutcomeSort, fields: (row: T
                 const ar = employmentRank(a), br = employmentRank(b);
                 if (ar === NO_DATA_RANK || br === NO_DATA_RANK) return ar === br ? byName(a, b) : ar === NO_DATA_RANK ? 1 : -1;
                 return sign * (ar - br) || byName(a, b);
+            }
+            case 'completed': {
+                const at = time(a.completed_date), bt = time(b.completed_date);
+                if (isNaN(at) || isNaN(bt)) return isNaN(at) === isNaN(bt) ? byName(a, b) : isNaN(at) ? 1 : -1;
+                return sign * (at - bt) || byName(a, b);
             }
             case 'updated': {
                 const at = time(a.updated_at), bt = time(b.updated_at);

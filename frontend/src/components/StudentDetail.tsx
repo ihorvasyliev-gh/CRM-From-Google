@@ -348,6 +348,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
             tracking_status: trackingStatus,
             last_sent_at: outcomeRow?.last_invited_at ?? null,
             called_no_answer_at: outcomeRow?.called_no_answer_at ?? null,
+            last_completed_date: null,
+            course_completed_dates: {},
         };
         const optimisticRow: EmploymentStatusRow = prevRow
             ? { ...prevRow, called_no_answer_at: calledAt }

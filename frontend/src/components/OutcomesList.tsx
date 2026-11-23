@@ -2,9 +2,10 @@ import { useState, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSearchParams } from 'react-router-dom';
-import { Briefcase, Loader2, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
+import { Briefcase, Calendar, Loader2, X, Pencil, GraduationCap, Users, MailCheck, Clock } from 'lucide-react';
 import StatTile from './ui/StatTile';
 import { Segmented } from './ui/Tabs';
+import { DateInput } from './ui/DatePicker';
 import { buildStatusEmailBodyHtml, buildStatusEmailSubject } from '../lib/emailTemplates';
 import { fetchOptedOutEmails, listEmailOptOutsSafe, normalizeEmail } from '../lib/emailOptOut';
 import { TrackingBadge, EmploymentBadge, CallMarkButton, PhoneLink, EmailStatusBadges } from './OutcomeBadges';
@@ -21,7 +22,18 @@ import {
 } from '../lib/employmentTypes';
 import { matchesOutcomeSearch, toggleOutcomeSelection } from '../lib/outcomeSelection';
 import { OUTCOME_UNDO_MS, restoreGraduatesFromPending, snapshotGraduatesForPending } from '../lib/outcomeUndo';
-import { formatLocalDate, formatDisplayDate } from '../lib/dateUtils';
+import { formatLocalDate, formatDisplayDate, todayISO } from '../lib/dateUtils';
+import {
+    RECENT_COMPLETION_OPTIONS,
+    OLDER_COMPLETION_OPTIONS,
+    isCompletionDateFilter,
+    isIsoDateOrEmpty,
+    effectiveCompletionDate,
+    matchesCompletionDate,
+    completionDateRangeHint,
+    formatCourseDatesTooltip,
+    type CompletionDateFilter,
+} from '../lib/outcomeCompletionDate';
 import { getAvatarGradient } from '../lib/types';
 import { showToast } from '../lib/toast';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -51,7 +63,7 @@ type CallFilter = 'all' | 'called' | 'not_called';
 const VALID_STATUS_FILTERS = new Set<string>(['all', 'not_contacted', 'pending', 'responded']);
 const VALID_EMPLOYMENT_FILTERS = new Set<string>(['all', 'working', 'not_working']);
 const VALID_CALL_FILTERS = new Set<string>(['all', 'called', 'not_called']);
-const VALID_SORT_KEYS = new Set<string>(['name', 'courses', 'tracking', 'employment', 'updated']);
+const VALID_SORT_KEYS = new Set<string>(['name', 'courses', 'completed', 'tracking', 'employment', 'updated']);
 
 const isOutcomeFilter = (v: unknown): v is OutcomeFilter => typeof v === 'string' && VALID_STATUS_FILTERS.has(v);
 const isEmploymentFilter = (v: unknown): v is EmploymentFilter => typeof v === 'string' && VALID_EMPLOYMENT_FILTERS.has(v);
@@ -139,7 +151,12 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
     const [filterEmployment, setFilterEmployment] = usePersistentState<EmploymentFilter>('outcomes.grad.employment', 'all', { validate: isEmploymentFilter });
     const [filterCall, setFilterCall] = usePersistentState<CallFilter>('outcomes.grad.call', 'all', { validate: isCallFilter });
     const [filterCourse, setFilterCourse] = usePersistentState<string>('outcomes.grad.course', 'all', { validate: isString });
+    const [filterCompleted, setFilterCompleted] = usePersistentState<CompletionDateFilter>('outcomes.grad.completed', 'all', { validate: isCompletionDateFilter });
+    const [completedFrom, setCompletedFrom] = usePersistentState<string>('outcomes.grad.completedFrom', '', { validate: isIsoDateOrEmpty });
+    const [completedTo, setCompletedTo] = usePersistentState<string>('outcomes.grad.completedTo', '', { validate: isIsoDateOrEmpty });
     const [sort, setSort] = usePersistentState<OutcomeSort>('outcomes.grad.sort', { key: 'name', dir: 'asc' }, { validate: isOutcomeSort });
+
+    const today = todayISO();
 
     const [callBusy, setCallBusy] = useState<Set<string>>(new Set());
     const [busyMode, setBusyMode] = useState<'sending' | 'marking' | null>(null);
@@ -182,6 +199,20 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         }
     }
 
+    function handleCompletedFromChange(next: string) {
+        setCompletedFrom(next);
+        if (next && completedTo && next > completedTo) {
+            setCompletedTo(next);
+        }
+    }
+
+    function handleCompletedToChange(next: string) {
+        setCompletedTo(next);
+        if (next && completedFrom && next < completedFrom) {
+            setCompletedFrom(next);
+        }
+    }
+
     // Filtered graduates
     const filtered = useMemo(() => {
         let result = graduates;
@@ -195,6 +226,15 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         }
         if (effectiveCourse !== 'all') {
             result = result.filter(g => g.courses.includes(effectiveCourse));
+        }
+        if (filterCompleted !== 'all') {
+            result = result.filter(g => matchesCompletionDate(
+                effectiveCompletionDate(g, effectiveCourse),
+                filterCompleted,
+                completedFrom,
+                completedTo,
+                today,
+            ));
         }
         if (callsApplicable && filterCall !== 'all') {
             // Responded people are left out: there is no one to call back
@@ -212,17 +252,23 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         }
         return sortOutcomeRows(result, sort, g => ({
             ...g,
+            completed_date: effectiveCompletionDate(g, effectiveCourse),
             sent_at: g.last_sent_at,
             updated_at: g.status_updated_at,
         }));
-    }, [graduates, filterStatus, filterEmployment, effectiveCourse, callsApplicable, filterCall, debouncedSearchQuery, sort]);
+    }, [graduates, filterStatus, filterEmployment, effectiveCourse, filterCompleted, completedFrom, completedTo, today, callsApplicable, filterCall, debouncedSearchQuery, sort]);
 
     const orderedIds = useMemo(() => filtered.map(g => g.student_id), [filtered]);
 
     // Rows render in steps as the table is scrolled (a full list is hundreds of rows)
     const { visible: visibleGraduates, hasMore, sentinelRef } = useProgressiveList(
         filtered,
-        `${filterStatus}|${filterEmployment}|${effectiveCourse}|${callsApplicable ? filterCall : 'all'}|${debouncedSearchQuery}|${sort.key}|${sort.dir}`,
+        `${filterStatus}|${filterEmployment}|${effectiveCourse}|${filterCompleted}|${completedFrom}|${completedTo}|${callsApplicable ? filterCall : 'all'}|${debouncedSearchQuery}|${sort.key}|${sort.dir}`,
+    );
+
+    const completionHint = useMemo(
+        () => completionDateRangeHint(filterCompleted, completedFrom, completedTo, today),
+        [filterCompleted, completedFrom, completedTo, today],
     );
 
     // KPIs and pill counts
@@ -248,6 +294,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
     const hasActiveFilters = filterStatus !== 'all'
         || filterEmployment !== 'all'
         || effectiveCourse !== 'all'
+        || filterCompleted !== 'all'
         || (callsApplicable && filterCall !== 'all')
         || searchQuery.trim() !== '';
 
@@ -255,6 +302,9 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
         setFilterStatus('all');
         setFilterEmployment('all');
         setFilterCourse('all');
+        setFilterCompleted('all');
+        setCompletedFrom('');
+        setCompletedTo('');
         setFilterCall('all');
         setSearchQuery('');
     }
@@ -576,9 +626,45 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         </select>
                     )}
 
+                    <select
+                        aria-label="Filter by completion date"
+                        value={filterCompleted}
+                        title={completionHint ?? undefined}
+                        onChange={e => {
+                            const next = e.target.value as CompletionDateFilter;
+                            setFilterCompleted(next);
+                            if (next !== 'custom') {
+                                setCompletedFrom('');
+                                setCompletedTo('');
+                            }
+                        }}
+                        className="text-xs sm:text-sm bg-background border border-border-strong rounded-xl px-2.5 py-2 text-primary focus:outline-hidden focus:ring-2 focus:ring-brand-500/20 max-w-[210px]"
+                    >
+                        <option value="all">Completed: Any time</option>
+                        <optgroup label="Recently">
+                            {RECENT_COMPLETION_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="A while ago">
+                            {OLDER_COMPLETION_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </optgroup>
+                        <optgroup label="Custom">
+                            <option value="custom">Custom date range…</option>
+                        </optgroup>
+                    </select>
+
                     <span className="text-xs text-muted font-medium whitespace-nowrap">
                         {filtered.length} of {graduates.length} graduate{graduates.length !== 1 ? 's' : ''}
                     </span>
+
+                    {filterCompleted !== 'all' && filterCompleted !== 'custom' && completionHint && (
+                        <span className="text-xs text-muted whitespace-nowrap">
+                            ({completionHint})
+                        </span>
+                    )}
 
                     {hasActiveFilters && (
                         <button
@@ -590,6 +676,53 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                         </button>
                     )}
                 </div>
+
+                {filterCompleted === 'custom' && (
+                    <div
+                        className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-border-subtle"
+                        role="group"
+                        aria-label="Custom completion date range"
+                    >
+                        <span className="text-xs font-medium text-muted flex items-center gap-1.5">
+                            <Calendar size={13} aria-hidden />
+                            Completed:
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <label htmlFor="outcomes-completed-from" className="text-xs text-muted">From</label>
+                            <DateInput
+                                id="outcomes-completed-from"
+                                value={completedFrom}
+                                max={today}
+                                placeholder="Any date"
+                                onChange={handleCompletedFromChange}
+                                className="text-xs bg-background border border-border-strong rounded-xl px-2.5 py-1.5 min-w-[132px] font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <label htmlFor="outcomes-completed-to" className="text-xs text-muted">To</label>
+                            <DateInput
+                                id="outcomes-completed-to"
+                                value={completedTo}
+                                max={today}
+                                placeholder="Any date"
+                                onChange={handleCompletedToChange}
+                                className="text-xs bg-background border border-border-strong rounded-xl px-2.5 py-1.5 min-w-[132px] font-medium focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                            />
+                        </div>
+                        {(completedFrom || completedTo) && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setCompletedFrom('');
+                                    setCompletedTo('');
+                                }}
+                                className="text-xs font-medium text-muted hover:text-primary px-2 py-1 rounded-lg hover:bg-surface-elevated transition-colors"
+                            >
+                                Reset dates
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Compact always-visible filter pills */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2.5 border-t border-border-subtle">
@@ -675,6 +808,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                     </th>
                                     <SortHeader label="Student" column="name" sort={sort} onSort={setSort} />
                                     <SortHeader label="Courses" column="courses" sort={sort} onSort={setSort} className="hidden md:table-cell" />
+                                    <SortHeader label="Completed" column="completed" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
                                     <SortHeader label="Tracking" column="tracking" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Employment" column="employment" sort={sort} onSort={setSort} className="hidden sm:table-cell" />
                                     <SortHeader label="Updated" column="updated" sort={sort} onSort={setSort} className="hidden lg:table-cell" />
@@ -686,6 +820,10 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                     const isSelected = selectedIds.has(grad.student_id);
                                     const isOptedOut = optedOutSet.has(normalizeEmail(grad.email));
                                     const fullDisplayName = `${grad.first_name} ${grad.last_name}`.trim();
+                                    const completedDate = effectiveCompletionDate(grad, effectiveCourse);
+                                    const courseDatesTooltip = effectiveCourse === 'all'
+                                        ? formatCourseDatesTooltip(grad.courses, grad.course_completed_dates)
+                                        : undefined;
                                     return (
                                         <tr
                                             key={grad.student_id}
@@ -741,6 +879,11 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                                                 <EmailStatusBadges email={grad.email} optedOut={isOptedOut} />
                                                             </div>
                                                         )}
+                                                        {completedDate && (
+                                                            <p className="md:hidden text-[11px] text-muted mt-0.5 tabular-nums">
+                                                                Completed {formatDisplayDate(completedDate)}
+                                                            </p>
+                                                        )}
                                                         {/* Phones: the status columns are hidden, so their badges go under the name */}
                                                         <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1.5">
                                                             <TrackingBadge status={grad.tracking_status} />
@@ -766,6 +909,20 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                                         </span>
                                                     ))}
                                                 </div>
+                                                {completedDate && (
+                                                    <p className="lg:hidden text-[11px] text-muted mt-1 tabular-nums" title={courseDatesTooltip}>
+                                                        Completed {formatDisplayDate(completedDate)}
+                                                    </p>
+                                                )}
+                                            </td>
+                                            <td className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
+                                                {completedDate ? (
+                                                    <span className="text-xs text-muted tabular-nums" title={courseDatesTooltip}>
+                                                        {formatDisplayDate(completedDate)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-muted italic">—</span>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4 hidden sm:table-cell">
                                                 <TrackingBadge status={grad.tracking_status} />
@@ -814,7 +971,7 @@ function GraduateOutcomes({ onOpenStudentDetail }: { onOpenStudentDetail?: (stud
                                 })}
                                 {hasMore && (
                                     <tr ref={sentinelRef} key={visibleGraduates.length} aria-hidden="true">
-                                        <td colSpan={7} className="py-4 text-center text-xs text-muted">Loading more…</td>
+                                        <td colSpan={8} className="py-4 text-center text-xs text-muted">Loading more…</td>
                                     </tr>
                                 )}
                             </tbody>

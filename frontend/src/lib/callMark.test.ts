@@ -8,7 +8,7 @@ vi.mock('./supabase', () => ({ supabase: { from: vi.fn() } }));
 const grad = (tracking_status: GraduateRow['tracking_status']): GraduateRow => ({
     student_id: 's1', first_name: 'Ann', last_name: 'Byrne', email: 'ann@example.com', phone: null, courses: ['First Aid'],
     is_working: null, started_month: null, field_of_work: null, employment_type: null, status_updated_at: null,
-    tracking_status, last_sent_at: null, called_no_answer_at: null,
+    tracking_status, last_sent_at: null, called_no_answer_at: null, last_completed_date: null, course_completed_dates: {},
 });
 
 function mockTable() {

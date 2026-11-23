@@ -60,4 +60,19 @@ describe('sortOutcomeRows', () => {
             'PrevNotWorking', 'SelfEmployed', 'NotContacted', 'PendingNoAnswer',
         ]);
     });
+
+    it('sorts by completion date both ways and keeps missing dates last', () => {
+        const rows = [
+            row('NoDate', { completed_date: null }),
+            row('Old', { completed_date: '2025-03-10' }),
+            row('RecentB', { completed_date: '2026-11-15' }),
+            row('RecentA', { completed_date: '2026-11-15' }),
+        ];
+        expect(names(sortOutcomeRows(rows, { key: 'completed', dir: 'desc' }, r => r))).toEqual([
+            'RecentA', 'RecentB', 'Old', 'NoDate',
+        ]);
+        expect(names(sortOutcomeRows(rows, { key: 'completed', dir: 'asc' }, r => r))).toEqual([
+            'Old', 'RecentA', 'RecentB', 'NoDate',
+        ]);
+    });
 });

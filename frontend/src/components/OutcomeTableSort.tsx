@@ -16,7 +16,7 @@ export function SortHeader({ label, column, sort, onSort, className = '' }: {
     const dir = sort?.key === column ? sort.dir : null;
     const active = dir !== null;
     // Names and statuses start A→Z, dates newest first
-    const firstDir: OutcomeSort['dir'] = column === 'updated' ? 'desc' : 'asc';
+    const firstDir: OutcomeSort['dir'] = column === 'updated' || column === 'completed' ? 'desc' : 'asc';
     const Icon = !dir ? ChevronsUpDown : dir === 'asc' ? ChevronUp : ChevronDown;
     return (
         <th className={`${thCls} ${className}`} aria-sort={dir ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>

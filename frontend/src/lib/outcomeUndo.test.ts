@@ -26,6 +26,8 @@ const makeGraduate = (overrides: Partial<GraduateRow> = {}): GraduateRow => ({
     tracking_status: 'not_contacted',
     last_sent_at: null,
     called_no_answer_at: null,
+    last_completed_date: null,
+    course_completed_dates: {},
     ...overrides,
 });
 
