@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
@@ -610,14 +610,34 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 )}
                             </div>
                         )}
-                        <button
-                            onClick={handleCopySummary}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-xs active:scale-95"
-                            title="Copy full contact card (Name, Email, Phone, Address, Eircode, DOB)"
-                        >
-                            <Copy size={13} className="text-brand-500" />
-                            <span>Copy Contact Summary</span>
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleCopySummary}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-xs active:scale-95"
+                                title="Copy full contact card (Name, Email, Phone, Address, Eircode, DOB)"
+                            >
+                                <Copy size={13} className="text-brand-500 shrink-0" />
+                                <span className="truncate">Copy Contact Summary</span>
+                            </button>
+                            {onNavigate && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onClose();
+                                        onNavigate('todos', {
+                                            newTodo: true,
+                                            studentId: student.id,
+                                            studentName: fullName(student),
+                                        });
+                                    }}
+                                    className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary/80 hover:text-primary bg-surface hover:bg-surface-elevated border border-border-subtle hover:border-border-strong rounded-xl transition-all shadow-xs active:scale-95 shrink-0"
+                                    title="Create a team To-Do linked to this student"
+                                >
+                                    <CheckSquare size={13} className="text-brand-500 shrink-0" />
+                                    <span>Add To-Do</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Contact Info — Inline Editable */}

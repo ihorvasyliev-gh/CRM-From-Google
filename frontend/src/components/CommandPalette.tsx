@@ -10,7 +10,7 @@ import DialogLayer from './ui/DialogLayer';
 import {
     Search, LayoutDashboard, Users, BookOpen, GraduationCap,
     Briefcase, FileText, FileInput, PieChart, Settings as SettingsIcon,
-    Moon, Sun, Rows3, CheckCircle, UserPlus, HelpCircle,
+    Moon, Sun, Rows3, CheckCircle, CheckSquare, UserPlus, HelpCircle,
     X, CornerDownLeft, Sparkles, Loader2, Receipt,
     SlidersHorizontal, Mail, Award, GitMerge, MailX, ShieldCheck,
     FileArchive, FolderOpen, Braces
@@ -148,6 +148,7 @@ export default function CommandPalette({
                 { id: 'nav-sett', title: 'Settings', subtitle: 'Preferences, email studio, certificates, data hygiene & users', tab: 'settings', icon: <SettingsIcon size={17} />, shortcut: '8' },
                 { id: 'nav-pdff', title: 'PDF Forms', subtitle: 'Fill PDF forms from a spreadsheet', tab: 'pdf-forms', icon: <FileInput size={17} />, shortcut: '9' },
                 { id: 'nav-cheq', title: 'Cheque Requisitions', subtitle: 'SICAP cheque requisitions from supplier invoices', tab: 'cheque-reqs', icon: <Receipt size={17} /> },
+                { id: 'nav-todo', title: 'Team To-Do', subtitle: 'Shared admin tasks, bookings and notes', tab: 'todos', icon: <CheckSquare size={17} /> },
             ];
 
             navs.forEach(nav => {
@@ -309,6 +310,19 @@ export default function CommandPalette({
                 },
             },
         ];
+
+        if (!isViewer) {
+            actions.unshift({
+                id: 'act-add-todo',
+                title: 'New Team To-Do',
+                subtitle: 'Add a shared admin task, booking or note',
+                icon: <CheckSquare size={17} className="text-brand-500" />,
+                onSelect: () => {
+                    onNavigate('todos', { newTodo: true });
+                    onClose();
+                },
+            });
+        }
 
         if (!isViewer && onOpenAddStudent) {
             actions.unshift({

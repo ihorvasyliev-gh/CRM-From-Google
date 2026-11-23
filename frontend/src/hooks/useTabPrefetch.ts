@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { fetchAllEnrollments } from './useEnrollments';
 import { fetchGraduatesFn } from './useOutcomes';
 import { CHEQUE_REQ_KEY, fetchChequeReqHistory } from './useChequeRequisitions';
+import { TODOS_KEY, fetchAdminTodos } from './useTodos';
 import { fetchCourses, fetchDashboardStats, fetchEmploymentStatuses, fetchStudentsPage } from '../lib/queries';
 
 // Hover prefetch per tab: its data, plus its chunk (idle prewarm skips heavy chunks on slow connections)
@@ -11,6 +12,7 @@ const TAB_PREFETCH: Record<string, { queries?: { queryKey: string[]; queryFn: ()
     dashboard: { queries: [{ queryKey: ['dashboard_stats'], queryFn: fetchDashboardStats }, enrollmentsQuery] },
     courses: { queries: [{ queryKey: ['courses'], queryFn: fetchCourses }, enrollmentsQuery], chunk: () => import('../components/CourseList') },
     enrollments: { queries: [enrollmentsQuery] },
+    todos: { queries: [{ queryKey: [...TODOS_KEY], queryFn: fetchAdminTodos }], chunk: () => import('../components/Todos') },
     outcomes: { queries: [{ queryKey: ['outcomes_graduates'], queryFn: fetchGraduatesFn }], chunk: () => import('../components/OutcomesList') },
     documents: { queries: [enrollmentsQuery, { queryKey: ['doc_courses'], queryFn: fetchCourses }], chunk: () => import('../components/DocumentGenerator') },
     analytics: { queries: [enrollmentsQuery, { queryKey: ['analytics_employment_statuses_v1'], queryFn: fetchEmploymentStatuses }], chunk: () => import('../components/Analytics') },
@@ -107,6 +109,7 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
             () => import('../components/Dashboard'),
             () => import('../components/StudentList'),
             () => import('../components/EnrollmentBoard'),
+            () => import('../components/Todos'),
             () => import('../components/CourseList'),
             () => import('../components/OutcomesList'),
             () => import('../components/StudentDetailDrawer'),

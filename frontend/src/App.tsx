@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useCallback, useRef, Suspense, us
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle, Receipt } from 'lucide-react';
+import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle, Receipt, CheckSquare } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
@@ -38,6 +38,7 @@ const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
 const StudentList = lazyWithRetry(() => import('./components/StudentList'));
 const CourseList = lazyWithRetry(() => import('./components/CourseList'));
 const EnrollmentBoard = lazyWithRetry(() => import('./components/EnrollmentBoard'));
+const Todos = lazyWithRetry(() => import('./components/Todos'));
 const DocumentGenerator = lazyWithRetry(() => import('./components/DocumentGenerator'));
 const OutcomesList = lazyWithRetry(() => import('./components/OutcomesList'));
 const Settings = lazyWithRetry(() => import('./components/Settings'));
@@ -62,6 +63,7 @@ import ViewerHeader from './components/Viewer/ViewerHeader';
 import { VIEWER_TABS, type ViewerTab } from './components/Viewer/viewerMeta';
 import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/studentDrawer';
 import { usePendingApprovalsCount } from './hooks/useApprovals';
+import { useAdminTodoStats } from './hooks/useTodos';
 
 // `title` (page header) defaults to `label` (sidebar)
 const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof Users; subtitle: string; group: string }[] = [
@@ -74,9 +76,10 @@ const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof User
     { key: 'documents', label: 'Documents', icon: FileText, subtitle: 'Generate personalised documents from templates', group: 'Tools' },
     { key: 'analytics', label: 'Analytics', title: 'Analytics & Insights', icon: PieChart, subtitle: 'Course, enrollment and outcome statistics', group: 'Insights' },
     { key: 'settings', label: 'Settings', icon: SettingsIcon, subtitle: 'Preferences, email studio, certificates, data hygiene and users', group: 'System' },
-    // Last in the list so the 1–8 shortcuts above keep their keys; shown under Tools (number keys stop at 9)
+    // Last in the list so the 1–8 shortcuts above keep their keys; shown under their group (number keys stop at 9)
     { key: 'pdf-forms', label: 'PDF Forms', icon: FileInput, subtitle: 'Fill PDF forms from a spreadsheet', group: 'Tools' },
     { key: 'cheque-reqs', label: 'Cheque Reqs', title: 'Cheque Requisitions', icon: Receipt, subtitle: 'SICAP cheque requisitions from supplier invoices', group: 'Tools' },
+    { key: 'todos', label: 'To-Do', title: 'Team To-Do', icon: CheckSquare, subtitle: 'Shared admin tasks, bookings and notes', group: 'Workspace' },
 ];
 // The sidebar shows the pages by group (the number keys follow NAV_ITEMS, so they stay put)
 const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
@@ -86,7 +89,7 @@ const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
  * their filters, search, drafts and scroll position. Pages that take their start from the
  * navigation (the board's course filter…) or the URL are mounted fresh each time instead.
  */
-const KEPT_PAGES = new Set(['dashboard', 'students', 'outcomes', 'analytics', 'documents', 'settings', 'cheque-reqs']);
+const KEPT_PAGES = new Set(['dashboard', 'students', 'todos', 'outcomes', 'analytics', 'documents', 'settings', 'cheque-reqs']);
 
 const PAGE_SPINNER = (
     <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
@@ -133,6 +136,7 @@ function App() {
     const pageTitle = activeNav?.title ?? activeNav?.label;
     const [approvalsModalOpen, setApprovalsModalOpen] = useState(false);
     const { count: pendingApprovalsCount } = usePendingApprovalsCount(!!user && role === 'admin');
+    const todoStats = useAdminTodoStats(!!user && role === 'admin');
 
     // Browser tab title follows the current page (and shows pending approvals)
     useEffect(() => {
@@ -324,6 +328,7 @@ function App() {
                             onNavigate={navigate}
                         />
                     } />
+                    <Route path="/todos" element={null} />
                     <Route path="/outcomes" element={null} />
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />
@@ -420,7 +425,26 @@ function App() {
                                                 )}
                                                 <Icon size={17} className="shrink-0" />
                                                 <span className="flex-1 text-left truncate">{item.label}</span>
-                                                {shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-xs font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>}
+                                                {item.key === 'todos' && todoStats.available && todoStats.openCount > 0 ? (
+                                                    <span
+                                                        title={
+                                                            todoStats.overdueCount > 0
+                                                                ? `${todoStats.openCount} open (${todoStats.overdueCount} overdue)`
+                                                                : `${todoStats.openCount} open`
+                                                        }
+                                                        className={`px-1.5 min-w-[20px] h-5 inline-flex items-center justify-center rounded-full text-[11px] font-bold tabular-nums shrink-0 ${
+                                                            todoStats.overdueCount > 0
+                                                                ? 'bg-danger/15 text-status-rejected border border-danger/25'
+                                                                : isActive
+                                                                    ? 'bg-brand-500/20 text-brand-600 dark:text-brand-400'
+                                                                    : 'bg-surface-elevated text-muted border border-border-subtle'
+                                                        }`}
+                                                    >
+                                                        {todoStats.openCount > 99 ? '99+' : todoStats.openCount}
+                                                    </span>
+                                                ) : (
+                                                    shortcut <= 9 && <span aria-hidden className="hidden lg:inline text-xs font-mono text-muted/70 opacity-0 group-hover:opacity-100 transition-opacity">{shortcut}</span>
+                                                )}
                                             </button>
                                         );
                                     })}
@@ -621,6 +645,14 @@ function App() {
                                         />
                                     )}
                                     {tab === 'students' && <StudentList onNavigate={navigate} />}
+                                    {tab === 'todos' && (
+                                        <Todos
+                                            onNavigate={navigate}
+                                            onOpenStudentDetail={handleOpenStudentDetail}
+                                            navState={activeTab === 'todos' ? navState : null}
+                                            navKey={activeTab === 'todos' ? location.key : undefined}
+                                        />
+                                    )}
                                     {tab === 'outcomes' && (
                                         <OutcomesList
                                             onOpenStudentDetail={handleOpenStudentDetail}

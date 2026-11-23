@@ -10,6 +10,12 @@ export interface NavState {
     status?: EnrollmentStatus;
     /** Courses: open the "new course" dialog */
     openCreate?: boolean;
+    /** To-Do: focus the quick-add input (optionally pre-linked to a student or course) */
+    newTodo?: boolean;
+    studentId?: string;
+    studentName?: string;
+    /** To-Do: open a specific item's detail dialog */
+    todoId?: string;
 }
 
 /** Opens an admin tab (a top-level route such as 'enrollments'), optionally with state. */

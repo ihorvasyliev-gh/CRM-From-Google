@@ -12,6 +12,8 @@ import UpcomingCohortsCard from './Dashboard/UpcomingCohortsCard';
 import DashboardActivityFeed, { type ActivityFilter } from './Dashboard/DashboardActivityFeed';
 import StatusBreakdownCard from './Dashboard/StatusBreakdownCard';
 import SendRemindersBanner from './Dashboard/SendRemindersBanner';
+import TodoSummaryCard from './Dashboard/TodoSummaryCard';
+import { TODOS_KEY } from '../hooks/useTodos';
 import { sendReminderEmail } from '../hooks/useInviteFlow';
 import { todayISO } from '../lib/dateUtils';
 import { toast } from '../lib/toast';
@@ -206,6 +208,7 @@ export default function Dashboard({
         queryClient.invalidateQueries({ queryKey: ['enrollments'] });
         queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY.week });
         queryClient.invalidateQueries({ queryKey: SENT_QUERY_KEY.dayBefore });
+        queryClient.invalidateQueries({ queryKey: TODOS_KEY });
     };
 
     // From the loaded list once it is whole (it shows this tab's changes at once), else the counts
@@ -379,6 +382,8 @@ export default function Dashboard({
         />
     );
 
+    const todoSummary = <TodoSummaryCard onNavigate={onNavigate} />;
+
     return (
         <div className="w-full space-y-4 sm:space-y-6">
             {header}
@@ -392,6 +397,7 @@ export default function Dashboard({
             {isMobile ? (
                 <div className="space-y-4">
                     {/* Things to act on first, then the reference cards and the feed */}
+                    {todoSummary}
                     {statusBreakdown}
                     {expired}
                     {cohorts}
@@ -405,6 +411,7 @@ export default function Dashboard({
                         {activity}
                     </div>
                     <div className="col-span-4 space-y-6 min-w-0">
+                        {todoSummary}
                         <PublicLinksCard />
                         {expired}
                         {statusBreakdown}

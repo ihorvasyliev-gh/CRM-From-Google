@@ -267,6 +267,21 @@ export function useGlobalRealtimeSync() {
                     queueInvalidation(['cheque_requisitions']);
                 }
             )
+            // ─── Admin To-Do & comments (live multi-admin sync) ────
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'admin_todos' },
+                () => {
+                    queueInvalidation(['admin_todos']);
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'admin_todo_comments' },
+                () => {
+                    queueInvalidation(['admin_todos', 'admin_todo_comments']);
+                }
+            )
             .subscribe((status, err) => {
                 // Ignore late status callbacks from channels we already replaced/removed —
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.

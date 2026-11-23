@@ -324,4 +324,16 @@ describe('useGlobalRealtimeSync', () => {
         act(() => { vi.advanceTimersByTime(5000); });
         expect(fullReloads()).toBe(1);
     });
+
+    it('invalidates admin_todos and admin_todo_comments caches on realtime events', () => {
+        const { invalidatedKeys } = setup();
+
+        act(() => {
+            handlers.admin_todos({ eventType: 'INSERT' });
+            handlers.admin_todo_comments({ eventType: 'INSERT' });
+            vi.advanceTimersByTime(250);
+        });
+
+        expect(invalidatedKeys().sort()).toEqual(['admin_todo_comments', 'admin_todos']);
+    });
 });
