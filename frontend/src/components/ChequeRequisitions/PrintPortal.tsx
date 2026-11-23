@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { drawDocxPages } from '../../lib/certificates/pages';
-import { chequeReqFileName, renderChequeReqBytes } from '../../lib/chequeReq/docx';
-import { toast } from '../../lib/toast';
+import { chequeReqFileName } from '../../lib/chequeReq/docx';
 import type { ChequeReqForm, ChequeReqMeta } from '../../lib/chequeReq/types';
+import RequisitionSheet from './RequisitionSheet';
 
 interface PrintJob {
     title: string;
-    pages: string[];
+    form: ChequeReqForm;
 }
 
 export interface UsePrintChequeReqResult {
@@ -17,10 +16,9 @@ export interface UsePrintChequeReqResult {
 }
 
 /**
- * Renders the filled SICAP cheque requisition as crisp 200 DPI A4 pages into a
- * body-portaled `.cheque-print-root`, scopes print CSS via `body.cheque-printing`,
- * swaps the document title for clean print-to-PDF filenames, and cleans up after print
- * or on unmount.
+ * Prints the filled SICAP cheque requisition directly as crisp vector HTML via a
+ * body-portaled `.cheque-print-root` (scoped with `body.cheque-printing`), swapping
+ * `document.title` for clean print-to-PDF filenames and restoring everything on `afterprint`.
  */
 export function usePrintChequeReq(): UsePrintChequeReqResult {
     const [job, setJob] = useState<PrintJob | null>(null);
@@ -66,7 +64,7 @@ export function usePrintChequeReq(): UsePrintChequeReqResult {
 
         window.addEventListener('afterprint', onAfterPrint);
 
-        // Wait two frames so the portaled <img> elements commit and paint before opening the print dialog
+        // Wait two frames so the portaled sheet commits and paints before opening the print dialog
         raf1 = window.requestAnimationFrame(() => {
             raf2 = window.requestAnimationFrame(() => {
                 if (finished) return;
@@ -87,46 +85,16 @@ export function usePrintChequeReq(): UsePrintChequeReqResult {
         if (busyRef.current) return;
         busyRef.current = true;
         setPrinting(true);
-        try {
-            const bytes = await renderChequeReqBytes(form);
-            const rendered = await drawDocxPages(bytes, 200);
-            let pages: string[];
-            try {
-                pages = rendered.map(p => p.canvas.toDataURL('image/png'));
-            } finally {
-                for (const page of rendered) {
-                    page.canvas.width = 0;
-                    page.canvas.height = 0;
-                }
-            }
-            if (!mountedRef.current) {
-                busyRef.current = false;
-                return;
-            }
-            if (pages.length === 0) {
-                throw new Error('No pages were generated for printing');
-            }
-            const title = chequeReqFileName(meta, form).replace(/\.docx$/i, '');
-            setJob({ title, pages });
-        } catch (err) {
-            busyRef.current = false;
-            if (mountedRef.current) setPrinting(false);
-            toast.error(
-                err instanceof Error
-                    ? `Could not prepare the requisition for printing: ${err.message}`
-                    : 'Could not prepare the requisition for printing',
-            );
-        }
+        const title = chequeReqFileName(meta, form).replace(/\.docx$/i, '');
+        setJob({ title, form: structuredClone(form) });
     }, []);
 
     const printNode: ReactNode = job && typeof document !== 'undefined'
         ? createPortal(
             <div className="cheque-print-root" aria-hidden="true">
-                {job.pages.map((src, index) => (
-                    <div key={index} className="cheque-print-page">
-                        <img src={src} alt="" className="block w-full h-auto" />
-                    </div>
-                ))}
+                <div className="cheque-print-page">
+                    <RequisitionSheet form={job.form} printMode />
+                </div>
             </div>,
             document.body,
         )

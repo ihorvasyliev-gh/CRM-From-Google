@@ -1,50 +1,21 @@
 // ─── Cheque requisitions: PDF, batch ZIP, and Excel exports ────
-// Everything stays in the browser: filled .docx bytes are laid out as 200 DPI page pictures
-// into pdf-lib (matching certificates/output.ts), packed with PizZip for batch downloads,
-// or exported to a 2-sheet Excel register (Requisitions + Suppliers).
+// Everything stays in the browser: requisitions render directly as crisp vector
+// PDFs (pdf.ts), pack with PizZip for batch downloads, or export to a 2-sheet
+// Excel register (Requisitions + Suppliers).
 
-import { drawDocxPages } from '../certificates/pages';
 import { formatDateDMY, todayISO } from '../dateUtils';
-import { loadChunk } from '../deployRecovery';
 import { loadDocxLibs } from '../documentRender';
 import { darkHeader, downloadXlsx, valueCells, type CellObject, type Row, type XlsxSheet } from '../excelExport';
 import { chequeReqFileName, chequeReqPdfFileName, renderChequeReqBytes } from './docx';
 import { getReqChequeNumber, getReqNotes, getReqStatus, netOfPayment, suppliersSummary } from './draft';
 import { parseAmount } from './parse';
+import { renderChequeReqPdfBytes } from './pdf';
 import type { ChequeReqForm, ChequeReqMeta, ChequeReqStatus, SavedChequeReq, SupplierSummary } from './types';
 
-/** Dots to the inch of pages in exported requisition PDFs: sharp in print, light for email */
-const PDF_DPI = 200;
-
-function canvasJpeg(canvas: HTMLCanvasElement): Promise<Uint8Array> {
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-            if (!blob) reject(new Error('The requisition page could not be drawn'));
-            else blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)), reject);
-        }, 'image/jpeg', 0.92);
-    });
-}
-
-/** Render a filled SICAP cheque requisition as a 200 DPI print-ready PDF */
+/** Render a filled SICAP cheque requisition as a crisp vector print-ready PDF */
 export async function renderChequeReqPdf(form: ChequeReqForm, meta?: Pick<ChequeReqMeta, 'invoiceNumber'>): Promise<Blob> {
-    const [lib, docxBytes] = await Promise.all([
-        loadChunk(() => import('pdf-lib')),
-        renderChequeReqBytes(form),
-    ]);
-    const pages = await drawDocxPages(docxBytes, PDF_DPI);
-    const pdf = await lib.PDFDocument.create();
-    try {
-        for (const page of pages) {
-            const image = await pdf.embedJpg(await canvasJpeg(page.canvas));
-            pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
-        }
-    } finally {
-        // Release page bitmaps immediately so batch exports never accumulate canvas memory
-        for (const page of pages) page.canvas.width = page.canvas.height = 0;
-    }
-    const title = chequeReqPdfFileName({ invoiceNumber: meta?.invoiceNumber ?? '' }, form).replace(/\.pdf$/i, '');
-    pdf.setTitle(title);
-    return new Blob([(await pdf.save()) as BlobPart], { type: 'application/pdf' });
+    const bytes = await renderChequeReqPdfBytes(form, meta);
+    return new Blob([bytes as BlobPart], { type: 'application/pdf' });
 }
 
 /** Deduplicate filenames inside a ZIP archive (case-insensitive): "name (2).docx", "name (3).docx"… */

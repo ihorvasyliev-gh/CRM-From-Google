@@ -19,7 +19,9 @@ import {
     suggestedChecklist,
     suppliersSummary,
 } from './draft';
-import { exportChequeReqsToExcel, renderChequeReqBatchZip } from './export';
+import { exportChequeReqsToExcel, renderChequeReqBatchZip, renderChequeReqPdf } from './export';
+import { renderChequeReqPdfBytes } from './pdf';
+import { PDFDocument } from 'pdf-lib';
 import { extractInvoice, rawInvoiceText } from './extract';
 import { DEFAULT_OCR_MAX_PAGES, readScan, rotateCanvas } from './ocr';
 import { isMetaField, META_PICKABLE, PICKABLE, pickedMetaValue, pickedValue } from './pick';
@@ -414,5 +416,42 @@ describe('docx.ts & export.ts: descriptionFit, PDF filename, batch ZIP and Excel
         expect(sheets[1].rows[0]).toHaveLength(6);
         // Formula injection neutralised with text format '@' on Notes cell
         expect(sheets[0].rows[1][11]).toMatchObject({ value: '=cmd|check', format: '@' });
+    });
+
+    it('renders a crisp single-page US Letter vector PDF with metadata and handles Unicode safely', async () => {
+        const form = {
+            ...EMPTY_FORM,
+            actionNumber: '9',
+            poNumber: '8777',
+            payeeName: "Oli's Ices",
+            payeeAddress: '7 the orchards, Shanbally, Ringaskiddy, Co. Cork, P43 XV21',
+            amount: '410.00',
+            amountQuoted: '410.00',
+            description: 'Ice Cream for summer event — 21.08.2026',
+            requestedBy: 'Jane Murphy',
+            requestedDate: '2026-08-21',
+            quoteDate: '2026-08-18',
+            approvalEmailAttached: true,
+            quoteBy: { ...EMPTY_FORM.quoteBy, email: true },
+            quoteEmail: 'orders@olisices.ie',
+            checklist: { ...EMPTY_FORM.checklist, poAndSicap: true, description: true },
+        };
+        const blob = await renderChequeReqPdf(form, { invoiceNumber: 'INV-8777' });
+        expect(blob.type).toBe('application/pdf');
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const doc = await PDFDocument.load(bytes);
+        expect(doc.getPageCount()).toBe(1);
+        expect(doc.getTitle()).toBe('SICAP Invoice INV-8777');
+        expect(doc.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
+
+        // Non-WinAnsi characters (e.g. Polish/Ukrainian) never throw even if Arimo fetch is unavailable
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+        const unicodeBytes = await renderChequeReqPdfBytes({
+            ...form,
+            payeeName: 'Łukasz Żółć / Олена',
+            description: 'Very long description '.repeat(14).trim(),
+        });
+        const unicodeDoc = await PDFDocument.load(unicodeBytes);
+        expect(unicodeDoc.getPageCount()).toBe(1);
     });
 });
