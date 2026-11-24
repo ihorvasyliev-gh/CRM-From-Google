@@ -41,7 +41,12 @@ export function useTabPrefetch(shell: 'admin' | 'viewer' | null, initialTab?: st
         // cursor passing over the sidebar downloaded every enrollment again twice a minute
         queries.forEach(q => queryClient.prefetchQuery(q));
         if (tab === 'students') {
-            queryClient.prefetchInfiniteQuery({ queryKey: ['students', ''], queryFn: fetchStudentsPage, initialPageParam: 0 });
+            queryClient.prefetchInfiniteQuery({
+                queryKey: ['students', ''],
+                queryFn: fetchStudentsPage,
+                initialPageParam: 0,
+                getNextPageParam: (lastPage) => lastPage.nextPage,
+            });
         }
     }, [queryClient]);
 
