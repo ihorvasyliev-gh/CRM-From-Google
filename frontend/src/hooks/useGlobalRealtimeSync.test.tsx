@@ -101,9 +101,26 @@ describe('useGlobalRealtimeSync', () => {
                 'course_enrollment_counts', 'dashboard_stats', 'enrollments', 'outcomes_graduates', 'pending_completions', 'students',
                 'viewer_courses', 'viewer_course_roster', 'viewer_upcoming_courses', 'viewer_students_directory', 'restricted_student_detail',
                 // Every other list showing students' details
-                'palette_students', 'enrollment_modal_students', 'restricted_students_search', 'analytics_enrollments_v2',
+                'palette_students', 'enrollment_modal_students', 'analytics_enrollments_v2',
             ].sort()
         );
+    });
+
+    it('invalidates sessions, reminders, and opt-outs on invite_dates and email_opt_outs events', () => {
+        const { invalidatedKeys } = setup();
+
+        act(() => {
+            handlers.invite_dates({ eventType: 'UPDATE' });
+            handlers.email_opt_outs({ eventType: 'INSERT' });
+            handlers.pdf_form_templates({ eventType: 'UPDATE' });
+            handlers.certificate_templates({ eventType: 'UPDATE' });
+        });
+        act(() => { vi.advanceTimersByTime(250); });
+
+        expect(invalidatedKeys()).toEqual(expect.arrayContaining([
+            'course_sessions', 'reminders_sent', 'reminders_tomorrow_sent',
+            'email_opt_outs', 'pdf_form_templates', 'certificate_templates',
+        ]));
     });
 
     it('does not hold updates back for more than ~1s during a continuous burst', () => {

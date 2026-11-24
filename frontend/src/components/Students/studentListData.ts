@@ -117,12 +117,7 @@ export async function fetchAllStudents(search: string): Promise<Student[]> {
 
 // ─── Eircode and phone hints for the student form ──────────────────────
 
-/** "t12ab34" → "T12 AB34"; anything that isn't 7 letters/digits is only upper-cased */
-export function formatEircode(value: string): string {
-    const compact = value.replace(/\s+/g, '').toUpperCase();
-    if (/^[A-Z0-9]{7}$/.test(compact)) return `${compact.slice(0, 3)} ${compact.slice(3)}`;
-    return value.toUpperCase();
-}
+export { formatEircode } from '../../lib/contactUtils';
 
 /** An Eircode is a routing key (letter + 2 digits, or D6W) and 4 more letters/digits */
 export function looksLikeEircode(value: string): boolean {

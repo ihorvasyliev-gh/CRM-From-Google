@@ -176,7 +176,6 @@ export default function CourseList() {
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             // Other lists of courses (documents) and open student cards show the new name too
             queryClient.invalidateQueries({ queryKey: ['courses'] });
-            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: [...ENROLLMENTS_KEY, 'by_student'] });
             notify({ message: 'Course updated', type: 'success' });
         } else {
@@ -188,7 +187,6 @@ export default function CourseList() {
             if (inserted) setCourses(prev => [...prev, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)));
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
-            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             notify({ message: 'Course created', type: 'success' });
         }
     }
@@ -228,7 +226,6 @@ export default function CourseList() {
             removeCachedEnrollments(queryClient, e => e.course_id === deleteTarget.id);
             queryClient.invalidateQueries({ queryKey: ['course_enrollment_counts'] });
             queryClient.invalidateQueries({ queryKey: ['courses'] });
-            queryClient.invalidateQueries({ queryKey: ['doc_courses'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] });
             notify({ message: 'Course deleted', type: 'success' });
         }

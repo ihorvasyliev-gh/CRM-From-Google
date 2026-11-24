@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserRole } from '../lib/roles';
 import { setupSleepAndWakeListener } from '../lib/realtimeSync';
 import { ENROLLMENTS_KEY, patchCachedEnrollments, syncCachedEnrollments, updateCachedRelations, type RelationRow } from '../lib/enrollmentCache';
 import { STUDENT_VIEW_KEYS } from '../lib/studentCache';
@@ -124,10 +125,12 @@ export function useGlobalRealtimeSync() {
         // since it was read: reloading it whole downloaded every enrollment again after each
         // dropped connection and on returns to the tab
         queryClient.invalidateQueries({ predicate: q => !isEnrollmentList(q.queryKey) });
-        void syncCachedEnrollments(queryClient).then(synced => {
-            if (!synced) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY, exact: true });
-        });
-    }, [queryClient]);
+        if (getUserRole(user) === 'admin') {
+            void syncCachedEnrollments(queryClient).then(synced => {
+                if (!synced) queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY, exact: true });
+            });
+        }
+    }, [queryClient, user]);
 
     const subscribeChannel = useCallback(() => {
         if (!user) return;
@@ -144,145 +147,205 @@ export function useGlobalRealtimeSync() {
             }
         }
 
-        const channel = supabase
-            .channel('global_sync')
+        const role = getUserRole(user);
+        const isAdmin = role === 'admin';
+        const isViewer = role === 'viewer';
+        const canSeeOutreach = isAdmin || isViewer || role === 'outreach';
+
+        let channel = supabase.channel('global_sync');
+
+        if (isAdmin || isViewer) {
             // ─── Enrollments ─────────────────────────────────
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'enrollments' },
-                payload => {
-                    const id = changedRowId(payload);
-                    if (id) pendingEnrollmentIdsRef.current?.add(id);
-                    else pendingEnrollmentIdsRef.current = null;
-                    queueInvalidation(['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', 'pending_completions', ...VIEWER_ENROLLMENT_KEYS]);
-                }
-            )
-            // ─── Students ───────────────────────────────────
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'students' },
-                payload => {
-                    const row = newRow(payload);
-                    if (row) pendingRelationsRef.current.students.set(row.id, row);
-                    // Every list that shows students' details, and an open student card
-                    queueInvalidation([...STUDENT_VIEW_KEYS]);
-                }
-            )
-            // ─── Courses ────────────────────────────────────
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'courses' },
-                payload => {
-                    const row = newRow(payload);
-                    if (row) pendingRelationsRef.current.courses.set(row.id, row);
-                    queueInvalidation(['courses', 'doc_courses', 'dashboard_stats', 'viewer_courses', 'viewer_upcoming_courses']);
-                }
-            )
-            // ─── Employment Status ───────────────────────────
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'employment_status' },
-                () => {
-                    queueInvalidation(['outcomes_graduates', 'analytics_employment_statuses_v1']);
-                }
-            )
+            channel = channel
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'enrollments' },
+                    payload => {
+                        const id = changedRowId(payload);
+                        if (id) pendingEnrollmentIdsRef.current?.add(id);
+                        else pendingEnrollmentIdsRef.current = null;
+                        queueInvalidation(
+                            isAdmin
+                                ? ['enrollments', 'dashboard_stats', 'outcomes_graduates', 'course_enrollment_counts', 'pending_completions', ...VIEWER_ENROLLMENT_KEYS]
+                                : [...VIEWER_ENROLLMENT_KEYS]
+                        );
+                    }
+                )
+                // ─── Students ───────────────────────────────────
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'students' },
+                    payload => {
+                        const row = newRow(payload);
+                        if (row) pendingRelationsRef.current.students.set(row.id, row);
+                        // Every list that shows students' details, and an open student card
+                        queueInvalidation(isAdmin ? [...STUDENT_VIEW_KEYS] : ['viewer_students_directory', 'restricted_student_detail', 'viewer_course_roster']);
+                    }
+                )
+                // ─── Courses ────────────────────────────────────
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'courses' },
+                    payload => {
+                        const row = newRow(payload);
+                        if (row) pendingRelationsRef.current.courses.set(row.id, row);
+                        queueInvalidation(
+                            isAdmin
+                                ? ['courses', 'dashboard_stats', 'viewer_courses', 'viewer_upcoming_courses']
+                                : ['viewer_courses', 'viewer_upcoming_courses']
+                        );
+                    }
+                )
+                // ─── Student flags (board cards, student drawer) ─
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'student_flags' },
+                    () => {
+                        queueInvalidation(['student_flags']);
+                    }
+                );
+        }
+
+        if (canSeeOutreach) {
             // ─── External outreach lists (e.g. Action 11) ────
-            .on(
+            channel = channel
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'outreach_contacts' },
+                    () => {
+                        queueInvalidation(['outreach_contacts']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'outreach_lists' },
+                    () => {
+                        queueInvalidation(['outreach_lists']);
+                    }
+                );
+        }
+
+        if (isAdmin || role === 'outreach') {
+            // ─── Email opt-outs (unsubscribe list) ───────────
+            channel = channel.on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'outreach_contacts' },
+                { event: '*', schema: 'public', table: 'email_opt_outs' },
                 () => {
-                    queueInvalidation(['outreach_contacts']);
+                    queueInvalidation(['email_opt_outs']);
                 }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'outreach_lists' },
-                () => {
-                    queueInvalidation(['outreach_lists']);
-                }
-            )
-            // ─── Student flags (board cards, student drawer) ─
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'student_flags' },
-                () => {
-                    queueInvalidation(['student_flags']);
-                }
-            )
-            // ─── Documents (templates, variables, Excel columns, run history) ─
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'document_templates' },
-                () => {
-                    queueInvalidation(['doc_templates']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'attendance_templates' },
-                () => {
-                    queueInvalidation(['doc_att_template']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'label_templates' },
-                () => {
-                    queueInvalidation(['doc_label_template']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'sicap_templates' },
-                () => {
-                    queueInvalidation(['doc_sicap_template']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'template_variables' },
-                () => {
-                    queueInvalidation(['doc_custom_vars']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'document_settings' },
-                () => {
-                    queueInvalidation(['doc_excel_columns']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'document_generations' },
-                () => {
-                    queueInvalidation(['doc_generations']);
-                }
-            )
-            // ─── Cheque requisitions (admin history, statuses & supplier memory) ─
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'cheque_requisitions' },
-                () => {
-                    queueInvalidation(['cheque_requisitions']);
-                }
-            )
-            // ─── Admin To-Do & comments (live multi-admin sync) ────
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'admin_todos' },
-                () => {
-                    queueInvalidation(['admin_todos']);
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'admin_todo_comments' },
-                () => {
-                    queueInvalidation(['admin_todos', 'admin_todo_comments']);
-                }
-            )
-            .subscribe((status, err) => {
+            );
+        }
+
+        // ─── PDF Form templates (available to all signed-in roles) ─
+        channel = channel.on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'pdf_form_templates' },
+            () => {
+                queueInvalidation(['pdf_form_templates']);
+            }
+        );
+
+        if (isAdmin) {
+            // ─── Employment Status ───────────────────────────
+            channel = channel
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'employment_status' },
+                    () => {
+                        queueInvalidation(['outcomes_graduates', 'analytics_employment_statuses_v1']);
+                    }
+                )
+                // ─── Course sessions & sent reminders ────────────
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'invite_dates' },
+                    () => {
+                        queueInvalidation(['course_sessions', 'reminders_sent', 'reminders_tomorrow_sent']);
+                    }
+                )
+                // ─── Documents (templates, variables, Excel columns, run history) ─
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'document_templates' },
+                    () => {
+                        queueInvalidation(['doc_templates']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'attendance_templates' },
+                    () => {
+                        queueInvalidation(['doc_att_template']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'label_templates' },
+                    () => {
+                        queueInvalidation(['doc_label_template']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'sicap_templates' },
+                    () => {
+                        queueInvalidation(['doc_sicap_template']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'template_variables' },
+                    () => {
+                        queueInvalidation(['doc_custom_vars']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'document_settings' },
+                    () => {
+                        queueInvalidation(['doc_excel_columns']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'document_generations' },
+                    () => {
+                        queueInvalidation(['doc_generations']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'certificate_templates' },
+                    () => {
+                        queueInvalidation(['certificate_templates']);
+                    }
+                )
+                // ─── Cheque requisitions (admin history, statuses & supplier memory) ─
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'cheque_requisitions' },
+                    () => {
+                        queueInvalidation(['cheque_requisitions']);
+                    }
+                )
+                // ─── Admin To-Do & comments (live multi-admin sync) ────
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'admin_todos' },
+                    () => {
+                        queueInvalidation(['admin_todos']);
+                    }
+                )
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'admin_todo_comments' },
+                    () => {
+                        queueInvalidation(['admin_todos', 'admin_todo_comments']);
+                    }
+                );
+        }
+
+        channel.subscribe((status, err) => {
                 // Ignore late status callbacks from channels we already replaced/removed —
                 // otherwise removing the old channel ("CLOSED") would schedule a pointless resubscribe loop.
                 if (activeChannelRef.current !== channel) return;

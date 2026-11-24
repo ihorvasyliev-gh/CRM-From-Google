@@ -15,6 +15,10 @@ export function useNotificationBanner(userId: string | undefined) {
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
+        if (!userId) {
+            setVisible(false);
+            return;
+        }
         const dismissedAt = parseInt(readStorage(DISMISSED_KEY) || '0', 10) || 0;
         if (Date.now() - dismissedAt < SNOOZE_MS) return;
         if (!isNotificationSupported() || getNotificationPermission() !== 'default') return;
@@ -23,7 +27,7 @@ export function useNotificationBanner(userId: string | undefined) {
             if (!cancelled && !subscribed) setVisible(true);
         });
         return () => { cancelled = true; };
-    }, []);
+    }, [userId]);
 
     const enable = useCallback(async () => {
         setVisible(false);

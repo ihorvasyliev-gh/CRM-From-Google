@@ -6,6 +6,7 @@ import {
     GraduationCap, Layers, Loader2, Minus, Phone, RefreshCw, SlidersHorizontal, Square, Users, X, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { fetchAllPages } from '../../lib/queries';
 import { cleanVariant, type ViewerCourseRosterItem } from '../../lib/types';
 import { formatDisplayDate } from '../../lib/dateUtils';
 import { formatPhoneDisplay } from '../../lib/contactUtils';
@@ -75,13 +76,16 @@ export default function ViewerCourseRoster({ courseId }: { courseId: string }) {
     } = useQuery<ViewerCourseRosterItem[]>({
         queryKey: ['viewer_course_roster', courseId],
         queryFn: async () => {
-            const { data, error } = await supabase.rpc('get_viewer_course_roster', {
-                p_course_id: courseId,
-                p_status: null,
-                p_search: null,
+            return fetchAllPages<ViewerCourseRosterItem>((from, to) => {
+                const req = supabase.rpc('get_viewer_course_roster', {
+                    p_course_id: courseId,
+                    p_status: null,
+                    p_search: null,
+                }) as unknown as {
+                    range?: (f: number, t: number) => PromiseLike<{ data: ViewerCourseRosterItem[] | null; error: unknown }>;
+                } & PromiseLike<{ data: ViewerCourseRosterItem[] | null; error: unknown }>;
+                return typeof req?.range === 'function' ? req.range(from, to) : req;
             });
-            if (error) throw error;
-            return (data || []) as ViewerCourseRosterItem[];
         },
     });
 

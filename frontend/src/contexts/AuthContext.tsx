@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { AlertCircle } from 'lucide-react';
 import { clearStoredConfig, getConfig, storeServerConfig } from '../lib/appConfig';
 import { sameSession, sameUser } from '../lib/authIdentity';
+import { getUserRole } from '../lib/roles';
 
 interface AuthContextType {
     session: Session | null;
@@ -16,9 +18,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const queryClient = useQueryClient();
     const [session, setSession] = useState<Session | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const lastUserIdRef = useRef<string | null>(null);
     // 'config': the Supabase URL/key are missing from the build; 'connection': they are there,
     // but the session could not be loaded (offline, Supabase unreachable, broken token)
     const [setupError, setSetupError] = useState<{ kind: 'config' | 'connection'; message: string } | null>(null);
@@ -35,13 +39,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const syncedUsers = new Set<string>();
 
         // Keeps the current objects when an event only repeats the session already known (each
-        // return to the tab does): a new user object would rejoin every realtime channel
+        // return to the tab does): a new user object would rejoin every realtime channel.
+        // Switching accounts in the same browser tab clears every cached query so a restricted
+        // role never sees the previous admin's cached rows.
         const applySession = (next: Session | null) => {
+            const nextUserId = next?.user?.id ?? null;
+            if (lastUserIdRef.current && lastUserIdRef.current !== nextUserId) {
+                queryClient.clear();
+                clearStoredConfig();
+                syncedUsers.clear();
+            }
+            lastUserIdRef.current = nextUserId;
             setSession(prev => (sameSession(prev, next) ? prev : next));
             setUser(prev => (sameUser(prev, next?.user ?? null) ? prev : next?.user ?? null));
         };
 
-        const syncUserSettings = async (userId: string) => {
+        const syncUserSettings = async (nextUser: User) => {
+            if (getUserRole(nextUser) !== 'admin') return;
+            const userId = nextUser.id;
             if (syncedUsers.has(userId)) return;
             syncedUsers.add(userId);
 
@@ -85,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 } else {
                     applySession(session);
                     if (session?.user) {
-                        syncUserSettings(session.user.id);
+                        syncUserSettings(session.user);
                     }
                 }
                 setLoading(false);
@@ -102,9 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 applySession(session);
                 
                 if (session?.user) {
-                    syncUserSettings(session.user.id);
+                    syncUserSettings(session.user);
                 } else if (event === 'SIGNED_OUT') {
+                    queryClient.clear();
                     clearStoredConfig();
+                    syncedUsers.clear();
                 }
                 
                 setLoading(false);
@@ -112,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         return () => subscription?.unsubscribe();
-    }, []);
+    }, [queryClient]);
 
     const signIn = useCallback(async (email: string, password: string) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -120,8 +137,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
-    }, []);
+        try {
+            await supabase.auth.signOut();
+        } finally {
+            queryClient.clear();
+            clearStoredConfig();
+        }
+    }, [queryClient]);
 
     // A new object on every render would re-render every useAuth() consumer with it
     const value = useMemo(() => ({ session, user, loading, signIn, signOut }), [session, user, loading, signIn, signOut]);

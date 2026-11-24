@@ -89,7 +89,7 @@ const NAV_GROUPS = ['Workspace', 'Tools', 'Insights', 'System'] as const;
  * their filters, search, drafts and scroll position. Pages that take their start from the
  * navigation (the board's course filter…) or the URL are mounted fresh each time instead.
  */
-const KEPT_PAGES = new Set(['dashboard', 'students', 'todos', 'outcomes', 'analytics', 'documents', 'settings', 'cheque-reqs']);
+const KEPT_PAGES = new Set(['dashboard', 'students', 'todos', 'outcomes', 'analytics', 'documents', 'pdf-forms', 'settings', 'cheque-reqs']);
 
 const PAGE_SPINNER = (
     <div className="w-full flex-1 flex items-center justify-center min-h-[50vh]">
@@ -179,16 +179,37 @@ function App() {
 
     const showFab = !isViewer && activeTab === 'dashboard';
 
-    // Kept pages: mounted on the first visit, then hidden and shown
-    const keptPage = !isViewer && KEPT_PAGES.has(activeTab);
-    const [visitedPages, setVisitedPages] = useState<string[]>([]);
-    if (keptPage && !visitedPages.includes(activeTab)) setVisitedPages([...visitedPages, activeTab]);
+    // Kept pages: mounted on the first visit, then hidden and shown.
+    // Reset kept pages, scroll offsets, and global modals whenever the signed-in account changes
+    // (including sign-out) so a shared browser tab never exposes the previous user's DOM state.
+    const keptPage = !isViewer && !isOutreach && KEPT_PAGES.has(activeTab);
+    const [visitedState, setVisitedState] = useState<{ userId: string | undefined; pages: string[] }>({
+        userId: user?.id,
+        pages: [],
+    });
+    const visitedPages = visitedState.userId === user?.id ? visitedState.pages : [];
+    if (user && keptPage && !visitedPages.includes(activeTab)) {
+        setVisitedState({ userId: user.id, pages: [...visitedPages, activeTab] });
+    }
 
     // Every page scrolls in the same column: a kept page comes back where it was left, any
     // other page starts at the top
     const scrollRef = useRef<HTMLDivElement>(null);
     const scrollPositions = useRef(new Map<string, number>());
     const scrolledTab = useRef(activeTab);
+
+    useEffect(() => {
+        // Clear scroll memory and any open global modals when signing out or switching accounts
+        scrollPositions.current.clear();
+        setApprovalsModalOpen(false);
+        setCommandPaletteOpen(false);
+        setShortcutsModalOpen(false);
+        setGlobalAddStudentOpen(false);
+        setGlobalEnrollModalOpen(false);
+        setGlobalEnrollStudentId(undefined);
+        setGlobalStudentDetail(null);
+        setSidebarOpen(false);
+    }, [user?.id]);
     useLayoutEffect(() => {
         const el = scrollRef.current;
         if (!el || scrolledTab.current === activeTab) return;
@@ -205,7 +226,7 @@ function App() {
 
     const queryClient = useQueryClient();
     const { handleTabMouseEnter, handleTabMouseLeave } = useTabPrefetch(!user || isOutreach ? null : isViewer ? 'viewer' : 'admin', activeTab);
-    const notifBanner = useNotificationBanner(user?.id);
+    const notifBanner = useNotificationBanner(role === 'admin' ? user?.id : undefined);
 
     const navigate: NavigateFn = useCallback((tab: string, state?: NavState) => {
         setSidebarOpen(false);
@@ -332,7 +353,7 @@ function App() {
                     <Route path="/outcomes" element={null} />
                     <Route path="/documents" element={null} />
                     <Route path="/analytics" element={null} />
-                    <Route path="/pdf-forms" element={<PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />} />
+                    <Route path="/pdf-forms" element={null} />
                     <Route path="/cheque-reqs" element={null} />
                     <Route path="/settings" element={null} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -661,6 +682,7 @@ function App() {
                                     )}
                                     {tab === 'analytics' && <Analytics />}
                                     {tab === 'documents' && <DocumentGenerator />}
+                                    {tab === 'pdf-forms' && <PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />}
                                     {tab === 'cheque-reqs' && <ChequeRequisitions />}
                                     {tab === 'settings' && (
                                         <Settings

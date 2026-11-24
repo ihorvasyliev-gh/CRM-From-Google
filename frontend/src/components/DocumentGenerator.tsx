@@ -91,8 +91,7 @@ export default function DocumentGenerator() {
         error: coursesError,
         refetch: refetchCourses,
     } = useQuery({
-        queryKey: ['doc_courses'],
-        staleTime: 0, // pick up template presets just edited on the Courses tab
+        queryKey: ['courses'],
         queryFn: fetchCourses,
     });
 

@@ -37,6 +37,35 @@ describe('useOutcomes - fetchGraduatesFn', () => {
         expect(graduates[0].course_completed_dates).toEqual({ 'First Aid': '2025-05-15' });
     });
 
+    it('paginates get_outcome_graduates past PostgREST 1000-row limit using range()', async () => {
+        const makeRow = (i: number) => ({
+            student_id: `s-${i}`,
+            first_name: `First${i}`,
+            last_name: `Last${String(i).padStart(4, '0')}`,
+            email: `s${i}@example.com`,
+            courses: ['First Aid'],
+            is_working: null,
+            started_month: null,
+            field_of_work: null,
+            employment_type: null,
+            status_updated_at: null,
+            tracking_status: 'not_contacted',
+            last_sent_at: null,
+            last_completed_date: '2026-05-01',
+            course_completed_dates: { 'First Aid': '2026-05-01' },
+        });
+        const allRows = Array.from({ length: 1250 }, (_, i) => makeRow(i));
+        vi.mocked(supabase.rpc).mockImplementation(() => ({
+            range: (from: number, to: number) => Promise.resolve({
+                data: allRows.slice(from, to + 1),
+                error: null,
+            }),
+        }) as never);
+
+        const graduates = await fetchGraduatesFn();
+        expect(graduates).toHaveLength(1250);
+    });
+
     it('falls back to building the list when RPC rows predate migration 97 (no completion dates)', async () => {
         vi.mocked(supabase.rpc).mockResolvedValue({
             data: [{

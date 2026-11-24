@@ -5,7 +5,8 @@ import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals
 import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
-import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone } from '../lib/contactUtils';
+import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone, formatEircode } from '../lib/contactUtils';
+import { emailProblem } from '../lib/emailValidation';
 import { formatDateLongWithWeekday, todayISO, formatDisplayDate, formatLocalDate } from '../lib/dateUtils';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import { formatTimeRange, hasDayOverrides, sessionDays, sessionForEnrollment, sessionHasSchedule, sessionTooltip, type CourseSession } from '../lib/courseSessions';
@@ -18,7 +19,7 @@ import { notify } from '../lib/toast';
 import type { NavigateFn } from '../lib/navigation';
 import { errorMessage } from '../lib/errors';
 import { refreshCachedEnrollments } from '../lib/enrollmentCache';
-import { fetchStudent } from '../lib/students';
+import { fetchStudent, patchStudent } from '../lib/students';
 import { applyStudentChange, studentRecordKey } from '../lib/studentCache';
 import { TrackingBadge, EmploymentBadge, CallMarkButton } from './OutcomeBadges';
 import OutcomeEditModal, { type OutcomeValues } from './OutcomeEditModal';
@@ -135,25 +136,30 @@ function InlineEditField({
             cleanValue = normalizePhone(next);
         } else if (field === 'email') {
             cleanValue = next.trim().toLowerCase();
+            if (cleanValue) {
+                const problem = emailProblem(cleanValue);
+                if (problem) {
+                    setEditValue(value);
+                    onError?.(problem);
+                    savingRef.current = false;
+                    setSaving(false);
+                    setEditing(false);
+                    return;
+                }
+            }
         } else if (field === 'eircode') {
-            cleanValue = next.trim().toUpperCase();
+            cleanValue = cleanValue ? formatEircode(cleanValue) : '';
         }
 
         try {
-            const { data: row, error } = await supabase
-                .from('students')
-                .update({ [field]: cleanValue || null })
-                .eq('id', studentId)
-                .select()
-                .maybeSingle();
-            if (error) {
-                setEditValue(value);
-                onError?.(error.message.includes('duplicate') || error.message.includes('unique')
-                    ? `Another student already uses this ${label.toLowerCase()}`
-                    : `Failed to update ${label.toLowerCase()}`);
-            } else {
-                onSaved(field, cleanValue, (row as Student | null) ?? null);
-            }
+            const row = await patchStudent(studentId, { [field]: cleanValue || null });
+            onSaved(field, cleanValue, row);
+        } catch (err) {
+            setEditValue(value);
+            const msg = errorMessage(err);
+            onError?.(/already exists|duplicate|unique/i.test(msg)
+                ? `Another student already uses this ${label.toLowerCase()}`
+                : `Failed to update ${label.toLowerCase()}`);
         } finally {
             savingRef.current = false;
             setSaving(false);
