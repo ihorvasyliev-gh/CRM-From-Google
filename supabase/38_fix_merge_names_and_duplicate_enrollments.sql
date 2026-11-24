@@ -3,7 +3,7 @@
 -- ============================================================
 -- Issues Fixed:
 -- 1. Name Corruption: Removed flawed string-length heuristic that mixed first/last names
---    independently (e.g., 'LINDA AFOR Ndifor' + 'Ndifor Linda Afor' -> 'Ndifor Linda Ndifor').
+--    independently (e.g., 'Jane Mary Smith' + 'Smith Jane Mary' -> 'Smith Jane Smith').
 --    Now preserves the selected Primary student's name and only fills NULL/empty fields.
 -- 2. Course Duplication on Merge: Consolidated enrollments by course_id so that differences
 --    in course_variant (e.g. NULL vs 'English' vs 'SNA (English)') no longer create duplicate
@@ -331,8 +331,5 @@ BEGIN
           AND id <> v_winner_id;
     END LOOP;
 
-    -- Fix Linda Afor Ndifor name if corrupted to 'Ndifor Linda Ndifor'
-    UPDATE students 
-    SET first_name = 'Linda Afor', last_name = 'Ndifor'
-    WHERE (lower(email) = 'lindandifon94@gmail.com' OR (lower(first_name) = 'ndifor linda' AND lower(last_name) = 'ndifor'));
+    -- One-time legacy student name repair (PII redacted; already applied in production)
 END $$;
