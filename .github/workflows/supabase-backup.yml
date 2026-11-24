@@ -56,17 +56,18 @@ jobs:
           done
           exit $missing
 
-      - uses: actions/checkout@v5
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - uses: actions/checkout@v7
 
       # Та же ветка Node, что у фронтенда, и всегда её свежий релиз с исправлениями
-      - uses: actions/setup-node@v5
+      # Ставим до setup-cli@v3, чтобы он переиспользовал этот Node 24
+      - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.node-version
           check-latest: true
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
 
       # Тот же набор, что в официальной инструкции Supabase: роли, схема, данные
       # (данные включают auth.users и метаданные storage)
