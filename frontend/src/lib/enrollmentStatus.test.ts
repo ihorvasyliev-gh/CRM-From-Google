@@ -133,7 +133,10 @@ describe('changeEnrollmentStatus', () => {
             updated: [saved],
             removed: [duplicate],
             removeFailed: false,
-            undo: { snapshots: [takeEnrollmentSnapshot(confirmed)], removed: [storedDuplicate] },
+            undo: {
+                snapshots: [{ ...takeEnrollmentSnapshot(confirmed), expected_status: 'completed' }],
+                removed: [storedDuplicate],
+            },
         });
     });
 

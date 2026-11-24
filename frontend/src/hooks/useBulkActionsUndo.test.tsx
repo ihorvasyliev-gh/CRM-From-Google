@@ -206,9 +206,26 @@ describe('useBulkActions Undo System', () => {
             expect(showToast.mock.calls[0][0]).toBe('1 enrollment(s) → completed, removed 1 requested variant(s)');
 
             await undo();
-            expect(rpcMock).toHaveBeenLastCalledWith('restore_enrollments', { p_rows: [snap('a', 'confirmed')], p_removed: [storedB] });
+            expect(rpcMock).toHaveBeenLastCalledWith('restore_enrollments', {
+                p_rows: [{ ...snap('a', 'confirmed'), expected_status: 'completed' }],
+                p_removed: [storedB],
+            });
             expect(insertMock).not.toHaveBeenCalled();
             expect(showToast).toHaveBeenLastCalledWith('Bulk status changes undone', 'info');
+        });
+
+        it('warns instead of overwriting when restore_enrollments reports concurrently modified rows', async () => {
+            rpcMock.mockImplementation(async (fn: string) => fn === 'change_enrollment_status'
+                ? { data: { previous: [snap('a', 'confirmed')], updated: [snap('a', 'completed')], removed: [] }, error: null }
+                : { data: { restored_count: 0, skipped_ids: ['a'] }, error: null });
+            const rows = [makeEnrollment('a', 'confirmed', 's1')];
+            const { showToast, undo } = await bulkChange(rows, ['a'], 'completed');
+
+            await undo();
+            expect(showToast).toHaveBeenLastCalledWith(
+                'Could not undo — this enrollment was already updated by someone else',
+                'info',
+            );
         });
 
         it('a refused change is reported, with no fallback writes', async () => {

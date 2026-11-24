@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Users, BookOpen, Languages, Globe, ArrowRight, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, BookOpen, Languages, Globe, ArrowRight, FileText, Archive, ArchiveRestore } from 'lucide-react';
 import SearchInput from './ui/SearchInput';
 import Badge from './ui/Badge';
 import { Toolbar } from './ui/Card';
@@ -232,16 +232,51 @@ export default function CourseList() {
         setDeleteTarget(null);
     }
 
+    const [showArchived, setShowArchived] = useState(false);
+
+    async function toggleArchiveCourse(course: Course) {
+        const archiving = !course.archived_at;
+        const nextArchivedAt = archiving ? new Date().toISOString() : null;
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, archived_at: nextArchivedAt } : c));
+        try {
+            const { error } = await supabase
+                .from('courses')
+                .update({ archived_at: nextArchivedAt })
+                .eq('id', course.id);
+            if (error) throw error;
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            notify({
+                message: archiving ? `"${course.name}" archived — hidden from new enrollments` : `"${course.name}" restored to active catalog`,
+                type: 'success',
+                action: { label: 'Undo', onClick: () => void toggleArchiveCourse({ ...course, archived_at: nextArchivedAt }) },
+            });
+        } catch (err) {
+            setCourses(prev => prev.map(c => c.id === course.id ? { ...c, archived_at: course.archived_at ?? null } : c));
+            const code = (err as { code?: string } | null)?.code;
+            notify({
+                message: code === '42703' || code === 'PGRST204'
+                    ? 'Course archiving requires migration 100 to be applied'
+                    : `Failed to ${archiving ? 'archive' : 'restore'} course`,
+                type: 'error',
+            });
+        }
+    }
+
+    const archivedCount = useMemo(() => courses.filter(c => !!c.archived_at).length, [courses]);
+    const activeCount = courses.length - archivedCount;
+
     const filtered = useMemo(() => {
+        const q = debouncedSearch.toLowerCase();
         return courses.filter(c =>
-            c.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+            (showArchived || !c.archived_at) &&
+            c.name.toLowerCase().includes(q)
         );
-    }, [courses, debouncedSearch]);
+    }, [courses, debouncedSearch, showArchived]);
 
     const deleteTotal = deleteTarget ? enrollmentCounts[deleteTarget.id]?.total ?? 0 : 0;
     const deleteMessage = deleteTarget
         ? `Delete "${deleteTarget.name}"? ${deleteTotal > 0
-            ? `${deleteTotal} ${deleteTotal === 1 ? 'enrollment' : 'enrollments'} will be deleted too.`
+            ? `${deleteTotal} ${deleteTotal === 1 ? 'enrollment' : 'enrollments'} will be deleted too (consider archiving instead to preserve history).`
             : 'It has no enrollments.'} This can't be undone.`
         : '';
 
@@ -256,7 +291,21 @@ export default function CourseList() {
                         <BookOpen size={16} />
                     </span>
                     <span className="text-sm font-semibold text-primary">Course catalog</span>
-                    <Badge tone="completed" shape="pill" className="tabular-nums">{courses.length} courses</Badge>
+                    <Badge tone="completed" shape="pill" className="tabular-nums">{activeCount} active</Badge>
+                    {archivedCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setShowArchived(prev => !prev)}
+                            className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold border transition-colors ${
+                                showArchived
+                                    ? 'bg-brand-500/10 border-brand-500/30 text-brand-600 dark:text-brand-400'
+                                    : 'bg-surface border-border-subtle text-muted hover:text-primary'
+                            }`}
+                        >
+                            <Archive size={12} />
+                            <span>{showArchived ? 'Showing' : 'Show'} {archivedCount} archived</span>
+                        </button>
+                    )}
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                     <SearchInput
@@ -305,6 +354,7 @@ export default function CourseList() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filtered.map(course => {
                         const counts = enrollmentCounts[course.id];
+                        const isArchived = !!course.archived_at;
                         const openBoard = () => navigate('/enrollments', { state: { courseId: course.id } });
                         return (
                             <div
@@ -316,7 +366,7 @@ export default function CourseList() {
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && e.target === e.currentTarget) openBoard();
                                 }}
-                                className="focus-visible:ring-2 focus-visible:ring-brand-500 outline-hidden bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:border-border-strong transition-all duration-200 group cursor-pointer flex flex-col"
+                                className={`focus-visible:ring-2 focus-visible:ring-brand-500 outline-hidden bg-surface rounded-2xl shadow-card border border-border-subtle hover:shadow-card-hover hover:border-border-strong transition-all duration-200 group cursor-pointer flex flex-col ${isArchived ? 'opacity-75' : ''}`}
                             >
                                 <div className="course-card-body p-5 flex-1 flex flex-col gap-4">
                                     <div className="flex items-start justify-between gap-3">
@@ -326,7 +376,10 @@ export default function CourseList() {
                                                 {course.name.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <h3 className="text-[15px] font-semibold text-primary line-clamp-2 break-words group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <h3 className="text-[15px] font-semibold text-primary line-clamp-2 break-words group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{course.name}</h3>
+                                                    {isArchived && <Badge tone="neutral" shape="pill">Archived</Badge>}
+                                                </div>
                                                 <p className="text-xs text-muted flex items-center gap-1.5 mt-0.5">
                                                     <Users size={12} />
                                                     <span className="font-semibold text-primary tabular-nums">{counts?.total || 0}</span> students enrolled
@@ -336,6 +389,14 @@ export default function CourseList() {
                                         <div className="flex gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                                             <IconButton size="sm" tone="brand" label={`Edit ${course.name}`} onClick={() => { setEditingCourse(course); setModalOpen(true); }}>
                                                 <Edit2 size={14} />
+                                            </IconButton>
+                                            <IconButton
+                                                size="sm"
+                                                tone="default"
+                                                label={isArchived ? `Restore ${course.name}` : `Archive ${course.name}`}
+                                                onClick={() => void toggleArchiveCourse(course)}
+                                            >
+                                                {isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                                             </IconButton>
                                             <IconButton size="sm" tone="danger" label={`Delete ${course.name}`} onClick={() => setDeleteTarget(course)}>
                                                 <Trash2 size={14} />

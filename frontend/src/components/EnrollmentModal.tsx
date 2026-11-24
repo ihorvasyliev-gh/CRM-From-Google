@@ -28,6 +28,7 @@ interface StudentOption {
 interface Course {
     id: string;
     name: string;
+    archived_at?: string | null;
 }
 
 interface EnrollmentModalProps {
@@ -595,7 +596,7 @@ export default function EnrollmentModal({ open, preselectedStudentId, preselecte
                             aria-describedby={missing === 'course' ? 'enroll-course-error' : undefined}
                         >
                             <option value="">Select a course...</option>
-                            {courses.map(c => (
+                            {courses.filter(c => !c.archived_at).map(c => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>

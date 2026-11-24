@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { GitMerge, MailX } from 'lucide-react';
+import { GitMerge, History, MailX } from 'lucide-react';
 import { listEmailOptOutsSafe, type EmailOptOut } from '../../lib/emailOptOut';
 import { Segmented, type SegmentOption } from '../ui/Tabs';
+import ActivityLogPanel from './ActivityLogPanel';
 import DuplicateProfilesPanel from './DuplicateProfilesPanel';
 import EmailOptOutPanel from './EmailOptOutPanel';
 import type { DataHygieneSubTab, DataHygieneTabProps } from './types';
@@ -41,6 +42,11 @@ export default function DataHygieneTab({
                 icon: <MailX size={13} aria-hidden="true" />,
                 count: optOuts.length,
             },
+            {
+                value: 'activity',
+                label: 'Activity Log',
+                icon: <History size={13} aria-hidden="true" />,
+            },
         ],
         [duplicatesCount, optOuts.length],
     );
@@ -57,16 +63,19 @@ export default function DataHygieneTab({
                 <p className="text-xs text-muted">
                     {activeSubTab === 'duplicates'
                         ? 'Find, compare and safely merge duplicate learner profiles.'
-                        : 'Manage addresses excluded from automated invitations and surveys.'}
+                        : activeSubTab === 'unsubscribed'
+                            ? 'Manage addresses excluded from automated invitations and surveys.'
+                            : 'Immutable audit trail of deletions, merges, role updates and archived courses.'}
                 </p>
             </div>
 
-            {/* Keep DuplicateProfilesPanel mounted while viewing Unsubscribed so finished scan results persist */}
+            {/* Keep DuplicateProfilesPanel mounted while viewing other sub-tabs so finished scan results persist */}
             <div className={activeSubTab === 'duplicates' ? undefined : 'hidden'}>
                 <DuplicateProfilesPanel onIssuesCountChange={handleDuplicatesCountChange} />
             </div>
 
             {activeSubTab === 'unsubscribed' && <EmailOptOutPanel />}
+            {activeSubTab === 'activity' && <ActivityLogPanel />}
         </div>
     );
 }

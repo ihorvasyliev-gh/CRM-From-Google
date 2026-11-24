@@ -42,7 +42,12 @@ vi.mock('../lib/supabase', () => {
                 }),
                 delete: vi.fn(() => chainFor(table)),
             })),
-            rpc: vi.fn(async () => ({ data: [], error: null })),
+            rpc: vi.fn(async (name: string) => {
+                if (name === 'get_admin_students_page') {
+                    return { data: null, error: { code: 'PGRST202', message: 'Function not found' } };
+                }
+                return { data: [], error: null };
+            }),
         },
     };
 });

@@ -1,7 +1,7 @@
 import { hasConfirmationTag, type AppConfig } from '../../lib/appConfig';
 
 export type SettingsTabKey = 'general' | 'emails' | 'certificates' | 'data' | 'users';
-export type DataHygieneSubTab = 'duplicates' | 'unsubscribed';
+export type DataHygieneSubTab = 'duplicates' | 'unsubscribed' | 'activity';
 export type Density = 'comfortable' | 'compact';
 export type SaveStatus = 'idle' | 'saved' | 'error';
 
@@ -12,7 +12,7 @@ export function isSettingsTabKey(value: string | null | undefined): value is Set
 }
 
 export function isDataHygieneSubTab(value: string | null | undefined): value is DataHygieneSubTab {
-    return value === 'duplicates' || value === 'unsubscribed';
+    return value === 'duplicates' || value === 'unsubscribed' || value === 'activity';
 }
 
 export function hasStatusTag(template: string | null | undefined): boolean {

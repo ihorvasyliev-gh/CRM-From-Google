@@ -22,6 +22,10 @@ export interface StatusFields {
 /** A row's status fields, captured before a change so it can be undone exactly. */
 export interface EnrollmentSnapshot extends StatusFields {
     id: string;
+    /** Status written by the action being undone (migration 100 concurrency check) */
+    expected_status?: EnrollmentStatus;
+    /** updated_at written by the action being undone (migration 100 concurrency check) */
+    expected_updated_at?: string | null;
 }
 
 type SnapshotSource = Pick<Enrollment, 'id' | 'status' | 'confirmed_date' | 'confirmed_at' | 'invited_date' | 'invited_dates' | 'invited_at'>
@@ -122,10 +126,17 @@ export interface StatusChangeResult<T> {
     undo: { snapshots: EnrollmentSnapshot[]; removed: object[] };
 }
 
+type UpdatedSnapshot = EnrollmentSnapshot & { updated_at?: string | null };
+
 interface ChangeResponse {
     previous: EnrollmentSnapshot[];
-    updated: EnrollmentSnapshot[];
+    updated: UpdatedSnapshot[];
     removed: Enrollment[];
+}
+
+export interface RestoreResult {
+    restoredCount: number;
+    skippedIds: string[];
 }
 
 /**
@@ -149,11 +160,21 @@ export async function changeEnrollmentStatus<T extends ChangeRow>(
     if (!error) {
         const { previous, updated, removed } = data as ChangeResponse;
         const removedIds = new Set(removed.map(e => e.id));
+        const updatedById = new Map(updated.map(u => [u.id, u]));
+        const guardedSnapshots: EnrollmentSnapshot[] = previous.map(snap => {
+            const after = updatedById.get(snap.id);
+            if (!after) return snap;
+            return {
+                ...snap,
+                expected_status: after.status,
+                ...(after.updated_at ? { expected_updated_at: after.updated_at } : {}),
+            };
+        });
         return {
             updated,
             removed: all.filter(e => removedIds.has(e.id)),
             removeFailed: false,
-            undo: { snapshots: previous, removed },
+            undo: { snapshots: guardedSnapshots, removed },
         };
     }
     if (!isMissingFunction(error)) throw error;
@@ -197,27 +218,37 @@ async function changeFromClient<T extends ChangeRow>(
 
 /**
  * Puts rows back as they were before a status change: the snapshots' status fields, and the rows
- * the change deleted (as stored, or as loaded). Throws if anything could not be put back; with
- * migration 77 nothing is changed then.
+ * the change deleted (as stored, or as loaded). With migration 100, rows modified concurrently by
+ * another admin or student are skipped and reported in `skippedIds` instead of being clobbered.
  */
-export async function restoreEnrollments(snapshots: readonly EnrollmentSnapshot[], removed: readonly object[] = []): Promise<void> {
+export async function restoreEnrollments(snapshots: readonly EnrollmentSnapshot[], removed: readonly object[] = []): Promise<RestoreResult> {
     const rows = removed.map(columnsOf);
-    const { error } = await supabase.rpc('restore_enrollments', { p_rows: snapshots, p_removed: rows });
-    if (!error) return;
+    const { data, error } = await supabase.rpc('restore_enrollments', { p_rows: snapshots, p_removed: rows });
+    if (!error) {
+        const payload = data as { restored_count?: number; skipped_ids?: string[] } | null;
+        if (payload && typeof payload === 'object' && Array.isArray(payload.skipped_ids)) {
+            return {
+                restoredCount: Number(payload.restored_count ?? snapshots.length - payload.skipped_ids.length),
+                skippedIds: payload.skipped_ids,
+            };
+        }
+        return { restoredCount: snapshots.length, skippedIds: [] };
+    }
     if (!isMissingFunction(error)) throw error;
 
     // Statuses first: the database only accepts a re-created row while the student has no other
     // active enrollment on that course (migration 71)
-    const results = await Promise.all(snapshots.map(({ id, ...fields }) =>
+    const results = await Promise.all(snapshots.map(({ id, expected_status: _es, expected_updated_at: _eu, ...fields }) =>
         supabase.from('enrollments').update(fields).eq('id', id)
     ));
     const failed = results.find(r => r.error);
     if (failed?.error) throw failed.error;
 
-    if (rows.length === 0) return;
-    const { data, error: insertError } = await supabase.from('enrollments').insert(rows).select('id');
+    if (rows.length === 0) return { restoredCount: snapshots.length, skippedIds: [] };
+    const { data: inserted, error: insertError } = await supabase.from('enrollments').insert(rows).select('id');
     if (insertError) throw insertError;
-    if ((data?.length ?? 0) < rows.length) {
-        throw new Error(`${rows.length - (data?.length ?? 0)} removed enrollment(s) could not be re-created`);
+    if ((inserted?.length ?? 0) < rows.length) {
+        throw new Error(`${rows.length - (inserted?.length ?? 0)} removed enrollment(s) could not be re-created`);
     }
+    return { restoredCount: snapshots.length, skippedIds: [] };
 }

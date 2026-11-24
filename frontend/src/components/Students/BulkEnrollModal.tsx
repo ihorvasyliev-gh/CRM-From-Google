@@ -147,7 +147,7 @@ export default function BulkEnrollModal({ open, students, enrollmentsOf, onClose
                         disabled={coursesLoading}
                     >
                         <option value="">{coursesLoading ? 'Loading courses…' : 'Choose a course'}</option>
-                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {courses.filter(c => !c.archived_at).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>

@@ -99,6 +99,47 @@ export async function fetchStudentsListPage(context: { pageParam?: number; query
     };
 }
 
+/**
+ * Server-paginated filtered/sorted student list via get_admin_students_page (migration 101).
+ * Returns null if the RPC is not yet installed (PGRST202 / 42883), letting StudentList fall back
+ * to client-side filtering without breaking pre-migration environments.
+ */
+export async function fetchAdminStudentsRpcPage({
+    pageParam = 0,
+    search,
+    filters,
+    sort,
+}: {
+    pageParam?: number;
+    search: string;
+    filters: StudentFilters;
+    sort: ListSort;
+}): Promise<StudentsPage | null> {
+    if (typeof supabase.rpc !== 'function') return null;
+    const { data, error } = await supabase.rpc('get_admin_students_page', {
+        p_search: search.trim(),
+        p_course_id: filters.courseId,
+        p_status: filters.status,
+        p_no_courses: filters.noCourses,
+        p_sort_key: sort.key,
+        p_sort_dir: sort.dir,
+        p_limit: STUDENTS_PAGE_SIZE,
+        p_offset: pageParam * STUDENTS_PAGE_SIZE,
+    });
+    if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') return null;
+        throw error;
+    }
+    const rows = (data || []) as Array<Student & { total_count?: number | string | null }>;
+    const count = rows.length > 0 ? Number(rows[0].total_count ?? 0) : 0;
+    const students: Student[] = rows.map(({ total_count: _total, ...student }) => student);
+    return {
+        data: students,
+        count,
+        nextPage: students.length === STUDENTS_PAGE_SIZE ? pageParam + 1 : undefined,
+    };
+}
+
 const ALL_CHUNK = 1000;
 
 

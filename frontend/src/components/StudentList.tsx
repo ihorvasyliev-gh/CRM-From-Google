@@ -33,7 +33,7 @@ import StudentBulkBar from './Students/StudentBulkBar';
 import BulkEnrollModal from './Students/BulkEnrollModal';
 import { exportStudentsToExcel } from './Students/studentExport';
 import {
-    DEFAULT_LIST_SORT, NO_FILTERS, fetchAllStudents, fetchStudentsListPage, firstDirection, hasFilters, matchesFilters,
+    DEFAULT_LIST_SORT, NO_FILTERS, fetchAdminStudentsRpcPage, fetchAllStudents, fetchStudentsListPage, firstDirection, hasFilters, matchesFilters,
     deleteStudentMessage, needsAllStudents, sortStudents, type ListSort, type StudentFilters,
 } from './Students/studentListData';
 
@@ -125,6 +125,7 @@ const mapStudentPages = (update: (students: Student[]) => Student[]) =>
 
 interface StudentListProps {
     onNavigate?: NavigateFn;
+    onOpenStudentDetail?: (student: Student, actions?: { onEdit?: (s: Student) => void; onDelete?: (s: Student) => void }) => void;
 }
 
 
@@ -144,7 +145,7 @@ function SelectBox({ checked, onToggle, label, indeterminate = false }: { checke
     );
 }
 
-export default function StudentList({ onNavigate }: StudentListProps) {
+export default function StudentList({ onNavigate, onOpenStudentDetail }: StudentListProps) {
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
@@ -174,9 +175,9 @@ export default function StudentList({ onNavigate }: StudentListProps) {
     const {
         data,
         isLoading: pagesLoading,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
+        fetchNextPage: fetchDefaultNextPage,
+        hasNextPage: hasDefaultNextPage,
+        isFetchingNextPage: isFetchingDefaultNextPage,
         isFetching: pagesFetching,
         isError: pagesError,
         refetch: refetchPages,
@@ -190,30 +191,61 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         placeholderData: keepPreviousData,
     });
 
-    const allQuery = useQuery({
-        queryKey: ['students', 'all_for_filters', debouncedSearch],
-        queryFn: () => fetchAllStudents(debouncedSearch),
+    // Server-side filtered & sorted pagination (migration 101); returns null if RPC not yet applied
+    const rpcFilteredQuery = useInfiniteQuery({
+        queryKey: ['students', 'rpc_filtered', debouncedSearch, filters.courseId, filters.status, filters.noCourses, sort.key, sort.dir],
+        queryFn: ({ pageParam = 0 }) => fetchAdminStudentsRpcPage({ pageParam, search: debouncedSearch, filters, sort }),
+        getNextPageParam: (lastPage) => lastPage?.nextPage,
+        initialPageParam: 0,
         enabled: allMode,
         placeholderData: keepPreviousData,
     });
 
+    const rpcUnavailable = allMode && rpcFilteredQuery.data?.pages[0] === null;
+    const useClientFallback = allMode && rpcUnavailable;
+
+    const allQuery = useQuery({
+        queryKey: ['students', 'all_for_filters', debouncedSearch],
+        queryFn: () => fetchAllStudents(debouncedSearch),
+        enabled: useClientFallback,
+        placeholderData: keepPreviousData,
+    });
+
     const filteredStudents = useMemo(() => {
-        if (!allMode || !allQuery.data) return [];
+        if (!useClientFallback || !allQuery.data) return [];
         const matching = allQuery.data.filter(s => matchesFilters(enrollmentsByStudent.get(s.id), filters));
         return sortStudents(matching, sort, id => enrollmentsByStudent.get(id)?.length ?? 0);
-    }, [allMode, allQuery.data, enrollmentsByStudent, filters, sort]);
+    }, [useClientFallback, allQuery.data, enrollmentsByStudent, filters, sort]);
     const { visible: progressiveRows, hasMore: progressiveHasMore, sentinelRef: progressiveSentinelRef } = useProgressiveList(filteredStudents, `${debouncedSearch}|${JSON.stringify(filters)}|${sort.key}|${sort.dir}`);
 
+    const rpcStudents = useMemo(
+        () => (rpcFilteredQuery.data ? rpcFilteredQuery.data.pages.flatMap(page => page?.data ?? []) : []),
+        [rpcFilteredQuery.data],
+    );
     const pagedStudents = useMemo(() => data ? data.pages.flatMap(page => page.data) : [], [data]);
-    // Every student the list holds (the filtered list in full), and the rows rendered so far
-    const shownStudents = allMode ? filteredStudents : pagedStudents;
-    const displayedStudents = allMode ? progressiveRows : pagedStudents;
+    const serverPaged = !allMode || !useClientFallback;
+    const activePages = allMode ? rpcStudents : pagedStudents;
+    const fetchNextPage = allMode ? rpcFilteredQuery.fetchNextPage : fetchDefaultNextPage;
+    const hasNextPage = allMode ? rpcFilteredQuery.hasNextPage : hasDefaultNextPage;
+    const isFetchingNextPage = allMode ? rpcFilteredQuery.isFetchingNextPage : isFetchingDefaultNextPage;
 
-    const loading = allMode ? (allQuery.isLoading || (filtering && !enrollmentsComplete)) : pagesLoading;
-    const isError = allMode ? allQuery.isError : pagesError;
-    const refetch = allMode ? allQuery.refetch : refetchPages;
-    const isFetching = allMode ? allQuery.isFetching : pagesFetching;
-    const totalCount = allMode ? filteredStudents.length : data?.pages[0]?.count || 0;
+    // Every student the list holds (the filtered list in full when falling back client-side), and the rows rendered so far
+    const shownStudents = useClientFallback ? filteredStudents : activePages;
+    const displayedStudents = useClientFallback ? progressiveRows : activePages;
+
+    const loading = useClientFallback
+        ? (allQuery.isLoading || (filtering && !enrollmentsComplete))
+        : allMode
+            ? rpcFilteredQuery.isLoading
+            : pagesLoading;
+    const isError = useClientFallback ? allQuery.isError : allMode ? rpcFilteredQuery.isError : pagesError;
+    const refetch = useClientFallback ? allQuery.refetch : allMode ? rpcFilteredQuery.refetch : refetchPages;
+    const isFetching = useClientFallback ? allQuery.isFetching : allMode ? rpcFilteredQuery.isFetching : pagesFetching;
+    const totalCount = useClientFallback
+        ? filteredStudents.length
+        : allMode
+            ? (rpcFilteredQuery.data?.pages[0]?.count ?? 0)
+            : (data?.pages[0]?.count || 0);
     const searchPending = search.trim() !== debouncedSearch.trim() || (isFetching && !isFetchingNextPage && !!debouncedSearch);
 
     const [studentModalOpen, setStudentModalOpen] = useState(false);
@@ -273,7 +305,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
 
     useEffect(() => {
         const sentinel = sentinelRef.current;
-        if (!sentinel || allMode) return;
+        if (!sentinel || !serverPaged) return;
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
                 fetchNextPage();
@@ -281,7 +313,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
         }, { rootMargin: '200px' });
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [hasNextPage, isFetchingNextPage, fetchNextPage, allMode]);
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage, serverPaged]);
 
     // Optimistic cache updates: this page's row and the open card's starting copy
     const patchStudentRow = useCallback((updatedStudent: Student) => {
@@ -498,12 +530,13 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                 return (
                                     <li
                                         key={student.id}
-                                        onClick={() => setDetailStudent(student)}
+                                        onClick={() => onOpenStudentDetail ? onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget }) : setDetailStudent(student)}
                                         tabIndex={0}
                                         onKeyDown={e => {
                                             if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
                                                 e.preventDefault();
-                                                setDetailStudent(student);
+                                                if (onOpenStudentDetail) onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget });
+                                                else setDetailStudent(student);
                                             }
                                         }}
                                         className={`px-4 py-3.5 cursor-pointer transition-colors flex gap-3 outline-hidden focus-visible:bg-surface-elevated/60 ${isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50 active:bg-surface-elevated'}`}
@@ -600,10 +633,13 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                                             <tr
                                                 key={student.id}
                                                 className={`cv-auto-row focus-visible:bg-surface-elevated/60 cursor-pointer transition-colors group outline-hidden ${isSelected ? 'bg-brand-500/5' : 'hover:bg-surface-elevated/50'}`}
-                                                onClick={() => setDetailStudent(student)}
+                                                onClick={() => onOpenStudentDetail ? onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget }) : setDetailStudent(student)}
                                                 tabIndex={0}
                                                 onKeyDown={e => {
-                                                    if (e.key === 'Enter' && e.target === e.currentTarget) setDetailStudent(student);
+                                                    if (e.key === 'Enter' && e.target === e.currentTarget) {
+                                                        if (onOpenStudentDetail) onOpenStudentDetail(student, { onEdit: openEdit, onDelete: setDeleteTarget });
+                                                        else setDetailStudent(student);
+                                                    }
                                                 }}
                                             >
                                                 <td className={`${tdCls} w-10 pr-0`} onClick={e => e.stopPropagation()}>
@@ -680,7 +716,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
             </div>
 
             {/* Infinite scroll sentinel + loading indicator */}
-            {allMode && progressiveHasMore && <div key={displayedStudents.length} ref={progressiveSentinelRef} aria-hidden className="h-px" />}
+            {useClientFallback && progressiveHasMore && <div key={displayedStudents.length} ref={progressiveSentinelRef} aria-hidden className="h-px" />}
             <div ref={sentinelRef} className="flex flex-col items-center gap-2 py-2">
                 {isFetchingNextPage && (
                     <div className="flex items-center gap-2 text-muted">
@@ -710,7 +746,7 @@ export default function StudentList({ onNavigate }: StudentListProps) {
                 onClear={() => setSelected(new Map())}
             />
 
-            {shownDetail && (
+            {!onOpenStudentDetail && shownDetail && (
                 <StudentDetail
                     open={!!detailStudent}
                     student={shownDetail}
