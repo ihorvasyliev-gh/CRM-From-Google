@@ -4,6 +4,7 @@ import { lazyWithRetry } from '../lib/lazyWithRetry';
 import { IconButton } from './ui/Button';
 import NetworkStatusIndicator from './ui/NetworkStatusIndicator';
 import ErrorBoundary from './ErrorBoundary';
+import BulkEmailModal from './BulkEmailModal';
 import { GlobalToaster } from './Toast';
 
 const OutreachLists = lazyWithRetry(() => import('./OutreachLists'));
@@ -156,6 +157,7 @@ export default function OutreachShell({ role, darkMode, toggleDarkMode, userEmai
                 </ErrorBoundary>
             </main>
 
+            <BulkEmailModal />
             <GlobalToaster />
         </div>
     );

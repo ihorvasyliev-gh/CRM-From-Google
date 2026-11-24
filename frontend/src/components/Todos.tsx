@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useInRouterContext, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     AlertCircle,
@@ -38,6 +39,7 @@ import {
     type UpdateTodoInput,
 } from '../hooks/useTodos';
 import { useDialogMount, useLastPresent } from '../hooks/usePresence';
+import { usePersistentState } from '../hooks/usePersistentState';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import { Button, IconButton } from './ui/Button';
@@ -69,6 +71,66 @@ const DEFAULT_FILTERS: TodoFilterState = {
     focus: 'all',
 };
 
+const VALID_CATEGORY_FILTERS = new Set<string>(['all', ...TODO_CATEGORIES]);
+const VALID_FOCUS_FILTERS = new Set<string>(['all', 'in_progress', 'due_soon', 'pinned']);
+
+function isValidTodoFilters(value: unknown): value is TodoFilterState {
+    if (!value || typeof value !== 'object') return false;
+    const v = value as Record<string, unknown>;
+    return (
+        (v.tab === 'active' || v.tab === 'done') &&
+        typeof v.search === 'string' &&
+        typeof v.category === 'string' &&
+        VALID_CATEGORY_FILTERS.has(v.category) &&
+        typeof v.assignee === 'string' &&
+        typeof v.focus === 'string' &&
+        VALID_FOCUS_FILTERS.has(v.focus)
+    );
+}
+
+/** Syncs `?todo=<id>` search param with selected task state when rendered inside React Router. */
+function RouterTodoSync({
+    selectedTodoId,
+    onTodoFromUrl,
+    registerSyncUrl,
+}: {
+    selectedTodoId: string | null;
+    onTodoFromUrl: (id: string | null) => void;
+    registerSyncUrl: (fn: ((id: string | null) => void) | null) => void;
+}) {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlTodoId = searchParams.get('todo');
+    const prevUrlTodoRef = useRef<string | null | undefined>(undefined);
+
+    useEffect(() => {
+        if (prevUrlTodoRef.current === urlTodoId) return;
+        prevUrlTodoRef.current = urlTodoId;
+        if (urlTodoId) {
+            onTodoFromUrl(urlTodoId);
+        } else if (selectedTodoId !== null) {
+            onTodoFromUrl(null);
+        }
+    }, [urlTodoId, selectedTodoId, onTodoFromUrl]);
+
+    useEffect(() => {
+        registerSyncUrl(nextId => {
+            prevUrlTodoRef.current = nextId;
+            setSearchParams(
+                prev => {
+                    const next = new URLSearchParams(prev);
+                    if (nextId) next.set('todo', nextId);
+                    else next.delete('todo');
+                    return next;
+                },
+                { replace: true },
+            );
+        });
+        return () => registerSyncUrl(null);
+    }, [registerSyncUrl, setSearchParams]);
+
+    return null;
+}
+
 function splitStudentName(name?: string): { first_name: string; last_name: string } {
     const trimmed = (name ?? '').trim();
     if (!trimmed) return { first_name: 'Student', last_name: '' };
@@ -83,12 +145,24 @@ export default function Todos({
     navState,
     navKey,
 }: TodosProps) {
+    const inRouter = useInRouterContext();
     const { user } = useAuth();
-    const [filters, setFilters] = useState<TodoFilterState>(DEFAULT_FILTERS);
+    const [filters, setFilters] = usePersistentState<TodoFilterState>('todos.filters', DEFAULT_FILTERS, {
+        validate: isValidTodoFilters,
+    });
     const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<AdminTodo | null>(null);
     const [clearDoneOpen, setClearDoneOpen] = useState(false);
     const [draftSeed, setDraftSeed] = useState<TodoDraftSeed | null>(null);
+
+    const syncUrlTodoRef = useRef<((id: string | null) => void) | null>(null);
+    const registerSyncUrl = useCallback((fn: ((id: string | null) => void) | null) => {
+        syncUrlTodoRef.current = fn;
+    }, []);
+    const selectTodo = useCallback((id: string | null) => {
+        setSelectedTodoId(id);
+        syncUrlTodoRef.current?.(id);
+    }, []);
 
     const { data, isLoading, isFetching, error, refetch } = useAdminTodos();
     const { profiles, byId: profilesById } = useAdminProfiles();
@@ -114,7 +188,7 @@ export default function Todos({
         handledNavKeyRef.current = navKey;
 
         if (navState.todoId) {
-            setSelectedTodoId(navState.todoId);
+            selectTodo(navState.todoId);
             return;
         }
         if (navState.newTodo || navState.studentId) {
@@ -131,7 +205,7 @@ export default function Todos({
                 courseDate: navState.courseDate ?? null,
             });
         }
-    }, [navState, navKey]);
+    }, [navState, navKey, selectTodo, setFilters]);
 
     const stats = useMemo(() => computeTodoStats(todos, today), [todos, today]);
 
@@ -224,7 +298,7 @@ export default function Todos({
         if (!deleteTarget) return;
         const target = deleteTarget;
         setDeleteTarget(null);
-        if (selectedTodoId === target.id) setSelectedTodoId(null);
+        if (selectedTodoId === target.id) selectTodo(null);
         try {
             await deleteTodo.mutateAsync(target.id);
             toast.success('To-Do deleted');
@@ -275,6 +349,13 @@ export default function Todos({
 
     return (
         <div className="w-full max-w-5xl mx-auto space-y-4 sm:space-y-5">
+            {inRouter && (
+                <RouterTodoSync
+                    selectedTodoId={selectedTodoId}
+                    onTodoFromUrl={setSelectedTodoId}
+                    registerSyncUrl={registerSyncUrl}
+                />
+            )}
             {/* Migration notice if migration 96 hasn't been run yet */}
             {!available && (
                 <div className={`${calloutCls.warning} p-4 flex items-start gap-3`}>
@@ -516,7 +597,7 @@ export default function Todos({
                                         key={todo.id}
                                         todo={todo}
                                         profilesById={profilesById}
-                                        onOpen={item => setSelectedTodoId(item.id)}
+                                        onOpen={item => selectTodo(item.id)}
                                         onToggleDone={handleToggleDone}
                                         onToggleInProgress={handleToggleInProgress}
                                         onTogglePin={handleTogglePin}
@@ -556,7 +637,7 @@ export default function Todos({
                                         key={todo.id}
                                         todo={todo}
                                         profilesById={profilesById}
-                                        onOpen={item => setSelectedTodoId(item.id)}
+                                        onOpen={item => selectTodo(item.id)}
                                         onToggleDone={handleToggleDone}
                                         onToggleInProgress={handleToggleInProgress}
                                         onTogglePin={handleTogglePin}
@@ -582,7 +663,7 @@ export default function Todos({
                     profilesById={profilesById}
                     currentUserId={user?.id}
                     saving={updateTodo.isPending}
-                    onClose={() => setSelectedTodoId(null)}
+                    onClose={() => selectTodo(null)}
                     onSave={handleSaveDetail}
                     onRequestDelete={item => setDeleteTarget(item)}
                     onOpenCourse={handleOpenCourse}

@@ -31,6 +31,7 @@ describe('MobileBottomNav Component', () => {
         expect(screen.getByText('Enrollments')).toBeInTheDocument();
         expect(screen.getByText('Students')).toBeInTheDocument();
         expect(screen.getByText('Courses')).toBeInTheDocument();
+        expect(screen.getByText('To-Do')).toBeInTheDocument();
         // No "More": the burger menu has every other section and tool
         expect(screen.queryByText('More')).not.toBeInTheDocument();
 
@@ -45,6 +46,10 @@ describe('MobileBottomNav Component', () => {
         // Click Courses tab
         fireEvent.click(screen.getByText('Courses'));
         expect(handleNavigate).toHaveBeenCalledWith('courses');
+
+        // Click To-Do tab
+        fireEvent.click(screen.getByText('To-Do'));
+        expect(handleNavigate).toHaveBeenCalledWith('todos');
     });
 
     it('renders viewer mode navigation with Home, Students, Courses, Search, and More', () => {
@@ -125,6 +130,22 @@ describe('MobileBottomNav extras', () => {
     it('shows the pending approvals count on the admin Dashboard tab', () => {
         render(<MobileBottomNav {...base} activeTab="students" isViewer={false} pendingApprovalsCount={3} />);
         expect(screen.getByRole('button', { name: /dashboard, 3 approvals waiting/i })).toBeInTheDocument();
+    });
+
+    it('shows open and overdue To-Do badges on the admin To-Do tab', () => {
+        const { rerender } = render(
+            <MobileBottomNav {...base} activeTab="dashboard" isViewer={false} todoOpenCount={6} todoOverdueCount={0} />,
+        );
+        const openBtn = screen.getByRole('button', { name: /to-do, 6 open/i });
+        expect(openBtn).toBeInTheDocument();
+        expect(openBtn.querySelector('.bg-brand-500')).toBeInTheDocument();
+
+        rerender(
+            <MobileBottomNav {...base} activeTab="todos" isViewer={false} todoOpenCount={6} todoOverdueCount={2} />,
+        );
+        const overdueBtn = screen.getByRole('button', { name: /to-do, 6 open, 2 overdue/i });
+        expect(overdueBtn).toHaveAttribute('aria-current', 'page');
+        expect(overdueBtn.querySelector('.bg-danger')).toBeInTheDocument();
     });
 
     it('marks More active inside it, and labels the density toggle in plain case', () => {

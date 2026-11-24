@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowUpRight,
     BookOpen,
     Check,
     CheckSquare,
+    Link2,
     ListChecks,
     MessageSquare,
     Pin,
@@ -87,6 +88,8 @@ export default function TodoDetailModal({
     const [checklist, setChecklist] = useState<TodoChecklistItem[]>([]);
     const [newCheckText, setNewCheckText] = useState('');
     const [commentText, setCommentText] = useState('');
+    const [linkCopied, setLinkCopied] = useState(false);
+    const linkCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Re-sync local form state whenever a different todo is opened
     const todoId = todo?.id ?? null;
@@ -106,8 +109,15 @@ export default function TodoDetailModal({
         setChecklist(todo.checklist);
         setNewCheckText('');
         setCommentText('');
+        setLinkCopied(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [todoId]);
+
+    useEffect(() => {
+        return () => {
+            if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
+        };
+    }, []);
 
     const sessionsMap = useCourseSessions(open && Boolean(courseId));
     const suggestedCourseDates = useMemo(() => {
@@ -215,6 +225,20 @@ export default function TodoDetailModal({
         }
     };
 
+    const handleCopyLink = async () => {
+        const url = `${window.location.origin}/todos?todo=${encodeURIComponent(todo.id)}`;
+        try {
+            await navigator.clipboard.writeText(url);
+            setLinkCopied(true);
+            toast.success('Task link copied');
+            if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
+            linkCopiedTimerRef.current = setTimeout(() => setLinkCopied(false), 1800);
+        } catch (err) {
+            console.error('Failed to copy task link:', err);
+            toast.error('Could not copy task link');
+        }
+    };
+
     const author = todo.created_by ? profilesById.get(todo.created_by) : null;
     const completer = todo.completed_by ? profilesById.get(todo.completed_by) : null;
     const progress = checklistProgress(checklist);
@@ -240,6 +264,13 @@ export default function TodoDetailModal({
             }`}
             headerAction={
                 <div className="flex items-center gap-1">
+                    <IconButton
+                        size="sm"
+                        label="Copy link"
+                        onClick={() => void handleCopyLink()}
+                    >
+                        {linkCopied ? <Check size={15} className="text-success" /> : <Link2 size={15} />}
+                    </IconButton>
                     <IconButton
                         size="sm"
                         active={isPinned}

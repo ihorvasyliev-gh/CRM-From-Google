@@ -34,6 +34,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Security audit (high+)
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Lint
         run: npm run lint
 
@@ -46,3 +49,14 @@ jobs:
           # Placeholders: the build only embeds them, nothing is called
           VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: ci-placeholder
+
+  edge-functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Supabase Edge Functions
+        run: deno check supabase/functions/send-push-notification/index.ts

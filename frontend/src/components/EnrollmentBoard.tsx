@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useDeferredValue, startTransition } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Archive, GraduationCap, RotateCcw } from 'lucide-react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCenter, KeyboardSensor, MouseSensor, useSensor, useSensors, MeasuringStrategy, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../hooks/usePersistentState';
 
@@ -67,6 +67,7 @@ export default function EnrollmentBoard({
     initialStatus,
     onOpenApprovals,
     onNavigate,
+    onOpenStudentDetail,
 }: {
     initialCourseFilter?: string;
     initialCourseDate?: string;
@@ -77,6 +78,8 @@ export default function EnrollmentBoard({
     onOpenApprovals?: () => void;
     /** App-wide navigator (used by StudentDetail when jumping to another page) */
     onNavigate?: NavigateFn;
+    /** Opens the app-wide URL-driven StudentDetail drawer when provided */
+    onOpenStudentDetail?: (studentId: string) => void;
 }) {
 
     // Modals
@@ -123,17 +126,37 @@ export default function EnrollmentBoard({
 
     // Filters
     // Board filters survive navigating away and back within the tab (session) — preferences like sort
-    // order and collapsed columns are remembered across sessions (local).
-    const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => initialCourseFilter || 'all', { validate: isString });
+    // order and collapsed columns are remembered across sessions (local). Explicit URL query params
+    // (?course=..., ?date=..., ?invite=...) override saved filters so admins can share cohort links.
+    const urlParams = useMemo(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''), []);
+    const urlCourse = urlParams.get('course') || undefined;
+    const urlDate = urlParams.get('date') || undefined;
+    const rawUrlInvite = urlParams.get('invite');
+    const urlInvite: InviteFilter | undefined = rawUrlInvite === 'expired' || rawUrlInvite === 'soon' || rawUrlInvite === 'attention' ? rawUrlInvite : undefined;
+
+    const [selectedCourse, setSelectedCourse] = usePersistentState<string>('board.course', () => urlCourse || initialCourseFilter || 'all', { validate: isString });
     const [selectedVariant, setSelectedVariant] = usePersistentState<string>('board.variant', 'all', { validate: isString });
-    const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => initialCourseDate || 'all', { validate: isString });
+    const [selectedCourseDate, setSelectedCourseDate] = usePersistentState<string>('board.courseDate', () => urlDate || initialCourseDate || 'all', { validate: isString });
     // Set by the search field once typing pauses
     const [searchQuery, setSearchQuery] = usePersistentState<string>('board.search', '', { validate: isString });
     // The invite and date filters are remembered like the rest: coming back from a student's page
     // shows the same cards
-    const [inviteFilter, setInviteFilter] = usePersistentState<InviteFilter>('board.inviteFilter', () => initialInviteFilter || 'all', {
+    const [inviteFilter, setInviteFilter] = usePersistentState<InviteFilter>('board.inviteFilter', () => urlInvite || initialInviteFilter || 'all', {
         validate: (v): v is InviteFilter => v === 'all' || v === 'expired' || v === 'soon' || v === 'attention',
     });
+
+    // Apply URL deep-link overrides once on mount if present (even when sessionStorage had another filter)
+    const appliedUrlDeepLinkRef = useRef(false);
+    useEffect(() => {
+        if (appliedUrlDeepLinkRef.current) return;
+        appliedUrlDeepLinkRef.current = true;
+        if (urlCourse) {
+            setSelectedCourse(urlCourse);
+            setSelectedVariant('all');
+        }
+        if (urlDate) setSelectedCourseDate(urlDate);
+        if (urlInvite) setInviteFilter(urlInvite);
+    }, [urlCourse, urlDate, urlInvite, setSelectedCourse, setSelectedVariant, setSelectedCourseDate, setInviteFilter]);
     const [dateFrom, setDateFrom] = usePersistentState<string>('board.dateFrom', '', { validate: isString });
     const [dateTo, setDateTo] = usePersistentState<string>('board.dateTo', '', { validate: isString });
     const [courseDateFrom, setCourseDateFrom] = usePersistentState<string>('board.courseDateFrom', '', { validate: isString });
@@ -460,9 +483,13 @@ export default function EnrollmentBoard({
 
     const handleShowDetail = useCallback((enrollment: EnrollmentRow) => {
         if (enrollment.students) {
-            setDetailStudent(enrollment.students);
+            if (onOpenStudentDetail) {
+                onOpenStudentDetail(enrollment.students.id);
+            } else {
+                setDetailStudent(enrollment.students);
+            }
         }
-    }, []);
+    }, [onOpenStudentDetail]);
 
     const handleStudentDetailNavigate: NavigateFn = useCallback((tab: string, state?: NavState) => {
         if (tab === 'enrollments' && state?.courseId) {
@@ -581,7 +608,8 @@ export default function EnrollmentBoard({
     }, [hasSelection, clearSelection]);
 
     const mouseSensor = useSensor(MouseSensor, MOUSE_SENSOR_OPTS);
-    const sensors = useSensors(mouseSensor);
+    const keyboardSensor = useSensor(KeyboardSensor);
+    const sensors = useSensors(mouseSensor, keyboardSensor);
 
     const handleBulkUpdateStatus = useCallback((newStatus: EnrollmentStatus) => {
         const selected = enrollments.filter(e => bulkActions.selectedIds.has(e.id));
@@ -1110,8 +1138,8 @@ export default function EnrollmentBoard({
                 <StudentFlagModal key={flagMount.key} open={!!flagModalTarget} target={flagTarget} flags={studentFlagsHook.flagsByStudentId.get(flagTarget.studentId) ?? EMPTY_FLAGS} courses={uniqueCourses} onAddFlag={(courseId, comment) => studentFlagsHook.addFlag(flagTarget.studentId, courseId, comment)} onRemoveFlag={studentFlagsHook.removeFlag} onClose={() => setFlagModalTarget(null)} />
             )}
 
-            {/* Student Detail Drawer */}
-            {shownDetail && (
+            {/* Student Detail Drawer (standalone fallback; App mounts a single URL-driven drawer) */}
+            {!onOpenStudentDetail && shownDetail && (
                 <StudentDetail
                     open={!!detailStudent}
                     student={shownDetail}

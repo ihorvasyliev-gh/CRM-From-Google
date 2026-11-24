@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox } from 'lucide-react';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox, Link2 } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone, formatEircode } from '../lib/contactUtils';
@@ -586,9 +586,25 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                 <p className="text-xs text-muted">{enrollments.length} enrollment{enrollments.length !== 1 ? 's' : ''}</p>
                             </div>
                         </div>
-                        <button type="button" onClick={onClose} aria-label="Close student details" title="Close (Esc)" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
-                            <X size={18} />
-                        </button>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const url = `${window.location.origin}/students?student=${encodeURIComponent(student.id)}`;
+                                    navigator.clipboard.writeText(url)
+                                        .then(() => notify({ message: 'Student link copied', type: 'success' }))
+                                        .catch(() => notify({ message: 'Could not copy link', type: 'error' }));
+                                }}
+                                aria-label="Copy link to student"
+                                title="Copy link to student"
+                                className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all"
+                            >
+                                <Link2 size={16} />
+                            </button>
+                            <button type="button" onClick={onClose} aria-label="Close student details" title="Close (Esc)" className="p-2 text-muted hover:text-primary hover:bg-surface-elevated rounded-lg transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 

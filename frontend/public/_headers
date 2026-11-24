@@ -5,8 +5,18 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com; img-src 'self' data: blob: https:; frame-src 'self'; object-src 'none'; base-uri 'self';
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com; img-src 'self' data: blob: https:; frame-src 'self'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; base-uri 'self';
 
+
+# Public pages: open via link, kept out of search engines
+/confirm
+  X-Robots-Tag: noindex, nofollow
+
+/c/*
+  X-Robots-Tag: noindex, nofollow
+
+/status
+  X-Robots-Tag: noindex, nofollow
 
 # The public cheque requisition page: open to anyone with the link, kept out of search engines
 /cheque

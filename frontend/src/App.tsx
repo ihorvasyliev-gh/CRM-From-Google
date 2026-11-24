@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, Suspense, useTransition, Activity, ViewTransition, type ReactNode } from 'react';
 import { lazyWithRetry } from './lib/lazyWithRetry';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Users, BookOpen, GraduationCap, FileText, FileInput, LogOut, Menu, X, Sun, Moon, Settings as SettingsIcon, Bell, Briefcase, PieChart, Clock, Rows3, Search, HelpCircle, Receipt, CheckSquare } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
+import BulkEmailModal from './components/BulkEmailModal';
 import { useConfirmationNotifier } from './hooks/useConfirmationNotifier';
 import { useGlobalRealtimeSync } from './hooks/useGlobalRealtimeSync';
 import { fullName, Student, StudentPayload } from './lib/types';
@@ -63,7 +64,7 @@ import ViewerHeader from './components/Viewer/ViewerHeader';
 import { VIEWER_TABS, type ViewerTab } from './components/Viewer/viewerMeta';
 import { useStudentDrawer, useVisibleStudentIds } from './components/Viewer/studentDrawer';
 import { usePendingApprovalsCount } from './hooks/useApprovals';
-import { useAdminTodoStats } from './hooks/useTodos';
+import { useAdminTodoStats, useTodoRealtimeNotifier } from './hooks/useTodos';
 
 // `title` (page header) defaults to `label` (sidebar)
 const NAV_ITEMS: { key: string; label: string; title?: string; icon: typeof Users; subtitle: string; group: string }[] = [
@@ -157,12 +158,17 @@ function App() {
     useModalBehavior(sidebarOpen, () => setSidebarOpen(false));
 
     // Global Modal & Palette States
+    const [searchParams, setSearchParams] = useSearchParams();
     const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
     const [globalAddStudentOpen, setGlobalAddStudentOpen] = useState(false);
     const [globalEnrollModalOpen, setGlobalEnrollModalOpen] = useState(false);
     const [globalEnrollStudentId, setGlobalEnrollStudentId] = useState<string | undefined>();
     const [globalStudentDetail, setGlobalStudentDetail] = useState<Student | null>(null);
+    const [studentDetailActions, setStudentDetailActions] = useState<{
+        onEdit?: (student: Student) => void;
+        onDelete?: (student: Student) => void;
+    } | null>(null);
     const viewerDrawer = useStudentDrawer();
     const viewerListIds = useVisibleStudentIds();
 
@@ -208,6 +214,7 @@ function App() {
         setGlobalEnrollModalOpen(false);
         setGlobalEnrollStudentId(undefined);
         setGlobalStudentDetail(null);
+        setStudentDetailActions(null);
         setSidebarOpen(false);
     }, [user?.id]);
     useLayoutEffect(() => {
@@ -235,22 +242,51 @@ function App() {
         });
     }, [navigateFn]);
 
+    useTodoRealtimeNotifier(!!user && role === 'admin', (todoId) => {
+        navigate('todos', { todoId });
+    });
+
+    const syncStudentUrl = useCallback((studentId: string | null) => {
+        setSearchParams(prev => {
+            const current = prev.get('student');
+            if ((studentId ?? null) === current) return prev;
+            const next = new URLSearchParams(prev);
+            if (studentId) next.set('student', studentId);
+            else next.delete('student');
+            return next;
+        }, { replace: !studentId });
+    }, [setSearchParams]);
+
+    const openStudentRecord = useCallback((
+        student: Student,
+        actions?: { onEdit?: (s: Student) => void; onDelete?: (s: Student) => void },
+    ) => {
+        setGlobalStudentDetail(student);
+        setStudentDetailActions(actions ?? null);
+        syncStudentUrl(student.id);
+    }, [syncStudentUrl]);
+
+    const closeStudentDetail = useCallback(() => {
+        setGlobalStudentDetail(null);
+        setStudentDetailActions(null);
+        syncStudentUrl(null);
+    }, [syncStudentUrl]);
 
     const handleOpenStudentDetail = useCallback(async (studentId: string) => {
         // Usually already loaded with the enrollments: the panel opens at once, without a request
         const known = queryClient.getQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY)
             ?.find(e => e.student_id === studentId && e.students)?.students;
         if (known) {
-            setGlobalStudentDetail(known);
+            openStudentRecord(known);
             return;
         }
         try {
-            setGlobalStudentDetail(await fetchStudent(studentId));
+            openStudentRecord(await fetchStudent(studentId));
         } catch (e) {
             console.error('Failed to load student details', e);
             toast.error('Could not open student details');
         }
-    }, [queryClient]);
+    }, [queryClient, openStudentRecord]);
 
     const handleOpenStudentByEmail = useCallback(async (email: string) => {
         const normalized = email.trim().toLowerCase();
@@ -258,18 +294,58 @@ function App() {
         const known = queryClient.getQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY)
             ?.find(e => e.students?.email?.trim().toLowerCase() === normalized)?.students;
         if (known) {
-            setGlobalStudentDetail(known);
+            openStudentRecord(known);
             return;
         }
         try {
             const found = await fetchStudentByEmail(normalized);
-            if (found) setGlobalStudentDetail(found);
+            if (found) openStudentRecord(found);
             else toast.error('Student record not found in CRM');
         } catch (e) {
             console.error('Failed to load student details by email', e);
             toast.error('Could not open student details');
         }
-    }, [queryClient]);
+    }, [queryClient, openStudentRecord]);
+
+    // Sync admin ?student=<id> URL deep-links (direct links, browser Back/Forward)
+    const adminUrlStudentId = user && !isViewer && !isOutreach ? searchParams.get('student') : null;
+    const globalStudentIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        globalStudentIdRef.current = globalStudentDetail?.id ?? null;
+    }, [globalStudentDetail?.id]);
+    useEffect(() => {
+        if (!user || isViewer || isOutreach) return;
+        if (!adminUrlStudentId) {
+            if (globalStudentIdRef.current) {
+                setGlobalStudentDetail(null);
+                setStudentDetailActions(null);
+            }
+            return;
+        }
+        if (globalStudentIdRef.current === adminUrlStudentId) return;
+        let cancelled = false;
+        const known = queryClient.getQueryData<EnrollmentWithRelations[]>(ENROLLMENTS_KEY)
+            ?.find(e => e.student_id === adminUrlStudentId && e.students)?.students;
+        if (known) {
+            setGlobalStudentDetail(known);
+            setStudentDetailActions(null);
+            return;
+        }
+        fetchStudent(adminUrlStudentId)
+            .then(found => {
+                if (!cancelled) {
+                    setGlobalStudentDetail(found);
+                    setStudentDetailActions(null);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    toast.error('Student record not found');
+                    syncStudentUrl(null);
+                }
+            });
+        return () => { cancelled = true; };
+    }, [adminUrlStudentId, user, isViewer, isOutreach, queryClient, syncStudentUrl]);
 
     useGlobalHotkeys(!!user && !isOutreach, {
         tabKeys: isViewer ? VIEWER_TABS.map(t => t.key) : NAV_ITEMS.map(n => n.key),
@@ -347,6 +423,7 @@ function App() {
                             initialStatus={navState?.status}
                             onOpenApprovals={() => setApprovalsModalOpen(true)}
                             onNavigate={navigate}
+                            onOpenStudentDetail={handleOpenStudentDetail}
                         />
                     } />
                     <Route path="/todos" element={null} />
@@ -665,7 +742,7 @@ function App() {
                                             onAddEnrollment={() => setGlobalEnrollModalOpen(true)}
                                         />
                                     )}
-                                    {tab === 'students' && <StudentList onNavigate={navigate} />}
+                                    {tab === 'students' && <StudentList onNavigate={navigate} onOpenStudentDetail={openStudentRecord} />}
                                     {tab === 'todos' && (
                                         <Todos
                                             onNavigate={navigate}
@@ -680,7 +757,7 @@ function App() {
                                             onOpenStudentByEmail={handleOpenStudentByEmail}
                                         />
                                     )}
-                                    {tab === 'analytics' && <Analytics />}
+                                    {tab === 'analytics' && <Analytics onOpenStudentDetail={handleOpenStudentDetail} />}
                                     {tab === 'documents' && <DocumentGenerator />}
                                     {tab === 'pdf-forms' && <PdfForms canManage={canManagePdfForms(role)} admin={role === 'admin'} />}
                                     {tab === 'cheque-reqs' && <ChequeRequisitions />}
@@ -713,6 +790,8 @@ function App() {
                 onSignOut={signOut}
                 userEmail={user.email}
                 pendingApprovalsCount={isViewer ? 0 : pendingApprovalsCount}
+                todoOpenCount={!isViewer && todoStats.available ? todoStats.openCount : 0}
+                todoOverdueCount={!isViewer && todoStats.available ? todoStats.overdueCount : 0}
             />
 
             {/* Mobile Floating Actions (FAB): the dashboard only; the board, Students and Courses
@@ -736,6 +815,7 @@ function App() {
                 </Suspense>
             )}
 
+            <BulkEmailModal />
             <GlobalToaster />
 
             {/* Global Command Palette */}
@@ -750,7 +830,7 @@ function App() {
                             if (isViewer) {
                                 viewerDrawer.open(student.id);
                             } else {
-                                setGlobalStudentDetail(student);
+                                openStudentRecord(student);
                             }
                         }}
                         onOpenAddStudent={() => setGlobalAddStudentOpen(true)}
@@ -832,13 +912,19 @@ function App() {
                 );
             })()}
 
-            {/* Global Student Detail Modal */}
+            {/* Global Student Detail Modal (URL driven: ?student=<id>) */}
             {!isViewer && shownStudentDetail && (
                 <Suspense fallback={null}>
                     <StudentDetail
                         open={!!globalStudentDetail}
                         student={shownStudentDetail}
-                        onClose={() => setGlobalStudentDetail(null)}
+                        onClose={closeStudentDetail}
+                        onEdit={studentDetailActions?.onEdit}
+                        onDelete={studentDetailActions?.onDelete ? () => {
+                            const target = shownStudentDetail;
+                            closeStudentDetail();
+                            studentDetailActions.onDelete?.(target);
+                        } : undefined}
                         onNavigate={navigate}
                         onStudentUpdated={setGlobalStudentDetail}
                         onEnroll={() => {
