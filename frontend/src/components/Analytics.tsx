@@ -14,7 +14,7 @@ import { Button } from './ui/Button';
 import { Segmented, UnderlineTabs, type UnderlineTab } from './ui/Tabs';
 import { DateInput } from './ui/DatePicker';
 import { fieldCls } from './ui/styles';
-import { SelectField } from './Viewer/ViewerUI';
+import { SelectField } from './ui/FieldPrimitives';
 import DrillDownModal from './Analytics/DrillDownModal';
 import Overview from './Analytics/Overview';
 import { courseRunKey, isReportable, listCourseRuns } from './Analytics/courseRuns';

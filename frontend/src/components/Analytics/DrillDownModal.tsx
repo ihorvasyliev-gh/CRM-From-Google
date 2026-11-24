@@ -5,7 +5,7 @@ import { Button, IconButton } from '../ui/Button';
 import SearchInput from '../ui/SearchInput';
 import Pagination from '../ui/Pagination';
 import { EmptyState } from '../ui/States';
-import { PriorityStar } from '../Viewer/ViewerUI';
+import { PriorityStar } from '../ui/FieldPrimitives';
 import { tableWrapCls, tableCls, theadCls, thCls, tbodyCls, trCls, tdCls } from '../ui/styles';
 import type { EnrollmentWithRelations } from '../../lib/documentUtils';
 import type { Student } from '../../lib/types';

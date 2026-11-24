@@ -5,13 +5,11 @@ import {
     FileCheck2,
     FilePlus2,
     FileText,
-    Loader2,
     Moon,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
     Sun,
-    X,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { SectionHeader } from './ui/Card';
@@ -21,93 +19,18 @@ import { calloutCls, panelCls } from './ui/styles';
 import { GlobalToaster } from './Toast';
 import DefaultsModal from './ChequeRequisitions/DefaultsModal';
 import ChequeReqEditor, { type EditorSession } from './ChequeRequisitions/Editor';
+import { ReadingProgressBanner } from './ChequeRequisitions/chequeHelpers';
+import { clipboardFiles, isEditableTarget } from './ChequeRequisitions/chequeUtils';
 import {
     blankSession,
     closeInvoice,
     invoicePageSizes,
     useOpenInvoice,
     type OpenedInvoice,
-    type ReadProgress,
 } from './ChequeRequisitions/useOpenInvoice';
 import { useTheme } from '../hooks/useTheme';
 import { draftFromInvoice, PUBLIC_DEFAULTS_KEY, readDefaults, type ChequeReqDefaults } from '../lib/chequeReq/draft';
 import { INVOICE_ACCEPT } from '../lib/chequeReq/read';
-
-function isEditableTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
-
-function clipboardFiles(data: DataTransfer | null): File[] {
-    if (!data) return [];
-    if (data.files && data.files.length > 0) return Array.from(data.files);
-    const files: File[] = [];
-    for (const item of Array.from(data.items ?? [])) {
-        if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) files.push(file);
-        }
-    }
-    return files;
-}
-
-function PublicReadingBanner({
-    reading,
-    progress,
-    onCancel,
-}: {
-    reading: string | null;
-    progress: ReadProgress | null;
-    onCancel: () => void;
-}) {
-    if (!reading && !progress) return null;
-    const label = progress?.label || reading || 'Reading invoice…';
-    const pct =
-        typeof progress?.progress === 'number'
-            ? Math.max(0, Math.min(100, Math.round(progress.progress * (progress.progress <= 1 ? 100 : 1))))
-            : null;
-    const fileMeta =
-        progress?.fileCount && progress.fileCount > 1 && progress.fileIndex !== undefined
-            ? `File ${progress.fileIndex + 1} of ${progress.fileCount}`
-            : null;
-
-    return (
-        <div
-            role="status"
-            aria-live="polite"
-            className="rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
-        >
-            <div className="flex-1 min-w-0 space-y-1.5">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="inline-flex items-center gap-2 font-semibold text-primary min-w-0">
-                        <Loader2 size={14} className="animate-spin text-brand-500 shrink-0" />
-                        <span className="truncate">{label}</span>
-                    </span>
-                    <span className="text-muted tabular-nums shrink-0">
-                        {[fileMeta, pct !== null ? `${pct}%` : null].filter(Boolean).join(' · ')}
-                    </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-surface-elevated overflow-hidden">
-                    {pct !== null ? (
-                        <div
-                            className="h-full rounded-full bg-brand-500 transition-all duration-200"
-                            style={{ width: `${Math.max(4, pct)}%` }}
-                        />
-                    ) : (
-                        <div className="h-full w-1/3 rounded-full bg-brand-500/75 animate-pulse" />
-                    )}
-                </div>
-            </div>
-            {progress?.canCancel !== false && (
-                <Button variant="secondary" size="sm" onClick={onCancel} className="shrink-0 self-start sm:self-center">
-                    <X size={13} />
-                    Cancel
-                </Button>
-            )}
-        </div>
-    );
-}
 
 /**
  * Cheque requisitions without signing in (/cheque), for anyone with the link: the same invoice
@@ -261,7 +184,7 @@ export default function PublicChequeRequisitions() {
                                     className="py-10"
                                 />
 
-                                <PublicReadingBanner reading={reading} progress={progress} onCancel={cancel} />
+                                <ReadingProgressBanner reading={reading} progress={progress} onCancel={cancel} />
 
                                 <div className="flex items-center justify-end">
                                     <span className="inline-flex items-center gap-1.5 text-xs text-muted px-2.5 py-1 rounded-lg bg-surface-elevated border border-border-subtle">

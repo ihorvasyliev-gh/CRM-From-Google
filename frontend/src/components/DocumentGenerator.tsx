@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useInRouterContext, useNavigate, useSearchParams } from 'react-router-dom';
+import { useInRouterContext } from 'react-router-dom';
 import { Braces, FileArchive, FolderOpen, Tag, Users, Variable } from 'lucide-react';
 import { fetchCourses } from '../lib/queries';
 import { useEnrollmentList } from '../hooks/useEnrollments';
@@ -9,6 +9,7 @@ import ConfirmDialog from './ConfirmDialog';
 import StatTile from './ui/StatTile';
 import { UnderlineTabs, type UnderlineTab } from './ui/Tabs';
 import { ErrorState } from './ui/States';
+import { RouterTabSync } from './ui/RouterTabSync';
 import GenerateTab from './DocumentGenerator/GenerateTab';
 import TemplatesTab from './DocumentGenerator/TemplatesTab';
 import VariablesExcelTab from './DocumentGenerator/VariablesExcelTab';
@@ -20,46 +21,6 @@ import {
     type DocumentsTabKey,
     type PreviewModalTarget,
 } from './DocumentGenerator/types';
-
-/** Syncs `?tab=` search param with state when rendered inside React Router. */
-function RouterTabSync({
-    activeTab,
-    onTabFromUrl,
-    registerNavigate,
-}: {
-    activeTab: DocumentsTabKey;
-    onTabFromUrl: (tab: DocumentsTabKey) => void;
-    registerNavigate: (fn: (tab: DocumentsTabKey, path?: string) => void) => void;
-}) {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const navigate = useNavigate();
-    const urlTab = searchParams.get('tab');
-
-    useEffect(() => {
-        if (isDocumentsTabKey(urlTab) && urlTab !== activeTab) {
-            onTabFromUrl(urlTab);
-        }
-    }, [urlTab, activeTab, onTabFromUrl]);
-
-    useEffect(() => {
-        registerNavigate((nextTab, customPath) => {
-            if (customPath) {
-                navigate(customPath);
-                return;
-            }
-            setSearchParams(
-                prev => {
-                    const next = new URLSearchParams(prev);
-                    next.set('tab', nextTab);
-                    return next;
-                },
-                { replace: true },
-            );
-        });
-    }, [navigate, registerNavigate, setSearchParams]);
-
-    return null;
-}
 
 export default function DocumentGenerator() {
     const inRouter = useInRouterContext();
@@ -151,6 +112,7 @@ export default function DocumentGenerator() {
             {inRouter && (
                 <RouterTabSync
                     activeTab={activeTab}
+                    isValidTab={isDocumentsTabKey}
                     onTabFromUrl={setActiveTab}
                     registerNavigate={registerNavigate}
                 />

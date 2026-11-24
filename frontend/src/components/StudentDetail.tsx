@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useApproveCompletion, useRejectCompletion } from '../hooks/useApprovals';
-import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckCircle, CheckSquare, Send, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox, Link2 } from 'lucide-react';
+import { X, Edit2, Pencil, Trash2, UserPlus, Mail, Phone, MapPin, Calendar, Clock, CheckSquare, XCircle, GraduationCap, Check, Loader2, ExternalLink, GitMerge, Copy, MessageSquare, Navigation, House, Mailbox, Link2 } from 'lucide-react';
 import { Student, getAvatarGradient, cleanVariant, fullName, type EnrollmentStatus, type EmploymentStatusRow } from '../lib/types';
 import { changeEnrollmentStatus } from '../lib/enrollmentStatus';
 import { formatPhoneForWhatsApp, formatPhoneForCall, formatGoogleMapsUrl, formatStudentContactSummary, normalizePhone, formatEircode } from '../lib/contactUtils';
@@ -73,15 +73,6 @@ interface Props {
     onStudentUpdated?: (student: Student) => void;
     onNavigate?: NavigateFn;
 }
-
-const STATUS_BADGE: Record<string, { icon: React.JSX.Element; className: string }> = {
-    requested: { icon: <Clock size={12} />, className: 'bg-warning/10 text-status-requested border-warning/30' },
-    invited: { icon: <Send size={12} />, className: 'bg-info/10 text-status-invited border-info/25' },
-    confirmed: { icon: <CheckCircle size={12} />, className: 'bg-success/10 text-status-confirmed border-success/25' },
-    rejected: { icon: <XCircle size={12} />, className: 'bg-danger/10 text-status-rejected border-danger/25' },
-    completed: { icon: <GraduationCap size={12} />, className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20' },
-    withdrawn: { icon: <XCircle size={12} />, className: 'bg-muted/10 text-muted border-border-subtle' },
-};
 
 // ─── Inline Editable Field ──────────────────────────────────
 function InlineEditField({
@@ -858,7 +849,9 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                             </div>
                         ) : (
                             <div className="space-y-2.5">
-                                {enrollments.map(en => (
+                                {enrollments.map(en => {
+                                    const statusCfg = STATUS_CONFIG[en.status];
+                                    return (
                                     <div key={en.id} className="p-3 rounded-xl bg-surface/50 border border-border-subtle hover:bg-surface transition-all group">
                                         <div className="flex items-center justify-between mb-2">
                                             <div>
@@ -875,8 +868,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                                 )}
                                                 <SessionLine session={sessionForEnrollment({ ...en, completed_date: en.completed_date ?? null }, courseSessions)} />
                                             </div>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${STATUS_BADGE[en.status]?.className || 'bg-surface-elevated text-muted border-border-subtle'}`}>
-                                                {STATUS_BADGE[en.status]?.icon} {STATUS_CONFIG[en.status]?.label || en.status}
+                                            <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border font-medium ${statusCfg ? `${statusCfg.bg} ${statusCfg.color} ${statusCfg.border}` : 'bg-surface-elevated text-muted border-border-subtle'}`}>
+                                                {statusCfg?.icon} {statusCfg?.label || en.status}
                                             </span>
                                         </div>
 
@@ -955,7 +948,8 @@ export default function StudentDetail({ open = true, student: openedWith, onClos
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
